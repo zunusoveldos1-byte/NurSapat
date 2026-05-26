@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             x:Class="NurSapat.App.Views.RegistrationView"
+             x:DataType="vm:RegistrationViewModel">
+	<Grid Background="{StaticResource BackgroundBrush}"
+          VerticalAlignment="Center" HorizontalAlignment="Center" Width="360">
+		<StackPanel Spacing="12" Margin="32">
+			<TextBlock Text="Регистрация" FontSize="24"
+                       Foreground="{StaticResource TextBrush}"
+                       HorizontalAlignment="Center"/>
+			<TextBlock Text="{Binding ErrorMessage}"
+                       Foreground="{StaticResource ErrorBrush}"
+                       IsVisible="{Binding !!ErrorMessage}"/>
+			<TextBox Text="{Binding Username}" PlaceholderText="Имя пользователя"/>
+			<TextBox Text="{Binding Password}" PasswordChar="*" PlaceholderText="Пароль"/>
+			<TextBox Text="{Binding ConfirmPassword}" PasswordChar="*" PlaceholderText="Подтверждение пароля"/>
+			<Button Content="Зарегистрироваться" Classes="Primary"
+                    Command="{Binding RegisterCommand}"
+                    IsEnabled="{Binding !IsBusy}"/>
+			<Button Content="Назад" Classes="Secondary"
+                    Command="{Binding BackToLoginCommand}"/>
+			<ProgressBar IsIndeterminate="True"
+                         IsVisible="{Binding IsBusy}" Height="4"/>
+		</StackPanel>
+	</Grid>
+</UserControl>

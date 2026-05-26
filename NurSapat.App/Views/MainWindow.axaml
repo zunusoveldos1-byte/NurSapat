@@ -1,0 +1,10 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+        x:Class="NurSapat.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="NurSapat"
+        Width="1024" Height="720"
+        Background="{StaticResource BackgroundBrush}">
+	<ContentControl Content="{Binding CurrentView}"/>
+</Window>

@@ -1,0 +1,32 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             xmlns:views="clr-namespace:NurSapat.App.Views"
+             x:Class="NurSapat.App.App"
+             RequestedThemeVariant="Dark">
+	<Application.Resources>
+		<ResourceDictionary>
+			<ResourceDictionary.MergedDictionaries>
+				<ResourceInclude Source="/Styles/Colors.axaml"/>
+			</ResourceDictionary.MergedDictionaries>
+		</ResourceDictionary>
+	</Application.Resources>
+
+	<Application.Styles>
+		<FluentTheme />
+		<StyleInclude Source="/Styles/ButtonStyles.axaml"/>
+	</Application.Styles>
+
+	<!-- Неявные шаблоны данных -->
+	<Application.DataTemplates>
+		<DataTemplate DataType="vm:LoginViewModel">
+			<views:LoginView/>
+		</DataTemplate>
+		<DataTemplate DataType="vm:RegistrationViewModel">
+			<views:RegistrationView/>
+		</DataTemplate>
+		<DataTemplate DataType="vm:DashboardViewModel">
+			<views:DashboardView/>
+		</DataTemplate>
+	</Application.DataTemplates>
+</Application>

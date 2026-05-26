@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             x:Class="NurSapat.App.Views.LoginView"
+             x:DataType="vm:LoginViewModel">
+	<Grid Background="{StaticResource BackgroundBrush}"
+          VerticalAlignment="Center" HorizontalAlignment="Center" Width="360">
+		<StackPanel Spacing="12" Margin="32">
+			<TextBlock Text="Вход в систему" FontSize="24"
+                       Foreground="{StaticResource TextBrush}"
+                       HorizontalAlignment="Center"/>
+			<TextBlock Text="{Binding ErrorMessage}"
+                       Foreground="{StaticResource ErrorBrush}"
+                       IsVisible="{Binding !!ErrorMessage}"/>
+			<TextBox Text="{Binding Username}" PlaceholderText="Имя пользователя"/>
+			<TextBox Text="{Binding Password}" PasswordChar="*" PlaceholderText="Пароль"/>
+			<Button Content="Войти" Classes="Primary"
+                    Command="{Binding LoginCommand}"
+                    IsEnabled="{Binding !IsBusy}"/>
+			<Button Content="Зарегистрироваться" Classes="Secondary"
+                    Command="{Binding GoToRegisterCommand}"/>
+			<ProgressBar IsIndeterminate="True"
+                         IsVisible="{Binding IsBusy}" Height="4"/>
+		</StackPanel>
+	</Grid>
+</UserControl>
