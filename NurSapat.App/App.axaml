@@ -2,8 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
              xmlns:views="clr-namespace:NurSapat.App.Views"
+             xmlns:cadVm="clr-namespace:NurSapat.Cad.UI.ViewModels;assembly=NurSapat.Cad.UI"
+             xmlns:cadViews="clr-namespace:NurSapat.Cad.UI.Views;assembly=NurSapat.Cad.UI"
              x:Class="NurSapat.App.App"
-             RequestedThemeVariant="Dark">
+             RequestedThemeVariant="Light">
 	<Application.Resources>
 		<ResourceDictionary>
 			<ResourceDictionary.MergedDictionaries>
@@ -15,9 +17,39 @@
 	<Application.Styles>
 		<FluentTheme />
 		<StyleInclude Source="/Styles/ButtonStyles.axaml"/>
+
+		<!-- Базовое состояние -->
+		<Style Selector="Button">
+			<Setter Property="Background" Value="White"/>
+			<Setter Property="BorderBrush" Value="#D1D5DB"/>
+			<Setter Property="CornerRadius" Value="6"/>
+			<Setter Property="Height" Value="30"/>
+			<Setter Property="Padding" Value="14,0"/>
+			<Setter Property="FontSize" Value="12"/>
+			<Setter Property="Transitions">
+				<Transitions>
+					<BrushTransition Property="Background" Duration="0:0:0.15"/>
+				</Transitions>
+			</Setter>
+		</Style>
+
+		<!-- Состояние при наведении -->
+		<Style Selector="Button:pointerover">
+			<Setter Property="Background" Value="#F3F4F6"/>
+		</Style>
+
+		<!-- Состояние при нажатии -->
+		<Style Selector="Button:pressed">
+			<Setter Property="Background" Value="#E5E7EB"/>
+		</Style>
+
+		<Style Selector="Button.active">
+			<Setter Property="Background" Value="#2563EB"/>
+			<Setter Property="BorderBrush" Value="#1D4ED8"/>
+			<Setter Property="Foreground" Value="White"/>
+		</Style>
 	</Application.Styles>
 
-	<!-- Неявные шаблоны данных -->
 	<Application.DataTemplates>
 		<DataTemplate DataType="vm:LoginViewModel">
 			<views:LoginView/>
@@ -27,6 +59,27 @@
 		</DataTemplate>
 		<DataTemplate DataType="vm:DashboardViewModel">
 			<views:DashboardView/>
+		</DataTemplate>
+		<DataTemplate DataType="vm:WorkspaceSectionViewModel">
+			<views:WorkspaceSectionView/>
+		</DataTemplate>
+		<DataTemplate DataType="vm:OrderEditViewModel">
+			<views:OrderEditView/>
+		</DataTemplate>
+		<DataTemplate DataType="vm:ProductionOptionsViewModel">
+			<views:ProductionOptionsView/>
+		</DataTemplate>
+		<DataTemplate DataType="vm:EnvironmentSettingsViewModel">
+			<views:EnvironmentSettingsView/>
+		</DataTemplate>
+		<DataTemplate DataType="vm:DataTransferViewModel">
+			<views:DataTransferView/>
+		</DataTemplate>
+		<DataTemplate DataType="vm:SystemLogsViewModel">
+			<views:SystemLogsView/>
+		</DataTemplate>
+		<DataTemplate DataType="cadVm:CadEditorViewModel">
+			<cadViews:CadEditorView/>
 		</DataTemplate>
 	</Application.DataTemplates>
 </Application>

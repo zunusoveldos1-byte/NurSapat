@@ -7,11 +7,16 @@ using System.Threading.Tasks;
 
 namespace NurSapat.App.ViewModels;
 
-public partial class LoginViewModel : ObservableObject
+public sealed partial class LoginViewModel(
+    IUserRepository userRepo,
+    SettingsService settings,
+    IWorkspaceWindowService workspaceWindowService) : ObservableObject
 {
-    private readonly IUserRepository _userRepo;
-    private readonly SettingsService _settings;
-    private readonly MainWindowViewModel _mainVM;
+    private readonly IUserRepository _userRepo = userRepo;
+    private readonly SettingsService _settings = settings;
+    private readonly IWorkspaceWindowService _workspaceWindowService = workspaceWindowService;
+
+    public event EventHandler? LoginSucceeded;
 
     [ObservableProperty]
     private string _username = "";
@@ -24,13 +29,6 @@ public partial class LoginViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isBusy;
-
-    public LoginViewModel(IUserRepository userRepo, SettingsService settings, MainWindowViewModel mainVM)
-    {
-        _userRepo = userRepo;
-        _settings = settings;
-        _mainVM = mainVM;
-    }
 
     [RelayCommand]
     private async Task LoginAsync()
@@ -45,11 +43,13 @@ public partial class LoginViewModel : ObservableObject
         IsBusy = true;
         try
         {
+            // Ищем пользователя в базе
             var user = await _userRepo.GetByUsernameAsync(Username);
-            if (user != null && user.VerifyPassword(Password))
+
+            if (user is not null && user.VerifyPassword(Password))
             {
                 _settings.CurrentUserId = user.Id;
-                _mainVM.NavigateToMain();
+                CompleteLogin();
             }
             else
             {
@@ -67,5 +67,15 @@ public partial class LoginViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void GoToRegister() => _mainVM.NavigateToRegister();
+    private void GoToRegister()
+    {
+        ErrorMessage = "Регистрация будет подключена на этапе управления пользователями.";
+    }
+
+    private void CompleteLogin()
+    {
+        // Сервис сам откроет окно и закроет текущее.
+        _workspaceWindowService.OpenWorkspace();
+        LoginSucceeded?.Invoke(this, EventArgs.Empty); // Можно оставить, но сервис уже всё сделал
+    }
 }

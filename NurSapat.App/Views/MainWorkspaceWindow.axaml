@@ -1,0 +1,83 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+        x:Class="NurSapat.App.Views.MainWorkspaceWindow"
+        x:DataType="vm:MainWorkspaceViewModel"
+        Title="NurSapat CAD/ERP"
+        Width="1280"
+        Height="820"
+        MinWidth="1024"
+        MinHeight="640"
+        WindowState="Maximized"
+        Background="White">
+
+	<Grid RowDefinitions="Auto,Auto,*">
+		<!-- Меню (теперь белое) -->
+		<Border Background="White" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+			<Menu Background="White" Foreground="#333333" FontSize="13" Padding="4,2">
+				<MenuItem Header="Чертеж" Padding="6,3">
+					<MenuItem Header="Новый чертеж" Command="{Binding NavigationCommand}" CommandParameter="cad"/>
+					<MenuItem Header="Архив/Сводный журнал" Command="{Binding NavigationCommand}" CommandParameter="archive"/>
+				</MenuItem>
+				<MenuItem Header="Правка" Padding="6,3">
+					<MenuItem Header="Отменить"/>
+					<MenuItem Header="Повторить"/>
+					<MenuItem Header="Вырезать"/>
+					<MenuItem Header="Копировать"/>
+					<MenuItem Header="Вставить"/>
+				</MenuItem>
+				<MenuItem Header="Вид" Padding="6,3">
+					<MenuItem Header="Панели инструментов"/>
+					<MenuItem Header="Сетка"/>
+					<MenuItem Header="Масштаб"/>
+				</MenuItem>
+				<MenuItem Header="Инструменты" Padding="6,3">
+					<MenuItem Header="CAD-редактор" Command="{Binding NavigationCommand}" CommandParameter="cad"/>
+					<MenuItem Header="Лист заказа" Command="{Binding NavigationCommand}" CommandParameter="orders"/>
+				</MenuItem>
+				<MenuItem Header="Шаблоны" Padding="6,3">
+					<MenuItem Header="CAD-шаблоны" Command="{Binding NavigationCommand}" CommandParameter="cad"/>
+				</MenuItem>
+				<MenuItem Header="Настройки" Padding="6,3">
+					<MenuItem Header="Технологические допуски" Command="{Binding NavigationCommand}" CommandParameter="production-options"/>
+					<MenuItem Header="Настройка окружения и папок БД" Command="{Binding NavigationCommand}" CommandParameter="environment"/>
+				</MenuItem>
+				<MenuItem Header="Справочники" Padding="6,3">
+					<MenuItem Header="Клиенты" Command="{Binding NavigationCommand}" CommandParameter="customers"/>
+					<MenuItem Header="Материалы и цены" Command="{Binding NavigationCommand}" CommandParameter="materials"/>
+					<MenuItem Header="Системы профилей" Command="{Binding NavigationCommand}" CommandParameter="profile-systems"/>
+					<MenuItem Header="Фурнитура" Command="{Binding NavigationCommand}" CommandParameter="hardware"/>
+				</MenuItem>
+				<MenuItem Header="Сервис" Padding="6,3">
+					<MenuItem Header="Коммерческий Экспорт/Импорт БД" Command="{Binding NavigationCommand}" CommandParameter="data-transfer"/>
+				</MenuItem>
+				<MenuItem Header="Помощь" Padding="6,3">
+					<MenuItem Header="Руководство пользователя" Command="{Binding NavigationCommand}" CommandParameter="help"/>
+				</MenuItem>
+			</Menu>
+		</Border>
+
+		<!-- Панель вкладок (еще компактнее) -->
+		<Border Grid.Row="1" Background="White" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+			<Grid ColumnDefinitions="Auto,*">
+				<TabControl SelectedIndex="{Binding SelectedWorkspaceTabIndex}"
+								Background="White"
+								Foreground="#333333"
+								FontSize="11">
+					<TabItem Header="Чертеж" Padding="4,1" Height="12"/>
+					<TabItem Header="Лист заказа" Padding="4,1" Height="12"/>
+					<TabItem Header="Дополнительно" Padding="4,1" Height="12"/>
+				</TabControl>
+				<TextBlock Grid.Column="1"
+						   Text="{Binding CurrentTitle}"
+						   Foreground="#666666"
+						   VerticalAlignment="Center"
+						   Margin="12,0,0,0"
+						   FontSize="11"/>
+			</Grid>
+		</Border>
+
+		<!-- Основной контент (наследует белый фон окна) -->
+		<ContentControl Grid.Row="2" Content="{Binding CurrentContent}"/>
+	</Grid>
+</Window>

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using System.ComponentModel.DataAnnotations.Schema; // Оставляем только это
+using System;
 
 namespace NurSapat.Core.Models;
 
@@ -8,8 +9,10 @@ public class User
 {
     public Guid Id { get; set; }
     public string Username { get; set; } = string.Empty;
+
+    [Column("passwordhash")]
     public string PasswordHash { get; set; } = string.Empty;
-    public string Salt { get; set; } = string.Empty;
+
     public UserRole Role { get; set; } = UserRole.User;
 
     public bool VerifyPassword(string password)
@@ -19,14 +22,12 @@ public class User
 
     public static User Create(string username, string password)
     {
-        var salt = BCrypt.Net.BCrypt.GenerateSalt();
-        var hash = BCrypt.Net.BCrypt.HashPassword(password, salt);
+        var hash = BCrypt.Net.BCrypt.HashPassword(password);
         return new User
         {
             Id = Guid.NewGuid(),
             Username = username,
             PasswordHash = hash,
-            Salt = salt,
             Role = UserRole.User
         };
     }

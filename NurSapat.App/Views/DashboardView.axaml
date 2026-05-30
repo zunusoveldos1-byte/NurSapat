@@ -8,7 +8,7 @@
 		<!-- Левая панель меню -->
 		<Border Grid.Column="0" Background="{StaticResource SurfaceBrush}">
 			<ListBox ItemsSource="{Binding MenuItems}"
-						SelectedItem="{Binding SelectedContent, Mode=TwoWay}"
+						SelectedItem="{Binding SelectedMenuItem, Mode=TwoWay}"
 						Background="Transparent"
 						BorderThickness="0">
 				<ListBox.ItemTemplate>
@@ -32,6 +32,9 @@
                                    FontSize="48"
                                    Foreground="{StaticResource SecondaryTextBrush}"/>
 					</Border>
+				</DataTemplate>
+				<DataTemplate DataType="vm:SystemLogsViewModel">
+					<views:SystemLogsView/>
 				</DataTemplate>
 			</ContentControl.DataTemplates>
 		</ContentControl>

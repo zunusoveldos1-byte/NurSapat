@@ -1,0 +1,37 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             x:Class="NurSapat.App.Views.ProductionOptionsView"
+             x:DataType="vm:ProductionOptionsViewModel">
+	<Grid Background="{StaticResource SurfaceBrush}">
+		<Border Background="{StaticResource BackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="28"
+                Margin="24"
+                VerticalAlignment="Top"
+                MaxWidth="720"
+                HorizontalAlignment="Left">
+			<StackPanel Spacing="18">
+				<TextBlock Text="Технологические допуски Ccalc"
+                           FontSize="26"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource TextBrush}"/>
+				<TextBlock Text="Базовые параметры расчетного ядра. На следующем этапе они будут сохраняться в настройках предприятия."
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           TextWrapping="Wrap"/>
+				<Grid ColumnDefinitions="260,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="18">
+					<TextBlock Text="Уварка профиля, мм" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
+					<NumericUpDown Grid.Column="1" Value="{Binding WeldingAllowance}" Minimum="0" Increment="0.5"/>
+					<TextBlock Grid.Row="1" Text="Зазор под стеклопакет, мм" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
+					<NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding GlassGlazingGap}" Minimum="0" Increment="0.5"/>
+					<TextBlock Grid.Row="2" Text="Заход импоста, мм" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
+					<NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding ImpostMillingAllowance}" Minimum="0" Increment="0.5"/>
+					<TextBlock Grid.Row="3" Text="Нахлест створки, мм" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
+					<NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding SashOverlap}" Minimum="0" Increment="0.5"/>
+				</Grid>
+			</StackPanel>
+		</Border>
+	</Grid>
+</UserControl>
