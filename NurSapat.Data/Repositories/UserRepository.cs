@@ -17,15 +17,15 @@ public class UserRepository : IUserRepository
     public async Task<User?> GetByUsernameAsync(string username)
     {
         using var conn = _db.CreateConnection();
-        return await conn.QuerySingleOrDefaultAsync<User>(
-            "SELECT * FROM users WHERE username = @username", new { username });
+        var sql = "SELECT * FROM users WHERE username = @username ORDER BY id DESC LIMIT 1";
+        return await conn.QuerySingleOrDefaultAsync<User>(sql, new { username });
     }
 
     public async Task CreateAsync(User user)
     {
         using var conn = _db.CreateConnection();
         await conn.ExecuteAsync(
-            @"INSERT INTO users (id, username, password_hash, salt, role) 
-              VALUES (@Id, @Username, @PasswordHash, @Salt, @Role)", user);
+            @"INSERT INTO users (id, username, passwordhash, role) 
+              VALUES (@Id, @Username, @PasswordHash, @Role)", user);
     }
 }

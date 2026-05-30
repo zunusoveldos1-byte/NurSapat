@@ -5,13 +5,14 @@ namespace NurSapat.App.Views;
 
 public partial class MainWindow : Window
 {
-    public MainWindow()  
+    public MainWindow()
     {
         InitializeComponent();
     }
 
-    public MainWindow(MainWindowViewModel viewModel) : this()
+    public MainWindow(LoginViewModel viewModel) : this()
     {
         DataContext = viewModel;
+        viewModel.LoginSucceeded += (_, _) => Close();
     }
 }

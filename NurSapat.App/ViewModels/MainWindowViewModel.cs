@@ -4,18 +4,12 @@ using System;
 
 namespace NurSapat.App.ViewModels;
 
-public partial class MainWindowViewModel : ObservableObject
+public partial class MainWindowViewModel(IServiceProvider serviceProvider) : ObservableObject
 {
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
 
     [ObservableProperty]
     private object? _currentView;
-
-    public MainWindowViewModel(IServiceProvider serviceProvider)
-    {
-        _serviceProvider = serviceProvider;
-        NavigateToLogin();
-    }
 
     public void NavigateToLogin()
         => CurrentView = _serviceProvider.GetRequiredService<LoginViewModel>();

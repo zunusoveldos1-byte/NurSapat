@@ -1,0 +1,55 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             x:Class="NurSapat.App.Views.SystemLogsView"
+             x:DataType="vm:SystemLogsViewModel">
+	<Grid RowDefinitions="Auto,Auto,*" Margin="24" RowSpacing="16"
+          Background="{StaticResource BackgroundBrush}">
+		<DockPanel>
+			<TextBlock Text="Реестр дел"
+                       FontSize="28"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource TextBrush}"
+                       DockPanel.Dock="Left"/>
+			<Button Content="Обновить"
+                    Command="{Binding LoadCommand}"
+                    IsEnabled="{Binding !IsBusy}"
+                    HorizontalAlignment="Right"
+                    Classes="Primary"/>
+		</DockPanel>
+
+		<StackPanel Grid.Row="1" Spacing="8">
+			<TextBlock Text="{Binding StatusMessage}"
+                       Foreground="{StaticResource SecondaryTextBrush}"/>
+			<ProgressBar IsIndeterminate="True"
+                         IsVisible="{Binding IsBusy}"
+                         Height="4"/>
+		</StackPanel>
+
+		<Grid Grid.Row="2" RowDefinitions="Auto,*">
+			<Grid ColumnDefinitions="180,160,180,*" Margin="0,0,0,8">
+				<TextBlock Text="Дата" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+				<TextBlock Grid.Column="1" Text="Пользователь" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+				<TextBlock Grid.Column="2" Text="Операция" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+				<TextBlock Grid.Column="3" Text="Детали" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+			</Grid>
+			<ListBox Grid.Row="1"
+                     ItemsSource="{Binding Logs}"
+                     Background="Transparent"
+                     BorderThickness="0">
+				<ListBox.ItemTemplate>
+					<DataTemplate>
+						<Border BorderBrush="{StaticResource SurfaceBrush}" BorderThickness="0,0,0,1" Padding="0,8">
+							<Grid ColumnDefinitions="180,160,180,*">
+								<TextBlock Text="{Binding Timestamp}" Foreground="{StaticResource SecondaryTextBrush}"/>
+								<TextBlock Grid.Column="1" Text="{Binding User}" Foreground="{StaticResource TextBrush}"/>
+								<TextBlock Grid.Column="2" Text="{Binding OperationType}" Foreground="{StaticResource TextBrush}"/>
+								<TextBlock Grid.Column="3" Text="{Binding ActionDetails}" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap"/>
+							</Grid>
+						</Border>
+					</DataTemplate>
+				</ListBox.ItemTemplate>
+			</ListBox>
+		</Grid>
+	</Grid>
+</UserControl>

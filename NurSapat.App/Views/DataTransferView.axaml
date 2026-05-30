@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             x:Class="NurSapat.App.Views.DataTransferView"
+             x:DataType="vm:DataTransferViewModel">
+	<Grid Background="{StaticResource SurfaceBrush}">
+		<Border Background="{StaticResource BackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="28"
+                Margin="24"
+                VerticalAlignment="Top"
+                MaxWidth="760"
+                HorizontalAlignment="Left">
+			<StackPanel Spacing="18">
+				<TextBlock Text="Коммерческий импорт/экспорт БД"
+                           FontSize="26"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource TextBrush}"/>
+				<TextBlock Text="Перенос справочников материалов, клиентов и журнала заказов между машинами через структурированный ZIP/JSON-файл."
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           TextWrapping="Wrap"/>
+
+				<Border Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="16">
+					<StackPanel Spacing="12">
+						<TextBlock Text="Экспорт" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+						<TextBlock Text="Файл будет создан в каталоге документов NurSapat."
+                                   Foreground="{StaticResource SecondaryTextBrush}"/>
+						<Button Content="Коммерческий Экспорт БД"
+                                Classes="Primary"
+                                Command="{Binding ExportCommand}"
+                                IsEnabled="{Binding !IsBusy}"
+                                HorizontalAlignment="Left"/>
+					</StackPanel>
+				</Border>
+
+				<Border Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="16">
+					<StackPanel Spacing="12">
+						<TextBlock Text="Импорт" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+						<TextBox Text="{Binding ImportFilePath}" PlaceholderText="C:\Backups\NurSapat-export.zip"/>
+						<Button Content="Коммерческий Импорт БД"
+                                Classes="Secondary"
+                                Command="{Binding ImportCommand}"
+                                IsEnabled="{Binding !IsBusy}"
+                                HorizontalAlignment="Left"/>
+					</StackPanel>
+				</Border>
+
+				<TextBlock Text="{Binding StatusMessage}"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           TextWrapping="Wrap"/>
+				<ProgressBar IsIndeterminate="True"
+                             IsVisible="{Binding IsBusy}"
+                             Height="4"/>
+			</StackPanel>
+		</Border>
+	</Grid>
+</UserControl>

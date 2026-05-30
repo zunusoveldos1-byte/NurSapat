@@ -7,15 +7,8 @@ using System;
 
 namespace NurSapat.App;
 
-public partial class App : Application
+public partial class App(IServiceProvider provider) : Application
 {
-    private readonly IServiceProvider _provider;
-
-    public App(IServiceProvider provider)
-    {
-        _provider = provider;
-    }
-
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -23,18 +16,12 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        try
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            {
-                desktop.MainWindow = _provider.GetRequiredService<MainWindow>();
-            }
+            // Только окно логина. Весь переход на Workspace делает Service.
+            desktop.MainWindow = provider.GetRequiredService<MainWindow>();
         }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"FATAL: {ex}");
-            throw;
-        }
+
         base.OnFrameworkInitializationCompleted();
     }
 }

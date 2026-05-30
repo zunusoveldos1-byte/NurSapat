@@ -1,6 +1,5 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using NurSapat.Core.Models;
 
 namespace NurSapat.App.ViewModels;
@@ -13,7 +12,10 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty]
     private object? _selectedContent;
 
-    public DashboardViewModel()
+    [ObservableProperty]
+    private NavigationItem? _selectedMenuItem;
+
+    public DashboardViewModel(SystemLogsViewModel systemLogsViewModel)
     {
         var customersVM = new PlaceholderViewModel("Клиенты");
         var materialsVM = new PlaceholderViewModel("Материалы");
@@ -22,19 +24,22 @@ public partial class DashboardViewModel : ObservableObject
 
         MenuItems = new ObservableCollection<NavigationItem>
         {
-            new NavigationItem { Title = "Клиенты", Content = customersVM },
-            new NavigationItem { Title = "Материалы", Content = materialsVM },
-            new NavigationItem { Title = "Заказы", Content = ordersVM },
-            new NavigationItem { Title = "Конструктор", Content = constructorVM }
+            new() { Title = "Клиенты", Content = customersVM },
+            new() { Title = "Материалы", Content = materialsVM },
+            new() { Title = "Заказы", Content = ordersVM },
+            new() { Title = "Конструктор", Content = constructorVM },
+            new() { Title = "Реестр дел", Content = systemLogsViewModel }
         };
 
-        SelectedContent = customersVM;
+        SelectedMenuItem = MenuItems[0];
+        SelectedContent = SelectedMenuItem.Content;
     }
 
-    [RelayCommand]
-    private void SelectMenuItem(NavigationItem item)
+    partial void OnSelectedMenuItemChanged(NavigationItem? value)
     {
-        if (item != null)
-            SelectedContent = item.Content;
+        if (value != null)
+        {
+            SelectedContent = value.Content;
+        }
     }
 }
