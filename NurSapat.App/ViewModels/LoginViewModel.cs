@@ -7,16 +7,11 @@ using System.Threading.Tasks;
 
 namespace NurSapat.App.ViewModels;
 
-public sealed partial class LoginViewModel(
-    IUserRepository userRepo,
-    SettingsService settings,
-    IWorkspaceWindowService workspaceWindowService) : ObservableObject
+public partial class LoginViewModel(IUserRepository userRepo, SettingsService settings, IWorkspaceWindowService workspaceWindowService) : ObservableObject
 {
     private readonly IUserRepository _userRepo = userRepo;
     private readonly SettingsService _settings = settings;
     private readonly IWorkspaceWindowService _workspaceWindowService = workspaceWindowService;
-
-    public event EventHandler? LoginSucceeded;
 
     [ObservableProperty]
     private string _username = "";
@@ -33,7 +28,6 @@ public sealed partial class LoginViewModel(
     [RelayCommand]
     private async Task LoginAsync()
     {
-        ErrorMessage = "";
         if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Password))
         {
             ErrorMessage = "Заполните все поля";
@@ -41,15 +35,14 @@ public sealed partial class LoginViewModel(
         }
 
         IsBusy = true;
+        ErrorMessage = "";
         try
         {
-            // Ищем пользователя в базе
             var user = await _userRepo.GetByUsernameAsync(Username);
-
-            if (user is not null && user.VerifyPassword(Password))
+            if (user != null && user.VerifyPassword(Password))
             {
                 _settings.CurrentUserId = user.Id;
-                CompleteLogin();
+                _workspaceWindowService.OpenWorkspace();
             }
             else
             {
@@ -67,15 +60,5 @@ public sealed partial class LoginViewModel(
     }
 
     [RelayCommand]
-    private void GoToRegister()
-    {
-        ErrorMessage = "Регистрация будет подключена на этапе управления пользователями.";
-    }
-
-    private void CompleteLogin()
-    {
-        // Сервис сам откроет окно и закроет текущее.
-        _workspaceWindowService.OpenWorkspace();
-        LoginSucceeded?.Invoke(this, EventArgs.Empty); // Можно оставить, но сервис уже всё сделал
-    }
+    private void GoToRegister() => ErrorMessage = "Регистрация временно недоступна.";
 }

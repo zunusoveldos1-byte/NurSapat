@@ -1,14 +1,15 @@
-using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NurSapat.Cad.Core.Commands;
 using NurSapat.Cad.Core.Document;
+using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Parametric;
 using NurSapat.Cad.Core.Snapping;
 using NurSapat.Cad.Core.Templates;
 using NurSapat.Cad.Core.Viewport;
 using NurSapat.Cad.Tools;
 using NurSapat.Cad.UI.Training;
+using System.Collections.ObjectModel;
 
 namespace NurSapat.Cad.UI.ViewModels;
 
@@ -48,6 +49,55 @@ public sealed partial class CadEditorViewModel : ObservableObject
     [ObservableProperty]
     private WindowSection? _selectedSection;
 
+    [ObservableProperty]
+    private bool _isLeftPanelVisible = true;
+
+    [ObservableProperty]
+    private bool _isRightPanelVisible = true;
+
+    [ObservableProperty]
+    private bool _isBottomPanelVisible = true;
+
+    [RelayCommand]
+    private void ToggleLeftPanel() => IsLeftPanelVisible = !IsLeftPanelVisible;
+
+    [RelayCommand]
+    private void ToggleRightPanel() => IsRightPanelVisible = !IsRightPanelVisible;
+
+    [RelayCommand]
+    private void ToggleBottomPanel() => IsBottomPanelVisible = !IsBottomPanelVisible;
+
+    [ObservableProperty]
+    private bool _isTopPanelVisible = true;
+
+    [RelayCommand]
+    private void ToggleTopPanel() => IsTopPanelVisible = !IsTopPanelVisible;
+
+    [RelayCommand]
+    private void ClearAll()
+    {
+        Document.ClearRectangles();
+        SelectedRectangle = null;
+        RefreshSelection();
+        StatusText = "Все элементы очищены";
+    }
+
+    [ObservableProperty]
+    private CadRect? _selectedRectangle;
+
+    [RelayCommand]
+    private void DeleteSelected()
+    {
+        if (SelectedRectangle != null)
+        {
+            // ИСПРАВЛЕНИЕ: используем .Value, чтобы получить CadRect (не nullable)
+            Document.RemoveRectangle(SelectedRectangle.Value);
+            SelectedRectangle = null;
+            RefreshSelection();
+            StatusText = "Выбранный объект удален";
+        }
+    }
+
     public CadEditorViewModel(OrderCalculationState orderState)
     {
         OrderState = orderState;
@@ -57,8 +107,10 @@ public sealed partial class CadEditorViewModel : ObservableObject
             _toolFactory.Tools.Select(t => new CadToolButtonViewModel(t.Id, t.DisplayName)));
 
         ActivateToolCommand = new RelayCommand<string>(ActivateTool);
-        ActiveTool = _toolFactory.Create("select");
-        SetActiveToolState("select");
+
+        ActiveTool = _toolFactory.Create("rectangle");
+
+        SetActiveToolState("rectangle");
         PublishOrderState();
     }
 

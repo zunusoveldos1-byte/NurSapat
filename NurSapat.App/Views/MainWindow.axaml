@@ -4,15 +4,10 @@
         xmlns:views="clr-namespace:NurSapat.App.Views"
         x:Class="NurSapat.App.Views.MainWindow"
         x:DataType="vm:LoginViewModel"
-        Title="NurSapat - вход"
-        Width="700"
-        Height="450"
-        MinWidth="700"
-        MaxWidth="700"
-        MinHeight="450"
-        MaxHeight="450"
-        CanResize="False"
+        Title="NurSapat"
+        Width="950" Height="600"
+        MinWidth="800" MinHeight="500"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource BackgroundBrush}">
+        Background="White">
 	<views:LoginView/>
 </Window>

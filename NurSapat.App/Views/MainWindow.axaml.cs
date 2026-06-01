@@ -13,6 +13,5 @@ public partial class MainWindow : Window
     public MainWindow(LoginViewModel viewModel) : this()
     {
         DataContext = viewModel;
-        viewModel.LoginSucceeded += (_, _) => Close();
     }
 }
