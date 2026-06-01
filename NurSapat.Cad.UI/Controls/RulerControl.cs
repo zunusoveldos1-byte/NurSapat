@@ -8,6 +8,16 @@ namespace NurSapat.Cad.UI.Controls;
 
 public sealed class RulerControl : Control
 {
+    // ДОБАВЛЕНО: Свойство Background для корректной работы в XAML
+    public static readonly StyledProperty<IBrush?> BackgroundProperty =
+        AvaloniaProperty.Register<RulerControl, IBrush?>(nameof(Background));
+
+    public IBrush? Background
+    {
+        get => GetValue(BackgroundProperty);
+        set => SetValue(BackgroundProperty, value);
+    }
+
     public CadViewport? Viewport
     {
         get => GetValue(ViewportProperty);
@@ -30,8 +40,16 @@ public sealed class RulerControl : Control
     {
         base.Render(context);
 
-        // ИЗМЕНЕНИЕ: Фон стал белым
-        context.FillRectangle(Brushes.White, Bounds);
+        // ИЗМЕНЕНИЕ: Используем свойство Background, если оно задано
+        if (Background != null)
+        {
+            context.FillRectangle(Background, Bounds);
+        }
+        else
+        {
+            // Если фон не задан, закрашиваем белым по умолчанию
+            context.FillRectangle(Brushes.White, Bounds);
+        }
 
         if (Viewport == null)
         {
@@ -39,8 +57,6 @@ public sealed class RulerControl : Control
         }
 
         var step = Viewport.ChooseGridStep();
-
-        // ИЗМЕНЕНИЕ: Текст стал тёмным (темно-серый)
         var textBrush = new SolidColorBrush(Color.Parse("#333333"));
         var tickPen = new Pen(new SolidColorBrush(Color.Parse("#A0A0A0")), 1);
 

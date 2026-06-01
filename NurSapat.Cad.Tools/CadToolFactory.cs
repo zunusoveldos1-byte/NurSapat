@@ -8,6 +8,7 @@ public sealed class CadToolFactory
     public IReadOnlyList<CadToolDescriptor> Tools { get; } =
     [
         new("select", "Выбор", () => new SelectionTool()),
+        new("rectangle", "Прямоугольник", () => new RectangleTool()),
         new("frame", "Коробка", () => new FrameTool("frame", "Коробка")),
         new("phantom-frame", "Коробка фиктивная", () => new FrameTool("phantom-frame", "Коробка фиктивная", true)),
         new("vertical-impost", "Импост вертикальный", () => new ImpostTool("vertical-impost", "Импост вертикальный", SectionSplitOrientation.Vertical)),

@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Parametric;
+using NurSapat.Cad.Tools;
 using NurSapat.Cad.UI.ViewModels;
 using ToolPointerEvent = NurSapat.Cad.Tools.CadPointerEvent;
 
@@ -38,13 +39,26 @@ public sealed class CadCanvasControl : Control
         }
 
         Editor.Viewport.Resize(Bounds.Width, Bounds.Height);
-
-        // ИЗМЕНЕНИЕ: заменили #1B1F26 на White (или Colors.White)
         context.FillRectangle(Brushes.White, Bounds);
 
         DrawGrid(context);
         DrawFrame(context);
         DrawSections(context, Editor.Document.Structure.RootSection);
+
+        foreach (var rect in Editor.Document.Rectangles)
+        {
+            var pen = Editor.SelectedRectangle == rect
+                ? new Pen(Brushes.Red, 3)
+                : new Pen(Brushes.Black, 1);
+            DrawRect(context, rect, new SolidColorBrush(Color.Parse("#3B82F6")), pen);
+        }
+
+        if (Editor.ActiveTool is RectangleTool rectTool && rectTool.PreviewRect is CadRect preview)
+        {
+            var fill = new SolidColorBrush(Color.FromArgb(50, 59, 130, 246));
+            var pen = new Pen(Brushes.Blue, 2);
+            DrawRect(context, preview, fill, pen);
+        }
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
@@ -77,15 +91,31 @@ public sealed class CadCanvasControl : Control
 
         Editor?.ActiveTool.OnMouseDown(Editor.CreateToolContext(), ToCadEvent(point, e.KeyModifiers));
         e.Pointer.Capture(this);
+
+        // Логика выделения прямоугольника (SelectionTool)
+        if (Editor?.ActiveTool?.Id == "select")
+        {
+            var worldPoint = Editor.Viewport.ScreenToWorld(new ScreenPoint(point.X, point.Y));
+            var found = false;
+            foreach (var rect in Editor.Document.Rectangles)
+            {
+                // Если в CadRect нет Contains, можно использовать простую проверку:
+                if (rect.Contains(worldPoint)) // Убедитесь, что у CadRect есть Contains
+                {
+                    Editor.SelectedRectangle = rect;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) Editor.SelectedRectangle = null;
+        }
+
         InvalidateVisual();
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
     {
-        if (Editor == null)
-        {
-            return;
-        }
+        if (Editor == null) return;
 
         var point = e.GetPosition(this);
         if (_isPanning && _lastPanPoint is Point last)
@@ -119,8 +149,12 @@ public sealed class CadCanvasControl : Control
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (Editor == null)
+        if (Editor == null) return;
+
+        if (e.Key == Key.Delete)
         {
+            Editor.DeleteSelectedCommand.Execute(null);
+            e.Handled = true;
             return;
         }
 

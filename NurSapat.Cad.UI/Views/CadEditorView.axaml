@@ -32,7 +32,7 @@
 	<DockPanel LastChildFill="True">
 
 		<!-- TOP TOOLBAR -->
-		<Border DockPanel.Dock="Top" Height="44" Background="#F8F9FA" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" BoxShadow="0 1 2 rgba(0,0,0,0.05)">
+		<Border DockPanel.Dock="Top" Height="44" IsVisible="{Binding IsTopPanelVisible}" Background="#F8F9FA" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" BoxShadow="0 1 2 rgba(0,0,0,0.05)">
 			<StackPanel Orientation="Horizontal" Spacing="8" Margin="10,6">
 				<!-- Пример кнопки с местом для иконки -->
 				<Button>
@@ -64,6 +64,13 @@
 					</StackPanel>
 				</Button>
 
+				<Button Command="{Binding ClearAllCommand}">
+					<StackPanel Orientation="Horizontal" Spacing="8">
+						<Border Width="16" Height="16" Background="Transparent"/>
+						<TextBlock Text="Очистить всё" VerticalAlignment="Center" FontSize="12"/>
+					</StackPanel>
+				</Button>
+
 				<Button Command="{Binding ToggleTrainingCommand}">
 					<StackPanel Orientation="Horizontal" Spacing="8">
 						<Border Width="16" Height="16" Background="Transparent"/>
@@ -76,7 +83,7 @@
 		</Border>
 
 		<!-- BOTTOM PROPERTY BAR -->
-		<Border DockPanel.Dock="Bottom" Height="92" Background="#F8F9FA" BorderBrush="#E5E7EB" BorderThickness="0,1,0,0">
+		<Border DockPanel.Dock="Bottom" IsVisible="{Binding IsBottomPanelVisible}" Height="92" Background="#F8F9FA" BorderBrush="#E5E7EB" BorderThickness="0,1,0,0">
 			<Grid ColumnDefinitions="*,Auto" Margin="16,8">
 				<StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
 					<TextBlock Text="Оконная конструкция" FontWeight="SemiBold" Foreground="#333333"/>
@@ -90,17 +97,18 @@
 		</Border>
 
 		<!-- CENTER AREA WITH SPLITTERS -->
-		<Grid ColumnDefinitions="Auto,5,*,5,Auto">
+		<Grid ColumnDefinitions="Auto,*,Auto">
 
 			<!-- LEFT PANEL (Tools) -->
 			<Border x:Name="LeftPanel"
-                    Grid.Column="0"
-                    Width="220"
-                    MinWidth="80"
-                    MaxWidth="400"
-                    Background="#F8F9FA"
-                    BorderBrush="#E5E7EB"
-                    BorderThickness="0,0,1,0">
+					Grid.Column="0"
+					IsVisible="{Binding IsLeftPanelVisible}"
+					Width="220"
+					MinWidth="80"
+					MaxWidth="400"
+					Background="#F8F9FA"
+					BorderBrush="#E5E7EB"
+					BorderThickness="0,0,1,0">
 				<ScrollViewer>
 					<StackPanel Margin="8">
 						<TextBlock Text="Инструменты" FontWeight="Bold" Margin="0,0,0,8"/>
@@ -108,14 +116,12 @@
 							<ListBox.ItemTemplate>
 								<DataTemplate>
 									<Button Classes.active="{Binding IsActive}"
-                                            Command="{Binding $parent[UserControl].DataContext.ActivateToolCommand}"
-                                            CommandParameter="{Binding Id}"
-                                            HorizontalAlignment="Stretch"
-                                            Margin="0,2"
-                                            Height="36">
-										<!-- Здесь мы размещаем иконку и текст -->
+											Command="{Binding $parent[UserControl].DataContext.ActivateToolCommand}"
+											CommandParameter="{Binding Id}"
+											HorizontalAlignment="Stretch"
+											Margin="0,2"
+											Height="36">
 										<StackPanel Orientation="Horizontal" Spacing="8">
-											<!-- МЕСТО ДЛЯ ИКОНКИ (ширина 20px, высота 20px) -->
 											<Border Width="20" Height="20" Background="Transparent"/>
 											<TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" FontSize="12"/>
 										</StackPanel>
@@ -127,26 +133,41 @@
 				</ScrollViewer>
 			</Border>
 
-			<!-- LEFT SPLITTER -->
-			<GridSplitter Grid.Column="1" Width="5" Background="Transparent" ResizeDirection="Columns" HorizontalAlignment="Stretch"/>
-
-			<!-- CANVAS -->
-			<Border Grid.Column="2" Background="#FAFAFA" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="4" Margin="2">
-				<controls:CadCanvasControl Editor="{Binding}"/>
-			</Border>
-
-			<!-- RIGHT SPLITTER -->
-			<GridSplitter Grid.Column="3" Width="5" Background="Transparent" ResizeDirection="Columns" HorizontalAlignment="Stretch"/>
+			<!-- CENTER (Canvas + Rulers) -->
+			<Grid Grid.Column="1" RowDefinitions="20,*,20" ColumnDefinitions="20,*">
+				<!-- Верхняя линейка -->
+				<controls:RulerControl Grid.Row="0" Grid.Column="1"
+									   Viewport="{Binding Viewport}"
+									   Orientation="Horizontal"
+									   Background="#F8F9FA"/>
+				<!-- Левая линейка -->
+				<controls:RulerControl Grid.Row="1" Grid.Column="0"
+									   Viewport="{Binding Viewport}"
+									   Orientation="Vertical"
+									   Background="#F8F9FA"/>
+				<!-- Основной холст -->
+				<Border Grid.Row="1" Grid.Column="1"
+						Background="#FAFAFA"
+						BorderBrush="#D1D5DB"
+						BorderThickness="1"
+						CornerRadius="4"
+						Margin="2">
+					<controls:CadCanvasControl Editor="{Binding}"/>
+				</Border>
+				<!-- Угловой квадрат -->
+				<Border Grid.Row="0" Grid.Column="0" Background="#F8F9FA" BorderBrush="#D1D5DB" BorderThickness="0,0,1,1"/>
+			</Grid>
 
 			<!-- RIGHT PANEL (Properties) -->
 			<Border x:Name="RightPanel"
-                    Grid.Column="4"
-                    Width="320"
-                    MinWidth="200"
-                    MaxWidth="600"
-                    Background="#F8F9FA"
-                    BorderBrush="#E5E7EB"
-                    BorderThickness="1,0,0,0">
+					Grid.Column="2"
+					IsVisible="{Binding IsRightPanelVisible}"
+					Width="320"
+					MinWidth="200"
+					MaxWidth="600"
+					Background="#F8F9FA"
+					BorderBrush="#E5E7EB"
+					BorderThickness="1,0,0,0">
 				<ScrollViewer>
 					<StackPanel Spacing="12" Margin="12">
 
