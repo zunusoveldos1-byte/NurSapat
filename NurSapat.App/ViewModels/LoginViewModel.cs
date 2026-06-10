@@ -25,6 +25,32 @@ public partial class LoginViewModel(IUserRepository userRepo, SettingsService se
     [ObservableProperty]
     private bool _isBusy;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PasswordChar))]
+    private bool _isPasswordVisible;
+
+    [ObservableProperty]
+    private bool _rememberMe;
+
+    public char PasswordChar => IsPasswordVisible ? '\0' : '*';
+
+    // ✅ Метод для загрузки сохраненных данных
+    public void LoadSavedCredentials()
+    {
+        if (_settings.GetValue<bool>("RememberMe", false))
+        {
+            Username = _settings.GetValue<string>("SavedUsername", "") ?? "";
+            Password = _settings.GetValue<string>("SavedPassword", "") ?? "";
+            RememberMe = true;
+        }
+        else
+        {
+            Username = "";
+            Password = "";
+            RememberMe = false;
+        }
+    }
+
     [RelayCommand]
     private async Task LoginAsync()
     {
@@ -41,6 +67,20 @@ public partial class LoginViewModel(IUserRepository userRepo, SettingsService se
             var user = await _userRepo.GetByUsernameAsync(Username);
             if (user != null && user.VerifyPassword(Password))
             {
+                // ✅ Если "Запомнить меня" включено — сохраняем данные
+                if (RememberMe)
+                {
+                    _settings.SetValue("RememberMe", true);
+                    _settings.SetValue("SavedUsername", Username);
+                    _settings.SetValue("SavedPassword", Password);
+                }
+                else
+                {
+                    _settings.SetValue("RememberMe", false);
+                    _settings.SetValue("SavedUsername", "");
+                    _settings.SetValue("SavedPassword", "");
+                }
+
                 _settings.CurrentUserId = user.Id;
                 _workspaceWindowService.OpenWorkspace();
             }
@@ -61,4 +101,13 @@ public partial class LoginViewModel(IUserRepository userRepo, SettingsService se
 
     [RelayCommand]
     private void GoToRegister() => ErrorMessage = "Регистрация временно недоступна.";
+
+    [RelayCommand]
+    private void TogglePasswordVisibility() => IsPasswordVisible = !IsPasswordVisible;
+
+    [RelayCommand]
+    private void Help() => ErrorMessage = "Обратитесь к администратору системы.";
+
+    [RelayCommand]
+    private void Contact() => ErrorMessage = "Контактная форма будет подключена позже.";
 }

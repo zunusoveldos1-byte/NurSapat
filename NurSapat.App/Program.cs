@@ -16,6 +16,7 @@ namespace NurSapat.App;
 
 class Program
 {
+    [STAThread]
     public static void Main(string[] args)
     {
         try
@@ -23,6 +24,8 @@ class Program
             var services = new ServiceCollection();
             ConfigureServices(services);
             var provider = services.BuildServiceProvider();
+
+            // Для реального запуска передаем провайдер
             BuildAvaloniaApp(provider).StartWithClassicDesktopLifetime(args);
         }
         catch (Exception ex)
@@ -33,8 +36,15 @@ class Program
         }
     }
 
+    // ЭТОТ МЕТОД ДЛЯ РЕАЛЬНОГО ЗАПУСКА ПРИЛОЖЕНИЯ
     public static AppBuilder BuildAvaloniaApp(IServiceProvider provider)
         => AppBuilder.Configure(() => new App(provider))
+            .UsePlatformDetect()
+            .LogToTrace();
+
+    // ЭТОТ МЕТОД ПРЕВЬЮСЕР ВЫЗЫВАЕТ БЕЗ ПАРАМЕТРОВ!
+    public static AppBuilder BuildAvaloniaApp()
+        => AppBuilder.Configure(() => new App())
             .UsePlatformDetect()
             .LogToTrace();
 
@@ -51,9 +61,8 @@ class Program
         services.AddSingleton(new DatabaseService(ReadConnectionString()));
         services.AddSingleton<DataMigrationService>();
         services.AddSingleton<ISystemLogRepository, SystemLogRepository>();
-
-        // Временная заглушка БД
         services.AddSingleton<IUserRepository, UserRepository>();
+        services.AddSingleton<IMaterialRepository, MaterialRepository>();
 
         // ViewModels
         services.AddTransient<LoginViewModel>();
@@ -66,9 +75,13 @@ class Program
         services.AddTransient<ProductionOptionsViewModel>();
         services.AddTransient<EnvironmentSettingsViewModel>();
         services.AddTransient<DataTransferViewModel>();
+        services.AddSingleton<AdditionalDashboardViewModel>();
         services.AddSingleton<OrderCalculationState>();
         services.AddSingleton<CadEditorViewModel>();
-        services.AddSingleton<OrderEditViewModel>();
+        services.AddSingleton<OrderWorkspaceViewModel>();
+        services.AddSingleton<OrderSheetViewModel>(sp => sp.GetRequiredService<OrderWorkspaceViewModel>().Sheet);
+        services.AddSingleton<OrderDrawingViewModel>(sp => sp.GetRequiredService<OrderWorkspaceViewModel>().Drawing);
+        services.AddTransient<MaterialsViewModel>();
 
         // Главное окно
         services.AddTransient<MainWindow>();

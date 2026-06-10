@@ -3,20 +3,22 @@ using CommunityToolkit.Mvvm.Input;
 using NurSapat.Cad.Core.Commands;
 using NurSapat.Cad.Core.Document;
 using NurSapat.Cad.Core.Geometry;
-using NurSapat.Cad.Core.Parametric;
 using NurSapat.Cad.Core.Snapping;
-using NurSapat.Cad.Core.Templates;
 using NurSapat.Cad.Core.Viewport;
 using NurSapat.Cad.Tools;
-using NurSapat.Cad.UI.Training;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using System.Collections.ObjectModel;
+using NurSapat.Cad.UI.Dialogs;
+using Avalonia.Threading;
+using System.Threading.Tasks;
 
 namespace NurSapat.Cad.UI.ViewModels;
 
 public sealed partial class CadEditorViewModel : ObservableObject
 {
-    private readonly CadToolFactory _toolFactory;
-    private readonly CadTemplateSerializer _templateSerializer = new();
+    private readonly CadToolFactory _toolFactory = new();
 
     public CadDocument Document { get; } = new();
 
@@ -26,14 +28,19 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     public CadCommandManager Commands { get; }
 
-    public CadTrainingTracker TrainingTracker { get; } = new();
+    public event EventHandler? SceneInvalidated;
 
-    public OrderCalculationState OrderState { get; }
+    /// <summary>
+    /// Обработчик клика по холсту для режимов проектирования (импост, створка и т.д.).
+    /// Возвращает true, если клик обработан и стандартный инструмент не должен срабатывать.
+    /// </summary>
+    public Func<CadPoint, bool>? DesignPlacement { get; set; }
 
-    public ObservableCollection<CadToolButtonViewModel> Tools { get; }
+    public ObservableCollection<CadToolButtonViewModel> Tools { get; } = new(
+        new CadToolFactory().Tools.Select(t => new CadToolButtonViewModel(t.Id, t.DisplayName)));
 
     [ObservableProperty]
-    private string _activeToolId = "select"; // Инициализация по умолчанию
+    private string _activeToolId = "select";
 
     public IRelayCommand<string> ActivateToolCommand { get; }
 
@@ -41,14 +48,24 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private ICadTool _activeTool;
 
     [ObservableProperty]
-    private bool _isTrainingVisible = true;
+    private string _statusText = "Готово";
 
     [ObservableProperty]
-    private string _statusText = "Готово. Выберите проём или инструмент.";
+    private double _cursorX;
 
     [ObservableProperty]
-    private WindowSection? _selectedSection;
+    private double _cursorY;
 
+    [ObservableProperty]
+    private bool _isGridEnabled = true;
+
+    [ObservableProperty]
+    private bool _isSnapEnabled = true;
+
+    [ObservableProperty]
+    private CadRect? _selectedRectangle;
+
+    // ============ ЗАГЛУШКИ ДЛЯ ПАНЕЛЕЙ ============
     [ObservableProperty]
     private bool _isLeftPanelVisible = true;
 
@@ -58,360 +75,259 @@ public sealed partial class CadEditorViewModel : ObservableObject
     [ObservableProperty]
     private bool _isBottomPanelVisible = true;
 
-    [RelayCommand]
-    private void ToggleLeftPanel() => IsLeftPanelVisible = !IsLeftPanelVisible;
-
-    [RelayCommand]
-    private void ToggleRightPanel() => IsRightPanelVisible = !IsRightPanelVisible;
-
-    [RelayCommand]
-    private void ToggleBottomPanel() => IsBottomPanelVisible = !IsBottomPanelVisible;
-
     [ObservableProperty]
-    private bool _isTopPanelVisible = true;
+    private bool _isTopPanelVisible = false;
 
-    [RelayCommand]
-    private void ToggleTopPanel() => IsTopPanelVisible = !IsTopPanelVisible;
+    public IRelayCommand ToggleLeftPanelCommand => new RelayCommand(() => IsLeftPanelVisible = !IsLeftPanelVisible);
+    public IRelayCommand ToggleRightPanelCommand => new RelayCommand(() => IsRightPanelVisible = !IsRightPanelVisible);
+    public IRelayCommand ToggleBottomPanelCommand => new RelayCommand(() => IsBottomPanelVisible = !IsBottomPanelVisible);
+    public IRelayCommand ToggleTopPanelCommand => new RelayCommand(() => IsTopPanelVisible = !IsTopPanelVisible);
+    // ==============================================
 
-    [RelayCommand]
-    private void ClearAll()
+    public CadEditorViewModel()
     {
-        Document.ClearRectangles();
-        SelectedRectangle = null;
-        RefreshSelection();
-        StatusText = "Все элементы очищены";
+        Commands = new CadCommandManager(Document);
+        ActivateToolCommand = new RelayCommand<string>(ActivateTool);
+        ActiveTool = _toolFactory.Create("rectangle");
+        FitDocumentToViewport();
     }
 
-    [ObservableProperty]
-    private CadRect? _selectedRectangle;
+    public void SetViewportSize(double width, double height)
+    {
+        if (Math.Abs(Viewport.Width - Math.Max(1, width)) < CadMath.Epsilon &&
+            Math.Abs(Viewport.Height - Math.Max(1, height)) < CadMath.Epsilon)
+        {
+            return;
+        }
+
+        Viewport.Resize(width, height);
+        RequestSceneRefresh();
+    }
+
+    public void RequestSceneRefresh() => SceneInvalidated?.Invoke(this, EventArgs.Empty);
+
+    public CadRect GetWorldBounds()
+    {
+        var rects = Document.Rectangles;
+        if (rects.Count == 0) return new CadRect(-200, 200, 400, 400);
+
+        var minX = rects.Min(r => r.X);
+        var maxX = rects.Max(r => r.X + r.Width);
+        var minY = rects.Min(r => r.Y - r.Height);
+        var maxY = rects.Max(r => r.Y);
+
+        return new CadRect(minX - 100, maxY + 100, maxX - minX + 200, maxY - minY + 200);
+    }
+
+    public void FitDocumentToViewport()
+    {
+        Viewport.FitToBounds(GetWorldBounds());
+        OnPropertyChanged(nameof(ZoomPercent));
+        RequestSceneRefresh();
+    }
+
+    public CadToolContext CreateToolContext()
+    {
+        return new CadToolContext(Document, Commands, Snapping)
+        {
+            Viewport = Viewport,
+            Invalidate = () => RequestSceneRefresh(),
+
+            InvokeSizeInput = point => _ = HandleSizeInputAsync(point)
+        };
+    }
+
+    private async Task HandleSizeInputAsync(CadPoint point)
+    {
+        var mainWindow = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        if (mainWindow == null) return;
+
+        var window = new SizeInputWindow();
+        window.SetInitialValues(1000, 1000);
+
+        var result = await window.ShowDialog<bool?>(mainWindow);
+        if (result == true)
+        {
+            var rect = new CadRect(
+                point.X - window.ResultWidth / 2,
+                point.Y + window.ResultHeight / 2,
+                window.ResultWidth,
+                window.ResultHeight
+            );
+            var command = new CadActionCommand(
+                name: "Добавить прямоугольник",
+                execute: doc => doc.AddRectangle(rect),
+                undo: doc => doc.RemoveRectangle(rect)
+            );
+            Commands.Execute(command);
+            RequestSceneRefresh();
+        }
+    }
+
+    public void RefreshSelection()
+    {
+        OnPropertyChanged(nameof(SelectedRectangle));
+    }
+
+    public string ZoomPercent => $"{Viewport.ZoomFactor * 100:0}%";
+
+    public string ActiveToolDisplayName => ActiveTool.DisplayName;
 
     [RelayCommand]
     private void DeleteSelected()
     {
         if (SelectedRectangle != null)
         {
-            // ИСПРАВЛЕНИЕ: используем .Value, чтобы получить CadRect (не nullable)
             Document.RemoveRectangle(SelectedRectangle.Value);
             SelectedRectangle = null;
             RefreshSelection();
+            RequestSceneRefresh();
             StatusText = "Выбранный объект удален";
         }
-    }
-
-    public CadEditorViewModel(OrderCalculationState orderState)
-    {
-        OrderState = orderState;
-        _toolFactory = new CadToolFactory();
-        Commands = new CadCommandManager(Document);
-        Tools = new ObservableCollection<CadToolButtonViewModel>(
-            _toolFactory.Tools.Select(t => new CadToolButtonViewModel(t.Id, t.DisplayName)));
-
-        ActivateToolCommand = new RelayCommand<string>(ActivateTool);
-
-        ActiveTool = _toolFactory.Create("rectangle");
-
-        SetActiveToolState("rectangle");
-        PublishOrderState();
-    }
-
-    public CadToolContext CreateToolContext()
-    {
-        Snapping.GridStep = Viewport.ChooseGridStep();
-        Snapping.ToleranceWorld = Math.Max(5, 12 / Viewport.ZoomFactor);
-        return new CadToolContext(Document, Commands, Snapping)
-        {
-            Track = TrainingTracker.Track
-        };
-    }
-
-    public void RefreshSelection()
-    {
-        SelectedSection = Document.SelectedSection;
-        OnPropertyChanged(nameof(SelectedKind));
-        OnPropertyChanged(nameof(IsFrameSelected));
-        OnPropertyChanged(nameof(IsImpostSelected));
-        OnPropertyChanged(nameof(IsSashSelected));
-        OnPropertyChanged(nameof(IsGlazingSelected));
-        OnPropertyChanged(nameof(IsSectionSelected));
-        OnPropertyChanged(nameof(FrameWidth));
-        OnPropertyChanged(nameof(FrameHeight));
-        OnPropertyChanged(nameof(FrameProfileSystem));
-        OnPropertyChanged(nameof(FrameLaminationColor));
-        OnPropertyChanged(nameof(SelectedProfileSystem));
-        OnPropertyChanged(nameof(SelectedLaminationColor));
-        OnPropertyChanged(nameof(SelectedOpeningType));
-        OnPropertyChanged(nameof(SelectedHardwareBrand));
-        OnPropertyChanged(nameof(SelectedGlassFormula));
-        OnPropertyChanged(nameof(SelectedImpostCoordinate));
-        OnPropertyChanged(nameof(HasCloser));
-        OnPropertyChanged(nameof(HasLock));
-        OnPropertyChanged(nameof(HasLimiter));
-    }
-
-    public void Recalculate(string reason)
-    {
-        Document.Structure.Recalculate();
-        PublishOrderState();
-        RefreshSelection();
-        TrainingTracker.Track("Параметры", reason, "Успешно");
-        StatusText = reason;
-    }
-
-    public void PublishOrderState() => OrderState.UpdateFrom(Document.Structure);
-
-    public CadSelectionKind SelectedKind => Document.Structure.SelectedKind;
-
-    public bool IsFrameSelected => SelectedKind == CadSelectionKind.Frame || SelectedSection == null && SelectedKind != CadSelectionKind.Impost;
-
-    public bool IsSectionSelected => SelectedKind == CadSelectionKind.Section;
-
-    public bool IsImpostSelected => SelectedKind == CadSelectionKind.Impost;
-
-    public bool IsSashSelected => SelectedKind == CadSelectionKind.Sash;
-
-    public bool IsGlazingSelected => SelectedKind == CadSelectionKind.Glazing;
-
-    public double FrameWidth
-    {
-        get => Document.Structure.Options.Width;
-        set
-        {
-            if (Math.Abs(Document.Structure.Options.Width - value) > 0.1)
-            {
-                Document.Structure.Options.Width = Math.Max(300, value);
-                Recalculate($"Изменена ширина конструкции: {value:0} мм");
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    public double FrameHeight
-    {
-        get => Document.Structure.Options.Height;
-        set
-        {
-            if (Math.Abs(Document.Structure.Options.Height - value) > 0.1)
-            {
-                Document.Structure.Options.Height = Math.Max(300, value);
-                Recalculate($"Изменена высота конструкции: {value:0} мм");
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    public string FrameProfileSystem
-    {
-        get => Document.Structure.Options.ProfileSystem;
-        set
-        {
-            if (Document.Structure.Options.ProfileSystem != value)
-            {
-                Document.Structure.Options.ProfileSystem = value;
-                Recalculate($"Изменена серия профиля: {value}");
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    public string FrameLaminationColor
-    {
-        get => Document.Structure.Options.LaminationColor;
-        set
-        {
-            if (Document.Structure.Options.LaminationColor != value)
-            {
-                Document.Structure.Options.LaminationColor = value;
-                Recalculate($"Изменен цвет ламинации: {value}");
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    public double SelectedImpostCoordinate
-    {
-        get => Document.Structure.SelectedImpostOwner?.SplitCoordinate ?? 0;
-        set
-        {
-            Document.Structure.MoveSelectedImpost(value);
-            Recalculate($"Изменена координата импоста: {value:0} мм");
-            OnPropertyChanged();
-        }
-    }
-
-    public IReadOnlyList<string> ProfileSystems { get; } =
-    [
-        "Default PVC 72",
-        "Aldoks",
-        "Aluminum Warm 72",
-        "Hidden auxiliary"
-    ];
-
-    public IReadOnlyList<string> LaminationColors { get; } =
-    [
-        "Белый",
-        "Золотой дуб",
-        "Антрацит",
-        "Орех",
-        "Черный матовый"
-    ];
-
-    public IReadOnlyList<string> OpeningTypes { get; } =
-    [
-        "Поворотная",
-        "Поворотно-откидная",
-        "Фрамуга"
-    ];
-
-    public IReadOnlyList<string> HardwareBrands { get; } =
-    [
-        "Roto",
-        "Maco",
-        "Siegenia",
-        "Vorne"
-    ];
-
-    public IReadOnlyList<string> GlassFormulas { get; } =
-    [
-        "4*16*4 Простой",
-        "4LowE*16*4",
-        "Сэндвич 24мм",
-        "4*10*4*10*4"
-    ];
-
-    public string? SelectedProfileSystem
-    {
-        get => SelectedSection?.Fill.ProfileSystem;
-        set => SetSelectedFillValue(value, (fill, v) => fill.ProfileSystem = v, "Изменен профиль проёма");
-    }
-
-    public string? SelectedLaminationColor
-    {
-        get => SelectedSection?.Fill.LaminationColor;
-        set => SetSelectedFillValue(value, (fill, v) => fill.LaminationColor = v, "Изменена ламинация проёма");
-    }
-
-    public string? SelectedOpeningType
-    {
-        get => SelectedSection?.Fill.OpeningType;
-        set => SetSelectedFillValue(value, (fill, v) => fill.OpeningType = v, "Изменен тип открывания");
-    }
-
-    public string? SelectedHardwareBrand
-    {
-        get => SelectedSection?.Fill.HardwareBrand;
-        set => SetSelectedFillValue(value, (fill, v) => fill.HardwareBrand = v, "Изменен бренд фурнитуры");
-    }
-
-    public string? SelectedGlassFormula
-    {
-        get => SelectedSection?.Fill.GlassFormula;
-        set => SetSelectedFillValue(value, (fill, v) => fill.GlassFormula = v, "Изменена формула заполнения");
-    }
-
-    public bool HasCloser
-    {
-        get => HasModifier(SashHardwareModifier.Closer);
-        set => SetModifier(SashHardwareModifier.Closer, value, "Доводчик");
-    }
-
-    public bool HasLock
-    {
-        get => HasModifier(SashHardwareModifier.Lock);
-        set => SetModifier(SashHardwareModifier.Lock, value, "Замок");
-    }
-
-    public bool HasLimiter
-    {
-        get => HasModifier(SashHardwareModifier.OpeningLimiter);
-        set => SetModifier(SashHardwareModifier.OpeningLimiter, value, "Ограничитель");
-    }
-
-    [RelayCommand]
-    private void FitAll()
-    {
-        Viewport.FitToWorld(Document.Structure.Options.Width, Document.Structure.Options.Height);
-        TrainingTracker.Track("Навигация", "Показать всё", "Успешно");
-    }
-
-    [RelayCommand]
-    private void ManualDimensions()
-    {
-        Document.Structure.InitializeFrame(Document.Structure.Options.Width, Document.Structure.Options.Height);
-        Recalculate($"Ввод размеров {Document.Structure.Options.Width:0}x{Document.Structure.Options.Height:0} мм");
     }
 
     [RelayCommand]
     private void Undo()
     {
         Commands.Undo();
-        Recalculate("Отменить");
+        RefreshSelection();
+        RequestSceneRefresh();
+        StatusText = "Отменить";
     }
 
     [RelayCommand]
     private void Redo()
     {
         Commands.Redo();
-        Recalculate("Повторить");
+        RefreshSelection();
+        RequestSceneRefresh();
+        StatusText = "Повторить";
     }
 
     [RelayCommand]
-    private async Task SaveTemplate()
+    private void FitAll()
     {
-        var path = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            "NurSapat",
-            "Templates",
-            $"{Document.Name}-{DateTime.Now:yyyyMMdd-HHmmss}.nursapat_tpl");
-        await _templateSerializer.SaveAsync(Document, path);
-        TrainingTracker.Track("Шаблоны", $"Сохранение шаблона {path}", "Успешно");
-        StatusText = $"Шаблон сохранен: {path}";
+        FitDocumentToViewport();
+        StatusText = "Показать всё";
     }
 
     [RelayCommand]
-    private void ToggleTraining()
+    private async Task ClearAll()
     {
-        IsTrainingVisible = !IsTrainingVisible;
+        if (!await ConfirmClearAsync()) return;
+
+        Document.ClearRectangles();
+        SelectedRectangle = null;
+        RefreshSelection();
+        FitDocumentToViewport();
+        StatusText = "Чертеж очищен";
     }
 
     private void ActivateTool(string? id)
     {
-        if (string.IsNullOrWhiteSpace(id))
-        {
-            return;
-        }
+        if (string.IsNullOrWhiteSpace(id)) return;
 
         ActiveTool = _toolFactory.Create(id);
-        ActiveToolId = id; // Обновляем свойство
-        SetActiveToolState(id);
-        TrainingTracker.Track(ActiveTool.DisplayName, "Активация инструмента", "Успешно");
+        ActiveToolId = id;
+        OnPropertyChanged(nameof(ActiveToolDisplayName));
         StatusText = ActiveTool.DisplayName;
     }
 
-    private void SetSelectedFillValue(string? value, Action<SectionFill, string> setter, string reason)
+    public void UpdateCursor(CadPoint point)
     {
-        if (SelectedSection == null || value == null)
-        {
-            return;
-        }
-
-        setter(SelectedSection.Fill, value);
-        Recalculate($"{reason}: {value}");
+        CursorX = point.X;
+        CursorY = point.Y;
+        OnPropertyChanged(nameof(ZoomPercent));
     }
 
-    private bool HasModifier(SashHardwareModifier modifier) =>
-        SelectedSection?.Fill.HardwareModifiers.Contains(modifier) == true;
-
-    private void SetModifier(SashHardwareModifier modifier, bool enabled, string label)
+    private static async Task<bool> ConfirmClearAsync()
     {
-        Document.Structure.SetHardwareModifier(modifier, enabled);
-        Recalculate($"{label}: {(enabled ? "включен" : "выключен")}");
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop ||
+            desktop.MainWindow is not Window owner)
+        {
+            return true;
+        }
+
+        var dialog = new Window
+        {
+            Title = "Очистить чертеж",
+            Width = 460,
+            Height = 210,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+
+        var title = new TextBlock
+        {
+            Text = "Вы уверены, что хотите очистить чертеж?",
+            FontSize = 18,
+            FontWeight = Avalonia.Media.FontWeight.SemiBold
+        };
+        var message = new TextBlock
+        {
+            Text = "Все несохраненные изменения будут потеряны.",
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#5F6368"))
+        };
+        var buttons = CreateDialogButtons(dialog);
+        Grid.SetRow(message, 1);
+        Grid.SetRow(buttons, 2);
+
+        var grid = new Grid
+        {
+            RowDefinitions =
+            {
+                new RowDefinition(GridLength.Auto),
+                new RowDefinition(GridLength.Star),
+                new RowDefinition(GridLength.Auto)
+            }
+        };
+        grid.Children.Add(title);
+        grid.Children.Add(message);
+        grid.Children.Add(buttons);
+        dialog.Content = new Border
+        {
+            Padding = new Avalonia.Thickness(22),
+            Background = Avalonia.Media.Brushes.White,
+            Child = grid
+        };
+
+        return await dialog.ShowDialog<bool>(owner);
+
+        static Panel CreateDialogButtons(Window dialog)
+        {
+            var cancel = new Button
+            {
+                Content = "Отмена",
+                Width = 110,
+                Height = 34,
+                Margin = new Avalonia.Thickness(0, 0, 8, 0)
+            };
+            var clear = new Button
+            {
+                Content = "Очистить",
+                Width = 120,
+                Height = 34,
+                Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#D93025")),
+                Foreground = Avalonia.Media.Brushes.White
+            };
+            cancel.Click += (_, _) => dialog.Close(false);
+            clear.Click += (_, _) => dialog.Close(true);
+
+            var panel = new StackPanel
+            {
+                Orientation = Avalonia.Layout.Orientation.Horizontal,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right
+            };
+            panel.Children.Add(cancel);
+            panel.Children.Add(clear);
+            return panel;
+        }
     }
 
     private void SetActiveToolState(string activeId)
     {
         foreach (var tool in Tools)
-        {
             tool.IsActive = tool.Id == activeId;
-        }
     }
 }

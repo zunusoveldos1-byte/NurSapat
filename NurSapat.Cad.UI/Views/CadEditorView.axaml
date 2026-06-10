@@ -1,273 +1,331 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:material="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="clr-namespace:NurSapat.Cad.UI.ViewModels;assembly=NurSapat.Cad.UI"
              xmlns:controls="clr-namespace:NurSapat.Cad.UI.Controls;assembly=NurSapat.Cad.UI"
+             xmlns:converters="clr-namespace:NurSapat.Cad.UI.Converters;assembly=NurSapat.Cad.UI"
              x:Class="NurSapat.Cad.UI.Views.CadEditorView"
              x:DataType="vm:CadEditorViewModel">
 
-	<UserControl.Styles>
-		<Style Selector="Button">
-			<Setter Property="Background" Value="White"/>
-			<Setter Property="BorderBrush" Value="#D1D5DB"/>
-			<Setter Property="Foreground" Value="#333333"/>
-			<Setter Property="CornerRadius" Value="4"/>
-			<Setter Property="Height" Value="30"/>
-			<Setter Property="Padding" Value="14,0"/>
-			<!-- Добавим отступы для контента кнопки -->
-			<Setter Property="HorizontalContentAlignment" Value="Left"/>
-		</Style>
-		<Style Selector="Button.active">
-			<Setter Property="Background" Value="#2563EB"/>
-			<Setter Property="BorderBrush" Value="#1D4ED8"/>
-			<Setter Property="Foreground" Value="White"/>
-		</Style>
-		<Style Selector="GridSplitter">
-			<Setter Property="Background" Value="#F3F4F6"/>
-			<Setter Property="BorderBrush" Value="#E5E7EB"/>
-			<Setter Property="BorderThickness" Value="1,0"/>
-		</Style>
-	</UserControl.Styles>
+    <UserControl.Resources>
+        <converters:LeftPanelIconConverter x:Key="LeftIconConverter" />
+        <converters:RightPanelIconConverter x:Key="RightIconConverter" />
+    </UserControl.Resources>
 
-	<DockPanel LastChildFill="True">
+    <UserControl.Styles>
+        <Style Selector="TextBlock">
+            <Setter Property="Foreground" Value="#202124"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#202124"/>
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="Padding" Value="8,4"/>
+        </Style>
+        <Style Selector="Button:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#EEF3FE"/>
+            <Setter Property="BorderBrush" Value="#C7D8FA"/>
+        </Style>
+        <Style Selector="Button.toolListItem">
+            <Setter Property="Height" Value="33"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Margin" Value="0,2"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="Button.toolListItem.active">
+            <Setter Property="Background" Value="#E8F0FE"/>
+            <Setter Property="BorderBrush" Value="#1A73E8"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="TextBlock.mdlIcon">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="21"/>
+            <Setter Property="Foreground" Value="#1A73E8"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="TextBlock.sectionTitle">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+        <Style Selector="TextBlock.propertyLabel">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#3C4043"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="TextBox, NumericUpDown, ComboBox">
+            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style Selector="CheckBox">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#202124"/>
+        </Style>
 
-		<!-- TOP TOOLBAR -->
-		<Border DockPanel.Dock="Top" Height="44" IsVisible="{Binding IsTopPanelVisible}" Background="#F8F9FA" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" BoxShadow="0 1 2 rgba(0,0,0,0.05)">
-			<StackPanel Orientation="Horizontal" Spacing="8" Margin="10,6">
-				<!-- Пример кнопки с местом для иконки -->
-				<Button>
-					<StackPanel Orientation="Horizontal" Spacing="8">
-						<!-- МЕСТО ДЛЯ ИКОНКИ: Width и Height задайте нужный размер -->
-						<Border Width="16" Height="16" Background="Transparent"/>
-						<TextBlock Text="Панорамирование" VerticalAlignment="Center" FontSize="12"/>
-					</StackPanel>
-				</Button>
+        <!-- СТИЛИ ДЛЯ КНОПОК СВОРАЧИВАНИЯ -->
+        <Style Selector="Button.panelToggle">
+            <Setter Property="Width" Value="20"/>
+            <Setter Property="Height" Value="60"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#DCDCDC"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="#5F6368"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        
+        <Style Selector="Button.panelToggle.left">
+            <Setter Property="CornerRadius" Value="0,4,4,0"/>
+            <Setter Property="Margin" Value="-1,0,0,0"/>
+        </Style>
+        
+        <Style Selector="Button.panelToggle.right">
+            <Setter Property="CornerRadius" Value="4,0,0,4"/>
+            <Setter Property="Margin" Value="0,0,-1,0"/>
+        </Style>
 
-				<Button Command="{Binding FitAllCommand}">
-					<StackPanel Orientation="Horizontal" Spacing="8">
-						<Border Width="16" Height="16" Background="Transparent"/>
-						<TextBlock Text="Показать всё" VerticalAlignment="Center" FontSize="12"/>
-					</StackPanel>
-				</Button>
+        <Style Selector="Button.panelToggle:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#E7F1FF"/>
+            <Setter Property="BorderBrush" Value="#1A73E8"/>
+            <Setter Property="Foreground" Value="#1A73E8"/>
+        </Style>
 
-				<Button Command="{Binding ManualDimensionsCommand}">
-					<StackPanel Orientation="Horizontal" Spacing="8">
-						<Border Width="16" Height="16" Background="Transparent"/>
-						<TextBlock Text="Ввод размеров" VerticalAlignment="Center" FontSize="12"/>
-					</StackPanel>
-				</Button>
+        <Style Selector="Button.panelToggle:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="#D7E8FF"/>
+            <Setter Property="BorderBrush" Value="#1A73E8"/>
+        </Style>
 
-				<Button Command="{Binding SaveTemplateCommand}">
-					<StackPanel Orientation="Horizontal" Spacing="8">
-						<Border Width="16" Height="16" Background="Transparent"/>
-						<TextBlock Text="Сохранить шаблон" VerticalAlignment="Center" FontSize="12"/>
-					</StackPanel>
-				</Button>
+        <Style Selector="ToggleButton.toggleBtn">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
 
-				<Button Command="{Binding ClearAllCommand}">
-					<StackPanel Orientation="Horizontal" Spacing="8">
-						<Border Width="16" Height="16" Background="Transparent"/>
-						<TextBlock Text="Очистить всё" VerticalAlignment="Center" FontSize="12"/>
-					</StackPanel>
-				</Button>
+        <Style Selector="ToggleButton.toggleBtn:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#F1F3F4"/>
+            <Setter Property="BorderBrush" Value="#DADCE0"/>
+        </Style>
 
-				<Button Command="{Binding ToggleTrainingCommand}">
-					<StackPanel Orientation="Horizontal" Spacing="8">
-						<Border Width="16" Height="16" Background="Transparent"/>
-						<TextBlock Text="Журнал обучения" VerticalAlignment="Center" FontSize="12"/>
-					</StackPanel>
-				</Button>
+        <Style Selector="ToggleButton.toggleBtn:checked /template/ ContentPresenter">
+            <Setter Property="Background" Value="#E8F0FE"/> <Setter Property="BorderBrush" Value="#1A73E8"/>  </Style>
 
-				<TextBlock Text="{Binding StatusText}" Foreground="#333333" VerticalAlignment="Center" Margin="12,0,0,0" FontSize="13"/>
-			</StackPanel>
-		</Border>
+        <Style Selector="ToggleButton.toggleBtn:checked TextBlock.mdlIcon">
+            <Setter Property="Foreground" Value="#1A73E8"/>  </Style>
 
-		<!-- BOTTOM PROPERTY BAR -->
-		<Border DockPanel.Dock="Bottom" IsVisible="{Binding IsBottomPanelVisible}" Height="92" Background="#F8F9FA" BorderBrush="#E5E7EB" BorderThickness="0,1,0,0">
-			<Grid ColumnDefinitions="*,Auto" Margin="16,8">
-				<StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
-					<TextBlock Text="Оконная конструкция" FontWeight="SemiBold" Foreground="#333333"/>
-					<TextBlock Text="{Binding StatusText}" Foreground="#4B5563" FontSize="12"/>
-				</StackPanel>
-				<StackPanel Orientation="Horizontal" Spacing="8" Grid.Column="1">
-					<Button Content="Применить" Height="28" Padding="12,0" CornerRadius="4" Background="#2563EB" Foreground="White"/>
-					<Button Content="Сброс" Height="28" Padding="12,0" CornerRadius="4"/>
-				</StackPanel>
-			</Grid>
-		</Border>
+        <Style Selector="ToggleButton.toggleBtn:checked:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#D2E3FC"/>
+            <Setter Property="BorderBrush" Value="#1A73E8"/>
+        </Style>
 
-		<!-- CENTER AREA WITH SPLITTERS -->
-		<Grid ColumnDefinitions="Auto,*,Auto">
+        <Style Selector="ToggleButton.toggleBtn:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="#E0E0E0"/>
+        </Style>
+    </UserControl.Styles>
 
-			<!-- LEFT PANEL (Tools) -->
-			<Border x:Name="LeftPanel"
-					Grid.Column="0"
-					IsVisible="{Binding IsLeftPanelVisible}"
-					Width="220"
-					MinWidth="80"
-					MaxWidth="400"
-					Background="#F8F9FA"
-					BorderBrush="#E5E7EB"
-					BorderThickness="0,0,1,0">
-				<ScrollViewer>
-					<StackPanel Margin="8">
-						<TextBlock Text="Инструменты" FontWeight="Bold" Margin="0,0,0,8"/>
-						<ListBox ItemsSource="{Binding Tools}" Background="Transparent" BorderThickness="0">
-							<ListBox.ItemTemplate>
-								<DataTemplate>
-									<Button Classes.active="{Binding IsActive}"
-											Command="{Binding $parent[UserControl].DataContext.ActivateToolCommand}"
-											CommandParameter="{Binding Id}"
-											HorizontalAlignment="Stretch"
-											Margin="0,2"
-											Height="36">
-										<StackPanel Orientation="Horizontal" Spacing="8">
-											<Border Width="20" Height="20" Background="Transparent"/>
-											<TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" FontSize="12"/>
-										</StackPanel>
-									</Button>
-								</DataTemplate>
-							</ListBox.ItemTemplate>
-						</ListBox>
-					</StackPanel>
-				</ScrollViewer>
-			</Border>
+    <Grid RowDefinitions="*,34">
+        <!-- ОСНОВНАЯ ОБЛАСТЬ (Левая панель, Центр, Правая панель) -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+        
+            <!-- Левая панель (Инструменты) -->
+            <Border x:Name="LeftPanel" 
+                    Grid.Column="0" 
+                    Width="260"
+                    Background="#F8F9FA" 
+                    BorderBrush="#DCDCDC" 
+                    BorderThickness="0,0,1,0" 
+                    ZIndex="2"
+                    IsVisible="{Binding IsLeftPanelVisible}">
+                <ScrollViewer>
+                    <StackPanel Margin="14,10" Spacing="8">
+                        <TextBlock Text="Инструменты" FontWeight="SemiBold"/>
+                        <ItemsControl ItemsSource="{Binding Tools}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Classes.toolListItem="True"
+                                            Classes.active="{Binding IsActive}"
+                                            Command="{Binding $parent[UserControl].DataContext.ActivateToolCommand}"
+                                            CommandParameter="{Binding Id}">
+                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                            <TextBlock Classes="mdlIcon" Text="&#xE8B0;" FontSize="16" Width="22"/>
+                                            <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
 
-			<!-- CENTER (Canvas + Rulers) -->
-			<Grid Grid.Column="1" RowDefinitions="20,*,20" ColumnDefinitions="20,*">
-				<!-- Верхняя линейка -->
-				<controls:RulerControl Grid.Row="0" Grid.Column="1"
-									   Viewport="{Binding Viewport}"
-									   Orientation="Horizontal"
-									   Background="#F8F9FA"/>
-				<!-- Левая линейка -->
-				<controls:RulerControl Grid.Row="1" Grid.Column="0"
-									   Viewport="{Binding Viewport}"
-									   Orientation="Vertical"
-									   Background="#F8F9FA"/>
-				<!-- Основной холст -->
-				<Border Grid.Row="1" Grid.Column="1"
-						Background="#FAFAFA"
-						BorderBrush="#D1D5DB"
-						BorderThickness="1"
-						CornerRadius="4"
-						Margin="2">
-					<controls:CadCanvasControl Editor="{Binding}"/>
-				</Border>
-				<!-- Угловой квадрат -->
-				<Border Grid.Row="0" Grid.Column="0" Background="#F8F9FA" BorderBrush="#D1D5DB" BorderThickness="0,0,1,1"/>
-			</Grid>
+            <!-- КНОПКА СВОРАЧИВАНИЯ ЛЕВОЙ ПАНЕЛИ -->
+            <Button Grid.Column="1" 
+                    Command="{Binding ToggleLeftPanelCommand}" 
+                    Classes="panelToggle left"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    ZIndex="10">
+                <TextBlock Text="{Binding IsLeftPanelVisible, Converter={StaticResource LeftIconConverter}}"/>
+            </Button>
 
-			<!-- RIGHT PANEL (Properties) -->
-			<Border x:Name="RightPanel"
-					Grid.Column="2"
-					IsVisible="{Binding IsRightPanelVisible}"
-					Width="320"
-					MinWidth="200"
-					MaxWidth="600"
-					Background="#F8F9FA"
-					BorderBrush="#E5E7EB"
-					BorderThickness="1,0,0,0">
-				<ScrollViewer>
-					<StackPanel Spacing="12" Margin="12">
+            <controls:CadSceneControl Grid.Column="1" 
+                                      Editor="{Binding}" 
+                                      ClipToBounds="True"/>
 
-						<!-- Секция: Геометрия (L, H, X, Y) -->
-						<Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="12">
-							<StackPanel>
-								<TextBlock Text="Геометрия" FontWeight="SemiBold" FontSize="12" Foreground="#111827" Margin="0,0,0,10"/>
+            <!-- КНОПКА СВОРАЧИВАНИЯ ПРАВОЙ ПАНЕЛИ -->
+            <Button Grid.Column="1" 
+                    Command="{Binding ToggleRightPanelCommand}" 
+                    Classes="panelToggle right"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    ZIndex="10">
+                <TextBlock Text="{Binding IsRightPanelVisible, Converter={StaticResource RightIconConverter}}"/>
+            </Button>
 
-								<Grid ColumnDefinitions="*,*" ColumnSpacing="16" RowDefinitions="Auto,Auto" RowSpacing="8">
-									<!-- Ширина -->
-									<StackPanel Grid.Row="0" Grid.Column="0">
-										<TextBlock Text="Ширина L, мм" FontSize="11" Foreground="#6B7280"/>
-										<NumericUpDown Value="{Binding FrameWidth}" Minimum="300" Increment="10" Height="28" HorizontalAlignment="Stretch"/>
-									</StackPanel>
-									<!-- Высота -->
-									<StackPanel Grid.Row="0" Grid.Column="1">
-										<TextBlock Text="Высота H, мм" FontSize="11" Foreground="#6B7280"/>
-										<NumericUpDown Value="{Binding FrameHeight}" Minimum="300" Increment="10" Height="28" HorizontalAlignment="Stretch"/>
-									</StackPanel>
-								</Grid>
+            <!-- Правая панель (Свойства) -->
+            <Border x:Name="RightPanel" 
+                    Grid.Column="2" 
+                    Width="320"
+                    Background="#F8F9FA" 
+                    BorderBrush="#DCDCDC" 
+                    BorderThickness="1,0,0,0" 
+                    ZIndex="2"
+                    IsVisible="{Binding IsRightPanelVisible}">
+                <ScrollViewer>
+                    <StackPanel Margin="14,12" Spacing="0">
+                        <TextBlock Text="Свойства" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12"/>
+                        <Border Height="1" Background="#DCDCDC"/>
 
-								<Border Height="1" Background="#E5E7EB" Margin="0,10"/>
+                        <StackPanel Margin="0,14" Spacing="10">
+                            <TextBlock Classes="sectionTitle" Text="Геометрия"/>
+                            <Grid ColumnDefinitions="*,146" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
+                                <TextBlock Classes="propertyLabel" Text="Ширина (L), мм"/>
+                                <NumericUpDown Grid.Column="1" Value="1000" Minimum="300" Increment="10"/>
+                                <TextBlock Grid.Row="1" Classes="propertyLabel" Text="Высота (H), мм"/>
+                                <NumericUpDown Grid.Row="1" Grid.Column="1" Value="1000" Minimum="300" Increment="10"/>
+                                <TextBlock Grid.Row="2" Classes="sectionTitle" Text="Положение" Margin="0,8,0,0"/>
+                                <TextBlock Grid.Row="3" Classes="propertyLabel" Text="X, мм"/>
+                                <NumericUpDown Grid.Row="3" Grid.Column="1" Value="0" IsEnabled="False"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,146">
+                                <TextBlock Classes="propertyLabel" Text="Y, мм"/>
+                                <NumericUpDown Grid.Column="1" Value="0" IsEnabled="False"/>
+                            </Grid>
+                        </StackPanel>
+                        <Border Height="1" Background="#DCDCDC"/>
 
-								<Grid ColumnDefinitions="*,*" ColumnSpacing="16" RowDefinitions="Auto,Auto" RowSpacing="8">
-									<StackPanel Grid.Row="0" Grid.Column="0">
-										<TextBlock Text="Координата X, мм" FontSize="11" Foreground="#6B7280"/>
-										<NumericUpDown Value="{Binding SelectedImpostCoordinate}" Increment="5" Height="28" HorizontalAlignment="Stretch"/>
-									</StackPanel>
-									<StackPanel Grid.Row="0" Grid.Column="1">
-										<TextBlock Text="Координата Y, мм" FontSize="11" Foreground="#6B7280"/>
-										<NumericUpDown Value="{Binding SelectedImpostCoordinate}" Increment="5" Height="28" HorizontalAlignment="Stretch"/>
-									</StackPanel>
-								</Grid>
-							</StackPanel>
-						</Border>
+                        <StackPanel Margin="0,14" Spacing="10">
+                            <TextBlock Classes="sectionTitle" Text="Профиль"/>
+                            <Grid ColumnDefinitions="*,146" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                                <TextBlock Classes="propertyLabel" Text="Система"/>
+                                <ComboBox Grid.Column="1" SelectedIndex="0"> 
+                                    <ComboBoxItem Content="Rehau Euro 70"/>
+                                    <ComboBoxItem Content="KBE Expert 70"/>
+                                    <ComboBoxItem Content="Veka Softline 70"/>
+                                </ComboBox>
+                                <TextBlock Grid.Row="1" Classes="propertyLabel" Text="Ширина профиля"/>
+                                <ComboBox Grid.Row="1" Grid.Column="1" SelectedIndex="0">
+                                    <ComboBoxItem Content="70 мм"/>
+                                    <ComboBoxItem Content="72 мм"/>
+                                    <ComboBoxItem Content="58 мм"/>
+                                </ComboBox>
+                                <TextBlock Grid.Row="2" Classes="propertyLabel" Text="Цвет ламинации"/>
+                                <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,32,28" ColumnSpacing="6">
+                                    <ComboBox SelectedIndex="0">
+                                        <ComboBoxItem Content="Белый"/>
+                                        <ComboBoxItem Content="Золотой дуб"/>
+                                        <ComboBoxItem Content="Антрацит"/>
+                                    </ComboBox>
+                                    <Border Grid.Column="1" Width="24" Height="24" Background="White" BorderBrush="#CFCFCF" BorderThickness="1" CornerRadius="3"/>
+                                    <Button Grid.Column="2" Padding="0" Content="..."/>
+                                </Grid>
+                            </Grid>
+                        </StackPanel>
+                        <Border Height="1" Background="#DCDCDC"/>
 
-						<!-- Секция: Профиль -->
-						<Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="12">
-							<StackPanel>
-								<TextBlock Text="Профиль" FontWeight="SemiBold" FontSize="12" Foreground="#111827" Margin="0,0,0,10"/>
+                        <StackPanel Margin="0,14" Spacing="10" IsVisible="False">
+                            <TextBlock Classes="sectionTitle" Text="Створка"/>
+                            <Grid ColumnDefinitions="*,164" RowDefinitions="Auto,Auto" RowSpacing="8">
+                                <TextBlock Classes="propertyLabel" Text="Тип"/>
+                                <ComboBox Grid.Column="1" SelectedIndex="0">
+                                    <ComboBoxItem Content="Поворотно-откидная"/>
+                                    <ComboBoxItem Content="Поворотная"/>
+                                </ComboBox>
+                                <TextBlock Grid.Row="1" Classes="propertyLabel" Text="Направление"/>
+                                <ComboBox Grid.Row="1" Grid.Column="1" SelectedIndex="0">
+                                    <ComboBoxItem Content="Правая"/>
+                                    <ComboBoxItem Content="Левая"/>
+                                </ComboBox>
+                            </Grid>
+                            <CheckBox Content="Доводчик" IsChecked="False"/>
+                            <CheckBox Content="Микропроветривание" IsChecked="False"/>
+                            <CheckBox Content="Замок" IsChecked="False"/>
+                        </StackPanel>
+                        <Border Height="1" Background="#DCDCDC" IsVisible="False"/>
 
-								<Grid ColumnDefinitions="*,Auto,*,Auto" ColumnSpacing="12">
-									<StackPanel Grid.Column="0">
-										<TextBlock Text="Серия" FontSize="11" Foreground="#6B7280"/>
-										<ComboBox ItemsSource="{Binding ProfileSystems}"
-                                                  SelectedItem="{Binding FrameProfileSystem}"
-                                                  Height="28"
-                                                  HorizontalAlignment="Stretch"
-                                                  MinWidth="120"/>
-									</StackPanel>
+                        <StackPanel Margin="0,14" Spacing="10">
+                            <TextBlock Classes="sectionTitle" Text="Стеклопакет"/>
+                            <Grid ColumnDefinitions="*,164" RowDefinitions="Auto,Auto" RowSpacing="8">
+                                <TextBlock Classes="propertyLabel" Text="Формула"/>
+                                <ComboBox Grid.Column="1" SelectedIndex="0">
+                                    <ComboBoxItem Content="4-16-4"/>
+                                    <ComboBoxItem Content="4LowE-16-4"/>
+                                    <ComboBoxItem Content="4-10-4-10-4"/>
+                                </ComboBox>
+                                <TextBlock Grid.Row="1" Classes="propertyLabel" Text="Толщина, мм"/>
+                                <NumericUpDown Grid.Row="1" Grid.Column="1" Value="24" IsEnabled="False"/>
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
 
-									<Border Grid.Column="1" Width="1" Height="32" Background="#E5E7EB" VerticalAlignment="Center"/>
-
-									<StackPanel Grid.Column="2">
-										<TextBlock Text="Цвет ламинации" FontSize="11" Foreground="#6B7280"/>
-										<ComboBox ItemsSource="{Binding LaminationColors}"
-                                                  SelectedItem="{Binding FrameLaminationColor}"
-                                                  Height="28"
-                                                  HorizontalAlignment="Stretch"
-                                                  MinWidth="120"/>
-									</StackPanel>
-
-									<StackPanel Grid.Column="3" IsVisible="False"/>
-								</Grid>
-							</StackPanel>
-						</Border>
-
-						<!-- Секция: Створка / Фурнитура -->
-						<Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="12" IsVisible="{Binding IsSashSelected}">
-							<StackPanel>
-								<TextBlock Text="Фурнитура" FontWeight="SemiBold" FontSize="12" Foreground="#111827" Margin="0,0,0,8"/>
-								<Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-									<StackPanel>
-										<TextBlock Text="Тип" FontSize="11" Foreground="#6B7280"/>
-										<ComboBox ItemsSource="{Binding OpeningTypes}" SelectedItem="{Binding SelectedOpeningType}" Height="28"/>
-									</StackPanel>
-									<StackPanel>
-										<TextBlock Text="Бренд" FontSize="11" Foreground="#6B7280"/>
-										<ComboBox ItemsSource="{Binding HardwareBrands}" SelectedItem="{Binding SelectedHardwareBrand}" Height="28"/>
-									</StackPanel>
-								</Grid>
-								<StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-									<CheckBox Content="Доводчик" IsChecked="{Binding HasCloser}" Foreground="#333333"/>
-									<CheckBox Content="Замок" IsChecked="{Binding HasLock}" Foreground="#333333"/>
-									<CheckBox Content="Ограничитель" IsChecked="{Binding HasLimiter}" Foreground="#333333"/>
-								</StackPanel>
-							</StackPanel>
-						</Border>
-
-						<!-- Секция: Стеклопакет -->
-						<Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="12" IsVisible="{Binding IsGlazingSelected}">
-							<StackPanel>
-								<TextBlock Text="Стеклопакет" FontWeight="SemiBold" FontSize="12" Foreground="#111827" Margin="0,0,0,8"/>
-								<ComboBox ItemsSource="{Binding GlassFormulas}" SelectedItem="{Binding SelectedGlassFormula}" Height="28"/>
-							</StackPanel>
-						</Border>
-
-					</StackPanel>
-				</ScrollViewer>
-			</Border>
-		</Grid>
-	</DockPanel>
+        <!-- НИЖНЯЯ ПАНЕЛЬ -->
+        <Border Grid.Row="1" Background="#F8F9FA" BorderBrush="#DCDCDC" BorderThickness="0,1,0,0" IsVisible="{Binding IsBottomPanelVisible}">
+            <Grid ColumnDefinitions="*,Auto,*" Margin="16,0">
+                <StackPanel Orientation="Horizontal" Spacing="22" VerticalAlignment="Center">
+                    <!-- Исправление: вместо StringFormat используем Run -->
+                    <TextBlock>
+                        <Run Text="X: "/><Run Text="{Binding CursorX}"/><Run Text=" мм"/>
+                    </TextBlock>
+                    <TextBlock>
+                        <Run Text="Y: "/><Run Text="{Binding CursorY}"/><Run Text=" мм"/>
+                    </TextBlock>
+                    <TextBlock Text="L: 1000 мм"/>
+                    <TextBlock Text="H: 1000 мм"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock>
+                        <Run Text="Масштаб: "/><Run Text="{Binding ZoomPercent}"/>
+                    </TextBlock>
+    
+                    <ToggleButton IsChecked="{Binding IsGridEnabled}" Classes="toggleBtn" ToolTip.Tip="Отображать сетку">
+                        <TextBlock Classes="mdlIcon" Text="&#xECA5;" FontSize="15" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                    </ToggleButton>
+    
+                    <ToggleButton IsChecked="{Binding IsSnapEnabled}" Classes="toggleBtn" ToolTip.Tip="Привязка к сетке и объектам">
+                        <TextBlock Classes="mdlIcon" Text="&#xE8B0;" FontSize="15" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                    </ToggleButton>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="18" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <TextBlock Text="Ничего"/>
+                    <TextBlock>
+                        <Run Text="Инструмент: "/><Run Text="{Binding ActiveToolDisplayName}"/>
+                    </TextBlock>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
 </UserControl>

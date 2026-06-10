@@ -13,6 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\NurSapat.Core\NurSapat.Core.csproj" />
     <ProjectReference Include="..\NurSapat.Cad.Core\NurSapat.Cad.Core.csproj" />
     <ProjectReference Include="..\NurSapat.Cad.Tools\NurSapat.Cad.Tools.csproj" />
   </ItemGroup>

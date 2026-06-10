@@ -1,5 +1,7 @@
+using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
 using NurSapat.Cad.UI.ViewModels;
 using System;
 using System.Collections.Generic;
@@ -13,6 +15,9 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     private readonly Dictionary<string, object> _screens;
     private bool _isNavigating;
 
+    // ДОБАВЛЕНО: Ссылка на главное окно для диалогов
+    private Window? _ownerWindow;
+
     public IRelayCommand<string> NavigationCommand { get; }
 
     [ObservableProperty]
@@ -23,6 +28,12 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
 
     [ObservableProperty]
     private int _selectedWorkspaceTabIndex;
+
+    public bool IsCadSelected => SelectedWorkspaceTabIndex == 0;
+
+    public bool IsOrdersSelected => SelectedWorkspaceTabIndex == 1;
+
+    public bool IsAdditionalSelected => SelectedWorkspaceTabIndex == 2;
 
     // ДОБАВЛЕНО: Свойства для галочек в меню
     [ObservableProperty]
@@ -94,51 +105,83 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     [RelayCommand]
     private void Messages() => System.Diagnostics.Debug.WriteLine("Messages executed");
 
+    private CadEditorViewModel? ResolveCadEditor() =>
+        CurrentContent switch
+        {
+            CadEditorViewModel cad => cad,
+            OrderDrawingViewModel drawing => drawing.CadEditor,
+            _ => null
+        };
+
     [RelayCommand]
     private void ToggleLeftPanel()
     {
-        if (CurrentContent is CadEditorViewModel cadVm)
+        if (ResolveCadEditor() is { } cadVm)
         {
             cadVm.ToggleLeftPanelCommand.Execute(null);
-            IsLeftPanelVisible = cadVm.IsLeftPanelVisible; // Синхронизация
+            IsLeftPanelVisible = cadVm.IsLeftPanelVisible;
         }
     }
 
     [RelayCommand]
     private void ToggleRightPanel()
     {
-        if (CurrentContent is CadEditorViewModel cadVm)
+        if (ResolveCadEditor() is { } cadVm)
         {
             cadVm.ToggleRightPanelCommand.Execute(null);
-            IsRightPanelVisible = cadVm.IsRightPanelVisible; // Синхронизация
+            IsRightPanelVisible = cadVm.IsRightPanelVisible;
         }
     }
 
     [RelayCommand]
     private void ToggleBottomPanel()
     {
-        if (CurrentContent is CadEditorViewModel cadVm)
+        if (ResolveCadEditor() is { } cadVm)
         {
             cadVm.ToggleBottomPanelCommand.Execute(null);
-            IsBottomPanelVisible = cadVm.IsBottomPanelVisible; // Синхронизация
+            IsBottomPanelVisible = cadVm.IsBottomPanelVisible;
         }
     }
 
     [RelayCommand]
     private void ToggleTopPanel()
     {
-        if (CurrentContent is CadEditorViewModel cadVm)
+        if (ResolveCadEditor() is { } cadVm)
         {
             cadVm.ToggleTopPanelCommand.Execute(null);
-            IsTopPanelVisible = cadVm.IsTopPanelVisible; // Синхронизация
+            IsTopPanelVisible = cadVm.IsTopPanelVisible;
         }
     }
 
     // ==========================================
     // КОМАНДЫ МЕНЮ "СПРАВОЧНИКИ"
     // ==========================================
+
+    // ДОБАВЛЕНО: Метод для передачи окна-владельца
+    public void SetOwnerWindow(Window window)
+    {
+        _ownerWindow = window;
+    }
+
     [RelayCommand]
-    private void Materials() => System.Diagnostics.Debug.WriteLine("Materials executed");
+    private void Materials()
+    {
+        var provider = App.ServiceProvider;
+        if (provider == null || _ownerWindow == null) return;
+
+        var vm = provider.GetRequiredService<MaterialsViewModel>();
+
+        var window = new Window
+        {
+            Title = "Материалы",
+            Width = 800,
+            Height = 600,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = vm
+        };
+
+        window.ShowDialog(_ownerWindow);
+    }
 
     [RelayCommand]
     private void Customers() => System.Diagnostics.Debug.WriteLine("Customers executed");
@@ -256,15 +299,16 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         EnvironmentSettingsViewModel environmentSettingsViewModel,
         DataTransferViewModel dataTransferViewModel,
         SystemLogsViewModel systemLogsViewModel,
-        CadEditorViewModel cadEditorViewModel,
-        OrderEditViewModel orderEditViewModel)
+        AdditionalDashboardViewModel additionalDashboardViewModel,
+        OrderWorkspaceViewModel orderWorkspace,
+        OrderSheetViewModel orderSheetViewModel)
     {
         NavigationCommand = new RelayCommand<string>(Navigate);
 
         _screens = new Dictionary<string, object>
         {
-            ["cad"] = cadEditorViewModel,
-            ["orders"] = orderEditViewModel,
+            ["cad"] = orderWorkspace.Drawing,
+            ["orders"] = orderSheetViewModel,
             ["archive"] = systemLogsViewModel,
             ["production-options"] = productionOptionsViewModel,
             ["environment"] = environmentSettingsViewModel,
@@ -273,7 +317,7 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
             ["materials"] = Section("Материалы и цены", "Складской справочник материалов и прайсов.", "Профили", "Стеклопакеты", "Фурнитура"),
             ["profile-systems"] = Section("Системы профилей", "Каталог профильных систем.", "PVC", "Aluminum"),
             ["hardware"] = Section("Фурнитура", "Справочник фурнитуры и модификаторов створок.", "Петли", "Ручки", "Замки"),
-            ["additional"] = Section("Дополнительно", "Сервисные операции и утилиты.", "Импорт/Экспорт", "Оптимизация раскроя", "Калькулятор"),
+            ["additional"] = additionalDashboardViewModel,
             ["help"] = Section("Помощь", "Руководство пользователя и справка.", "Чертеж", "Лист заказа")
         };
 
@@ -302,8 +346,8 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         CurrentContent = screen;
         CurrentTitle = screen switch
         {
-            CadEditorViewModel => "Чертеж",
-            OrderEditViewModel => "Лист заказа",
+            OrderDrawingViewModel => "Чертеж",
+            OrderSheetViewModel => "Лист заказа",
             SystemLogsViewModel => "Архив / Сводный журнал",
             ProductionOptionsViewModel => "Технологические допуски",
             EnvironmentSettingsViewModel => "Настройка окружения",
@@ -320,6 +364,9 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
             "additional" => 2,
             _ => SelectedWorkspaceTabIndex
         };
+        OnPropertyChanged(nameof(IsCadSelected));
+        OnPropertyChanged(nameof(IsOrdersSelected));
+        OnPropertyChanged(nameof(IsAdditionalSelected));
         _isNavigating = false;
     }
 

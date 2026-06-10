@@ -18,13 +18,18 @@ public partial class MainWorkspaceWindow : Window
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        // Если DataContext - это MainWorkspaceViewModel, инициализируем CurrentContent
+        // Инициализация CAD при первом запуске
         if (DataContext is MainWorkspaceViewModel vm && vm.CurrentContent == null)
         {
-            // Создаем ViewModel для CAD-редактора (потребуется OrderCalculationState)
-            var orderState = new OrderCalculationState();
-            var cadVm = new CadEditorViewModel(orderState);
+            // ИЗМЕНЕНИЕ: используем конструктор без параметров
+            var cadVm = new CadEditorViewModel();
             vm.CurrentContent = cadVm;
+        }
+
+        // ДОБАВЛЕНО: Передаём ссылку на окно в ViewModel
+        if (DataContext is MainWorkspaceViewModel vm2)
+        {
+            vm2.SetOwnerWindow(this);
         }
     }
 

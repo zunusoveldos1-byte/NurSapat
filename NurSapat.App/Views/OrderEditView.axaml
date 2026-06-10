@@ -3,23 +3,12 @@
              xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
              x:Class="NurSapat.App.Views.OrderEditView"
              x:DataType="vm:OrderEditViewModel">
-	<Grid Background="#F9FAFB" RowDefinitions="Auto,*" Margin="24">
-		<StackPanel Spacing="4">
-			<TextBlock Text="Лист заказа" FontSize="28" FontWeight="SemiBold" Foreground="#111827"/>
-			<TextBlock Text="Данные обновляются из CAD-конструкции при изменении размеров, заполнений и материалов."
-                       Foreground="#6B7280"/>
-		</StackPanel>
-		<Border Grid.Row="1" Margin="0,20,0,0" Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="20">
-			<Grid ColumnDefinitions="*,*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="16">
-				<TextBlock Text="Габарит L" FontWeight="SemiBold" Foreground="#374151"/>
-				<TextBlock Grid.Column="1" Text="Габарит H" FontWeight="SemiBold" Foreground="#374151"/>
-				<TextBlock Grid.Column="2" Text="Площадь стекла" FontWeight="SemiBold" Foreground="#374151"/>
-				<TextBlock Grid.Column="3" Text="Стоимость материалов" FontWeight="SemiBold" Foreground="#374151"/>
-				<TextBlock Grid.Row="1" Text="{Binding Calculation.Width, StringFormat='{}{0:0} мм'}" FontSize="22" Foreground="#111827"/>
-				<TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Calculation.Height, StringFormat='{}{0:0} мм'}" FontSize="22" Foreground="#111827"/>
-				<TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Calculation.GlassArea, StringFormat='{}{0:0.000} м²'}" FontSize="22" Foreground="#111827"/>
-				<TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding Calculation.EstimatedMaterialCost, StringFormat='{}{0:0.00}'}" FontSize="22" Foreground="#111827"/>
-			</Grid>
-		</Border>
-	</Grid>
+
+    <Grid Background="#F6F9FD">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+            <TextBlock Text="Лист заказа" FontSize="20" FontWeight="SemiBold" Foreground="#0B1736"/>
+            <TextBlock Text="Функционал в разработке" Foreground="#52688F"/>
+        </StackPanel>
+    </Grid>
+    
 </UserControl>
