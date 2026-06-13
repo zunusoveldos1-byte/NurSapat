@@ -13,6 +13,7 @@ namespace NurSapat.App.ViewModels;
 public sealed partial class MainWorkspaceViewModel : ObservableObject
 {
     private readonly Dictionary<string, object> _screens;
+    private readonly OrderWorkspaceViewModel _orderWorkspace;
     private bool _isNavigating;
 
     // ДОБАВЛЕНО: Ссылка на главное окно для диалогов
@@ -114,8 +115,24 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         };
 
     [RelayCommand]
+    private void ToggleToolPanel()
+    {
+        if (CurrentContent is OrderDrawingViewModel drawing)
+        {
+            drawing.ToggleToolPanelCommand.Execute(null);
+            IsLeftPanelVisible = drawing.IsToolPanelVisible;
+        }
+    }
+
+    [RelayCommand]
     private void ToggleLeftPanel()
     {
+        if (CurrentContent is OrderDrawingViewModel drawing)
+        {
+            ToggleToolPanel();
+            return;
+        }
+
         if (ResolveCadEditor() is { } cadVm)
         {
             cadVm.ToggleLeftPanelCommand.Execute(null);
@@ -303,6 +320,7 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         OrderWorkspaceViewModel orderWorkspace,
         OrderSheetViewModel orderSheetViewModel)
     {
+        _orderWorkspace = orderWorkspace;
         NavigationCommand = new RelayCommand<string>(Navigate);
 
         _screens = new Dictionary<string, object>

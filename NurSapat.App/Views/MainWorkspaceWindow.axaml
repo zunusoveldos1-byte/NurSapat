@@ -65,6 +65,8 @@
 
                 <!-- Вид -->
                 <MenuItem Header="Вид">
+                    <MenuItem Header="Панель инструментов" Command="{Binding ToggleToolPanelCommand}" IsChecked="{Binding IsLeftPanelVisible}"/>
+                    <Separator/>
                     <MenuItem Header="Таблица затрат" Command="{Binding CostTableCommand}"/>
                     <MenuItem Header="Сообщения" Command="{Binding MessagesCommand}"/>
                 </MenuItem>

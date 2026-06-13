@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NurSapat.Cad.Core.Geometry;
+using NurSapat.Cad.Tools;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models;
 using NurSapat.Core.Models.Orders;
@@ -26,6 +27,11 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
     [ObservableProperty]
     private string _statusMessage = "Выберите инструмент проектирования";
 
+    [ObservableProperty]
+    private bool _isToolPanelVisible = true;
+
+    public double ToolPanelWidth => IsToolPanelVisible ? 300 : 0;
+
     public OrderDrawingViewModel(Order order, OrderSheetViewModel sheet, CadEditorViewModel cadEditor)
     {
         _order = order;
@@ -37,8 +43,15 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
 
         _cadEditor.SceneInvalidated += OnSceneInvalidated;
         _cadEditor.DesignPlacement = HandleDesignPlacement;
+        _cadEditor.OnDesignPlacementCommit = HandleDesignCommit;
+        SyncDesignElements();
         SelectTool(AllTools.First(t => t.Id == "select"));
     }
+
+    partial void OnIsToolPanelVisibleChanged(bool value) => OnPropertyChanged(nameof(ToolPanelWidth));
+
+    [RelayCommand]
+    private void ToggleToolPanel() => IsToolPanelVisible = !IsToolPanelVisible;
 
     [RelayCommand]
     private void SelectTool(CadDesignTool? tool)
@@ -51,6 +64,9 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
             item.IsActive = item.Id == tool.Id;
         }
 
+        _cadEditor.ActiveDesignToolId = tool.Id;
+        _cadEditor.ActiveDesignToolLabel = tool.Title;
+
         if (!string.IsNullOrWhiteSpace(tool.CadToolId))
         {
             _cadEditor.ActivateToolCommand.Execute(tool.CadToolId);
@@ -60,9 +76,15 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
             _cadEditor.ActivateToolCommand.Execute("select");
         }
 
-        StatusMessage = tool.PlacesOnCanvas
-            ? $"{tool.Title}: кликните на чертёж для размещения"
-            : $"Активен: {tool.Title}";
+        StatusMessage = tool.CadToolId switch
+        {
+            "mullion-place-v" => "Импост V: укажите положение внутри рамы (drag или клик)",
+            "mullion-place-h" => "Импост H: укажите положение внутри рамы (drag или клик)",
+            "mullion-place-d" => "Импост D: проведите линию от точки к точке",
+            "design-rect" => $"{tool.Title}: выделите область внутри рамы",
+            _ when tool.PlacesOnCanvas => $"{tool.Title}: кликните на чертёж",
+            _ => $"Активен: {tool.Title}"
+        };
         OnPropertyChanged(nameof(CadEditor));
     }
 
@@ -102,28 +124,117 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
             return false;
         }
 
-        PlaceElementAt(kind, tool.Title, worldPoint);
+        PlacePointElement(kind, tool, worldPoint);
         return true;
     }
 
-    private void PlaceElementAt(GeometryElementKind kind, string label, CadPoint worldPoint)
+    private void HandleDesignCommit(DesignPlacementCommit commit)
     {
-        var construction = _order.EnsureDefaultConstruction();
-        var geometry = construction.Geometry;
+        var tool = AllTools.FirstOrDefault(t => t.Id == commit.ToolId);
+        if (tool?.ElementKind is not { } kind)
+        {
+            return;
+        }
 
+        switch (commit.Kind)
+        {
+            case DesignPlacementKind.MullionLine:
+                PlaceMullionElement(kind, tool, commit);
+                break;
+            case DesignPlacementKind.AreaRect when commit.Rect is CadRect rect:
+                PlaceRectElement(kind, tool, rect);
+                break;
+        }
+    }
+
+    private void PlaceMullionElement(GeometryElementKind kind, CadDesignTool tool, DesignPlacementCommit commit)
+    {
+        var end = commit.End ?? commit.Anchor;
+        var isDiagonal = tool.Id == "mullion-d";
+
+        var element = new GeometryElement
+        {
+            Kind = kind,
+            Label = tool.Title,
+            SourceToolId = tool.Id,
+            X = (decimal)commit.Anchor.X,
+            Y = (decimal)commit.Anchor.Y,
+            WidthMm = 0,
+            HeightMm = 0
+        };
+
+        if (isDiagonal)
+        {
+            element.EndX = (decimal)end.X;
+            element.EndY = (decimal)end.Y;
+        }
+        else if (tool.Id == "mullion-h")
+        {
+            element.X = (decimal)((commit.Anchor.X + end.X) / 2);
+            element.Y = (decimal)commit.Anchor.Y;
+        }
+        else
+        {
+            element.X = (decimal)commit.Anchor.X;
+            element.Y = (decimal)((commit.Anchor.Y + end.Y) / 2);
+        }
+
+        _order.EnsureDefaultConstruction().Geometry.Elements.Add(element);
+        FinishPlacement(tool.Title);
+    }
+
+    private void PlaceRectElement(GeometryElementKind kind, CadDesignTool tool, CadRect rect)
+    {
+        _order.EnsureDefaultConstruction().Geometry.Elements.Add(new GeometryElement
+        {
+            Kind = kind,
+            Label = tool.Title,
+            SourceToolId = tool.Id,
+            X = (decimal)(rect.X + rect.Width / 2),
+            Y = (decimal)(rect.Y - rect.Height / 2),
+            WidthMm = (decimal)rect.Width,
+            HeightMm = (decimal)rect.Height,
+            OpeningType = ResolveOpeningType(kind, tool.Id)
+        });
+        FinishPlacement(tool.Title);
+    }
+
+    private void PlacePointElement(GeometryElementKind kind, CadDesignTool tool, CadPoint worldPoint)
+    {
+        var geometry = _order.EnsureDefaultConstruction().Geometry;
         geometry.Elements.Add(new GeometryElement
         {
             Kind = kind,
-            Label = label,
+            Label = tool.Title,
+            SourceToolId = tool.Id,
             X = (decimal)worldPoint.X,
             Y = (decimal)worldPoint.Y,
-            WidthMm = geometry.OuterWidthMm > 0 ? geometry.OuterWidthMm / 2 : 500m,
-            HeightMm = geometry.OuterHeightMm > 0 ? geometry.OuterHeightMm / 2 : 700m,
-            OpeningType = kind == GeometryElementKind.Sash ? SashOpeningType.TiltTurn : null
+            WidthMm = geometry.OuterWidthMm > 0 ? geometry.OuterWidthMm / 4 : 400m,
+            HeightMm = geometry.OuterHeightMm > 0 ? geometry.OuterHeightMm / 4 : 500m,
+            OpeningType = ResolveOpeningType(kind, tool.Id)
         });
+        FinishPlacement(tool.Title);
+    }
 
-        StatusMessage = $"Добавлено: {label}";
+    private void FinishPlacement(string title)
+    {
+        StatusMessage = $"Добавлено: {title}";
+        SyncDesignElements();
         _sheet.RecalculateAll();
+    }
+
+    private static SashOpeningType? ResolveOpeningType(GeometryElementKind kind, string toolId) => kind switch
+    {
+        GeometryElementKind.Sash => SashOpeningType.TiltTurn,
+        GeometryElementKind.SlidingSash when toolId == "slide-left" => SashOpeningType.SlideLeft,
+        GeometryElementKind.SlidingSash when toolId == "slide-right" => SashOpeningType.SlideRight,
+        _ => null
+    };
+
+    private void SyncDesignElements()
+    {
+        var elements = _order.EnsureDefaultConstruction().Geometry.Elements;
+        _cadEditor.SetDesignElements(elements);
     }
 
     private void BuildGroups()
@@ -142,29 +253,29 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
     private static IReadOnlyList<CadDesignTool> BuildTools() =>
     [
         Tool("select", "Выделение", "Редактирование", "\uE8C1", cadToolId: "select"),
-        Tool("dummy-frame", "Коробка фиктивная", "Базовая геометрия и рамы", "\uE739", GeometryElementKind.DummyFrame, places: true),
+        Tool("dummy-frame", "Коробка фиктивная", "Базовая геометрия и рамы", "\uE739", GeometryElementKind.DummyFrame, cadToolId: "design-rect"),
         Tool("dummy-mullion", "Фиктивные импосты", "Базовая геометрия и рамы", "\uE8B0", GeometryElementKind.DummyMullion, places: true),
         Tool("frame", "Коробка (рама)", "Базовая геометрия и рамы", "\uE7F4", GeometryElementKind.Frame, cadToolId: "rectangle"),
         Tool("edge-mullion", "Стойка/ригель в крайнем положении", "Базовая геометрия и рамы", "\uE8A5", GeometryElementKind.EdgeMullion, places: true),
-        Tool("round-dummy", "Коробка фиктивная круглая", "Базовая геометрия и рамы", "\uECAF", GeometryElementKind.RoundDummyFrame, places: true),
-        Tool("transition-frame", "Коробка и переходной профиль", "Базовая геометрия и рамы", "\uE8AB", GeometryElementKind.TransitionFrame, places: true),
-        Tool("sash", "Створка", "Створки и фурнитура", "\uE7C3", GeometryElementKind.Sash, places: true),
+        Tool("round-dummy", "Коробка фиктивная круглая", "Базовая геометрия и рамы", "\uECAF", GeometryElementKind.RoundDummyFrame, cadToolId: "design-rect"),
+        Tool("transition-frame", "Коробка и переходной профиль", "Базовая геометрия и рамы", "\uE8AB", GeometryElementKind.TransitionFrame, cadToolId: "design-rect"),
+        Tool("sash", "Створка", "Створки и фурнитура", "\uE7C3", GeometryElementKind.Sash, cadToolId: "design-rect"),
         Tool("hinges", "Петли / механизмы", "Створки и фурнитура", "\uE946", GeometryElementKind.Hardware, places: true),
         Tool("handle", "Ручка", "Створки и фурнитура", "\uE7F3", GeometryElementKind.Handle, places: true),
-        Tool("mullion-v", "Импост вертикальный", "Створки и фурнитура", "\uE8A4", GeometryElementKind.Mullion, places: true),
-        Tool("mullion-h", "Импост горизонтальный", "Створки и фурнитура", "\uE8A3", GeometryElementKind.Mullion, places: true),
-        Tool("mullion-d", "Импост наклонный", "Створки и фурнитура", "\uE8B6", GeometryElementKind.Mullion, places: true),
+        Tool("mullion-v", "Импост вертикальный", "Створки и фурнитура", "\uE8A4", GeometryElementKind.Mullion, cadToolId: "mullion-place-v"),
+        Tool("mullion-h", "Импост горизонтальный", "Створки и фурнитура", "\uE8A3", GeometryElementKind.Mullion, cadToolId: "mullion-place-h"),
+        Tool("mullion-d", "Импост наклонный", "Створки и фурнитура", "\uE8B6", GeometryElementKind.Mullion, cadToolId: "mullion-place-d"),
         Tool("lock", "Замок", "Створки и фурнитура", "\uE72E", GeometryElementKind.Hardware, places: true),
         Tool("limiter", "Ограничитель открывания", "Створки и фурнитура", "\uE7BA", GeometryElementKind.Hardware, places: true),
         Tool("closer", "Доводчик", "Створки и фурнитура", "\uE7C5", GeometryElementKind.Hardware, places: true),
         Tool("bolt", "Шпингалет", "Створки и фурнитура", "\uE8D7", GeometryElementKind.Hardware, places: true),
-        Tool("corrugation-v", "Гофра вертикальная", "Заполнение и материалы", "\uE8A6", GeometryElementKind.Corrugation, places: true),
-        Tool("corrugation-h", "Гофра горизонтальная", "Заполнение и материалы", "\uE8A7", GeometryElementKind.Corrugation, places: true),
-        Tool("glazing", "Остекление (панели)", "Заполнение и материалы", "\uE771", GeometryElementKind.Glazing, places: true),
+        Tool("corrugation-v", "Гофра вертикальная", "Заполнение и материалы", "\uE8A6", GeometryElementKind.Corrugation, cadToolId: "design-rect"),
+        Tool("corrugation-h", "Гофра горизонтальная", "Заполнение и материалы", "\uE8A7", GeometryElementKind.Corrugation, cadToolId: "design-rect"),
+        Tool("glazing", "Остекление (панели)", "Заполнение и материалы", "\uE771", GeometryElementKind.Glazing, cadToolId: "design-rect"),
         Tool("bead", "Штапик", "Заполнение и материалы", "\uE8B1", GeometryElementKind.Bead, places: true),
-        Tool("mosquito-net", "Москитная сетка", "Заполнение и материалы", "\uE7B3", GeometryElementKind.MosquitoNet, places: true),
-        Tool("slide-left", "Створка раздвижная левая", "Заполнение и материалы", "\uE8AB", GeometryElementKind.SlidingSash, places: true),
-        Tool("slide-right", "Створка раздвижная правая", "Заполнение и материалы", "\uE8AC", GeometryElementKind.SlidingSash, places: true),
+        Tool("mosquito-net", "Москитная сетка", "Заполнение и материалы", "\uE7B3", GeometryElementKind.MosquitoNet, cadToolId: "design-rect"),
+        Tool("slide-left", "Створка раздвижная левая", "Заполнение и материалы", "\uE8AB", GeometryElementKind.SlidingSash, cadToolId: "design-rect"),
+        Tool("slide-right", "Створка раздвижная правая", "Заполнение и материалы", "\uE8AC", GeometryElementKind.SlidingSash, cadToolId: "design-rect"),
         Tool("installation", "Монтажные элементы", "Дополнительные комплектующие", "\uE90F", GeometryElementKind.Installation, places: true),
         Tool("cornice", "Карниз", "Дополнительные комплектующие", "\uE8A9", GeometryElementKind.Accessory, places: true),
         Tool("control-unit", "Блок управления", "Дополнительные комплектующие", "\uE7F4", GeometryElementKind.Accessory, places: true),

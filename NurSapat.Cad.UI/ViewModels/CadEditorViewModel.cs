@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using NurSapat.Cad.Core.Commands;
 using NurSapat.Cad.Core.Document;
 using NurSapat.Cad.Core.Geometry;
+using NurSapat.Core.Models.Orders;
 using NurSapat.Cad.Core.Snapping;
 using NurSapat.Cad.Core.Viewport;
 using NurSapat.Cad.Tools;
@@ -34,9 +35,23 @@ public sealed partial class CadEditorViewModel : ObservableObject
     /// Обработчик клика по холсту для режимов проектирования (импост, створка и т.д.).
     /// Возвращает true, если клик обработан и стандартный инструмент не должен срабатывать.
     /// </summary>
-    public Func<CadPoint, bool>? DesignPlacement { get; set; }
+  public Func<CadPoint, bool>? DesignPlacement { get; set; }
 
-    public ObservableCollection<CadToolButtonViewModel> Tools { get; } = new(
+  public IReadOnlyList<GeometryElement> DesignElements { get; private set; } = [];
+
+  public void SetDesignElements(IReadOnlyList<GeometryElement> elements)
+  {
+      DesignElements = elements;
+      RequestSceneRefresh();
+  }
+
+  public Action<DesignPlacementCommit>? OnDesignPlacementCommit { get; set; }
+
+  public string? ActiveDesignToolId { get; set; }
+
+  public string? ActiveDesignToolLabel { get; set; }
+
+  public ObservableCollection<CadToolButtonViewModel> Tools { get; } = new(
         new CadToolFactory().Tools.Select(t => new CadToolButtonViewModel(t.Id, t.DisplayName)));
 
     [ObservableProperty]
@@ -132,9 +147,37 @@ public sealed partial class CadEditorViewModel : ObservableObject
         {
             Viewport = Viewport,
             Invalidate = () => RequestSceneRefresh(),
-
-            InvokeSizeInput = point => _ = HandleSizeInputAsync(point)
+            InvokeSizeInput = point => _ = HandleSizeInputAsync(point),
+            CommitPlacement = commit => OnDesignPlacementCommit?.Invoke(commit),
+            ActiveDesignToolId = ActiveDesignToolId,
+            ActiveDesignToolLabel = ActiveDesignToolLabel,
+            SnapPoint = SnapWorldPoint
         };
+    }
+
+    private CadPoint SnapWorldPoint(CadPoint point)
+    {
+        if (!IsSnapEnabled)
+        {
+            return point;
+        }
+
+        return Snapping.Snap(point, BuildSnapLines()).Point;
+    }
+
+    private IEnumerable<CadLine> BuildSnapLines()
+    {
+        foreach (var rect in Document.Rectangles)
+        {
+            var topLeft = new CadPoint(rect.X, rect.Y);
+            var topRight = new CadPoint(rect.X + rect.Width, rect.Y);
+            var bottomLeft = new CadPoint(rect.X, rect.Y - rect.Height);
+            var bottomRight = new CadPoint(rect.X + rect.Width, rect.Y - rect.Height);
+            yield return new CadLine(topLeft, topRight);
+            yield return new CadLine(topRight, bottomRight);
+            yield return new CadLine(bottomRight, bottomLeft);
+            yield return new CadLine(bottomLeft, topLeft);
+        }
     }
 
     private async Task HandleSizeInputAsync(CadPoint point)

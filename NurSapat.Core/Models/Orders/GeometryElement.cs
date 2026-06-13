@@ -49,4 +49,11 @@ public sealed class GeometryElement
     public SashOpeningType? OpeningType { get; set; }
 
     public Guid? MaterialId { get; set; }
+
+    /// <summary>Id инструмента панели (mullion-v, slide-left и т.д.) для варианта отрисовки.</summary>
+    public string? SourceToolId { get; set; }
+
+    public decimal? EndX { get; set; }
+
+    public decimal? EndY { get; set; }
 }

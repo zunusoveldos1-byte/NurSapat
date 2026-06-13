@@ -16,7 +16,7 @@ public sealed class OrderWorkspaceViewModel
 
     public OrderWorkspaceViewModel(CadEditorViewModel cadEditor)
     {
-        Sheet = new OrderSheetViewModel(Order);
+        Sheet = new OrderSheetViewModel(Order, cadEditor);
         Drawing = new OrderDrawingViewModel(Order, Sheet, cadEditor);
     }
 

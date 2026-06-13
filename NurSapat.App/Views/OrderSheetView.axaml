@@ -1,7 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
-             xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+             xmlns:orders="clr-namespace:NurSapat.Core.Models.Orders;assembly=NurSapat.Core"
+             xmlns:cadControls="clr-namespace:NurSapat.Cad.UI.Controls;assembly=NurSapat.Cad.UI"
              x:Class="NurSapat.App.Views.OrderSheetView"
              x:DataType="vm:OrderSheetViewModel">
 
@@ -12,28 +13,33 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="8"/>
         </Style>
-        <Style Selector="TextBlock.sectionTitle">
-            <Setter Property="FontSize" Value="16"/>
+        <Style Selector="TextBlock.caption">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#64748B"/>
+        </Style>
+        <Style Selector="TextBlock.section">
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Foreground" Value="#0F172A"/>
-        </Style>
-        <Style Selector="TextBlock.fieldLabel">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#334155"/>
         </Style>
         <Style Selector="Border.field">
             <Setter Property="Background" Value="White"/>
             <Setter Property="BorderBrush" Value="#CBD5E1"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="MinHeight" Value="44"/>
-            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="Padding" Value="8,0"/>
         </Style>
         <Style Selector="TextBox.field">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="TextBlock.fieldValue">
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="Foreground" Value="#0F172A"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
@@ -41,261 +47,285 @@
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        <Style Selector="dg|DataGrid">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#E2E8F0"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="#F1F5F9"/>
-            <Setter Property="RowBackground" Value="White"/>
-            <Setter Property="HeadersVisibility" Value="Column"/>
-            <Setter Property="CanUserReorderColumns" Value="False"/>
-            <Setter Property="CanUserResizeColumns" Value="True"/>
-            <Setter Property="IsReadOnly" Value="True"/>
-        </Style>
-        <Style Selector="dg|DataGridColumnHeader">
-            <Setter Property="Background" Value="#F8FAFC"/>
-            <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Padding" Value="14,10"/>
-            <Setter Property="BorderBrush" Value="#E2E8F0"/>
-            <Setter Property="BorderThickness" Value="0,0,0,1"/>
         </Style>
-        <Style Selector="dg|DataGridCell">
-            <Setter Property="Padding" Value="14,10"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="#0F172A"/>
+        <Style Selector="ListBox.constructionList ListBoxItem">
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+        <Style Selector="ListBox.constructionList ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="#EFF6FF"/>
+        </Style>
+        <Style Selector="Button.tabIcon">
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
         </Style>
-        <Style Selector="dg|DataGridRow:pointerover">
-            <Setter Property="Background" Value="#F8FAFC"/>
+        <Style Selector="Button.tabIcon.active">
+            <Setter Property="Background" Value="#EFF6FF"/>
         </Style>
         <Style Selector="Button.primary">
             <Setter Property="Background" Value="#2563EB"/>
             <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#2563EB"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Height" Value="40"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Height" Value="34"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.secondary">
+            <Setter Property="Background" Value="#F8FAFC"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Height" Value="34"/>
         </Style>
     </UserControl.Styles>
 
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <StackPanel Background="#F6F9FD" Margin="16" Spacing="16">
+    <Grid Background="#F6F9FD" Margin="10" RowDefinitions="*,Auto" RowSpacing="10" ColumnDefinitions="*">
 
-            <!-- Общие данные заказа -->
-            <Border Classes="card" Padding="20">
-                <StackPanel Spacing="16">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBlock Text="&#xE8F1;" FontFamily="Segoe MDL2 Assets" Foreground="#2563EB" FontSize="20" VerticalAlignment="Center"/>
-                        <TextBlock Classes="sectionTitle" Text="Общие данные заказа"/>
+        <!-- Верх: конструкции | параметры | предпросмотр -->
+        <Grid Grid.Row="0" ColumnDefinitions="220,*,300" ColumnSpacing="10">
+
+            <!-- Конструкции -->
+            <Border Grid.Column="0" Classes="card" Padding="10">
+                <Grid RowDefinitions="Auto,Auto,*,Auto">
+                    <TextBlock Grid.Row="0" Classes="section" Text="Конструкции" Margin="0,0,0,8"/>
+                    <Border Grid.Row="1" Classes="field" Margin="0,0,0,8">
+                        <TextBox PlaceholderText="Поиск..." FontSize="12"/>
+                    </Border>
+                    <ListBox Grid.Row="2"
+                             ItemsSource="{Binding Constructions}"
+                             SelectedItem="{Binding SelectedConstruction}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Classes="constructionList">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="orders:OrderConstruction">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
+                                    <TextBlock FontSize="11" Foreground="#64748B">
+                                        <Run Text="{Binding Geometry.OuterWidthMm, StringFormat={}{0:0}}"/>
+                                        <Run Text=" x "/>
+                                        <Run Text="{Binding Geometry.OuterHeightMm, StringFormat={}{0:0}}"/>
+                                        <Run Text=" мм"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <StackPanel Grid.Row="3" Spacing="6" Margin="0,8,0,0">
+                        <Button Classes="primary" Content="+ Добавить конструкцию" Command="{Binding AddConstructionCommand}" HorizontalAlignment="Stretch"/>
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                            <Button Grid.Column="0" Classes="secondary" Content="Копировать" Command="{Binding CopyConstructionCommand}"/>
+                            <Button Grid.Column="1" Classes="secondary" Content="Удалить" Command="{Binding DeleteConstructionCommand}"/>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Параметры конструкции -->
+            <Border Grid.Column="1" Classes="card" Padding="10">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                    <StackPanel Grid.Column="0" Spacing="4" Width="40">
+                        <Button Classes="tabIcon" Classes.active="True"
+                                Command="{Binding SelectParameterTabCommand}"
+                                CommandParameter="0" ToolTip.Tip="Основные">
+                            <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="#2563EB"/>
+                        </Button>
+                        <Button Classes="tabIcon" ToolTip.Tip="Профиль">
+                            <TextBlock Text="&#xE8FD;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="#94A3B8"/>
+                        </Button>
+                        <Button Classes="tabIcon" ToolTip.Tip="Стеклопакет">
+                            <TextBlock Text="&#xE771;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="#94A3B8"/>
+                        </Button>
+                        <Button Classes="tabIcon" ToolTip.Tip="Фурнитура">
+                            <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="#94A3B8"/>
+                        </Button>
                     </StackPanel>
 
-                    <Grid ColumnDefinitions="*,*,*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="12">
-                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6" Margin="0,0,0,4">
-                            <TextBlock Classes="fieldLabel" Text="№ заказа"/>
-                            <Border Classes="field">
-                                <TextBox Classes="field" Text="{Binding Header.OrderNumber}" PlaceholderText="Авто при сохранении"/>
-                            </Border>
+                    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Spacing="10">
+                            <TextBlock Classes="section" Text="Параметры конструкции"/>
+                            <Grid ColumnDefinitions="*,120,100" ColumnSpacing="8">
+                                <StackPanel Grid.Column="0" Spacing="4">
+                                    <TextBlock Classes="caption" Text="Наименование"/>
+                                    <Border Classes="field"><TextBox Classes="field" Text="{Binding ConstructionName}"/></Border>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="4">
+                                    <TextBlock Classes="caption" Text="Количество"/>
+                                    <Border Classes="field"><TextBox Classes="field" Text="{Binding ConstructionQuantity}"/></Border>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="4">
+                                    <TextBlock Classes="caption" Text="Площадь"/>
+                                    <Border Classes="field" Background="#F8FAFC">
+                                        <TextBlock Classes="fieldValue" Text="{Binding ConstructionAreaText}" Margin="4,0"/>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="caption" Text="Ширина, мм"/>
+                                    <Border Classes="field"><TextBox Classes="field" Text="{Binding OuterWidthMm}"/></Border>
+                                </StackPanel>
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="caption" Text="Высота, мм"/>
+                                    <Border Classes="field"><TextBox Classes="field" Text="{Binding OuterHeightMm}"/></Border>
+                                </StackPanel>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="caption" Text="Дата изготовления"/>
+                                    <Border Classes="field"><DatePicker Classes="field" SelectedDate="{Binding ProductionDateOffset}"/></Border>
+                                </StackPanel>
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="caption" Text="Дата доставки"/>
+                                    <Border Classes="field"><DatePicker Classes="field" SelectedDate="{Binding DeliveryDateOffset}"/></Border>
+                                </StackPanel>
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="caption" Text="Дата монтажа"/>
+                                    <Border Classes="field"><DatePicker Classes="field" SelectedDate="{Binding InstallationDateOffset}"/></Border>
+                                </StackPanel>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="caption" Text="Доставка"/>
+                                    <Border Classes="field"><TextBox Classes="field" Text="Нет"/></Border>
+                                </StackPanel>
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="caption" Text="Монтаж"/>
+                                    <Border Classes="field"><TextBox Classes="field" Text="Нет"/></Border>
+                                </StackPanel>
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="caption" Text="Скидка, %"/>
+                                    <Border Classes="field"><TextBox Classes="field" Text="{Binding Discount1Percent}"/></Border>
+                                </StackPanel>
+                            </Grid>
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="caption" Text="Примечание"/>
+                                <Border Classes="field" MinHeight="56" Padding="8,6">
+                                    <TextBox AcceptsReturn="True" Text="{Binding Header.Note}" TextWrapping="Wrap"
+                                             Background="Transparent" BorderThickness="0" MinHeight="44"/>
+                                </Border>
+                            </StackPanel>
                         </StackPanel>
-                        <StackPanel Grid.Row="0" Grid.Column="1" Spacing="6" Margin="0,0,0,4">
-                            <TextBlock Classes="fieldLabel" Text="Дата заказа"/>
-                            <Border Classes="field">
-                                <DatePicker Classes="field" SelectedDate="{Binding OrderDateOffset}"/>
-                            </Border>
-                        </StackPanel>
-                        <StackPanel Grid.Row="0" Grid.Column="2" Spacing="6" Margin="0,0,0,4">
-                            <TextBlock Classes="fieldLabel" Text="Договор №"/>
-                            <Border Classes="field">
-                                <TextBox Classes="field" Text="{Binding Header.ContractNumber}"/>
-                            </Border>
-                        </StackPanel>
-                        <StackPanel Grid.Row="0" Grid.Column="3" Spacing="6" Margin="0,0,0,4">
-                            <TextBlock Classes="fieldLabel" Text="Дата договора"/>
-                            <Border Classes="field">
-                                <DatePicker Classes="field" SelectedDate="{Binding ContractDateOffset}"/>
-                            </Border>
-                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
 
-                        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="6" Margin="0,0,0,4">
-                            <TextBlock Classes="fieldLabel" Text="Заказчик"/>
-                            <Border Classes="field">
-                                <TextBox Classes="field" Text="{Binding Header.CustomerName}"/>
-                            </Border>
+            <!-- Предпросмотр -->
+            <Border Grid.Column="2" Classes="card" Padding="8">
+                <Grid RowDefinitions="Auto,*">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                        <TextBlock Classes="section" Text="Предпросмотр" VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                            <Button Content="+" Width="28" Height="28" Padding="0" CornerRadius="6"
+                                    Command="{Binding PreviewEditor.FitAllCommand}"/>
                         </StackPanel>
-                        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6" Margin="0,0,0,4">
-                            <TextBlock Classes="fieldLabel" Text="Телефон"/>
-                            <Border Classes="field">
-                                <TextBox Classes="field" Text="{Binding Header.CustomerPhone}"/>
-                            </Border>
-                        </StackPanel>
-                        <StackPanel Grid.Row="1" Grid.Column="2" Spacing="6" Margin="0,0,0,4">
-                            <TextBlock Classes="fieldLabel" Text="Город"/>
-                            <Border Classes="field">
-                                <TextBox Classes="field" Text="{Binding Header.CustomerCity}"/>
-                            </Border>
-                        </StackPanel>
-                        <StackPanel Grid.Row="1" Grid.Column="3" Spacing="6" Margin="0,0,0,4">
-                            <TextBlock Classes="fieldLabel" Text="Дилер"/>
-                            <Border Classes="field">
-                                <TextBox Classes="field" Text="{Binding Header.DealerName}"/>
-                            </Border>
-                        </StackPanel>
+                    </Grid>
+                    <cadControls:CadSceneControl Grid.Row="1" Editor="{Binding PreviewEditor}" ClipToBounds="True"/>
+                </Grid>
+            </Border>
+        </Grid>
 
-                        <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Spacing="6">
-                            <TextBlock Classes="fieldLabel" Text="Адрес объекта"/>
-                            <Border Classes="field">
-                                <TextBox Classes="field" Text="{Binding Header.SiteAddress}"/>
-                            </Border>
+        <!-- Низ: данные заказа | итоги | оплата -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,*,280" ColumnSpacing="10" Height="200">
+
+            <Border Grid.Column="0" Classes="card" Padding="12">
+                <StackPanel Spacing="8">
+                    <TextBlock Classes="section" Text="Данные по заказу"/>
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="3">
+                            <TextBlock Classes="caption" Text="Заказчик"/>
+                            <Border Classes="field"><TextBox Classes="field" Text="{Binding Header.CustomerName}"/></Border>
                         </StackPanel>
-                        <StackPanel Grid.Row="2" Grid.Column="2" Spacing="6">
-                            <TextBlock Classes="fieldLabel" Text="Дата изготовления"/>
-                            <Border Classes="field">
-                                <DatePicker Classes="field" SelectedDate="{Binding ProductionDateOffset}"/>
-                            </Border>
+                        <StackPanel Grid.Row="0" Grid.Column="1" Spacing="3">
+                            <TextBlock Classes="caption" Text="Телефон"/>
+                            <Border Classes="field"><TextBox Classes="field" Text="{Binding Header.CustomerPhone}"/></Border>
                         </StackPanel>
-                        <StackPanel Grid.Row="2" Grid.Column="3" Spacing="6">
-                            <TextBlock Classes="fieldLabel" Text="Дата доставки / монтажа"/>
-                            <Border Classes="field">
-                                <DatePicker Classes="field" SelectedDate="{Binding DeliveryDateOffset}"/>
-                            </Border>
+                        <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Spacing="3">
+                            <TextBlock Classes="caption" Text="Адрес объекта"/>
+                            <Border Classes="field"><TextBox Classes="field" Text="{Binding Header.SiteAddress}"/></Border>
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="0" Spacing="3">
+                            <TextBlock Classes="caption" Text="Договор"/>
+                            <Border Classes="field"><TextBox Classes="field" Text="{Binding Header.ContractNumber}"/></Border>
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="1" Spacing="3">
+                            <TextBlock Classes="caption" Text="Менеджер"/>
+                            <Border Classes="field"><TextBox Classes="field" Text="{Binding Header.DealerName}"/></Border>
                         </StackPanel>
                     </Grid>
                 </StackPanel>
             </Border>
 
-            <!-- Калькуляция -->
-            <Grid ColumnDefinitions="*,300" ColumnSpacing="16">
-                <Border Grid.Column="0" Classes="card" Padding="20">
-                    <StackPanel Spacing="16">
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <TextBlock Text="&#xE9D2;" FontFamily="Segoe MDL2 Assets" Foreground="#2563EB" FontSize="20" VerticalAlignment="Center"/>
-                            <TextBlock Classes="sectionTitle" Text="Калькуляция по конструкции"/>
-                            <TextBlock Text="{Binding ActiveConstruction.Name}" Foreground="#64748B" FontSize="14" VerticalAlignment="Center" Margin="8,0,0,0"/>
-                        </StackPanel>
-
-                        <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="12" RowSpacing="0">
-                            <StackPanel Grid.Column="0" Spacing="6" Margin="0,0,0,8">
-                                <TextBlock Classes="fieldLabel" Text="Ширина, мм"/>
-                                <Border Classes="field">
-                                    <TextBox Classes="field" Text="{Binding OuterWidthMm}"/>
-                                </Border>
+            <Border Grid.Column="1" Classes="card" Padding="12">
+                <StackPanel Spacing="8">
+                    <TextBlock Classes="section" Text="Итоги по заказу"/>
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                        <Border Background="#F8FAFC" CornerRadius="6" Padding="10">
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="caption" Text="Стоимость материалов"/>
+                                <TextBlock Text="{Binding MaterialsTotal, StringFormat={}{0:N2}}" FontWeight="SemiBold" FontSize="15"/>
+                                <TextBlock Text="{Binding CurrencyCode}" FontSize="11" Foreground="#64748B"/>
                             </StackPanel>
-                            <StackPanel Grid.Column="1" Spacing="6" Margin="0,0,0,8">
-                                <TextBlock Classes="fieldLabel" Text="Высота, мм"/>
-                                <Border Classes="field">
-                                    <TextBox Classes="field" Text="{Binding OuterHeightMm}"/>
-                                </Border>
+                        </Border>
+                        <Border Background="#F8FAFC" CornerRadius="6" Padding="10">
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="caption" Text="Монтаж"/>
+                                <TextBlock Text="{Binding InstallationTotal, StringFormat={}{0:N2}}" FontWeight="SemiBold" FontSize="15"/>
+                                <TextBlock Text="{Binding CurrencyCode}" FontSize="11" Foreground="#64748B"/>
                             </StackPanel>
-                            <StackPanel Grid.Column="2" Spacing="6" Margin="0,0,0,8">
-                                <TextBlock Classes="fieldLabel" Text="Площадь изделия"/>
-                                <Border Classes="field" Background="#F8FAFC">
-                                    <TextBlock Text="{Binding Metrics.ProductAreaSqM, StringFormat={}{0:N3} м²}" VerticalAlignment="Center" Margin="4,0" Foreground="#0F172A"/>
-                                </Border>
+                        </Border>
+                        <Border Background="#F8FAFC" CornerRadius="6" Padding="10">
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="caption" Text="Доставка"/>
+                                <TextBlock Text="{Binding DeliveryTotal, StringFormat={}{0:N2}}" FontWeight="SemiBold" FontSize="15"/>
+                                <TextBlock Text="{Binding CurrencyCode}" FontSize="11" Foreground="#64748B"/>
                             </StackPanel>
-                            <StackPanel Grid.Column="3" Spacing="6" Margin="0,0,0,8">
-                                <TextBlock Classes="fieldLabel" Text="Площадь остекления"/>
-                                <Border Classes="field" Background="#F8FAFC">
-                                    <TextBlock Text="{Binding Metrics.GlazingAreaSqM, StringFormat={}{0:N3} м²}" VerticalAlignment="Center" Margin="4,0" Foreground="#0F172A"/>
-                                </Border>
+                        </Border>
+                    </Grid>
+                    <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="8" Padding="12">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="Итого" FontWeight="SemiBold" Foreground="#1E40AF" VerticalAlignment="Center"/>
+                            <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                <TextBlock Text="{Binding GrandTotal, StringFormat={}{0:N2}}" FontSize="22" FontWeight="Bold" Foreground="#1D4ED8"/>
+                                <TextBlock Text="{Binding CurrencyCode}" FontSize="11" Foreground="#64748B" HorizontalAlignment="Right"/>
                             </StackPanel>
                         </Grid>
-
-                        <dg:DataGrid ItemsSource="{Binding SpecificationLines}"
-                                     Height="300"
-                                     AutoGenerateColumns="False">
-                            <dg:DataGrid.Columns>
-                                <dg:DataGridTextColumn Header="Статья затрат" Binding="{Binding Name}" Width="2*"/>
-                                <dg:DataGridTextColumn Header="Показатель" Binding="{Binding QuantityText}" Width="*"/>
-                                <dg:DataGridTextColumn Header="Ед." Binding="{Binding Unit}" Width="80"/>
-                                <dg:DataGridTextColumn Header="Сумма" Binding="{Binding AmountText}" Width="*"/>
-                            </dg:DataGrid.Columns>
-                        </dg:DataGrid>
-                    </StackPanel>
-                </Border>
-
-                <StackPanel Grid.Column="1" Spacing="12">
-                    <Border Classes="card" Padding="16">
-                        <StackPanel Spacing="10">
-                            <TextBlock Classes="sectionTitle" Text="Показатели"/>
-                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
-                                <TextBlock Grid.Row="0" Text="Вес" Foreground="#64748B"/>
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Metrics.WeightKg, StringFormat={}{0:N1} кг}" FontWeight="SemiBold"/>
-                                <TextBlock Grid.Row="1" Text="Время изготовления" Foreground="#64748B"/>
-                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Metrics.ManufacturingTime}" FontWeight="SemiBold"/>
-                                <TextBlock Grid.Row="2" Text="Себестоимость" Foreground="#64748B"/>
-                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Cost.CostPrice, StringFormat={}{0:N2}}" FontWeight="SemiBold"/>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Classes="card" Padding="16" Background="#EFF6FF" BorderBrush="#BFDBFE">
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Стоимость конструкции" Foreground="#1E40AF" FontSize="13"/>
-                            <TextBlock Text="{Binding Cost.ConstructionSumTotal, StringFormat={}{0:N2}}" FontSize="22" FontWeight="Bold" Foreground="#1D4ED8"/>
-                            <TextBlock Text="{Binding CurrencyCode}" Foreground="#64748B" FontSize="12"/>
-                        </StackPanel>
                     </Border>
                 </StackPanel>
-            </Grid>
+            </Border>
 
-            <!-- Финансы -->
-            <Border Classes="card" Padding="20">
-                <Grid ColumnDefinitions="*,380" ColumnSpacing="20">
-                    <StackPanel Spacing="14">
-                        <TextBlock Classes="sectionTitle" Text="Параметры расчёта"/>
-                        <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="12">
-                            <StackPanel Grid.Column="0" Spacing="6">
-                                <TextBlock Classes="fieldLabel" Text="Рентабельность, %"/>
-                                <Border Classes="field">
-                                    <TextBox Classes="field" Text="{Binding ProfitabilityPercent}"/>
+            <Border Grid.Column="2" Classes="card" Padding="12">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="8">
+                        <TextBlock Classes="section" Text="Оплата"/>
+                        <StackPanel Spacing="6">
+                            <StackPanel Spacing="3">
+                                <TextBlock Classes="caption" Text="Валюта"/>
+                                <Border Classes="field"><TextBox Classes="field" Text="{Binding CurrencyCode}"/></Border>
+                            </StackPanel>
+                            <StackPanel Spacing="3">
+                                <TextBlock Classes="caption" Text="Оплачено"/>
+                                <Border Classes="field"><TextBox Classes="field" Text="{Binding Prepayment}"/></Border>
+                            </StackPanel>
+                            <StackPanel Spacing="3">
+                                <TextBlock Classes="caption" Text="К оплате"/>
+                                <Border Classes="field" Background="#F8FAFC">
+                                    <TextBlock Classes="fieldValue" Text="{Binding PaymentDebt, StringFormat={}{0:N2}}" Margin="4,0"/>
                                 </Border>
                             </StackPanel>
-                            <StackPanel Grid.Column="1" Spacing="6">
-                                <TextBlock Classes="fieldLabel" Text="Скидка №1, %"/>
-                                <Border Classes="field">
-                                    <TextBox Classes="field" Text="{Binding Discount1Percent}"/>
-                                </Border>
-                            </StackPanel>
-                            <StackPanel Grid.Column="2" Spacing="6">
-                                <TextBlock Classes="fieldLabel" Text="Скидка №2, %"/>
-                                <Border Classes="field">
-                                    <TextBox Classes="field" Text="{Binding Discount2Percent}"/>
-                                </Border>
-                            </StackPanel>
-                            <StackPanel Grid.Column="3" Spacing="6">
-                                <TextBlock Classes="fieldLabel" Text="Доставка"/>
-                                <Border Classes="field">
-                                    <TextBox Classes="field" Text="{Binding Totals.DeliveryCost}"/>
-                                </Border>
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
-
-                    <Border Grid.Column="1" Background="#0F172A" CornerRadius="8" Padding="20">
-                        <StackPanel Spacing="12">
-                            <TextBlock Text="ИТОГО К ОПЛАТЕ" Foreground="#94A3B8" FontSize="12" FontWeight="SemiBold"/>
-                            <TextBlock Text="{Binding GrandTotalText}" Foreground="White" FontSize="32" FontWeight="Bold"/>
-                            <Border Height="1" Background="#334155"/>
-                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
-                                <TextBlock Grid.Row="0" Text="Предоплата" Foreground="#94A3B8"/>
-                                <Border Grid.Row="0" Grid.Column="1" Background="#1E293B" CornerRadius="8" Padding="8,4" MinWidth="120">
-                                    <TextBox Text="{Binding Prepayment}" Background="Transparent" BorderThickness="0" Foreground="White" HorizontalAlignment="Right"/>
-                                </Border>
-                                <TextBlock Grid.Row="1" Text="Долг" Foreground="#94A3B8"/>
-                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding PaymentDebt, StringFormat={}{0:N2}}" Foreground="#FBBF24" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                                <TextBlock Grid.Row="2" Text="Статус" Foreground="#94A3B8"/>
-                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding PaymentStatus}" Foreground="#34D399" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                            </Grid>
-                            <Button Classes="primary" Content="Пересчитать заказ" Command="{Binding RecalculateCommand}" HorizontalAlignment="Stretch"/>
                         </StackPanel>
+                    </StackPanel>
+                    <Border Grid.Column="1" Width="72" Height="72" CornerRadius="36" BorderBrush="#E2E8F0" BorderThickness="6"
+                            VerticalAlignment="Center" Margin="8,0,0,0">
+                        <TextBlock Text="{Binding PaymentPercent, StringFormat={}{0:0}%}" FontSize="14" FontWeight="Bold"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#2563EB"/>
                     </Border>
                 </Grid>
             </Border>
-        </StackPanel>
-    </ScrollViewer>
+        </Grid>
+    </Grid>
 </UserControl>

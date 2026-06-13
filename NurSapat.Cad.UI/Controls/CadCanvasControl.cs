@@ -5,6 +5,7 @@ using Avalonia.Media;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Tools;
 using NurSapat.Cad.Tools.Tools;
+using NurSapat.Cad.UI.Rendering;
 using NurSapat.Cad.UI.ViewModels;
 using ToolPointerEvent = NurSapat.Cad.Tools.CadPointerEvent;
 
@@ -55,11 +56,26 @@ public sealed class CadCanvasControl : Control
             DrawRect(context, rect, new SolidColorBrush(Color.FromArgb(42, 26, 115, 232)), pen);
         }
 
+        if (Editor.DesignElements.Count > 0)
+        {
+            GeometryElementRenderer.DrawAll(context, Editor, Editor.DesignElements);
+        }
+
         // RectangleTool: призрак + размеры
         if (Editor.ActiveTool is RectangleTool rectTool && rectTool.PreviewRect is CadRect preview)
         {
             DrawRect(context, preview, new SolidColorBrush(Color.FromArgb(36, 26, 115, 232)), new Pen(AccentBrush, 1));
             DrawRectangleDimensions(context, preview, isTemporary: true);
+        }
+
+        if (Editor.ActiveTool is MullionPlacementTool mullionTool && mullionTool.PreviewLine is CadLine mullionLine)
+        {
+            DrawLine(context, mullionLine, new Pen(AccentBrush, 2));
+        }
+
+        if (Editor.ActiveTool is DesignRectPlacementTool designRectTool && designRectTool.PreviewRect is CadRect designPreview)
+        {
+            DrawRect(context, designPreview, new SolidColorBrush(Color.FromArgb(48, 37, 99, 235)), new Pen(AccentBrush, 1.5));
         }
 
         // SelectionTool: рамка выделения + ручки

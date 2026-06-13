@@ -15,6 +15,10 @@ public sealed class CadToolContext
     public CadViewport Viewport { get; set; } = null!;
     public Action? Invalidate { get; set; }
     public Action<CadPoint>? InvokeSizeInput { get; set; }
+    public Action<DesignPlacementCommit>? CommitPlacement { get; set; }
+    public string? ActiveDesignToolId { get; set; }
+    public string? ActiveDesignToolLabel { get; set; }
+    public Func<CadPoint, CadPoint>? SnapPoint { get; set; }
 
     public CadToolContext(CadDocument document, CadCommandManager commands, CadSnappingEngine snapping)
     {
