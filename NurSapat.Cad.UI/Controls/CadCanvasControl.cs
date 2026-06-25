@@ -3,24 +3,50 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using NurSapat.Cad.Core.Geometry;
+using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.Tools;
 using NurSapat.Cad.Tools.Tools;
+using NurSapat.Cad.UI.Diagnostics;
 using NurSapat.Cad.UI.Rendering;
 using NurSapat.Cad.UI.ViewModels;
+using NurSapat.Core.Models.Orders;
 using ToolPointerEvent = NurSapat.Cad.Tools.CadPointerEvent;
 
 namespace NurSapat.Cad.UI.Controls;
 
 public sealed class CadCanvasControl : Control
 {
+    private static bool IsDragCreateShapeTool(WindowToolMode mode) =>
+        mode is WindowToolMode.RealFrame
+            or WindowToolMode.FakeFrame
+            or WindowToolMode.FakeFrameTriangle
+            or WindowToolMode.FakeFrameArch
+            or WindowToolMode.FakeFrameCircle;
+
+    private static bool IsImpostSplitTool(WindowToolMode mode) =>
+        mode is WindowToolMode.FakeVerticalImpost or WindowToolMode.FakeHorizontalImpost
+            or WindowToolMode.RealVerticalImpost or WindowToolMode.RealHorizontalImpost
+            or WindowToolMode.DoubleVerticalImpost or WindowToolMode.DoubleHorizontalImpost
+            or WindowToolMode.SlantedImpost;
+
     private static readonly IBrush CanvasBrush = Brushes.White;
-    private static readonly IBrush AccentBrush = new SolidColorBrush(Color.Parse("#1A73E8"));
+    private static readonly IBrush CadStrokeBrush = new SolidColorBrush(Color.Parse("#AEAEAE"));
+    private static readonly Pen FramePen = new(CadStrokeBrush, 1.5);
+    private static readonly Pen MiterPreviewPen = new(new SolidColorBrush(FrameVolumeRenderer.MiterColor), 1.2);
+    private static readonly Pen SelectedFramePen = new(CadStrokeBrush, 2);
+    private static readonly Pen FramePreviewPen = new(
+        new SolidColorBrush(Color.Parse("#0078D7")),
+        1.5,
+        new DashStyle(new double[] { 4, 3 }, 0));
     private static readonly Pen MinorGridPen = new(new SolidColorBrush(Color.FromArgb(92, 239, 239, 239)), 1);
     private static readonly Pen MajorGridPen = new(new SolidColorBrush(Color.FromArgb(150, 224, 224, 224)), 1);
-    private static readonly Pen DimensionPen = new(AccentBrush, 1);
+    private static readonly IBrush AxisBrush = new SolidColorBrush(Color.Parse("#64748B"));
+    private static readonly Pen AxisPen = new(AxisBrush, 1.2);
 
     private Point? _lastPanPoint;
     private bool _isPanning;
+    private Point _startPoint;
+    private bool _isDrawingFrame;
 
     public CadEditorViewModel? Editor
     {
@@ -47,97 +73,192 @@ public sealed class CadCanvasControl : Control
 
         if (Editor.IsGridEnabled) DrawGrid(context);
 
-        // Отрисовка прямоугольников
-        foreach (var rect in Editor.Document.Rectangles)
+        var suppressCommittedFrame = Editor.IsShapePlacementActive;
+
+        if (!suppressCommittedFrame && Editor.CanvasElements.Count == 0)
         {
-            var pen = Editor.SelectedRectangle == rect
-                ? new Pen(AccentBrush, 2)
-                : new Pen(new SolidColorBrush(Color.Parse("#1F2937")), 1);
-            DrawRect(context, rect, new SolidColorBrush(Color.FromArgb(42, 26, 115, 232)), pen);
+            foreach (var rect in Editor.Document.Rectangles)
+            {
+                var originY = rect.Y - rect.Height;
+                FrameVolumeRenderer.Draw(
+                    context,
+                    Editor,
+                    rect.X,
+                    originY,
+                    rect.Width,
+                    rect.Height,
+                    Editor.FrameThickness,
+                    dashed: !Editor.HasRealFrameOnCanvas);
+                DrawRectangleDimensions(context, rect, isTemporary: false);
+            }
         }
 
-        if (Editor.DesignElements.Count > 0)
+        if (!suppressCommittedFrame && Editor.CanvasElements.Count > 0)
         {
             GeometryElementRenderer.DrawAll(context, Editor, Editor.DesignElements);
         }
 
+        if (!suppressCommittedFrame && Editor.FrameRoot != null && Editor.HasFrameOnCanvas)
+        {
+            FrameNodeRenderer.DrawImposts(context, Editor, Editor.FrameRoot);
+        }
+
+        if (!suppressCommittedFrame && Editor.CanvasElements.Count > 0)
+        {
+            SashElementRenderer.DrawAll(context, Editor, Editor.CanvasElements);
+        }
+
+        if (Editor.SashDragPreview is { } sashPreview)
+        {
+            SashElementRenderer.DrawPreview(context, Editor, sashPreview);
+        }
+
+        if (Editor.RealFramePreview is CadRect framePreview && Editor.IsShapePlacementActive)
+        {
+            if (Editor.CurrentToolMode == WindowToolMode.RealFrame)
+            {
+                var originY = framePreview.Y - framePreview.Height;
+                FrameVolumeRenderer.Draw(
+                    context,
+                    Editor,
+                    framePreview.X,
+                    originY,
+                    framePreview.Width,
+                    framePreview.Height,
+                    Editor.FrameThickness,
+                    dashed: false);
+            }
+            else
+            {
+                GeometryElementRenderer.DrawPlacementPreview(context, Editor, Editor.CurrentToolMode, framePreview);
+            }
+
+            DrawRectangleDimensions(context, framePreview, isTemporary: true);
+        }
+
+        DrawHandlePreview(context);
+
         // RectangleTool: призрак + размеры
         if (Editor.ActiveTool is RectangleTool rectTool && rectTool.PreviewRect is CadRect preview)
         {
-            DrawRect(context, preview, new SolidColorBrush(Color.FromArgb(36, 26, 115, 232)), new Pen(AccentBrush, 1));
+            DrawRect(context, preview, null, FramePen);
             DrawRectangleDimensions(context, preview, isTemporary: true);
         }
 
-        if (Editor.ActiveTool is MullionPlacementTool mullionTool && mullionTool.PreviewLine is CadLine mullionLine)
+        // Превью одиночного импоста внутри светового проёма
+        if (Editor.ActiveTool is MullionPlacementTool mullionTool)
         {
-            DrawLine(context, mullionLine, new Pen(AccentBrush, 2));
+            foreach (var rect in mullionTool.PreviewRects)
+            {
+                DrawRect(context, rect, null, FramePen);
+            }
         }
 
         if (Editor.ActiveTool is DesignRectPlacementTool designRectTool && designRectTool.PreviewRect is CadRect designPreview)
         {
-            DrawRect(context, designPreview, new SolidColorBrush(Color.FromArgb(48, 37, 99, 235)), new Pen(AccentBrush, 1.5));
+            DrawRect(context, designPreview, null, FramePen);
         }
 
-        // SelectionTool: рамка выделения + ручки
         if (Editor.ActiveTool is SelectionTool selectionTool)
         {
             if (selectionTool.SelectionRect is CadRect selectionRect)
             {
-                DrawRect(context, selectionRect, new SolidColorBrush(Color.FromArgb(42, 26, 115, 232)),
-                         new Pen(new SolidColorBrush(Color.Parse("#1A73E8")), 1));
-            }
-
-            var selectedRect = Editor.SelectedRectangle;
-            if (selectedRect != null)
-            {
-                DrawResizeHandles(context, selectedRect.Value);
+                DrawRect(context, selectionRect, null, SelectedFramePen);
             }
         }
+
+        DrawAxisIndicator(context);
+    }
+
+    private void DrawHandlePreview(DrawingContext context)
+    {
+        if (Editor?.HandlePreviewSashId is not Guid sashId)
+        {
+            return;
+        }
+
+        var sash = Editor.CanvasElements.FirstOrDefault(e => e.Id == sashId && e.Kind == GeometryElementKind.Sash);
+        if (sash?.HingeSide is not SashHingeSide hingeSide)
+        {
+            return;
+        }
+
+        SashElementRenderer.DrawHandleMarker(context, Editor, sash, hingeSide, preview: true);
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
-        if (Editor == null || !e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        if (Editor == null)
         {
             base.OnPointerWheelChanged(e);
             return;
         }
 
-        var p = e.GetPosition(this);
-        Editor.Viewport.ZoomAt(new ScreenPoint(p.X, p.Y), e.Delta.Y > 0 ? 1.12 : 1 / 1.12);
-        Editor.UpdateCursor(Editor.Viewport.ScreenToWorld(new ScreenPoint(p.X, p.Y)));
-        e.Handled = true;
-        this.InvalidateVisual();
+        if (Editor.IsViewOnlyMode || e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            var p = e.GetPosition(this);
+            Editor.Viewport.ZoomAt(new ScreenPoint(p.X, p.Y), e.Delta.Y > 0 ? 1.12 : 1 / 1.12);
+            Editor.UpdateCursor(Editor.Viewport.ScreenToWorld(new ScreenPoint(p.X, p.Y)));
+            Editor.RequestSceneRefresh();
+            e.Handled = true;
+            InvalidateVisual();
+            return;
+        }
+
+        base.OnPointerWheelChanged(e);
     }
 
     private void DrawRectangleDimensions(DrawingContext context, CadRect rect, bool isTemporary)
     {
-        DrawHorizontalDimension(context,
-            rect.X, rect.X + rect.Width,
-            rect.Y + (isTemporary ? 20 : 15), rect.Y,
-            $"{rect.Width:F0} мм", false);
+        if (Editor?.Viewport == null || rect.Width <= 0 || rect.Height <= 0)
+        {
+            return;
+        }
 
-        DrawVerticalDimension(context,
-            rect.X - (isTemporary ? 20 : 15),
-            rect.Y, rect.Y - rect.Height,
-            rect.X,
-            $"{rect.Height:F0} мм", false);
+        try
+        {
+            var topLeft = Editor.Viewport.WorldToScreen(new CadPoint(rect.X, rect.Y));
+            var topRight = Editor.Viewport.WorldToScreen(new CadPoint(rect.X + rect.Width, rect.Y));
+            var bottomLeft = Editor.Viewport.WorldToScreen(new CadPoint(rect.X, rect.Y - rect.Height));
+            var bottomRight = Editor.Viewport.WorldToScreen(new CadPoint(rect.X + rect.Width, rect.Y - rect.Height));
+
+            var left = Math.Min(Math.Min(topLeft.X, topRight.X), Math.Min(bottomLeft.X, bottomRight.X));
+            var right = Math.Max(Math.Max(topLeft.X, topRight.X), Math.Max(bottomLeft.X, bottomRight.X));
+            var top = Math.Min(Math.Min(topLeft.Y, topRight.Y), Math.Min(bottomLeft.Y, bottomRight.Y));
+            var bottom = Math.Max(Math.Max(topLeft.Y, topRight.Y), Math.Max(bottomLeft.Y, bottomRight.Y));
+
+            GeometryElementRenderer.DrawScreenDimensions(
+                context,
+                new Rect(left, top, right - left, bottom - top),
+                $"{rect.Width:F1}",
+                $"{rect.Height:F1}");
+        }
+        catch (Exception ex)
+        {
+            CadDiagnostics.LogWarning("DrawRectangleDimensions failed", ex);
+        }
     }
 
-    private void DrawResizeHandles(DrawingContext context, CadRect rect)
+    private void DrawAxisIndicator(DrawingContext context)
     {
-        if (Editor?.ActiveTool is not SelectionTool selectionTool) return;
+        const double x0 = 14;
+        var y0 = Math.Max(14, Bounds.Height - 14);
+        const double len = 22;
 
-        var handles = selectionTool.GetHandlePositions(rect);
-        var pen = new Pen(Brushes.White, 2);
-        var brush = new SolidColorBrush(Colors.Black);
+        context.DrawLine(AxisPen, new Point(x0, y0), new Point(x0 + len, y0));
+        context.DrawLine(AxisPen, new Point(x0 + len - 4, y0 - 3), new Point(x0 + len, y0));
+        context.DrawLine(AxisPen, new Point(x0 + len - 4, y0 + 3), new Point(x0 + len, y0));
 
-        foreach (var h in handles)
-        {
-            var sp = Editor.Viewport.WorldToScreen(h);
-            var handleRect = new Rect(sp.X - 4, sp.Y - 4, 8, 8);
-            context.DrawRectangle(brush, pen, handleRect);
-        }
+        context.DrawLine(AxisPen, new Point(x0, y0), new Point(x0, y0 - len));
+        context.DrawLine(AxisPen, new Point(x0 - 3, y0 - len + 4), new Point(x0, y0 - len));
+        context.DrawLine(AxisPen, new Point(x0 + 3, y0 - len + 4), new Point(x0, y0 - len));
+
+        var xLabel = new FormattedText("X", System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight, Typeface.Default, 10, AxisBrush);
+        var yLabel = new FormattedText("Y", System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight, Typeface.Default, 10, AxisBrush);
+        context.DrawText(xLabel, new Point(x0 + len + 3, y0 - xLabel.Height / 2));
+        context.DrawText(yLabel, new Point(x0 - yLabel.Width / 2, y0 - len - 12));
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -145,6 +266,21 @@ public sealed class CadCanvasControl : Control
         Focus();
         var point = e.GetPosition(this);
         var properties = e.GetCurrentPoint(this).Properties;
+
+        if (Editor?.IsViewOnlyMode == true)
+        {
+            if (properties.IsMiddleButtonPressed
+                || properties.IsLeftButtonPressed
+                || e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            {
+                _isPanning = true;
+                _lastPanPoint = point;
+                e.Pointer.Capture(this);
+            }
+
+            e.Handled = true;
+            return;
+        }
 
         if (properties.IsMiddleButtonPressed || e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
@@ -154,7 +290,51 @@ public sealed class CadCanvasControl : Control
             return;
         }
 
+        if (Editor != null && IsDragCreateShapeTool(Editor.CurrentToolMode))
+        {
+            if (properties.IsRightButtonPressed)
+            {
+                e.Handled = true;
+                _ = Editor.BeginShapeSizeEntryFromRightClickAsync();
+                InvalidateVisual();
+                return;
+            }
+
+            if (properties.IsLeftButtonPressed)
+            {
+                _startPoint = point;
+                _isDrawingFrame = true;
+                var worldPoint = Editor.Viewport.ScreenToWorld(new ScreenPoint(point.X, point.Y));
+                Editor.BeginShapePlacement(worldPoint);
+                e.Pointer.Capture(this);
+                e.Handled = true;
+                InvalidateVisual();
+                return;
+            }
+        }
+
         var cadEvent = ToCadEvent(point, e.KeyModifiers);
+        if (Editor?.TryBeginPointerInteraction(cadEvent.WorldPoint) == true)
+        {
+            e.Pointer.Capture(this);
+            InvalidateVisual();
+            return;
+        }
+
+        if (Editor != null && IsImpostSplitTool(Editor.CurrentToolMode) && properties.IsLeftButtonPressed)
+        {
+            e.Handled = true;
+            _ = HandleImpostClickAsync(cadEvent.WorldPoint);
+            return;
+        }
+
+        if (Editor?.TryHandleCanvasClick(cadEvent.WorldPoint) == true)
+        {
+            e.Pointer.Capture(this);
+            InvalidateVisual();
+            return;
+        }
+
         if (Editor?.DesignPlacement?.Invoke(cadEvent.WorldPoint) == true)
         {
             e.Pointer.Capture(this);
@@ -162,7 +342,7 @@ public sealed class CadCanvasControl : Control
             return;
         }
 
-        Editor?.ActiveTool.OnMouseDown(Editor.CreateToolContext(), cadEvent);
+        Editor?.ActiveTool?.OnMouseDown(Editor.CreateToolContext(), cadEvent);
         e.Pointer.Capture(this);
 
         if (Editor?.ActiveTool?.Id == "select")
@@ -196,16 +376,26 @@ public sealed class CadCanvasControl : Control
         var worldPoint = Editor.Viewport.ScreenToWorld(new ScreenPoint(point.X, point.Y));
         Editor.UpdateCursor(worldPoint);
 
-        if (_isPanning && _lastPanPoint is Point last)
+        if (_isDrawingFrame)
         {
-            Editor.Viewport.Pan(new CadVector(point.X - last.X, point.Y - last.Y));
-            _lastPanPoint = point;
+            Editor.UpdateShapePlacementPreview(worldPoint);
             InvalidateVisual();
             return;
         }
 
-        Editor.ActiveTool.OnMouseMove(Editor.CreateToolContext(), ToCadEvent(point, e.KeyModifiers));
-        Editor.RefreshSelection();
+        Editor.UpdatePointerInteraction(worldPoint);
+
+        if (_isPanning && _lastPanPoint is Point last)
+        {
+            Editor.Viewport.Pan(new CadVector(point.X - last.X, point.Y - last.Y));
+            _lastPanPoint = point;
+            Editor.RequestSceneRefresh();
+            InvalidateVisual();
+            return;
+        }
+
+        Editor?.ActiveTool?.OnMouseMove(Editor.CreateToolContext(), ToCadEvent(point, e.KeyModifiers));
+        Editor?.RefreshSelection();
         InvalidateVisual();
     }
 
@@ -214,9 +404,46 @@ public sealed class CadCanvasControl : Control
         _isPanning = false;
         _lastPanPoint = null;
 
+        if (_isDrawingFrame)
+        {
+            try
+            {
+                if (e.InitialPressMouseButton != MouseButton.Left)
+                {
+                    Editor?.CancelShapePlacement();
+                    return;
+                }
+
+                if (Editor != null)
+                {
+                    var releasePoint = e.GetPosition(this);
+                    var worldPoint = Editor.Viewport.ScreenToWorld(new ScreenPoint(releasePoint.X, releasePoint.Y));
+                    Editor.TryCompleteShapeDrag(worldPoint);
+                }
+            }
+            finally
+            {
+                _isDrawingFrame = false;
+                e.Pointer.Capture(null);
+                Editor?.RequestSceneRefresh();
+                InvalidateVisual();
+            }
+
+            return;
+        }
+
         if (Editor != null)
         {
-            Editor.ActiveTool.OnMouseUp(Editor.CreateToolContext(), ToCadEvent(e.GetPosition(this), e.KeyModifiers));
+            var releasePoint = e.GetPosition(this);
+            var worldPoint = Editor.Viewport.ScreenToWorld(new ScreenPoint(releasePoint.X, releasePoint.Y));
+            if (Editor.TryEndPointerInteraction(worldPoint))
+            {
+                e.Pointer.Capture(null);
+                InvalidateVisual();
+                return;
+            }
+
+            Editor.ActiveTool?.OnMouseUp(Editor.CreateToolContext(), ToCadEvent(releasePoint, e.KeyModifiers));
             Editor.RefreshSelection();
         }
 
@@ -291,54 +518,6 @@ public sealed class CadCanvasControl : Control
         }
     }
 
-    private void DrawHorizontalDimension(DrawingContext context, double x1, double x2, double y, double extensionToY, string label, bool largeText)
-    {
-        var p1 = Editor!.Viewport.WorldToScreen(new CadPoint(x1, y));
-        var p2 = Editor.Viewport.WorldToScreen(new CadPoint(x2, y));
-        var e1 = Editor.Viewport.WorldToScreen(new CadPoint(x1, extensionToY));
-        var e2 = Editor.Viewport.WorldToScreen(new CadPoint(x2, extensionToY));
-
-        context.DrawLine(DimensionPen, new Point(p1.X, p1.Y), new Point(p2.X, p2.Y));
-        context.DrawLine(DimensionPen, new Point(p1.X, p1.Y - 11), new Point(p1.X, e1.Y));
-        context.DrawLine(DimensionPen, new Point(p2.X, p2.Y - 11), new Point(p2.X, e2.Y));
-        DrawArrow(context, new Point(p1.X, p1.Y), new Point(p2.X, p2.Y));
-        DrawArrow(context, new Point(p2.X, p2.Y), new Point(p1.X, p1.Y));
-        DrawCenteredText(context, label, new Point((p1.X + p2.X) / 2, p1.Y - (largeText ? 18 : 14)), AccentBrush, largeText ? 18 : 15);
-    }
-
-    private void DrawVerticalDimension(DrawingContext context, double x, double y1, double y2, double extensionToX, string label, bool largeText)
-    {
-        var p1 = Editor!.Viewport.WorldToScreen(new CadPoint(x, y1));
-        var p2 = Editor.Viewport.WorldToScreen(new CadPoint(x, y2));
-        var e1 = Editor.Viewport.WorldToScreen(new CadPoint(extensionToX, y1));
-        var e2 = Editor.Viewport.WorldToScreen(new CadPoint(extensionToX, y2));
-
-        context.DrawLine(DimensionPen, new Point(p1.X, p1.Y), new Point(p2.X, p2.Y));
-        context.DrawLine(DimensionPen, new Point(p1.X - 11, p1.Y), new Point(e1.X, p1.Y));
-        context.DrawLine(DimensionPen, new Point(p2.X - 11, p2.Y), new Point(e2.X, p2.Y));
-        DrawArrow(context, new Point(p1.X, p1.Y), new Point(p2.X, p2.Y));
-        DrawArrow(context, new Point(p2.X, p2.Y), new Point(p1.X, p1.Y));
-        DrawCenteredText(context, label, new Point(p1.X - (largeText ? 24 : 18), p1.Y - (largeText ? 18 : 14)), AccentBrush, largeText ? 18 : 15);
-    }
-
-    private static void DrawArrow(DrawingContext context, Point tip, Point toward)
-    {
-        var dx = toward.X - tip.X;
-        var dy = toward.Y - tip.Y;
-        var length = Math.Sqrt(dx * dx + dy * dy);
-        if (length < 0.1) return;
-
-        var ux = dx / length;
-        var uy = dy / length;
-        var px = -uy;
-        var py = ux;
-        var size = 8;
-        var a = new Point(tip.X + ux * size + px * size * 0.45, tip.Y + uy * size + py * size * 0.45);
-        var b = new Point(tip.X + ux * size - px * size * 0.45, tip.Y + uy * size - py * size * 0.45);
-        context.DrawLine(DimensionPen, tip, a);
-        context.DrawLine(DimensionPen, tip, b);
-    }
-
     private void DrawRect(DrawingContext context, CadRect rect, IBrush? fill, Pen pen)
     {
         var topLeft = Editor!.Viewport.WorldToScreen(new CadPoint(rect.X, rect.Y));
@@ -351,6 +530,17 @@ public sealed class CadCanvasControl : Control
         var a = Editor!.Viewport.WorldToScreen(line.Start);
         var b = Editor.Viewport.WorldToScreen(line.End);
         context.DrawLine(pen, new Point(a.X, a.Y), new Point(b.X, b.Y));
+    }
+
+    private async Task HandleImpostClickAsync(CadPoint worldPoint)
+    {
+        if (Editor == null)
+        {
+            return;
+        }
+
+        await Editor.TryHandleImpostClickAsync(worldPoint);
+        InvalidateVisual();
     }
 
     private static void DrawCenteredText(DrawingContext context, string text, Point center, IBrush brush, double size)

@@ -1,8 +1,11 @@
 ﻿using Avalonia;
+using Avalonia.Fonts.Inter;
 using Microsoft.Extensions.DependencyInjection;
 using NurSapat.App.Services;
+using NurSapat.App.Services.Documents;
 using NurSapat.App.ViewModels;
 using NurSapat.App.Views;
+using NurSapat.Cad.UI.Services;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Settings;
 using NurSapat.Core.Interfaces;
@@ -40,12 +43,14 @@ class Program
     public static AppBuilder BuildAvaloniaApp(IServiceProvider provider)
         => AppBuilder.Configure(() => new App(provider))
             .UsePlatformDetect()
+            .WithInterFont()
             .LogToTrace();
 
     // ЭТОТ МЕТОД ПРЕВЬЮСЕР ВЫЗЫВАЕТ БЕЗ ПАРАМЕТРОВ!
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure(() => new App())
             .UsePlatformDetect()
+            .WithInterFont()
             .LogToTrace();
 
     private static void ConfigureServices(IServiceCollection services)
@@ -58,6 +63,13 @@ class Program
         services.AddSingleton<SettingsService>();
         services.AddSingleton<TutorialService>();
         services.AddSingleton<IWorkspaceWindowService, WorkspaceWindowService>();
+        services.AddSingleton<IDialogService, DialogService>();
+        services.AddSingleton<IProjectSerializer, ProjectSerializer>();
+        services.AddSingleton<IRecentFilesService, RecentFilesService>();
+        services.AddSingleton<IAutoSaveService, AutoSaveService>();
+        services.AddSingleton<IPrintSettingsService, PrintSettingsService>();
+        services.AddSingleton<IPrintService, PrintService>();
+        services.AddSingleton<IDocumentManager, DocumentManager>();
         services.AddSingleton(new DatabaseService(ReadConnectionString()));
         services.AddSingleton<DataMigrationService>();
         services.AddSingleton<ISystemLogRepository, SystemLogRepository>();
@@ -77,6 +89,8 @@ class Program
         services.AddTransient<DataTransferViewModel>();
         services.AddSingleton<AdditionalDashboardViewModel>();
         services.AddSingleton<OrderCalculationState>();
+        services.AddSingleton<CadTemplateStore>();
+        services.AddSingleton<ICadDialogService, CadDialogService>();
         services.AddSingleton<CadEditorViewModel>();
         services.AddSingleton<OrderWorkspaceViewModel>();
         services.AddSingleton<OrderSheetViewModel>(sp => sp.GetRequiredService<OrderWorkspaceViewModel>().Sheet);

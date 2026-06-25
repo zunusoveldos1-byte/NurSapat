@@ -3,7 +3,6 @@ using NurSapat.Cad.Core.Document;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Snapping;
 using NurSapat.Cad.Core.Viewport;
-using System;
 
 namespace NurSapat.Cad.Tools;
 
@@ -19,6 +18,26 @@ public sealed class CadToolContext
     public string? ActiveDesignToolId { get; set; }
     public string? ActiveDesignToolLabel { get; set; }
     public Func<CadPoint, CadPoint>? SnapPoint { get; set; }
+
+    /// <summary>Толщина профиля рамы (мм) для расчёта светового проёма.</summary>
+    public double FrameProfileThickness { get; set; } = 70;
+
+    /// <summary>Активный режим выделения (для инструментов группы 2).</summary>
+    public CadSelectionMode ActiveSelectionMode { get; set; }
+
+    /// <summary>Подсвечиваемая цель при наведении в режиме выделения.</summary>
+    public CadSelectionTarget? HighlightedTarget { get; set; }
+
+    public Action<string>? SetStatus { get; set; }
+
+    public Func<bool>? TryUndo { get; set; }
+    public Func<bool>? TryDeleteLastPlaced { get; set; }
+    public Func<bool>? TryDeleteSelection { get; set; }
+    public Func<bool>? TryClearConstruction { get; set; }
+    public Func<CadPoint, (double X, double Y)?>? ShowVertexCoordinateDialog { get; set; }
+    public Func<bool>? TryChangeOverallDimensions { get; set; }
+    public Func<CadPoint, CadSelectionMode, CadSelectionTarget?>? HitTestSelection { get; set; }
+    public Action<CadSelectionTarget>? SelectTarget { get; set; }
 
     public CadToolContext(CadDocument document, CadCommandManager commands, CadSnappingEngine snapping)
     {

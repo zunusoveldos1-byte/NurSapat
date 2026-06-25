@@ -1,0 +1,90 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+        xmlns:project="clr-namespace:NurSapat.Core.Models.Project;assembly=NurSapat.Core"
+        x:Class="NurSapat.App.Views.Dialogs.PrintDialogWindow"
+        x:DataType="vm:PrintDialogViewModel"
+        Title="Печать"
+        Width="720"
+        Height="610"
+        WindowStartupLocation="CenterOwner"
+        SystemDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="0"
+        FontFamily="Inter">
+
+    <!-- Серая рамка вокруг окна -->
+    <Border Background="White"
+            BorderBrush="#808080"
+            BorderThickness="2"
+            CornerRadius="8"
+            PointerPressed="OnWindowPointerPressed">
+
+        <Grid ColumnDefinitions="*,280" Margin="20">
+            <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Предпросмотр" FontWeight="SemiBold"/>
+                    <Border Background="#F8FAFC" MinHeight="320" CornerRadius="6" Padding="12">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
+                            <TextBlock Text="{Binding PreviewTitle}" FontWeight="Medium"/>
+                            <TextBlock Text="{Binding PreviewSizeText}" Foreground="#64748B"/>
+                            <Border Width="180" Height="120" Background="White" BorderBrush="#CBD5E1" BorderThickness="1"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <ScrollViewer Grid.Column="1" Margin="16,0,0,0">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Принтер"/>
+                    <ComboBox ItemsSource="{Binding Printers}" SelectedItem="{Binding SelectedPrinter}"/>
+
+                    <TextBlock Text="Количество копий"/>
+                    <NumericUpDown Minimum="1" Maximum="99" Value="{Binding Copies}"/>
+
+                    <TextBlock Text="Формат бумаги"/>
+                    <ComboBox SelectedItem="{Binding PaperFormat}">
+                        <project:PaperFormat>A4</project:PaperFormat>
+                        <project:PaperFormat>A3</project:PaperFormat>
+                        <project:PaperFormat>A2</project:PaperFormat>
+                        <project:PaperFormat>A1</project:PaperFormat>
+                        <project:PaperFormat>A0</project:PaperFormat>
+                    </ComboBox>
+
+                    <TextBlock Text="Ориентация"/>
+                    <ComboBox SelectedItem="{Binding Orientation}">
+                        <project:PageOrientation>Portrait</project:PageOrientation>
+                        <project:PageOrientation>Landscape</project:PageOrientation>
+                    </ComboBox>
+
+                    <TextBlock Text="Цвет"/>
+                    <ComboBox SelectedItem="{Binding ColorMode}">
+                        <project:PrintColorMode>Color</project:PrintColorMode>
+                        <project:PrintColorMode>BlackAndWhite</project:PrintColorMode>
+                    </ComboBox>
+
+                    <TextBlock Text="Масштаб, %"/>
+                    <NumericUpDown Minimum="10" Maximum="500" Value="{Binding ScalePercent}"/>
+
+                    <CheckBox Content="Печать размеров" IsChecked="{Binding PrintDimensions}"/>
+                    <CheckBox Content="Печать координат" IsChecked="{Binding PrintCoordinates}"/>
+
+                    <!-- Кнопки с центрированным текстом -->
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12" Margin="0,12,0,0">
+                        <Button Content="Печать" 
+                                Command="{Binding PrintCommand}" 
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"/>
+                        <Button Grid.Column="1" 
+                                Content="Отмена" 
+                                Command="{Binding CancelCommand}" 
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"/>
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Border>
+</Window>

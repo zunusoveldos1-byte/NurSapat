@@ -1,0 +1,53 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+        x:Class="NurSapat.App.Views.Dialogs.UnsavedChangesWindow"
+        x:DataType="vm:UnsavedChangesViewModel"
+        Title="{Binding Title}"
+        Width="460"
+        Height="180"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        SystemDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="0"
+        FontFamily="Inter">
+
+    <!-- Серая рамка вокруг окна -->
+    <Border Background="White"
+            BorderBrush="#808080"
+            BorderThickness="2"
+            CornerRadius="8"
+            PointerPressed="OnWindowPointerPressed">
+        
+        <StackPanel Margin="24" Spacing="16">
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="13"/>
+            <UniformGrid Columns="2" ColumnSpacing="12" RowSpacing="12">
+                <!-- Добавлено центрирование текста в каждой кнопке -->
+                <Button Content="Сохранить" 
+                        Command="{Binding SaveCommand}" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+                
+                <Button Content="Сохранить как копию" 
+                        Command="{Binding SaveAsCopyCommand}" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+                
+                <Button Content="Не сохранять" 
+                        Command="{Binding DiscardCommand}" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+                
+                <Button Content="Отмена" 
+                        Command="{Binding CancelCommand}" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+            </UniformGrid>
+        </StackPanel>
+    </Border>
+</Window>

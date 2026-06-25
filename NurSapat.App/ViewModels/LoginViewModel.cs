@@ -7,11 +7,21 @@ using System.Threading.Tasks;
 
 namespace NurSapat.App.ViewModels;
 
-public partial class LoginViewModel(IUserRepository userRepo, SettingsService settings, IWorkspaceWindowService workspaceWindowService) : ObservableObject
+public partial class LoginViewModel : ObservableObject
 {
-    private readonly IUserRepository _userRepo = userRepo;
-    private readonly SettingsService _settings = settings;
-    private readonly IWorkspaceWindowService _workspaceWindowService = workspaceWindowService;
+    private readonly IUserRepository _userRepo;
+    private readonly SettingsService _settings;
+    private readonly IWorkspaceWindowService _workspaceWindowService;
+
+    // Событие для запроса закрытия окна
+    public event Action? RequestClose;
+
+    public LoginViewModel(IUserRepository userRepo, SettingsService settings, IWorkspaceWindowService workspaceWindowService)
+    {
+        _userRepo = userRepo;
+        _settings = settings;
+        _workspaceWindowService = workspaceWindowService;
+    }
 
     [ObservableProperty]
     private string _username = "";
@@ -32,9 +42,12 @@ public partial class LoginViewModel(IUserRepository userRepo, SettingsService se
     [ObservableProperty]
     private bool _rememberMe;
 
+    // ✅ ДОБАВЛЕНО: свойство для управления видимостью кнопки "Выйти"
+    [ObservableProperty]
+    private bool _isLoggedIn;
+
     public char PasswordChar => IsPasswordVisible ? '\0' : '*';
 
-    // ✅ Метод для загрузки сохраненных данных
     public void LoadSavedCredentials()
     {
         if (_settings.GetValue<bool>("RememberMe", false))
@@ -67,7 +80,6 @@ public partial class LoginViewModel(IUserRepository userRepo, SettingsService se
             var user = await _userRepo.GetByUsernameAsync(Username);
             if (user != null && user.VerifyPassword(Password))
             {
-                // ✅ Если "Запомнить меня" включено — сохраняем данные
                 if (RememberMe)
                 {
                     _settings.SetValue("RememberMe", true);
@@ -83,6 +95,9 @@ public partial class LoginViewModel(IUserRepository userRepo, SettingsService se
 
                 _settings.CurrentUserId = user.Id;
                 _workspaceWindowService.OpenWorkspace();
+
+                // ✅ Теперь это свойство существует
+                IsLoggedIn = true;
             }
             else
             {
@@ -110,4 +125,12 @@ public partial class LoginViewModel(IUserRepository userRepo, SettingsService se
 
     [RelayCommand]
     private void Contact() => ErrorMessage = "Контактная форма будет подключена позже.";
+
+    // ✅ ДОБАВЛЕНО: команда для кнопки "Выйти"
+    [RelayCommand]
+    private void Logout()
+    {
+        IsLoggedIn = false;
+        RequestClose?.Invoke();
+    }
 }

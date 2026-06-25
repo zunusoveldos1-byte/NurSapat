@@ -1,0 +1,93 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+        xmlns:project="clr-namespace:NurSapat.Core.Models.Project;assembly=NurSapat.Core"
+        x:Class="NurSapat.App.Views.Dialogs.PrintSettingsWindow"
+        x:DataType="vm:PrintSettingsViewModel"
+        Title="Параметры печати"
+        Width="540"
+        Height="820"
+        WindowStartupLocation="CenterOwner"
+        SystemDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="0"
+        FontFamily="Inter">
+
+    <!-- Серая рамка вокруг всего окна -->
+    <Border Background="White"
+            BorderBrush="#808080"
+            BorderThickness="2"
+            CornerRadius="8"
+            PointerPressed="OnWindowPointerPressed">
+
+        <ScrollViewer Margin="20">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Масштаб, %"/>
+                <NumericUpDown Minimum="10" Maximum="500" Value="{Binding ScalePercent}"/>
+
+                <CheckBox Content="Рамка" IsChecked="{Binding DrawBorder}"/>
+                <CheckBox Content="Штамп" IsChecked="{Binding DrawStamp}"/>
+                <CheckBox Content="Логотип компании" IsChecked="{Binding DrawCompanyLogo}"/>
+                <CheckBox Content="Подпись" IsChecked="{Binding DrawSignature}"/>
+                <CheckBox Content="Отображение размеров" IsChecked="{Binding ShowDimensions}"/>
+
+                <TextBlock Text="Поля, мм"/>
+                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+                    <!-- Заменено Watermark на PlaceholderText -->
+                    <TextBox PlaceholderText="Слева" Text="{Binding MarginLeftMm}"/>
+                    <TextBox Grid.Column="1" PlaceholderText="Справа" Text="{Binding MarginRightMm}"/>
+                    <TextBox Grid.Row="1" PlaceholderText="Сверху" Text="{Binding MarginTopMm}"/>
+                    <TextBox Grid.Row="1" Grid.Column="1" PlaceholderText="Снизу" Text="{Binding MarginBottomMm}"/>
+                </Grid>
+
+                <TextBlock Text="Единицы измерения"/>
+                <ComboBox SelectedItem="{Binding Units}">
+                    <project:MeasurementUnit>Millimeters</project:MeasurementUnit>
+                    <project:MeasurementUnit>Centimeters</project:MeasurementUnit>
+                    <project:MeasurementUnit>Meters</project:MeasurementUnit>
+                </ComboBox>
+
+                <TextBlock Text="Толщины линий, мм"/>
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                    <!-- Заменено Watermark на PlaceholderText -->
+                    <TextBox PlaceholderText="Тонкая" Text="{Binding ThinLineWidthMm}"/>
+                    <TextBox Grid.Column="1" PlaceholderText="Средняя" Text="{Binding MediumLineWidthMm}"/>
+                    <TextBox Grid.Column="2" PlaceholderText="Толстая" Text="{Binding ThickLineWidthMm}"/>
+                </Grid>
+
+                <TextBlock Text="Шрифт размеров"/>
+                <Grid ColumnDefinitions="2*,*" ColumnSpacing="8">
+                    <TextBox Text="{Binding DimensionFontFamily}"/>
+                    <NumericUpDown Grid.Column="1" Minimum="6" Maximum="24" Value="{Binding DimensionFontSizePt}"/>
+                </Grid>
+
+                <TextBlock Text="Параметры листа"/>
+                <ComboBox SelectedItem="{Binding PaperFormat}">
+                    <project:PaperFormat>A4</project:PaperFormat>
+                    <project:PaperFormat>A3</project:PaperFormat>
+                    <project:PaperFormat>A2</project:PaperFormat>
+                    <project:PaperFormat>A1</project:PaperFormat>
+                    <project:PaperFormat>A0</project:PaperFormat>
+                </ComboBox>
+                <ComboBox SelectedItem="{Binding Orientation}">
+                    <project:PageOrientation>Portrait</project:PageOrientation>
+                    <project:PageOrientation>Landscape</project:PageOrientation>
+                </ComboBox>
+
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="12" Margin="0,12,0,0">
+                    <Button Content="Сохранить" 
+                            Command="{Binding SaveCommand}" 
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1" 
+                            Content="Отмена" 
+                            Command="{Binding CancelCommand}" 
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+    </Border>
+</Window>

@@ -2,330 +2,402 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:NurSapat.Cad.UI.ViewModels;assembly=NurSapat.Cad.UI"
              xmlns:controls="clr-namespace:NurSapat.Cad.UI.Controls;assembly=NurSapat.Cad.UI"
-             xmlns:converters="clr-namespace:NurSapat.Cad.UI.Converters;assembly=NurSapat.Cad.UI"
+             xmlns:conv="clr-namespace:NurSapat.Cad.UI.Converters;assembly=NurSapat.Cad.UI"
+             xmlns:models="clr-namespace:NurSapat.Cad.UI.Models;assembly=NurSapat.Cad.UI"
+             xmlns:behaviors="clr-namespace:NurSapat.Cad.UI.Behaviors;assembly=NurSapat.Cad.UI"
              x:Class="NurSapat.Cad.UI.Views.CadEditorView"
-             x:DataType="vm:CadEditorViewModel">
+             x:DataType="vm:CadEditorViewModel"
+             FontFamily="Inter"
+             Background="#F6F9FD">
 
     <UserControl.Resources>
-        <converters:LeftPanelIconConverter x:Key="LeftIconConverter" />
-        <converters:RightPanelIconConverter x:Key="RightIconConverter" />
+        <conv:EnumEqualsConverter x:Key="EnumEq"/>
     </UserControl.Resources>
 
     <UserControl.Styles>
         <Style Selector="TextBlock">
-            <Setter Property="Foreground" Value="#202124"/>
-            <Setter Property="FontSize" Value="13"/>
-        </Style>
-        <Style Selector="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#202124"/>
-            <Setter Property="CornerRadius" Value="3"/>
-            <Setter Property="Padding" Value="8,4"/>
-        </Style>
-        <Style Selector="Button:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#EEF3FE"/>
-            <Setter Property="BorderBrush" Value="#C7D8FA"/>
-        </Style>
-        <Style Selector="Button.toolListItem">
-            <Setter Property="Height" Value="33"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="Margin" Value="0,2"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-        <Style Selector="Button.toolListItem.active">
-            <Setter Property="Background" Value="#E8F0FE"/>
-            <Setter Property="BorderBrush" Value="#1A73E8"/>
-            <Setter Property="BorderThickness" Value="1"/>
-        </Style>
-        <Style Selector="TextBlock.mdlIcon">
-            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
-            <Setter Property="FontSize" Value="21"/>
-            <Setter Property="Foreground" Value="#1A73E8"/>
-            <Setter Property="HorizontalAlignment" Value="Center"/>
-        </Style>
-        <Style Selector="TextBlock.sectionTitle">
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Margin" Value="0,0,0,10"/>
-        </Style>
-        <Style Selector="TextBlock.propertyLabel">
+            <Setter Property="Foreground" Value="#0F172A"/>
+            <Setter Property="FontFamily" Value="Inter"/>
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#3C4043"/>
+        </Style>
+        <Style Selector="TextBlock.paramLabel">
+            <Setter Property="Foreground" Value="#64748B"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="Medium"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
-        <Style Selector="TextBox, NumericUpDown, ComboBox">
-            <Setter Property="MinHeight" Value="28"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-        <Style Selector="CheckBox">
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#202124"/>
-        </Style>
-
-        <!-- СТИЛИ ДЛЯ КНОПОК СВОРАЧИВАНИЯ -->
-        <Style Selector="Button.panelToggle">
-            <Setter Property="Width" Value="20"/>
-            <Setter Property="Height" Value="60"/>
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="BorderBrush" Value="#DCDCDC"/>
-            <Setter Property="BorderThickness" Value="1"/>
+        <Style Selector="Button.cadTool">
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="MinWidth" Value="34"/>
+            <Setter Property="MinHeight" Value="34"/>
             <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Foreground" Value="#5F6368"/>
-            <Setter Property="FontSize" Value="11"/>
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
-        
-        <Style Selector="Button.panelToggle.left">
-            <Setter Property="CornerRadius" Value="0,4,4,0"/>
-            <Setter Property="Margin" Value="-1,0,0,0"/>
+        <Style Selector="Button.cadTool:pointerover">
+            <Setter Property="Background" Value="#080078D7"/>
+            <Setter Property="BorderBrush" Value="#400078D7"/>
         </Style>
-        
-        <Style Selector="Button.panelToggle.right">
-            <Setter Property="CornerRadius" Value="4,0,0,4"/>
-            <Setter Property="Margin" Value="0,0,-1,0"/>
+        <Style Selector="Button.cadTool.active">
+            <Setter Property="Background" Value="#150078D7"/>
+            <Setter Property="BorderBrush" Value="#0078D7"/>
+            <Setter Property="BorderThickness" Value="1.5"/>
         </Style>
-
-        <Style Selector="Button.panelToggle:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#E7F1FF"/>
-            <Setter Property="BorderBrush" Value="#1A73E8"/>
-            <Setter Property="Foreground" Value="#1A73E8"/>
+        <Style Selector="Path.toolIcon">
+            <Setter Property="Stroke" Value="Black"/>
+            <Setter Property="StrokeThickness" Value="1"/>
+            <Setter Property="Fill" Value="Transparent"/>
+            <Setter Property="Stretch" Value="Uniform"/>
         </Style>
-
-        <Style Selector="Button.panelToggle:pressed /template/ ContentPresenter">
-            <Setter Property="Background" Value="#D7E8FF"/>
-            <Setter Property="BorderBrush" Value="#1A73E8"/>
+        <Style Selector="Path.toolIcon.dashed">
+            <Setter Property="StrokeDashArray" Value="4,2"/>
         </Style>
-
-        <Style Selector="ToggleButton.toggleBtn">
-            <Setter Property="Width" Value="32"/>
+        <Style Selector="Button.mini">
+            <Setter Property="Width" Value="28"/>
             <Setter Property="Height" Value="28"/>
             <Setter Property="Padding" Value="0"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="FontFamily" Value="Inter"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
-
-        <Style Selector="ToggleButton.toggleBtn:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#F1F3F4"/>
-            <Setter Property="BorderBrush" Value="#DADCE0"/>
+        <Style Selector="Button.template">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#0078D7"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontFamily" Value="Inter"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Foreground" Value="#0078D7"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
-
-        <Style Selector="ToggleButton.toggleBtn:checked /template/ ContentPresenter">
-            <Setter Property="Background" Value="#E8F0FE"/> <Setter Property="BorderBrush" Value="#1A73E8"/>  </Style>
-
-        <Style Selector="ToggleButton.toggleBtn:checked TextBlock.mdlIcon">
-            <Setter Property="Foreground" Value="#1A73E8"/>  </Style>
-
-        <Style Selector="ToggleButton.toggleBtn:checked:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#D2E3FC"/>
-            <Setter Property="BorderBrush" Value="#1A73E8"/>
+        <Style Selector="Button.qtyArrow">
+            <Setter Property="Width" Value="16"/>
+            <Setter Property="Height" Value="13"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
-
-        <Style Selector="ToggleButton.toggleBtn:pressed /template/ ContentPresenter">
-            <Setter Property="Background" Value="#E0E0E0"/>
+        <Style Selector="ComboBox, TextBox, NumericUpDown">
+            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="FontFamily" Value="Inter"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="CornerRadius" Value="8"/>
+        </Style>
+        <Style Selector="CheckBox">
+            <Setter Property="FontFamily" Value="Inter"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#475569"/>
+        </Style>
+        <Style Selector="TextBox.coordField">
+            <Setter Property="MinHeight" Value="26"/>
+            <Setter Property="Padding" Value="6,4"/>
         </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="*,34">
-        <!-- ОСНОВНАЯ ОБЛАСТЬ (Левая панель, Центр, Правая панель) -->
-        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
-        
-            <!-- Левая панель (Инструменты) -->
-            <Border x:Name="LeftPanel" 
-                    Grid.Column="0" 
-                    Width="260"
-                    Background="#F8F9FA" 
-                    BorderBrush="#DCDCDC" 
-                    BorderThickness="0,0,1,0" 
-                    ZIndex="2"
-                    IsVisible="{Binding IsLeftPanelVisible}">
-                <ScrollViewer>
-                    <StackPanel Margin="14,10" Spacing="8">
-                        <TextBlock Text="Инструменты" FontWeight="SemiBold"/>
-                        <ItemsControl ItemsSource="{Binding Tools}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Classes.toolListItem="True"
-                                            Classes.active="{Binding IsActive}"
-                                            Command="{Binding $parent[UserControl].DataContext.ActivateToolCommand}"
-                                            CommandParameter="{Binding Id}">
-                                        <StackPanel Orientation="Horizontal" Spacing="12">
-                                            <TextBlock Classes="mdlIcon" Text="&#xE8B0;" FontSize="16" Width="22"/>
-                                            <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"/>
-                                        </StackPanel>
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
+        <Border Grid.Row="0"
+                Background="White"
+                BorderBrush="#E2E8F0"
+                BorderThickness="0,0,0,1"
+                Padding="10,6"
+                IsVisible="{Binding IsTopPanelVisible}">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Button Classes="template"
+                            Content="Шаблоны"
+                            Command="{Binding OpenTemplatesCommand}"
+                            ToolTip.Tip="Выбор и управление шаблонами конструкций"/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Classes="paramLabel" Text="Серия"/>
+                        <ComboBox Width="130" ItemsSource="{Binding ProfileSeries}" SelectedItem="{Binding SelectedProfileSeries}"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Classes="paramLabel" Text="Конструкция"/>
+                        <ComboBox Width="150" ItemsSource="{Binding Constructions}" SelectedItem="{Binding SelectedConstruction}"/>
+                        <Button Classes="mini" Content="+" Command="{Binding KonAddExecuteCommand}"/>
+                        <Button Classes="mini" Content="−" Command="{Binding KonDelExecuteCommand}"/>
+                    </StackPanel>
+
+                    <CheckBox Content="Всё" IsChecked="{Binding ShowAllConstructions}" VerticalAlignment="Center"/>
+                    <CheckBox Content="блок. откид." IsChecked="{Binding BlockTilt}" VerticalAlignment="Center"/>
+                    <CheckBox Content="микропров." IsChecked="{Binding MicroVentilation}" VerticalAlignment="Center"/>
+                    <CheckBox Content="балк. компл." IsChecked="{Binding BalconyKit}" VerticalAlignment="Center"/>
+                    <CheckBox Content="микролифт" IsChecked="{Binding MicroLift}" VerticalAlignment="Center"/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock Classes="paramLabel" Text="Количество"/>
+                        <Border Width="56"
+                                Height="28"
+                                Background="White"
+                                BorderBrush="#E2E8F0"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                ClipToBounds="True">
+                            <Grid ColumnDefinitions="*,16">
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding ConstructionQuantity}"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"
+                                           FontSize="12"/>
+                                <StackPanel Grid.Column="1" Spacing="0">
+                                    <Button Classes="qtyArrow"
+                                            Command="{Binding IncrementQuantityCommand}">
+                                        <Viewbox Width="8" Height="5">
+                                            <Path Data="M2,5 L8,5 L5,1 Z"
+                                                  Stroke="Black"
+                                                  StrokeThickness="0.8"
+                                                  Fill="Transparent"/>
+                                        </Viewbox>
                                     </Button>
+                                    <Border Height="1" Background="#E2E8F0"/>
+                                    <Button Classes="qtyArrow"
+                                            Command="{Binding DecrementQuantityCommand}">
+                                        <Viewbox Width="8" Height="5">
+                                            <Path Data="M2,1 L8,1 L5,5 Z"
+                                                  Stroke="Black"
+                                                  StrokeThickness="0.8"
+                                                  Fill="Transparent"/>
+                                        </Viewbox>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <Grid Grid.Row="1" ColumnDefinitions="150,*">
+            <Border Grid.Column="0"
+                    Margin="0"
+                    Background="White"
+                    BorderBrush="#E2E8F0"
+                    BorderThickness="0,0,1,0"
+                    VerticalAlignment="Stretch"
+                    IsVisible="{Binding IsLeftPanelVisible}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalAlignment="Top"
+                              Padding="4,2">
+                    <StackPanel VerticalAlignment="Top" Spacing="0">
+                        <ItemsControl ItemsSource="{Binding DesignTools}"
+                                      VerticalAlignment="Top">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" Width="148"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:CadDesignToolButtonViewModel">
+                                    <Panel>
+                                        <Border Width="148"
+                                                Height="1"
+                                                Background="Gray"
+                                                Margin="2,5"
+                                                IsVisible="{Binding IsSeparator}"/>
+                                        <Button Classes.cadTool="True"
+                                                Classes.active="{Binding IsActive}"
+                                                Width="34"
+                                                Height="34"
+                                                IsVisible="{Binding !IsSeparator}"
+                                                Command="{Binding $parent[UserControl].((vm:CadEditorViewModel)DataContext).SelectToolModeCommand}"
+                                                CommandParameter="{Binding Mode}"
+                                                ToolTip.Tip="{Binding Title}">
+                                            <Viewbox Width="24" Height="24">
+                                                <Panel Width="24" Height="24">
+                                                    <Path Stroke="Black" StrokeThickness="1.2" StrokeDashArray="3,2" Fill="Transparent"
+                                                          Data="M 2,2 H 22 V 22 H 2 Z"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=FakeFrame}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" StrokeDashArray="3,2" Fill="Transparent"
+                                                          Data="M 12,2 A 10,10 0 1 0 12,22 A 10,10 0 1 0 12,2 Z"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=FakeCircle}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" StrokeDashArray="3,2" Fill="Transparent"
+                                                          Data="M 12,2 L 22,22 H 2 Z"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=FakeTriangle}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" StrokeDashArray="3,2" Fill="Transparent"
+                                                          Data="M 3,18 H 21 M 3,18 A 9,9 0 0 1 21,18"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=FakeArch}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" StrokeDashArray="4,2" Fill="Transparent"
+                                                          Data="M 12,2 V 22"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=VerticalImpost}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" StrokeDashArray="4,2" Fill="Transparent"
+                                                          Data="M 2,12 H 22"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=HorizontalImpost}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 3,4 L 6,4 L 6,20 L 3,20 Z M 12,9 L 14,7 L 16,9 M 12,15 L 14,17 L 16,15 M 12,10 L 10,12 L 12,14 M 16,10 L 18,12 L 16,14 M 14,7 L 14,17 M 10,12 L 18,12"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=RackRigel}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 3,3 H 21 V 21 H 3 Z"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=RealFrame}"/>
+                                                    <Panel IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=AdapterProfile}">
+                                                            <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                                  Data="M 3,3 H 21 V 21 H 3 Z"/>
+                                                            <Path Stroke="Black" StrokeThickness="1.2" StrokeDashArray="3,2" Fill="Transparent"
+                                                                  Data="M 7,7 H 17 V 17 H 7 Z"/>
+                                                    </Panel>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 7,4 L 18,12 L 7,20"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Sash}"/>
+                                                   <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 5,3 L 8,3 L 8,7 L 5,7 Z 
+                                                                M 5,17 L 8,17 L 8,21 L 5,21 Z 
+                                                                M 9,4 L 20,12 L 9,20"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Hardware}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 10,6 L 12,6 A 2,2 0 0 1 14,8 L 14,22 A 2,2 0 0 1 12,23 L 10,23 A 2,2 0 0 1 8,22 L 8,8 A 2,2 0 0 1 10,6 Z"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Handle}"/>
+
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="White"
+                                                          Data="M 12,9 L 20,9 A 1,1 0 0 1 21,10 L 21,11 A 1,1 0 0 1 20,12 L 12,12 A 1,1 0 0 1 11,11 L 11,10 A 1,1 0 0 1 12,9 Z"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Handle}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 12,4 V 20 M 9,4 H 15 M 9,20 H 15"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=RealVerticalImpost}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 4,12 H 20 M 4,9 V 15 M 20,9 V 15"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=RealHorizontalImpost}"/>
+                                                   <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+      Data="M 9,2 V 22 M 12,2 V 22 M 15,2 V 22 
+            M 4,2 L 20,2 M 4,22 L 20,22"
+      IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=DoubleVerticalImpost}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+      Data="M 2,9 H 22 M 2,12 H 22 M 2,15 H 22 
+            M 2,4 L 2,20 M 22,4 L 22,20"
+      IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=DoubleHorizontalImpost}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+      Data="M 4,20 L 20,4 
+            M 2,22 L 6,18 
+            M 18,6 L 22,2"
+      IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=SlantedImpost}"/>
+                                                </Panel>
+                                            </Viewbox>
+                                        </Button>
+                                    </Panel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+
+                        <Separator Background="#AEAEAE" Margin="0,10"/>
+
+                        <StackPanel Margin="4,0,4,8" Spacing="6" IsVisible="{Binding IsDragCreateShapeToolActive}">
+                            <TextBlock Classes="paramLabel" Text="Привязка"/>
+                            <ComboBox ItemsSource="{Binding PlacementAnchorOptions}"
+                                      SelectedItem="{Binding SelectedPlacementAnchorOption, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch"
+                                      MinHeight="28">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate DataType="models:PlacementAnchorOption">
+                                        <TextBlock Text="{Binding Label}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Margin="4,0,4,8" Spacing="6">
+                            <Grid ColumnDefinitions="22,*" ColumnSpacing="4">
+                                <TextBlock Classes="paramLabel" Text="X =" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Classes="coordField"
+                                         Text="{Binding CoordinateX, Mode=TwoWay}"
+                                         behaviors:SignedDecimalInputBehavior.AllowNegative="True"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="22,*" ColumnSpacing="4">
+                                <TextBlock Classes="paramLabel" Text="Y =" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Classes="coordField"
+                                         Text="{Binding CoordinateY, Mode=TwoWay}"
+                                         behaviors:SignedDecimalInputBehavior.AllowNegative="True"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="22,*" ColumnSpacing="4">
+                                <TextBlock Classes="paramLabel" Text="L =" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1" Classes="coordField" Text="{Binding Length, Mode=TwoWay}"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="22,*" ColumnSpacing="4">
+                                <TextBlock Classes="paramLabel" Text="H =" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1" Classes="coordField" Text="{Binding Height, Mode=TwoWay}"/>
+                            </Grid>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </Border>
 
-            <!-- КНОПКА СВОРАЧИВАНИЯ ЛЕВОЙ ПАНЕЛИ -->
-            <Button Grid.Column="1" 
-                    Command="{Binding ToggleLeftPanelCommand}" 
-                    Classes="panelToggle left"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Center"
-                    ZIndex="10">
-                <TextBlock Text="{Binding IsLeftPanelVisible, Converter={StaticResource LeftIconConverter}}"/>
-            </Button>
-
-            <controls:CadSceneControl Grid.Column="1" 
-                                      Editor="{Binding}" 
+            <controls:CadSceneControl Grid.Column="1"
+                                      Editor="{Binding}"
+                                      ShowHorizontalRuler="False"
+                                      HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch"
                                       ClipToBounds="True"/>
-
-            <!-- КНОПКА СВОРАЧИВАНИЯ ПРАВОЙ ПАНЕЛИ -->
-            <Button Grid.Column="1" 
-                    Command="{Binding ToggleRightPanelCommand}" 
-                    Classes="panelToggle right"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    ZIndex="10">
-                <TextBlock Text="{Binding IsRightPanelVisible, Converter={StaticResource RightIconConverter}}"/>
-            </Button>
-
-            <!-- Правая панель (Свойства) -->
-            <Border x:Name="RightPanel" 
-                    Grid.Column="2" 
-                    Width="320"
-                    Background="#F8F9FA" 
-                    BorderBrush="#DCDCDC" 
-                    BorderThickness="1,0,0,0" 
-                    ZIndex="2"
-                    IsVisible="{Binding IsRightPanelVisible}">
-                <ScrollViewer>
-                    <StackPanel Margin="14,12" Spacing="0">
-                        <TextBlock Text="Свойства" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12"/>
-                        <Border Height="1" Background="#DCDCDC"/>
-
-                        <StackPanel Margin="0,14" Spacing="10">
-                            <TextBlock Classes="sectionTitle" Text="Геометрия"/>
-                            <Grid ColumnDefinitions="*,146" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
-                                <TextBlock Classes="propertyLabel" Text="Ширина (L), мм"/>
-                                <NumericUpDown Grid.Column="1" Value="1000" Minimum="300" Increment="10"/>
-                                <TextBlock Grid.Row="1" Classes="propertyLabel" Text="Высота (H), мм"/>
-                                <NumericUpDown Grid.Row="1" Grid.Column="1" Value="1000" Minimum="300" Increment="10"/>
-                                <TextBlock Grid.Row="2" Classes="sectionTitle" Text="Положение" Margin="0,8,0,0"/>
-                                <TextBlock Grid.Row="3" Classes="propertyLabel" Text="X, мм"/>
-                                <NumericUpDown Grid.Row="3" Grid.Column="1" Value="0" IsEnabled="False"/>
-                            </Grid>
-                            <Grid ColumnDefinitions="*,146">
-                                <TextBlock Classes="propertyLabel" Text="Y, мм"/>
-                                <NumericUpDown Grid.Column="1" Value="0" IsEnabled="False"/>
-                            </Grid>
-                        </StackPanel>
-                        <Border Height="1" Background="#DCDCDC"/>
-
-                        <StackPanel Margin="0,14" Spacing="10">
-                            <TextBlock Classes="sectionTitle" Text="Профиль"/>
-                            <Grid ColumnDefinitions="*,146" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
-                                <TextBlock Classes="propertyLabel" Text="Система"/>
-                                <ComboBox Grid.Column="1" SelectedIndex="0"> 
-                                    <ComboBoxItem Content="Rehau Euro 70"/>
-                                    <ComboBoxItem Content="KBE Expert 70"/>
-                                    <ComboBoxItem Content="Veka Softline 70"/>
-                                </ComboBox>
-                                <TextBlock Grid.Row="1" Classes="propertyLabel" Text="Ширина профиля"/>
-                                <ComboBox Grid.Row="1" Grid.Column="1" SelectedIndex="0">
-                                    <ComboBoxItem Content="70 мм"/>
-                                    <ComboBoxItem Content="72 мм"/>
-                                    <ComboBoxItem Content="58 мм"/>
-                                </ComboBox>
-                                <TextBlock Grid.Row="2" Classes="propertyLabel" Text="Цвет ламинации"/>
-                                <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,32,28" ColumnSpacing="6">
-                                    <ComboBox SelectedIndex="0">
-                                        <ComboBoxItem Content="Белый"/>
-                                        <ComboBoxItem Content="Золотой дуб"/>
-                                        <ComboBoxItem Content="Антрацит"/>
-                                    </ComboBox>
-                                    <Border Grid.Column="1" Width="24" Height="24" Background="White" BorderBrush="#CFCFCF" BorderThickness="1" CornerRadius="3"/>
-                                    <Button Grid.Column="2" Padding="0" Content="..."/>
-                                </Grid>
-                            </Grid>
-                        </StackPanel>
-                        <Border Height="1" Background="#DCDCDC"/>
-
-                        <StackPanel Margin="0,14" Spacing="10" IsVisible="False">
-                            <TextBlock Classes="sectionTitle" Text="Створка"/>
-                            <Grid ColumnDefinitions="*,164" RowDefinitions="Auto,Auto" RowSpacing="8">
-                                <TextBlock Classes="propertyLabel" Text="Тип"/>
-                                <ComboBox Grid.Column="1" SelectedIndex="0">
-                                    <ComboBoxItem Content="Поворотно-откидная"/>
-                                    <ComboBoxItem Content="Поворотная"/>
-                                </ComboBox>
-                                <TextBlock Grid.Row="1" Classes="propertyLabel" Text="Направление"/>
-                                <ComboBox Grid.Row="1" Grid.Column="1" SelectedIndex="0">
-                                    <ComboBoxItem Content="Правая"/>
-                                    <ComboBoxItem Content="Левая"/>
-                                </ComboBox>
-                            </Grid>
-                            <CheckBox Content="Доводчик" IsChecked="False"/>
-                            <CheckBox Content="Микропроветривание" IsChecked="False"/>
-                            <CheckBox Content="Замок" IsChecked="False"/>
-                        </StackPanel>
-                        <Border Height="1" Background="#DCDCDC" IsVisible="False"/>
-
-                        <StackPanel Margin="0,14" Spacing="10">
-                            <TextBlock Classes="sectionTitle" Text="Стеклопакет"/>
-                            <Grid ColumnDefinitions="*,164" RowDefinitions="Auto,Auto" RowSpacing="8">
-                                <TextBlock Classes="propertyLabel" Text="Формула"/>
-                                <ComboBox Grid.Column="1" SelectedIndex="0">
-                                    <ComboBoxItem Content="4-16-4"/>
-                                    <ComboBoxItem Content="4LowE-16-4"/>
-                                    <ComboBoxItem Content="4-10-4-10-4"/>
-                                </ComboBox>
-                                <TextBlock Grid.Row="1" Classes="propertyLabel" Text="Толщина, мм"/>
-                                <NumericUpDown Grid.Row="1" Grid.Column="1" Value="24" IsEnabled="False"/>
-                            </Grid>
-                        </StackPanel>
-                    </StackPanel>
-                </ScrollViewer>
-            </Border>
         </Grid>
 
-        <!-- НИЖНЯЯ ПАНЕЛЬ -->
-        <Border Grid.Row="1" Background="#F8F9FA" BorderBrush="#DCDCDC" BorderThickness="0,1,0,0" IsVisible="{Binding IsBottomPanelVisible}">
-            <Grid ColumnDefinitions="*,Auto,*" Margin="16,0">
-                <StackPanel Orientation="Horizontal" Spacing="22" VerticalAlignment="Center">
-                    <!-- Исправление: вместо StringFormat используем Run -->
-                    <TextBlock>
-                        <Run Text="X: "/><Run Text="{Binding CursorX}"/><Run Text=" мм"/>
-                    </TextBlock>
-                    <TextBlock>
-                        <Run Text="Y: "/><Run Text="{Binding CursorY}"/><Run Text=" мм"/>
-                    </TextBlock>
-                    <TextBlock Text="L: 1000 мм"/>
-                    <TextBlock Text="H: 1000 мм"/>
+        <Grid Grid.Row="2" ColumnDefinitions="180,*" Height="30">
+            <Border Grid.Column="0"
+                    Background="#F8FAFC"
+                    BorderBrush="#E2E8F0"
+                    BorderThickness="0,0,1,1"/>
+            <controls:RulerControl Grid.Column="1"
+                                   Editor="{Binding}"
+                                   Orientation="Horizontal"
+                                   HorizontalTickEdge="Top"
+                                   Height="30"
+                                   ClipToBounds="True"
+                                   HorizontalAlignment="Stretch"
+                                   VerticalAlignment="Stretch"/>
+        </Grid>
+
+        <Border Grid.Row="3"
+                Height="32"
+                Background="#F0F0F0"
+                BorderBrush="#E2E8F0"
+                BorderThickness="0,1,0,0"
+                IsVisible="{Binding IsBottomPanelVisible}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="0">
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="10,0,5,0" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Classes="paramLabel" Text="X =" VerticalAlignment="Center"/>
+                        <TextBlock Width="72" VerticalAlignment="Center" Text="{Binding SelectedElementX, StringFormat={}{0:F1}}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Classes="paramLabel" Text="Y =" VerticalAlignment="Center"/>
+                        <TextBlock Width="72" VerticalAlignment="Center" Text="{Binding SelectedElementY, StringFormat={}{0:F1}}"/>
+                    </StackPanel>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <TextBlock>
-                        <Run Text="Масштаб: "/><Run Text="{Binding ZoomPercent}"/>
-                    </TextBlock>
-    
-                    <ToggleButton IsChecked="{Binding IsGridEnabled}" Classes="toggleBtn" ToolTip.Tip="Отображать сетку">
-                        <TextBlock Classes="mdlIcon" Text="&#xECA5;" FontSize="15" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                    </ToggleButton>
-    
-                    <ToggleButton IsChecked="{Binding IsSnapEnabled}" Classes="toggleBtn" ToolTip.Tip="Привязка к сетке и объектам">
-                        <TextBlock Classes="mdlIcon" Text="&#xE8B0;" FontSize="15" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                    </ToggleButton>
+
+                <Border Width="1" Background="#AEAEAE" Margin="5,4"/>
+
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="5,0,10,0" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Classes="paramLabel" Text="L =" VerticalAlignment="Center"/>
+                        <TextBlock Width="72" VerticalAlignment="Center" Text="{Binding SelectedElementLength, StringFormat={}{0:F1}}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Classes="paramLabel" Text="H =" VerticalAlignment="Center"/>
+                        <TextBlock Width="72" VerticalAlignment="Center" Text="{Binding SelectedElementHeight, StringFormat={}{0:F1}}"/>
+                    </StackPanel>
                 </StackPanel>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="18" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <TextBlock Text="Ничего"/>
-                    <TextBlock>
-                        <Run Text="Инструмент: "/><Run Text="{Binding ActiveToolDisplayName}"/>
-                    </TextBlock>
-                </StackPanel>
-            </Grid>
+            </StackPanel>
         </Border>
     </Grid>
 </UserControl>

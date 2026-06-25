@@ -16,6 +16,7 @@ public sealed class DesignRectPlacementTool : CadToolBase
     public override string Id => "design-rect";
 
     public override string DisplayName => "Область заполнения";
+    public override CadToolKind Kind => CadToolKind.None;
 
     public override void OnMouseDown(CadToolContext context, CadPointerEvent e)
     {

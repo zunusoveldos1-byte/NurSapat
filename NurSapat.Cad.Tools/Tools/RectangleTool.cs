@@ -14,6 +14,7 @@ public class RectangleTool : CadToolBase
 
     public override string Id => "rectangle";
     public override string DisplayName => "Прямоугольник";
+    public override CadToolKind Kind => CadToolKind.None;
 
     public override void OnMouseDown(CadToolContext context, CadPointerEvent e)
     {

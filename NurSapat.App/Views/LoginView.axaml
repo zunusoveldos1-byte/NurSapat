@@ -2,90 +2,286 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
              x:Class="NurSapat.App.Views.LoginView"
-             x:DataType="vm:LoginViewModel">
-    <Grid RowDefinitions="*,56" Background="White">
-        <Grid Grid.Row="0" ColumnDefinitions="*,*">
-            <Grid Grid.Column="0">
-                <Image Source="avares://NurSapat.App/Assets/login-bg.png" Stretch="UniformToFill"/>
-                <Border Background="#660B1220"/>
-                <Grid RowDefinitions="*,Auto,*">
-                    <StackPanel Grid.Row="1" Margin="54" Spacing="18" MaxWidth="460">
-                        <TextBlock Text="NurSapat" Foreground="White" FontSize="40" FontWeight="Bold"/>
-                        <TextBlock Text="ERP/CAD для оконного производства" Foreground="White" FontSize="16" FontWeight="SemiBold"/>
-                        <Border Height="3" Width="52" Background="#3B82F6" HorizontalAlignment="Left"/>
-                        <TextBlock Text="Единая система расчетов, заказов, материалов и производственного архива в одном рабочем пространстве."
-                                   Foreground="#E5EEF9" FontSize="14" LineHeight="22" TextWrapping="Wrap"/>
-                    </StackPanel>
-                </Grid>
+             x:DataType="vm:LoginViewModel"
+             FontFamily="Inter">
+    <UserControl.Styles>
+        <StyleInclude Source="/Styles/LoginStyles.axaml"/>
+    </UserControl.Styles>
+
+    <Grid ColumnDefinitions="55*,45*">
+        <!-- Левая панель -->
+        <Grid Grid.Column="0">
+            <Image Source="avares://NurSapat.App/Assets/login-bg.png"
+                   Stretch="UniformToFill"/>
+            <Border Background="#660B1220"/>
+            <Grid RowDefinitions="*,Auto,*">
+                <StackPanel Grid.Row="1"
+                            Margin="54,0"
+                            Spacing="18"
+                            MaxWidth="500">
+                    <TextBlock Text="NurSapat"
+                               Foreground="White"
+                               FontSize="40"
+                               FontWeight="Bold"/>
+                    <TextBlock Text="ERP/CAD для оконного производства"
+                               Foreground="White"
+                               FontSize="16"
+                               FontWeight="SemiBold"/>
+                    <Border Height="3"
+                            Width="52"
+                            Background="#3B82F6"
+                            HorizontalAlignment="Left"/>
+                    <TextBlock Text="Единая система расчетов, заказов, материалов и производственного архива в одном рабочем пространстве."
+                               Foreground="#E5EEF9"
+                               FontSize="14"
+                               FontWeight="Regular"
+                               LineHeight="22"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
             </Grid>
+        </Grid>
 
-            <Grid Grid.Column="1">
-                <Border Width="440" HorizontalAlignment="Center" VerticalAlignment="Center" Background="White" CornerRadius="12" Padding="32">
+        <!-- Правая панель -->
+        <Grid Grid.Column="1" Background="White">
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Margin="0,12,12,0"
+                        Spacing="0">
+                <Button Classes="title-btn"
+                        Click="OnMinimizeClick"
+                        ToolTip.Tip="Свернуть">
+                    <Viewbox Width="10" Height="10">
+                        <Canvas Width="10" Height="10">
+                            <Line StartPoint="1,5"
+                                  EndPoint="9,5"
+                                  Stroke="#64748B"
+                                  StrokeThickness="1.2"
+                                  StrokeLineCap="Round"/>
+                        </Canvas>
+                    </Viewbox>
+                </Button>
+                <Button Classes="title-btn close"
+                        Click="OnCloseClick"
+                        ToolTip.Tip="Закрыть">
+                    <Viewbox Width="10" Height="10">
+                        <Canvas Width="10" Height="10">
+                            <Line StartPoint="1,1"
+                                  EndPoint="9,9"
+                                  Stroke="#64748B"
+                                  StrokeThickness="1.2"
+                                  StrokeLineCap="Round"/>
+                            <Line StartPoint="9,1"
+                                  EndPoint="1,9"
+                                  Stroke="#64748B"
+                                  StrokeThickness="1.2"
+                                  StrokeLineCap="Round"/>
+                        </Canvas>
+                    </Viewbox>
+                </Button>
+            </StackPanel>
+
+            <Border MaxWidth="440"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Padding="32,0">
+                <StackPanel Spacing="20">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Вход в систему"
+                                   FontSize="36"
+                                   FontWeight="SemiBold"
+                                   Foreground="#0F172A"
+                                   LineHeight="44"/>
+                        <TextBlock Text="Введите учетные данные для доступа к системе"
+                                   FontSize="16"
+                                   FontWeight="Regular"
+                                   Foreground="#64748B"
+                                   TextWrapping="Wrap"
+                                   LineHeight="24"/>
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding ErrorMessage}"
+                               Foreground="#DC2626"
+                               FontSize="14"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding !!ErrorMessage}"/>
+
                     <StackPanel Spacing="16">
-                        <TextBlock Text="Вход в систему" FontSize="28" FontWeight="SemiBold" Foreground="#0F172A"/>
-                        <TextBlock Text="Введите учетные данные для доступа к системе." Foreground="#64748B" FontSize="14" TextWrapping="Wrap"/>
-                        <TextBlock Text="{Binding ErrorMessage}" Foreground="#D93025" TextWrapping="Wrap" FontSize="13" IsVisible="{Binding !!ErrorMessage}"/>
-
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Логин" Foreground="#334155" FontWeight="SemiBold" FontSize="13"/>
-                            <Border Background="White" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="8" Height="48" Padding="14,0">
-                                <Grid ColumnDefinitions="Auto,*">
-                                    <TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" Foreground="#94A3B8" FontSize="18" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                    <TextBox Grid.Column="1" Text="{Binding Username}" PlaceholderText="Введите логин" Background="Transparent" BorderThickness="0" FontSize="14" VerticalAlignment="Center"/>
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Логин"
+                                       Foreground="#0F172A"
+                                       FontWeight="Medium"
+                                       FontSize="14"/>
+                            <Border Classes="login-input">
+                                <Grid ColumnDefinitions="28,*,40"
+                                      VerticalAlignment="Center">
+                                    <Viewbox Grid.Column="0"
+                                             Width="18"
+                                             Height="18"
+                                             VerticalAlignment="Center"
+                                             HorizontalAlignment="Center">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M12,11 C13.66,11 15,9.66 15,8 C15,6.34 13.66,5 12,5 C10.34,5 9,6.34 9,8 C9,9.66 10.34,11 12,11 M6,19 C6,16.24 8.69,14.5 12,14.5 C15.31,14.5 18,16.24 18,19"
+                                                  Stroke="#94A3B8"
+                                                  StrokeThickness="1.5"
+                                                  StrokeLineCap="Round"
+                                                  StrokeJoin="Round"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBox Grid.Column="1"
+                                             Text="{Binding Username}"
+                                             PlaceholderText="Введите логин"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             FontSize="16"
+                                             FontWeight="Regular"
+                                             VerticalAlignment="Center"
+                                             VerticalContentAlignment="Center"/>
                                 </Grid>
                             </Border>
                         </StackPanel>
 
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Пароль" Foreground="#334155" FontWeight="SemiBold" FontSize="13"/>
-                            <Border Background="White" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="8" Height="48" Padding="14,0">
-                                <Grid ColumnDefinitions="Auto,*,Auto">
-                                    <TextBlock Text="&#xE72E;" FontFamily="Segoe MDL2 Assets" Foreground="#94A3B8" FontSize="18" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                    <TextBox Grid.Column="1" Text="{Binding Password}" PasswordChar="{Binding PasswordChar}" PlaceholderText="Введите пароль" Background="Transparent" BorderThickness="0" FontSize="14" VerticalAlignment="Center"/>
-                                    <Button Grid.Column="2" Command="{Binding TogglePasswordVisibilityCommand}" Width="32" Height="32" Padding="0" Background="Transparent" BorderBrush="Transparent" ToolTip.Tip="Показать пароль">
-                                        <TextBlock Text="&#xE890;" FontFamily="Segoe MDL2 Assets" Foreground="#64748B" FontSize="17" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Пароль"
+                                       Foreground="#0F172A"
+                                       FontWeight="Medium"
+                                       FontSize="14"/>
+                            <Border Classes="login-input">
+                                <Grid ColumnDefinitions="28,*,40"
+                                      VerticalAlignment="Center">
+                                    <Viewbox Grid.Column="0"
+                                             Width="18"
+                                             Height="18"
+                                             VerticalAlignment="Center"
+                                             HorizontalAlignment="Center">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M7,10 L7,8 C7,5.79 8.79,4 11,4 C13.21,4 15,5.79 15,8 L15,10 M6,10 L16,10 C16.55,10 17,10.45 17,11 L17,17 C17,17.55 16.55,18 16,18 L6,18 C5.45,18 5,17.55 5,17 L5,11 C5,10.45 5.45,10 6,10"
+                                                  Stroke="#94A3B8"
+                                                  StrokeThickness="1.5"
+                                                  StrokeLineCap="Round"
+                                                  StrokeJoin="Round"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBox Grid.Column="1"
+                                             Text="{Binding Password}"
+                                             PasswordChar="{Binding PasswordChar}"
+                                             PlaceholderText="Введите пароль"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             FontSize="16"
+                                             FontWeight="Regular"
+                                             VerticalAlignment="Center"
+                                             VerticalContentAlignment="Center"/>
+                                    <Button Grid.Column="2"
+                                            Classes="icon-btn"
+                                            Command="{Binding TogglePasswordVisibilityCommand}"
+                                            ToolTip.Tip="Показать пароль"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                        <Viewbox Width="18" Height="18">
+                                            <Canvas Width="24" Height="24">
+                                                <Path IsVisible="{Binding !IsPasswordVisible}"
+                                                      Data="M2,12 C2,12 5,6 12,6 C19,6 22,12 22,12 C22,12 19,18 12,18 C5,18 2,12 2,12 M12,15 C13.66,15 15,13.66 15,12 C15,10.34 13.66,9 12,9 C10.34,9 9,10.34 9,12 C9,13.66 10.34,15 12,15"
+                                                      Stroke="#64748B"
+                                                      StrokeThickness="1.5"
+                                                      StrokeLineCap="Round"
+                                                      StrokeJoin="Round"/>
+                                                <Path IsVisible="{Binding IsPasswordVisible}"
+                                                      Data="M3,3 L21,21 M10.58,10.58 C10.21,10.95 10,11.45 10,12 C10,13.1 10.9,14 12,14 C12.55,14 13.05,13.79 13.42,13.42 M17.94,17.41 C16.29,18.63 14.22,19.35 12,19.35 C5,19.35 2,12.35 2,12.35 C3.16,10.11 5.05,8.28 7.41,7.06 M9.9,5.08 C10.58,4.92 11.28,4.83 12,4.83 C19,4.83 22,10.83 22,10.83 C21.37,12.05 20.52,13.14 19.47,14.05"
+                                                      Stroke="#64748B"
+                                                      StrokeThickness="1.5"
+                                                      StrokeLineCap="Round"
+                                                      StrokeJoin="Round"/>
+                                            </Canvas>
+                                        </Viewbox>
                                     </Button>
                                 </Grid>
                             </Border>
                         </StackPanel>
+                    </StackPanel>
 
-                        <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,8">
-                            <CheckBox Content="Запомнить меня" IsChecked="{Binding RememberMe}" Foreground="#475569" FontSize="13"/>
-                            <Button Grid.Column="1" Command="{Binding HelpCommand}" Background="Transparent" BorderBrush="Transparent" Padding="0" Content="Забыли пароль?" Foreground="#2563EB" FontSize="13"/>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <CheckBox Classes="remember-me"
+                                  Content="Запомнить меня"
+                                  IsChecked="{Binding RememberMe}"
+                                  VerticalAlignment="Center"/>
+                        <Button Grid.Column="1"
+                                Classes="link-btn"
+                                Command="{Binding HelpCommand}"
+                                Content="Забыли пароль?"/>
+                    </Grid>
+
+                    <StackPanel Spacing="0">
+                        <!-- Кнопка "Войти" -->
+                        <Button Classes="login-primary"
+                                Command="{Binding LoginCommand}"
+                                IsEnabled="{Binding !IsBusy}"
+                                Content="Войти"/>
+
+                        <!-- Прогресс-бар загрузки -->
+                        <ProgressBar IsIndeterminate="True"
+                                     IsVisible="{Binding IsBusy}"
+                                     Height="3"
+                                     Margin="0,8,0,0"
+                                     Background="#E2E8F0"
+                                     Foreground="#2563EB"
+                                     CornerRadius="2"/>
+
+                        <!-- Разделитель "или" -->
+                        <Grid ColumnDefinitions="*,Auto,*"
+                              Margin="0,20,0,20">
+                            <Border Grid.Column="0"
+                                    Height="1"
+                                    Background="#E2E8F0"
+                                    VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="или"
+                                       Foreground="#94A3B8"
+                                       FontSize="14"
+                                       Margin="16,0"/>
+                            <Border Grid.Column="2"
+                                    Height="1"
+                                    Background="#E2E8F0"
+                                    VerticalAlignment="Center"/>
                         </Grid>
 
-                        <Button Command="{Binding LoginCommand}" IsEnabled="{Binding !IsBusy}" HorizontalAlignment="Stretch" Height="54" CornerRadius="10" Background="#2563EB" Foreground="White" FontSize="16" FontWeight="Bold" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Content="Войти"/>
-                        <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" Height="3" Background="#E2E8F0" CornerRadius="2"/>
-
-                        <Grid ColumnDefinitions="*,Auto,*" Margin="0,14,0,0">
-                            <Border Grid.Column="0" Height="1" Background="#E2E8F0" VerticalAlignment="Center"/>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="16,0">
-                                <TextBlock Text="&#xE83D;" FontFamily="Segoe MDL2 Assets" Foreground="#94A3B8" FontSize="17"/>
-                                <TextBlock Text="Безопасное подключение" Foreground="#94A3B8" FontSize="13"/>
+                        <!-- Кнопка "Связаться с нами" -->
+                        <Button Classes="login-secondary"
+                                Command="{Binding ContactCommand}">
+                            <StackPanel Orientation="Horizontal"
+                                        Spacing="10"
+                                        HorizontalAlignment="Center">
+                                <Viewbox Width="20" Height="20">
+                                    <Path Data="M4,6 L20,6 L20,18 L4,18 Z M4,6 L12,12 L20,6"
+                                          Stroke="#2563EB"
+                                          StrokeThickness="1.5"
+                                          Stretch="Uniform"/>
+                                </Viewbox>
+                                <TextBlock Text="Связаться с нами"
+                                           Foreground="#2563EB"
+                                           FontSize="16"
+                                           FontWeight="Medium"
+                                           VerticalAlignment="Center"/>
                             </StackPanel>
-                            <Border Grid.Column="2" Height="1" Background="#E2E8F0" VerticalAlignment="Center"/>
-                        </Grid>
+                        </Button>
+                        <!-- Скрытая кнопка "Выйти" (показывается только когда IsLoggedIn == true) -->
+                        <Button Content="Выйти"
+                                Command="{Binding LogoutCommand}"
+                                IsVisible="True"
+                                HorizontalAlignment="Stretch"
+                                Margin="0,20,0,0"
+                                Height="45"
+                                CornerRadius="8"
+                                Background="#EF4444"
+                                Foreground="White"
+                                FontSize="16"
+                                FontWeight="Bold"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Cursor="Hand"/>
                     </StackPanel>
-                </Border>
-            </Grid>
+                </StackPanel>
+            </Border>
         </Grid>
-
-        <Border Grid.Row="1" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Background="White">
-            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center" Height="56">
-                <Button Command="{Binding HelpCommand}" Background="Transparent" BorderBrush="Transparent" HorizontalAlignment="Left" Margin="36,0" Padding="0">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBlock Text="&#xE897;" FontFamily="Segoe MDL2 Assets" Foreground="#2563EB" FontSize="18"/>
-                        <TextBlock Text="Нужна помощь?" Foreground="#2563EB" FontWeight="SemiBold" FontSize="14"/>
-                        <TextBlock Text="Свяжитесь с администратором системы." Foreground="#64748B" FontSize="14"/>
-                    </StackPanel>
-                </Button>
-                <Button Grid.Column="1" Command="{Binding ContactCommand}" Background="Transparent" BorderBrush="Transparent" Margin="0,0,36,0" Padding="0">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBlock Text="&#xE715;" FontFamily="Segoe MDL2 Assets" Foreground="#64748B" FontSize="18"/>
-                        <TextBlock Text="Связаться с нами" Foreground="#64748B" FontSize="14" FontWeight="Medium"/>
-                    </StackPanel>
-                </Button>
-            </Grid>
-        </Border>
     </Grid>
 </UserControl>

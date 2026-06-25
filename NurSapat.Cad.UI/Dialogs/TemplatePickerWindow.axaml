@@ -1,0 +1,97 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.Cad.UI.ViewModels"
+        x:Class="NurSapat.Cad.UI.Dialogs.TemplatePickerWindow"
+        x:DataType="vm:TemplatePickerViewModel"
+        Title="Шаблоны конструкций"
+        Width="440"
+        Height="150"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        SystemDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="0"
+        Background="#F6F9FD"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <Style Selector="Button.iconBtn">
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.action">
+            <Setter Property="MinHeight" Value="34"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+    </Window.Styles>
+
+    <!-- Серая рамка вокруг окна -->
+    <Border Background="White"
+            BorderBrush="#808080"
+            BorderThickness="2"
+            CornerRadius="8"
+            PointerPressed="OnWindowPointerPressed">
+
+        <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="20" RowSpacing="10">
+            <TextBlock Grid.Row="0"
+                       Text="Выберите шаблон конструкции"
+                       FontWeight="SemiBold"
+                       FontSize="13"
+                       Foreground="#0F172A"/>
+
+            <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                <ComboBox Grid.Column="0"
+                          ItemsSource="{Binding Templates}"
+                          SelectedItem="{Binding SelectedTemplate}"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Center"
+                          MinHeight="34">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button Grid.Column="1"
+                        Classes="iconBtn"
+                        Content="+"
+                        Command="{Binding AddTemplateCommand}"
+                        ToolTip.Tip="Сохранить текущую конфигурацию как шаблон"/>
+                <Button Grid.Column="2"
+                        Classes="iconBtn"
+                        Content="−"
+                        Command="{Binding DeleteTemplateCommand}"
+                        ToolTip.Tip="Удалить выбранный шаблон"/>
+            </Grid>
+
+            <Grid Grid.Row="3" ColumnDefinitions="*,*" ColumnSpacing="12">
+                <Button Grid.Column="0"
+                        Classes="action"
+                        Content="Применить"
+                        Background="#0078D7"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Command="{Binding ApplyCommand}"/>
+                <Button Grid.Column="1"
+                        Classes="action"
+                        Content="Отмена"
+                        Background="White"
+                        BorderBrush="#CBD5E1"
+                        BorderThickness="1"
+                        Command="{Binding CancelCommand}"/>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

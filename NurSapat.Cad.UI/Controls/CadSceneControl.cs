@@ -5,20 +5,46 @@ using NurSapat.Cad.UI.ViewModels;
 
 namespace NurSapat.Cad.UI.Controls;
 
+public enum HorizontalRulerPlacement
+{
+    Top,
+    Bottom
+}
+
+public enum HorizontalTickEdge
+{
+    Top,
+    Bottom
+}
+
 public sealed class CadSceneControl : Grid
 {
     private readonly CadCanvasControl _canvas = new();
-    private readonly RulerControl _horizontalRuler = new() { Orientation = RulerOrientation.Horizontal, Background = new SolidColorBrush(Color.Parse("#F8F9FA")), ClipToBounds = true, Margin = new Thickness(0, 0, 0, 0) };
-    private readonly RulerControl _verticalRuler = new() { Orientation = RulerOrientation.Vertical, Background = new SolidColorBrush(Color.Parse("#F8F9FA")), ClipToBounds = true, Margin = new Thickness(0, 0, -8, 0) };
+    private readonly RulerControl _horizontalRuler = new()
+    {
+        Orientation = RulerOrientation.Horizontal,
+        Background = new SolidColorBrush(Color.Parse("#F8FAFC")),
+        ClipToBounds = true,
+        HorizontalTickEdge = HorizontalTickEdge.Bottom
+    };
+    private readonly RulerControl _verticalRuler = new()
+    {
+        Orientation = RulerOrientation.Vertical,
+        Background = new SolidColorBrush(Color.Parse("#F8FAFC")),
+        ClipToBounds = true
+    };
     private readonly Border _corner = new()
     {
-        Background = new SolidColorBrush(Color.Parse("#F8F9FA")),
-        BorderBrush = new SolidColorBrush(Color.Parse("#DCDCDC")),
+        Background = new SolidColorBrush(Color.Parse("#F8FAFC")),
+        BorderBrush = new SolidColorBrush(Color.Parse("#E2E8F0")),
         BorderThickness = new Thickness(0, 0, 1, 1)
     };
 
     public static readonly StyledProperty<CadEditorViewModel?> EditorProperty =
         AvaloniaProperty.Register<CadSceneControl, CadEditorViewModel?>(nameof(Editor));
+
+    public static readonly StyledProperty<bool> ShowHorizontalRulerProperty =
+        AvaloniaProperty.Register<CadSceneControl, bool>(nameof(ShowHorizontalRuler), true);
 
     public CadEditorViewModel? Editor
     {
@@ -26,27 +52,18 @@ public sealed class CadSceneControl : Grid
         set => SetValue(EditorProperty, value);
     }
 
+    public bool ShowHorizontalRuler
+    {
+        get => GetValue(ShowHorizontalRulerProperty);
+        set => SetValue(ShowHorizontalRulerProperty, value);
+    }
+
+    public CadCanvasControl Canvas => _canvas;
+
     public CadSceneControl()
     {
         Background = Brushes.White;
-        RowDefinitions.Add(new RowDefinition(GridLength.Parse("30")));
-        RowDefinitions.Add(new RowDefinition(GridLength.Star));
-        ColumnDefinitions.Add(new ColumnDefinition(GridLength.Parse("30")));
-        ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-
-        SetRow(_corner, 0);
-        SetColumn(_corner, 0);
-        SetRow(_horizontalRuler, 0);
-        SetColumn(_horizontalRuler, 1);
-        SetRow(_verticalRuler, 1);
-        SetColumn(_verticalRuler, 0);
-        SetRow(_canvas, 1);
-        SetColumn(_canvas, 1);
-
-        Children.Add(_corner);
-        Children.Add(_horizontalRuler);
-        Children.Add(_verticalRuler);
-        Children.Add(_canvas);
+        RebuildLayout();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -63,10 +80,12 @@ public sealed class CadSceneControl : Grid
                 newEditor.SceneInvalidated += OnSceneInvalidated;
             }
 
-            _canvas.Editor = Editor;
-            _horizontalRuler.Editor = Editor;
-            _verticalRuler.Editor = Editor;
+            BindEditor();
             InvalidateCadScene();
+        }
+        else if (change.Property == ShowHorizontalRulerProperty)
+        {
+            RebuildLayout();
         }
 
         base.OnPropertyChanged(change);
@@ -77,6 +96,54 @@ public sealed class CadSceneControl : Grid
         var arranged = base.ArrangeOverride(finalSize);
         UpdateViewportSize();
         return arranged;
+    }
+
+    private void RebuildLayout()
+    {
+        Children.Clear();
+        RowDefinitions.Clear();
+        ColumnDefinitions.Clear();
+
+        ColumnDefinitions.Add(new ColumnDefinition(GridLength.Parse("30")));
+        ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+
+        if (!ShowHorizontalRuler)
+        {
+            RowDefinitions.Add(new RowDefinition(GridLength.Star));
+            SetRow(_verticalRuler, 0);
+            SetColumn(_verticalRuler, 0);
+            SetRow(_canvas, 0);
+            SetColumn(_canvas, 1);
+            Children.Add(_verticalRuler);
+            Children.Add(_canvas);
+            BindEditor();
+            return;
+        }
+
+        RowDefinitions.Add(new RowDefinition(GridLength.Parse("30")));
+        RowDefinitions.Add(new RowDefinition(GridLength.Star));
+
+        SetRow(_verticalRuler, 0);
+        SetColumn(_verticalRuler, 0);
+        SetRow(_canvas, 0);
+        SetColumn(_canvas, 1);
+        SetRow(_corner, 1);
+        SetColumn(_corner, 0);
+        SetRow(_horizontalRuler, 1);
+        SetColumn(_horizontalRuler, 1);
+
+        Children.Add(_corner);
+        Children.Add(_horizontalRuler);
+        Children.Add(_verticalRuler);
+        Children.Add(_canvas);
+        BindEditor();
+    }
+
+    private void BindEditor()
+    {
+        _canvas.Editor = Editor;
+        _horizontalRuler.Editor = Editor;
+        _verticalRuler.Editor = Editor;
     }
 
     private void UpdateViewportSize()

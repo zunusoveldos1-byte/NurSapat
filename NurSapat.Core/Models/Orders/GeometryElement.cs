@@ -18,7 +18,10 @@ public enum GeometryElementKind
     MosquitoNet,
     SlidingSash,
     Installation,
-    Accessory
+    Accessory,
+    ArchFrame,
+    ArchDummyFrame,
+    TriangleDummyFrame
 }
 
 public enum SashOpeningType
@@ -32,7 +35,7 @@ public enum SashOpeningType
 
 public sealed class GeometryElement
 {
-    public Guid Id { get; init; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.NewGuid();
 
     public GeometryElementKind Kind { get; set; }
 
@@ -47,6 +50,14 @@ public sealed class GeometryElement
     public decimal HeightMm { get; set; }
 
     public SashOpeningType? OpeningType { get; set; }
+
+    public SashHingeSide? HingeSide { get; set; }
+
+    public bool HasHardware { get; set; }
+
+    public bool HasHandle { get; set; }
+
+    public Guid? HostSashId { get; set; }
 
     public Guid? MaterialId { get; set; }
 

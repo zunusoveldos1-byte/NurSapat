@@ -1,0 +1,655 @@
+using NurSapat.Cad.Core.Geometry;
+
+namespace NurSapat.Cad.Core.Models;
+
+public enum SplitOrientation
+{
+    None,
+    Vertical,
+    Horizontal
+}
+
+/// <summary>
+/// Бинарный узел рамы: лист или разделённый импостом на два дочерних прямоугольника.
+/// Координаты: X,Y — нижний левый угол, Y растёт вверх.
+/// </summary>
+public sealed class FrameNode
+{
+    private const double MinSplitSizeMm = 40;
+
+    public const double DefaultImpostProfileMm = CadSystemThickness.DefaultImpostProfileMm;
+
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double Width { get; set; }
+    public double Height { get; set; }
+
+    public bool IsLeaf { get; private set; } = true;
+    public bool IsUniformSplit { get; private set; }
+    public SplitOrientation SplitOrientation { get; private set; } = SplitOrientation.None;
+    public ImpostLineStyle LineStyle { get; private set; } = ImpostLineStyle.Dashed;
+    public double ImpostThicknessMm { get; private set; }
+    public int UniformImpostCount { get; private set; }
+    public IReadOnlyList<FrameNode> UniformCells => _uniformCells;
+    public FrameNode? ChildA { get; private set; }
+    public FrameNode? ChildB { get; private set; }
+    public FrameNode? Parent { get; set; }
+
+    private readonly List<FrameNode> _uniformCells = [];
+
+    public bool Contains(double x, double y) =>
+        x >= X && x <= X + Width && y >= Y && y <= Y + Height;
+
+    public FrameNode? FindLeafAt(double x, double y)
+    {
+        // Используем допуск 25 мм, чтобы поиск был устойчив к смещениям из-за нахлестов
+        const double lookupTolerance = 25.0;
+
+        if (x < X - lookupTolerance || x > X + Width + lookupTolerance ||
+            y < Y - lookupTolerance || y > Y + Height + lookupTolerance)
+        {
+            return null;
+        }
+
+        if (IsUniformSplit)
+        {
+            // Ищем ближайшую ячейку по расстоянию до центра, если точка на стыке профилей
+            FrameNode? bestCell = null;
+            double minDist = double.MaxValue;
+
+            foreach (var cell in _uniformCells)
+            {
+                if (cell.Contains(x, y))
+                {
+                    return cell.FindLeafAt(x, y);
+                }
+
+                // Расчет расстояния до центра ячейки на случай выхода за точные математические границы проёма
+                double cellCenterX = cell.X + cell.Width / 2.0;
+                double cellCenterY = cell.Y + cell.Height / 2.0;
+                double dist = Math.Pow(x - cellCenterX, 2) + Math.Pow(y - cellCenterY, 2);
+                if (dist < minDist)
+                {
+                    minDist = dist;
+                    bestCell = cell;
+                }
+            }
+
+            return bestCell?.FindLeafAt(x, y);
+        }
+
+        if (IsLeaf)
+        {
+            return this;
+        }
+
+        // Логика для бинарного сплита (ChildA / ChildB)
+        if (ChildA != null && ChildB != null)
+        {
+            if (ChildA.Contains(x, y)) return ChildA.FindLeafAt(x, y);
+            if (ChildB.Contains(x, y)) return ChildB.FindLeafAt(x, y);
+
+            // Если точка зависла ровно на импосте, определяем по полуплоскостям
+            if (SplitOrientation == SplitOrientation.Vertical)
+            {
+                return x <= (ChildA.X + ChildA.Width + ChildB.X) / 2.0
+                    ? ChildA.FindLeafAt(x, y)
+                    : ChildB.FindLeafAt(x, y);
+            }
+            else if (SplitOrientation == SplitOrientation.Horizontal)
+            {
+                return y <= (ChildA.Y + ChildA.Height + ChildB.Y) / 2.0
+                    ? ChildA.FindLeafAt(x, y)
+                    : ChildB.FindLeafAt(x, y);
+            }
+        }
+
+        return IsLeaf ? this : null;
+    }
+
+    public bool AddSplit(
+        SplitOrientation orientation,
+        double splitLocal,
+        ImpostLineStyle lineStyle,
+        double impostWidthMm) =>
+        orientation switch
+        {
+            SplitOrientation.Vertical => TrySplitVerticalAt(splitLocal, lineStyle, impostWidthMm),
+            SplitOrientation.Horizontal => TrySplitHorizontalAt(splitLocal, lineStyle, impostWidthMm),
+            _ => false
+        };
+
+    public bool TrySplitVerticalHalf(ImpostLineStyle lineStyle = ImpostLineStyle.Dashed, double impostWidthMm = 0) =>
+        TrySplitVerticalAt(Width / 2, lineStyle, impostWidthMm);
+
+    public bool TrySplitHorizontalHalf(ImpostLineStyle lineStyle = ImpostLineStyle.Dashed, double impostWidthMm = 0) =>
+        TrySplitHorizontalAt(Height / 2, lineStyle, impostWidthMm);
+
+    /// <summary>
+    /// N-split engine: равномерное деление светового проёма с физическим объёмом каждого импоста.
+    /// </summary>
+    public bool TrySplitUniformWithVolume(
+        SplitOrientation orientation,
+        int impostCount,
+        double impostWidthMm,
+        double frameProfileInset = 0,
+        ImpostLineStyle lineStyle = ImpostLineStyle.Solid)
+    {
+        if (!IsLeaf || impostCount < 1)
+        {
+            return false;
+        }
+
+        var impostWidth = impostWidthMm > CadMath.Epsilon
+            ? impostWidthMm
+            : DefaultImpostProfileMm;
+
+        if (!TryComputeUniformLayout(
+                orientation,
+                impostCount,
+                impostWidth,
+                frameProfileInset,
+                out var innerStart,
+                out var singleGlassSize))
+        {
+            return false;
+        }
+
+        _uniformCells.Clear();
+        var trailingInset = Parent == null && frameProfileInset > CadMath.Epsilon ? frameProfileInset : 0;
+        var innerSpan = orientation switch
+        {
+            SplitOrientation.Vertical => Width - innerStart - trailingInset,
+            SplitOrientation.Horizontal => Height - innerStart - trailingInset,
+            _ => 0
+        };
+
+        var used = 0.0;
+        for (var i = 0; i <= impostCount; i++)
+        {
+            var isLast = i == impostCount;
+            var cellWidth = isLast
+                ? CadMath.RoundMm(innerSpan - used)
+                : CadMath.RoundMm(singleGlassSize);
+
+            var offset = innerStart + used;
+            var cell = orientation switch
+            {
+                SplitOrientation.Vertical => CreateChild(X + offset, Y, cellWidth, Height),
+                SplitOrientation.Horizontal => CreateChild(X, Y + offset, Width, cellWidth),
+                _ => null
+            };
+
+            if (cell == null)
+            {
+                _uniformCells.Clear();
+                return false;
+            }
+
+            _uniformCells.Add(cell);
+            used += cellWidth + (isLast ? 0 : impostWidth);
+        }
+
+        ChildA = null;
+        ChildB = null;
+        IsUniformSplit = true;
+        IsLeaf = false;
+        SplitOrientation = orientation;
+        LineStyle = lineStyle;
+        ImpostThicknessMm = impostWidth;
+        UniformImpostCount = impostCount;
+        return true;
+    }
+
+    public bool TrySplitUniformWithVolume(int impostCount, double impostWidthMm) =>
+        TrySplitUniformWithVolume(SplitOrientation.Vertical, impostCount, impostWidthMm);
+
+    public bool CanAcceptUniformSplit(
+        SplitOrientation orientation,
+        int impostCount,
+        double impostWidthMm,
+        double frameProfileInset = 0)
+    {
+        if (!IsLeaf || impostCount < 1)
+        {
+            return false;
+        }
+
+        var impostWidth = impostWidthMm > CadMath.Epsilon
+            ? impostWidthMm
+            : DefaultImpostProfileMm;
+
+        return TryComputeUniformLayout(
+            orientation,
+            impostCount,
+            impostWidth,
+            frameProfileInset,
+            out _,
+            out _);
+    }
+
+    public static bool TryComputeUniformLayout(
+        SplitOrientation orientation,
+        double totalWidth,
+        double totalHeight,
+        int impostCount,
+        double impostWidthMm,
+        double frameProfileInset,
+        out double singleGlassSize)
+    {
+        singleGlassSize = 0;
+        var innerSize = orientation switch
+        {
+            SplitOrientation.Vertical => frameProfileInset > CadMath.Epsilon
+                ? totalWidth - frameProfileInset * 2
+                : totalWidth,
+            SplitOrientation.Horizontal => frameProfileInset > CadMath.Epsilon
+                ? totalHeight - frameProfileInset * 2
+                : totalHeight,
+            _ => 0
+        };
+
+        if (innerSize <= CadMath.Epsilon || impostCount < 1)
+        {
+            return false;
+        }
+
+        var impostWidth = impostWidthMm > CadMath.Epsilon
+            ? impostWidthMm
+            : DefaultImpostProfileMm;
+        var totalImpostsWidth = impostCount * impostWidth;
+        var netGlassSize = innerSize - totalImpostsWidth;
+        if (netGlassSize <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        singleGlassSize = CadMath.RoundMm(netGlassSize / (impostCount + 1));
+        return singleGlassSize >= MinSplitSizeMm;
+    }
+
+    private bool TryComputeUniformLayout(
+        SplitOrientation orientation,
+        int impostCount,
+        double impostWidth,
+        double frameProfileInset,
+        out double innerStart,
+        out double singleGlassSize)
+    {
+        innerStart = Parent == null && frameProfileInset > CadMath.Epsilon ? frameProfileInset : 0;
+        return TryComputeUniformLayout(
+            orientation,
+            Width,
+            Height,
+            impostCount,
+            impostWidth,
+            Parent == null ? frameProfileInset : 0,
+            out singleGlassSize);
+    }
+
+    /// <summary>
+    /// Двойной вертикальный импост: 1 импост по центру (совместимость).
+    /// </summary>
+    public bool TrySplitDoubleVerticalCentered(double frameProfileWidth, double impostWidthMm) =>
+        TrySplitUniformWithVolume(
+            SplitOrientation.Vertical,
+            impostCount: 1,
+            impostWidthMm,
+            frameProfileWidth,
+            ImpostLineStyle.Double);
+
+    /// <summary>
+    /// Двойной горизонтальный импост: 1 импост по центру (совместимость).
+    /// </summary>
+    public bool TrySplitDoubleHorizontalCentered(double frameProfileWidth, double impostWidthMm) =>
+        TrySplitUniformWithVolume(
+            SplitOrientation.Horizontal,
+            impostCount: 1,
+            impostWidthMm,
+            frameProfileWidth,
+            ImpostLineStyle.Double);
+
+    public bool TrySplitVerticalAt(double splitLocalX, ImpostLineStyle lineStyle, double impostWidthMm)
+    {
+        if (!IsLeaf)
+        {
+            return false;
+        }
+
+        var thickness = ResolveImpostWidth(lineStyle, impostWidthMm);
+        var centerLocal = ClampVerticalSplitCenter(splitLocalX, thickness);
+        if (!TryComputeBinaryVerticalChildren(centerLocal, thickness, out var leftWidth, out var childBStartLocal, out var rightWidth))
+        {
+            return false;
+        }
+
+        ChildA = CreateChild(X, Y, leftWidth, Height);
+        ChildB = CreateChild(X + childBStartLocal, Y, rightWidth, Height);
+        ClearUniformSplitState();
+        ImpostThicknessMm = thickness;
+        IsLeaf = false;
+        SplitOrientation = SplitOrientation.Vertical;
+        LineStyle = lineStyle;
+        return true;
+    }
+
+    public bool TrySplitHorizontalAt(double splitLocalY, ImpostLineStyle lineStyle, double impostWidthMm)
+    {
+        if (!IsLeaf)
+        {
+            return false;
+        }
+
+        var thickness = ResolveImpostWidth(lineStyle, impostWidthMm);
+        var centerLocal = ClampHorizontalSplitCenter(splitLocalY, thickness);
+        if (!TryComputeBinaryHorizontalChildren(centerLocal, thickness, out var bottomHeight, out var childBStartLocal, out var topHeight))
+        {
+            return false;
+        }
+
+        ChildA = CreateChild(X, Y, Width, bottomHeight);
+        ChildB = CreateChild(X, Y + childBStartLocal, Width, topHeight);
+        ClearUniformSplitState();
+        ImpostThicknessMm = thickness;
+        IsLeaf = false;
+        SplitOrientation = SplitOrientation.Horizontal;
+        LineStyle = lineStyle;
+        return true;
+    }
+
+    /// <summary>
+    /// Толщина импоста узла (мм).
+    /// </summary>
+    public double GetResolvedImpostThicknessMm() =>
+        ImpostThicknessMm > CadMath.Epsilon
+            ? ImpostThicknessMm
+            : DefaultImpostProfileMm;
+
+    /// <summary>
+    /// Мировая X-координата оси вертикального импоста (совпадает с засечкой размера).
+    /// </summary>
+    public bool TryGetVerticalImpostAxisWorldX(out double axisWorldX)
+    {
+        axisWorldX = 0;
+        if (IsLeaf || IsUniformSplit || SplitOrientation != SplitOrientation.Vertical
+            || ChildA is null || ChildB is null)
+        {
+            return false;
+        }
+
+        axisWorldX = CadMath.RoundMm(ChildA.X + ChildA.Width + GetResolvedImpostThicknessMm() / 2.0);
+        return true;
+    }
+
+    /// <summary>
+    /// Мировая Y-координата оси горизонтального импоста (совпадает с засечкой размера).
+    /// </summary>
+    public bool TryGetHorizontalImpostAxisWorldY(out double axisWorldY)
+    {
+        axisWorldY = 0;
+        if (IsLeaf || IsUniformSplit || SplitOrientation != SplitOrientation.Horizontal
+            || ChildA is null || ChildB is null)
+        {
+            return false;
+        }
+
+        axisWorldY = CadMath.RoundMm(ChildA.Y + ChildA.Height + GetResolvedImpostThicknessMm() / 2.0);
+        return true;
+    }
+
+    /// <summary>
+    /// Ось импоста между ячейками uniform-разбиения (индекс зазора 0..N-1).
+    /// </summary>
+    public bool TryGetUniformImpostAxisWorld(
+        SplitOrientation orientation,
+        int gapIndex,
+        out double axisWorld)
+    {
+        axisWorld = 0;
+        if (!IsUniformSplit || SplitOrientation != orientation || gapIndex < 0 || gapIndex >= _uniformCells.Count - 1)
+        {
+            return false;
+        }
+
+        var leftCell = _uniformCells[gapIndex];
+        var half = GetResolvedImpostThicknessMm() / 2.0;
+        axisWorld = orientation switch
+        {
+            SplitOrientation.Vertical => CadMath.RoundMm(leftCell.X + leftCell.Width + half),
+            SplitOrientation.Horizontal => CadMath.RoundMm(leftCell.Y + leftCell.Height + half),
+            _ => 0
+        };
+        return true;
+    }
+
+    private bool TryComputeBinaryVerticalChildren(
+        double centerLocal,
+        double thickness,
+        out double leftWidth,
+        out double childBStartLocal,
+        out double rightWidth)
+    {
+        var half = thickness / 2.0;
+        leftWidth = CadMath.RoundMm(centerLocal - half);
+        childBStartLocal = CadMath.RoundMm(centerLocal + half);
+        rightWidth = CadMath.RoundMm(Width - childBStartLocal);
+
+        return leftWidth >= MinSplitSizeMm && rightWidth >= MinSplitSizeMm;
+    }
+
+    private bool TryComputeBinaryHorizontalChildren(
+        double centerLocal,
+        double thickness,
+        out double bottomHeight,
+        out double childBStartLocal,
+        out double topHeight)
+    {
+        var half = thickness / 2.0;
+        bottomHeight = CadMath.RoundMm(centerLocal - half);
+        childBStartLocal = CadMath.RoundMm(centerLocal + half);
+        topHeight = CadMath.RoundMm(Height - childBStartLocal);
+
+        return bottomHeight >= MinSplitSizeMm && topHeight >= MinSplitSizeMm;
+    }
+
+    public bool CanAccept(WindowToolMode tool, double impostWidthMm = CadSystemThickness.DoubleImpostMm)
+    {
+        var thickness = ResolveImpostWidthForTool(tool, impostWidthMm);
+        return tool switch
+        {
+            WindowToolMode.FakeVerticalImpost or WindowToolMode.FakeHorizontalImpost
+                or WindowToolMode.RealVerticalImpost or WindowToolMode.RealHorizontalImpost
+                or WindowToolMode.SlantedImpost =>
+                IsLeaf && Width >= MinSplitSizeMm * 2 + thickness && Height >= MinSplitSizeMm * 2,
+            WindowToolMode.DoubleVerticalImpost =>
+                IsLeaf && Width >= MinSplitSizeMm * 2 + thickness && Height >= MinSplitSizeMm * 2,
+            WindowToolMode.DoubleHorizontalImpost =>
+                IsLeaf && Height >= MinSplitSizeMm * 2 + thickness && Width >= MinSplitSizeMm * 2,
+            WindowToolMode.RealFrame or WindowToolMode.FakeFrame => Parent is null,
+            _ => IsLeaf
+        };
+    }
+
+    public IEnumerable<FrameNode> EnumerateInternalNodes()
+    {
+        if (IsUniformSplit)
+        {
+            yield return this;
+            foreach (var cell in _uniformCells)
+            {
+                foreach (var node in cell.EnumerateInternalNodes())
+                {
+                    yield return node;
+                }
+            }
+
+            yield break;
+        }
+
+        if (!IsLeaf)
+        {
+            yield return this;
+            if (ChildA != null)
+            {
+                foreach (var node in ChildA.EnumerateInternalNodes())
+                {
+                    yield return node;
+                }
+            }
+
+            if (ChildB != null)
+            {
+                foreach (var node in ChildB.EnumerateInternalNodes())
+                {
+                    yield return node;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Снимает последний импост с узла: дочерние ячейки схлопываются обратно в один лист.
+    /// Геометрия родителя (X, Y, Width, Height) сохраняется.
+    /// </summary>
+    public bool TryRemoveImpostSplit()
+    {
+        if (IsLeaf)
+        {
+            return false;
+        }
+
+        ChildA = null;
+        ChildB = null;
+        ClearUniformSplitState();
+        IsLeaf = true;
+        SplitOrientation = SplitOrientation.None;
+        ImpostThicknessMm = 0;
+        LineStyle = ImpostLineStyle.Dashed;
+        return true;
+    }
+
+    /// <summary>Находит самый глубокий внутренний узел (последний импост при отсутствии стека истории).</summary>
+    public static FrameNode? FindDeepestInternalNode(FrameNode root)
+    {
+        FrameNode? deepest = null;
+        var maxDepth = -1;
+        Walk(root, 0);
+        return deepest;
+
+        void Walk(FrameNode node, int depth)
+        {
+            if (node.IsLeaf)
+            {
+                return;
+            }
+
+            if (depth > maxDepth)
+            {
+                maxDepth = depth;
+                deepest = node;
+            }
+
+            if (node.IsUniformSplit)
+            {
+                foreach (var cell in node.UniformCells)
+                {
+                    Walk(cell, depth + 1);
+                }
+
+                return;
+            }
+
+            if (node.ChildA != null)
+            {
+                Walk(node.ChildA, depth + 1);
+            }
+
+            if (node.ChildB != null)
+            {
+                Walk(node.ChildB, depth + 1);
+            }
+        }
+    }
+
+    private double ClampVerticalSplitCenter(double splitLocalX, double thickness)
+    {
+        var minCenter = MinSplitSizeMm + thickness / 2;
+        var maxCenter = Width - MinSplitSizeMm - thickness / 2;
+        if (maxCenter < minCenter)
+        {
+            return Width / 2;
+        }
+
+        return Math.Clamp(splitLocalX, minCenter, maxCenter);
+    }
+
+    private double ClampHorizontalSplitCenter(double splitLocalY, double thickness)
+    {
+        var minCenter = MinSplitSizeMm + thickness / 2;
+        var maxCenter = Height - MinSplitSizeMm - thickness / 2;
+        if (maxCenter < minCenter)
+        {
+            return Height / 2;
+        }
+
+        return Math.Clamp(splitLocalY, minCenter, maxCenter);
+    }
+
+    private static double ResolveImpostWidth(ImpostLineStyle lineStyle, double impostWidthMm)
+    {
+        if (impostWidthMm > CadMath.Epsilon)
+        {
+            return impostWidthMm;
+        }
+
+        return lineStyle == ImpostLineStyle.Double
+            ? CadSystemThickness.DefaultImpostProfileMm
+            : DefaultImpostProfileMm;
+    }
+
+    private static double ResolveImpostWidthForTool(WindowToolMode tool, double impostWidthMm) =>
+        tool is WindowToolMode.DoubleVerticalImpost or WindowToolMode.DoubleHorizontalImpost
+            ? ResolveImpostWidth(ImpostLineStyle.Double, impostWidthMm)
+            : ResolveImpostWidth(ImpostLineStyle.Solid, impostWidthMm);
+
+    private FrameNode CreateChild(double x, double y, double width, double height) =>
+        new()
+        {
+            X = x,
+            Y = y,
+            Width = width,
+            Height = height,
+            Parent = this,
+            IsLeaf = true
+        };
+
+    public static FrameNode CreateRoot(double x, double y, double width, double height) =>
+        new() { X = x, Y = y, Width = width, Height = height };
+
+    public void ClearSplits()
+    {
+        ChildA = null;
+        ChildB = null;
+        ClearUniformSplitState();
+        IsLeaf = true;
+        SplitOrientation = SplitOrientation.None;
+        ImpostThicknessMm = 0;
+        LineStyle = ImpostLineStyle.Dashed;
+    }
+
+    private void ClearUniformSplitState()
+    {
+        _uniformCells.Clear();
+        IsUniformSplit = false;
+        UniformImpostCount = 0;
+    }
+
+    public void ResetGeometry(double x, double y, double width, double height)
+    {
+        ClearSplits();
+        X = x;
+        Y = y;
+        Width = width;
+        Height = height;
+    }
+}

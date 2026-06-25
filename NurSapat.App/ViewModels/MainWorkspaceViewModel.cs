@@ -2,9 +2,12 @@ using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using NurSapat.App.Services;
+using NurSapat.App.Services.Documents;
 using NurSapat.Cad.UI.ViewModels;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 #nullable enable
 
@@ -14,6 +17,9 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
 {
     private readonly Dictionary<string, object> _screens;
     private readonly OrderWorkspaceViewModel _orderWorkspace;
+    private readonly IDocumentManager _documentManager;
+    private readonly IRecentFilesService _recentFilesService;
+    private readonly IPrintService _printService;
     private bool _isNavigating;
 
     // ДОБАВЛЕНО: Ссылка на главное окно для диалогов
@@ -36,6 +42,10 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
 
     public bool IsAdditionalSelected => SelectedWorkspaceTabIndex == 2;
 
+    public string DocumentTitle => _documentManager.WindowTitle;
+
+    public ObservableCollection<RecentProjectMenuItem> RecentProjects { get; } = new();
+
     // ДОБАВЛЕНО: Свойства для галочек в меню
     [ObservableProperty]
     private bool _isLeftPanelVisible = true;
@@ -53,34 +63,28 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     // КОМАНДЫ МЕНЮ "ЗАКАЗ"
     // ==========================================
     [RelayCommand]
-    private void NewOrder() => System.Diagnostics.Debug.WriteLine("NewOrder executed");
+    private Task NewOrder() => _documentManager.NewOrderAsync();
 
     [RelayCommand]
-    private void OpenOrder() => System.Diagnostics.Debug.WriteLine("OpenOrder executed");
+    private Task OpenOrder() => _documentManager.OpenOrderAsync();
 
     [RelayCommand]
-    private void SaveOrder() => System.Diagnostics.Debug.WriteLine("SaveOrder executed");
+    private Task SaveOrder() => _documentManager.SaveOrderAsync();
 
     [RelayCommand]
-    private void SaveAsCopyOrder() => System.Diagnostics.Debug.WriteLine("SaveAsCopyOrder executed");
+    private Task SaveAsCopyOrder() => _documentManager.SaveAsCopyAsync();
 
     [RelayCommand]
-    private void CloseOrder() => System.Diagnostics.Debug.WriteLine("CloseOrder executed");
+    private Task CloseOrder() => _documentManager.CloseOrderAsync();
 
     [RelayCommand]
-    private void OpenFromFile() => System.Diagnostics.Debug.WriteLine("OpenFromFile executed");
+    private Task PrintOrder() => _printService.ShowPrintDialogAsync();
 
     [RelayCommand]
-    private void SaveToFile() => System.Diagnostics.Debug.WriteLine("SaveToFile executed");
+    private Task PrintSettings() => _printService.ShowPrintSettingsDialogAsync();
 
     [RelayCommand]
-    private void PrintOrder() => System.Diagnostics.Debug.WriteLine("PrintOrder executed");
-
-    [RelayCommand]
-    private void PrintSettings() => System.Diagnostics.Debug.WriteLine("PrintSettings executed");
-
-    [RelayCommand]
-    private void Exit() => System.Diagnostics.Debug.WriteLine("Exit executed");
+    private Task Exit() => _documentManager.ExitToLoginAsync();
 
     // ==========================================
     // КОМАНДЫ МЕНЮ "ПРАВКА"
@@ -119,8 +123,15 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     {
         if (CurrentContent is OrderDrawingViewModel drawing)
         {
-            drawing.ToggleToolPanelCommand.Execute(null);
-            IsLeftPanelVisible = drawing.IsToolPanelVisible;
+            drawing.CadEditor.ToggleLeftPanelCommand.Execute(null);
+            IsLeftPanelVisible = drawing.CadEditor.IsLeftPanelVisible;
+            return;
+        }
+
+        if (ResolveCadEditor() is { } cadVm)
+        {
+            cadVm.ToggleLeftPanelCommand.Execute(null);
+            IsLeftPanelVisible = cadVm.IsLeftPanelVisible;
         }
     }
 
@@ -318,9 +329,15 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         SystemLogsViewModel systemLogsViewModel,
         AdditionalDashboardViewModel additionalDashboardViewModel,
         OrderWorkspaceViewModel orderWorkspace,
-        OrderSheetViewModel orderSheetViewModel)
+        OrderSheetViewModel orderSheetViewModel,
+        IDocumentManager documentManager,
+        IRecentFilesService recentFilesService,
+        IPrintService printService)
     {
         _orderWorkspace = orderWorkspace;
+        _documentManager = documentManager;
+        _recentFilesService = recentFilesService;
+        _printService = printService;
         NavigationCommand = new RelayCommand<string>(Navigate);
 
         _screens = new Dictionary<string, object>
@@ -342,9 +359,46 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         Navigate("cad");
     }
 
+    public void InitializeDocumentLifecycle()
+    {
+        _orderWorkspace.Sheet.AttachDocumentManager(_documentManager);
+        _documentManager.DocumentStateChanged -= OnDocumentStateChanged;
+        _documentManager.DocumentStateChanged += OnDocumentStateChanged;
+        _documentManager.PrepareWorkspace();
+        _recentFilesService.RecentFilesChanged -= OnRecentFilesChanged;
+        _recentFilesService.RecentFilesChanged += OnRecentFilesChanged;
+        RebuildRecentProjects();
+        OnDocumentStateChanged(this, EventArgs.Empty);
+    }
+
+    private void OnRecentFilesChanged(object? sender, EventArgs e) => RebuildRecentProjects();
+
+    private void OnDocumentStateChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(DocumentTitle));
+    }
+
+    private void RebuildRecentProjects()
+    {
+        RecentProjects.Clear();
+        foreach (var entry in _recentFilesService.GetRecentFiles())
+        {
+            RecentProjects.Add(new RecentProjectMenuItem(entry, _documentManager));
+        }
+    }
+
     partial void OnSelectedWorkspaceTabIndexChanged(int value)
     {
-        if (_isNavigating) return; // Защита от рекурсии
+        if (_isNavigating) return;
+
+        if (value == 1)
+        {
+            _orderWorkspace.Sheet.EnterViewMode();
+        }
+        else
+        {
+            _orderWorkspace.Sheet.ExitViewMode();
+        }
 
         Navigate(value switch
         {

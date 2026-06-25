@@ -11,15 +11,25 @@ namespace NurSapat.Cad.UI.Controls;
 
 public sealed class RulerControl : Control
 {
-    private static readonly IBrush DefaultBackground = new SolidColorBrush(Color.Parse("#F8F9FA"));
-    private static readonly IBrush TextBrush = new SolidColorBrush(Color.Parse("#666666"));
-    private static readonly Pen BorderPen = new(new SolidColorBrush(Color.Parse("#DCDCDC")), 1);
-    private static readonly Pen MajorTickPen = new(new SolidColorBrush(Color.Parse("#B8B8B8")), 1);
-    private static readonly Pen MinorTickPen = new(new SolidColorBrush(Color.Parse("#D8D8D8")), 1);
-    private static readonly Pen SnapTickPen = new(Brushes.IndianRed, 2);
+    private static readonly IBrush DefaultBackground = new SolidColorBrush(Color.Parse("#F8FAFC"));
+    private static readonly IBrush TextBrush = new SolidColorBrush(Color.Parse("#64748B"));
+    private static readonly Pen BorderPen = new(new SolidColorBrush(Color.Parse("#E2E8F0")), 1);
+    private static readonly Pen MajorTickPen = new(new SolidColorBrush(Color.Parse("#94A3B8")), 1);
+    private static readonly Pen MinorTickPen = new(new SolidColorBrush(Color.Parse("#CBD5E1")), 1);
 
     public static readonly StyledProperty<IBrush?> BackgroundProperty =
         AvaloniaProperty.Register<RulerControl, IBrush?>(nameof(Background));
+
+    public static readonly StyledProperty<CadEditorViewModel?> EditorProperty =
+        AvaloniaProperty.Register<RulerControl, CadEditorViewModel?>(nameof(Editor));
+
+    public static readonly StyledProperty<RulerOrientation> OrientationProperty =
+        AvaloniaProperty.Register<RulerControl, RulerOrientation>(nameof(Orientation));
+
+    public static readonly StyledProperty<HorizontalTickEdge> HorizontalTickEdgeProperty =
+        AvaloniaProperty.Register<RulerControl, HorizontalTickEdge>(
+            nameof(HorizontalTickEdge),
+            HorizontalTickEdge.Top);
 
     public IBrush? Background
     {
@@ -27,22 +37,22 @@ public sealed class RulerControl : Control
         set => SetValue(BackgroundProperty, value);
     }
 
-    public static readonly StyledProperty<CadEditorViewModel?> EditorProperty =
-        AvaloniaProperty.Register<RulerControl, CadEditorViewModel?>(nameof(Editor));
-
     public CadEditorViewModel? Editor
     {
         get => GetValue(EditorProperty);
         set => SetValue(EditorProperty, value);
     }
 
-    public static readonly StyledProperty<RulerOrientation> OrientationProperty =
-        AvaloniaProperty.Register<RulerControl, RulerOrientation>(nameof(Orientation));
-
     public RulerOrientation Orientation
     {
         get => GetValue(OrientationProperty);
         set => SetValue(OrientationProperty, value);
+    }
+
+    public HorizontalTickEdge HorizontalTickEdge
+    {
+        get => GetValue(HorizontalTickEdgeProperty);
+        set => SetValue(HorizontalTickEdgeProperty, value);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -53,12 +63,14 @@ public sealed class RulerControl : Control
             {
                 oldEditor.Viewport.PropertyChanged -= OnViewportPropertyChanged;
                 oldEditor.SceneInvalidated -= OnSceneInvalidated;
+                oldEditor.PropertyChanged -= OnEditorPropertyChanged;
             }
 
             if (change.NewValue is CadEditorViewModel newEditor)
             {
                 newEditor.Viewport.PropertyChanged += OnViewportPropertyChanged;
                 newEditor.SceneInvalidated += OnSceneInvalidated;
+                newEditor.PropertyChanged += OnEditorPropertyChanged;
             }
         }
 
@@ -76,24 +88,34 @@ public sealed class RulerControl : Control
             return;
         }
 
-        var majorStep = viewport.ChooseGridStep();
-        var minorStep = majorStep / 5;
+        var majorStep = viewport.ChooseRulerStep();
+        var minorStep = viewport.ChooseMinorRulerStep(majorStep);
 
         if (Orientation == RulerOrientation.Horizontal)
         {
             RenderHorizontal(context, viewport, majorStep, minorStep);
-            // ÈÇÌÅÍÅÍÈÅ: Êðàñíûå ëèíèè óáðàíû
-            // RenderSnapTicks(context, viewport, true);
         }
         else
         {
             RenderVertical(context, viewport, majorStep, minorStep);
-            // ÈÇÌÅÍÅÍÈÅ: Êðàñíûå ëèíèè óáðàíû
-            // RenderSnapTicks(context, viewport, false);
         }
     }
 
-    private void OnViewportPropertyChanged(object? sender, PropertyChangedEventArgs e) => InvalidateVisual();
+    private void OnViewportPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(CadViewport.ZoomFactor) or nameof(CadViewport.PanOffset) or nameof(CadViewport.Width) or nameof(CadViewport.Height))
+        {
+            InvalidateVisual();
+        }
+    }
+
+    private void OnEditorPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(CadEditorViewModel.MillimetersPerPixel))
+        {
+            InvalidateVisual();
+        }
+    }
 
     private void OnSceneInvalidated(object? sender, EventArgs e) => InvalidateVisual();
 
@@ -101,24 +123,41 @@ public sealed class RulerControl : Control
     {
         var left = viewport.ScreenToWorld(new ScreenPoint(0, 0)).X;
         var right = viewport.ScreenToWorld(new ScreenPoint(Bounds.Width, 0)).X;
+        var ticksFromTop = HorizontalTickEdge == HorizontalTickEdge.Top;
 
-        if (minorStep * viewport.ZoomFactor >= 8)
+        if (minorStep * viewport.ZoomFactor >= 6)
         {
             for (var x = Math.Floor(left / minorStep) * minorStep; x <= right; x += minorStep)
             {
                 var screen = viewport.WorldToScreen(new CadPoint(x, 0));
-                context.DrawLine(MinorTickPen, new Point(screen.X, Bounds.Height), new Point(screen.X, Bounds.Height - 4));
+                if (ticksFromTop)
+                {
+                    context.DrawLine(MinorTickPen, new Point(screen.X, 0), new Point(screen.X, 5));
+                }
+                else
+                {
+                    context.DrawLine(MinorTickPen, new Point(screen.X, Bounds.Height), new Point(screen.X, Bounds.Height - 5));
+                }
             }
         }
 
         for (var x = Math.Floor(left / majorStep) * majorStep; x <= right; x += majorStep)
         {
             var screen = viewport.WorldToScreen(new CadPoint(x, 0));
-            context.DrawLine(MajorTickPen, new Point(screen.X, Bounds.Height), new Point(screen.X, Bounds.Height - 9));
-            DrawCenteredText(context, x.ToString("0"), new Point(screen.X, 7));
+            if (ticksFromTop)
+            {
+                context.DrawLine(MajorTickPen, new Point(screen.X, 0), new Point(screen.X, 10));
+                DrawCenteredText(context, FormatRulerLabel(x, majorStep), new Point(screen.X, 20));
+            }
+            else
+            {
+                context.DrawLine(MajorTickPen, new Point(screen.X, Bounds.Height), new Point(screen.X, Bounds.Height - 10));
+                DrawCenteredText(context, FormatRulerLabel(x, majorStep), new Point(screen.X, Bounds.Height - 18));
+            }
         }
 
-        context.DrawLine(BorderPen, new Point(0, Bounds.Height - 0.5), new Point(Bounds.Width, Bounds.Height - 0.5));
+        var borderY = ticksFromTop ? 0.5 : Bounds.Height - 0.5;
+        context.DrawLine(BorderPen, new Point(0, borderY), new Point(Bounds.Width, borderY));
     }
 
     private void RenderVertical(DrawingContext context, CadViewport viewport, double majorStep, double minorStep)
@@ -128,53 +167,27 @@ public sealed class RulerControl : Control
         var min = Math.Min(bottom, top);
         var max = Math.Max(bottom, top);
 
-        if (minorStep * viewport.ZoomFactor >= 8)
+        if (minorStep * viewport.ZoomFactor >= 6)
         {
             for (var y = Math.Floor(min / minorStep) * minorStep; y <= max; y += minorStep)
             {
                 var screen = viewport.WorldToScreen(new CadPoint(0, y));
-                context.DrawLine(MinorTickPen, new Point(Bounds.Width, screen.Y), new Point(Bounds.Width - 4, screen.Y));
+                context.DrawLine(MinorTickPen, new Point(Bounds.Width, screen.Y), new Point(Bounds.Width - 5, screen.Y));
             }
         }
 
         for (var y = Math.Floor(min / majorStep) * majorStep; y <= max; y += majorStep)
         {
             var screen = viewport.WorldToScreen(new CadPoint(0, y));
-            context.DrawLine(MajorTickPen, new Point(Bounds.Width, screen.Y), new Point(Bounds.Width - 9, screen.Y));
-            DrawRightAlignedText(context, y.ToString("0"), new Point(Bounds.Width - 12, screen.Y));
+            context.DrawLine(MajorTickPen, new Point(Bounds.Width, screen.Y), new Point(Bounds.Width - 10, screen.Y));
+            DrawRightAlignedText(context, FormatRulerLabel(y, majorStep), new Point(Bounds.Width - 12, screen.Y));
         }
 
         context.DrawLine(BorderPen, new Point(Bounds.Width - 0.5, 0), new Point(Bounds.Width - 0.5, Bounds.Height));
     }
 
-    //private void RenderSnapTicks(DrawingContext context, CadViewport viewport, bool isHorizontal)
-    //{
-    //    if (Editor == null)
-    //    {
-    //        return;
-    //    }
-
-    //    var axis = isHorizontal ? CadSnapTickAxis.X : CadSnapTickAxis.Y;
-    //    var ticks = Editor.SnapProvider.GetSnapTicks(Editor.Document)
-    //        .Where(tick => tick.Axis == axis)
-    //        .Select(tick => tick.Coordinate)
-    //        .Distinct()
-    //        .ToArray();
-
-    //    foreach (var coordinate in ticks)
-    //    {
-    //        if (isHorizontal)
-    //        {
-    //            var screen = viewport.WorldToScreen(new CadPoint(coordinate, 0));
-    //            context.DrawLine(SnapTickPen, new Point(screen.X, 0), new Point(screen.X, Bounds.Height));
-    //        }
-    //        else
-    //        {
-    //            var screen = viewport.WorldToScreen(new CadPoint(0, coordinate));
-    //            context.DrawLine(SnapTickPen, new Point(0, screen.Y), new Point(Bounds.Width, screen.Y));
-    //        }
-    //    }
-    //}
+    private static string FormatRulerLabel(double valueMm, double majorStep) =>
+        majorStep >= 1000 ? $"{valueMm / 1000:0.#}k" : valueMm.ToString("0");
 
     private static void DrawCenteredText(DrawingContext context, string text, Point center)
     {
@@ -194,6 +207,6 @@ public sealed class RulerControl : Control
             System.Globalization.CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
             Typeface.Default,
-            10,
+            9,
             TextBrush);
 }

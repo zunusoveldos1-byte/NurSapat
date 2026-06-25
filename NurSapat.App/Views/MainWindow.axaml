@@ -5,9 +5,33 @@
         x:Class="NurSapat.App.Views.MainWindow"
         x:DataType="vm:LoginViewModel"
         Title="NurSapat"
-        Width="950" Height="600"
-        MinWidth="800" MinHeight="500"
+        Icon="/Assets/logo.ico"
+        Width="1240" Height="820"
+        MinWidth="1240" MinHeight="820"
+        MaxWidth="1240" MaxHeight="820"
+        CanResize="False"
         WindowStartupLocation="CenterScreen"
-        Background="White">
-	<views:LoginView/>
+        WindowDecorations="None"
+        TransparencyLevelHint="Transparent"
+        Background="Transparent"
+        FontFamily="Inter">
+    <Window.Styles>
+        <StyleInclude Source="/Styles/LoginStyles.axaml"/>
+    </Window.Styles>
+
+    <Border x:Name="RootBorder"
+            Margin="20"
+            Background="White"
+            CornerRadius="16"
+            ClipToBounds="True"
+            BoxShadow="0 10 40 0 #1F000000"
+            Opacity="0">
+        <Border.Transitions>
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.35"/>
+            </Transitions>
+        </Border.Transitions>
+
+        <views:LoginView/>
+    </Border>
 </Window>

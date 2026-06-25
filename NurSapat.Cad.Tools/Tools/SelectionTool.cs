@@ -25,7 +25,22 @@ public sealed class SelectionTool : CadToolBase
     public ResizeHandle ActiveHandle => _activeHandle;
 
     public override string Id => "select";
-    public override string DisplayName => "Выбор";
+    public override string DisplayName => "Выделение элементов";
+    public override CadToolKind Kind => CadToolKind.SelectElements;
+    public override bool IsImplemented => true;
+
+    public override void OnActivated(CadToolContext context)
+    {
+        context.ActiveSelectionMode = CadSelectionMode.Element;
+    }
+
+    public override void OnDeactivated(CadToolContext context)
+    {
+        if (context.ActiveSelectionMode == CadSelectionMode.Element)
+        {
+            context.ActiveSelectionMode = CadSelectionMode.None;
+        }
+    }
 
     public override void OnMouseDown(CadToolContext context, CadPointerEvent e)
     {

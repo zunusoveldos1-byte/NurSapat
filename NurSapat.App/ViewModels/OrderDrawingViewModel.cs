@@ -32,6 +32,8 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
 
     public double ToolPanelWidth => IsToolPanelVisible ? 300 : 0;
 
+    public event EventHandler? ProjectModified;
+
     public OrderDrawingViewModel(Order order, OrderSheetViewModel sheet, CadEditorViewModel cadEditor)
     {
         _order = order;
@@ -44,9 +46,72 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
         _cadEditor.SceneInvalidated += OnSceneInvalidated;
         _cadEditor.DesignPlacement = HandleDesignPlacement;
         _cadEditor.OnDesignPlacementCommit = HandleDesignCommit;
+        _cadEditor.PropertyChanged += OnCadEditorPropertyChanged;
+        _cadEditor.NewTemplateRequested += OnNewTemplateRequested;
+        _cadEditor.FrameCreated += OnFrameCreated;
         SyncDesignElements();
         SelectTool(AllTools.First(t => t.Id == "select"));
     }
+
+    public void ReloadFromOrder()
+    {
+        SyncDesignElements();
+        StatusMessage = "Чертеж загружен";
+    }
+
+    private void NotifyModified() => ProjectModified?.Invoke(this, EventArgs.Empty);
+
+    private void OnFrameCreated(object? sender, NurSapat.Cad.UI.Models.FrameCreatedEventArgs e)
+    {
+        var geometry = _order.EnsureDefaultConstruction().Geometry;
+        if (e.ReplaceExisting)
+        {
+            geometry.Elements.Clear();
+        }
+
+        geometry.Elements.Add(e.Element);
+        geometry.OuterWidthMm = e.Element.WidthMm;
+        geometry.OuterHeightMm = e.Element.HeightMm;
+        SyncDesignElements();
+        _sheet.RecalculateAll();
+        StatusMessage = $"Создано: {e.Element.Label}";
+        NotifyModified();
+    }
+
+    private void OnNewTemplateRequested(object? sender, EventArgs e)
+    {
+        var geometry = _order.EnsureDefaultConstruction().Geometry;
+        geometry.Elements.Clear();
+        geometry.OuterWidthMm = 0;
+        geometry.OuterHeightMm = 0;
+        SyncDesignElements();
+        _sheet.RecalculateAll();
+        StatusMessage = "Новый чертеж";
+        NotifyModified();
+    }
+
+    private void OnCadEditorPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(CadEditorViewModel.CurrentToolMode))
+        {
+            return;
+        }
+
+        var mapped = MapWindowToolMode(_cadEditor.CurrentToolMode);
+        if (mapped != null)
+        {
+            SelectTool(mapped);
+        }
+    }
+
+    private CadDesignTool? MapWindowToolMode(NurSapat.Cad.Core.Models.WindowToolMode mode) => mode switch
+    {
+        NurSapat.Cad.Core.Models.WindowToolMode.RealFrame => AllTools.FirstOrDefault(t => t.Id == "frame"),
+        NurSapat.Cad.Core.Models.WindowToolMode.FakeFrame => AllTools.FirstOrDefault(t => t.Id == "dummy-frame"),
+        NurSapat.Cad.Core.Models.WindowToolMode.FakeFrameCircle => AllTools.FirstOrDefault(t => t.Id == "round-dummy"),
+        NurSapat.Cad.Core.Models.WindowToolMode.RackRigelNone => AllTools.FirstOrDefault(t => t.Id == "edge-mullion"),
+        _ => null
+    };
 
     partial void OnIsToolPanelVisibleChanged(bool value) => OnPropertyChanged(nameof(ToolPanelWidth));
 
@@ -111,9 +176,6 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
 
         geometry.OuterWidthMm = (decimal)Math.Round(maxX - minX, 1);
         geometry.OuterHeightMm = (decimal)Math.Round(maxY - minY, 1);
-
-        _sheet.OuterWidthMm = geometry.OuterWidthMm;
-        _sheet.OuterHeightMm = geometry.OuterHeightMm;
     }
 
     private bool HandleDesignPlacement(CadPoint worldPoint)
@@ -170,13 +232,17 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
         }
         else if (tool.Id == "mullion-h")
         {
-            element.X = (decimal)((commit.Anchor.X + end.X) / 2);
+            element.X = (decimal)commit.Anchor.X;
             element.Y = (decimal)commit.Anchor.Y;
+            element.EndX = (decimal)end.X;
+            element.EndY = (decimal)end.Y;
         }
         else
         {
             element.X = (decimal)commit.Anchor.X;
-            element.Y = (decimal)((commit.Anchor.Y + end.Y) / 2);
+            element.Y = (decimal)commit.Anchor.Y;
+            element.EndX = (decimal)end.X;
+            element.EndY = (decimal)end.Y;
         }
 
         _order.EnsureDefaultConstruction().Geometry.Elements.Add(element);
