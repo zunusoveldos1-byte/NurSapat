@@ -115,8 +115,72 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="Auto,*,Auto,Auto">
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
         <Border Grid.Row="0"
+                Background="White"
+                BorderBrush="#E2E8F0"
+                BorderThickness="0,0,0,1">
+            <Menu VerticalAlignment="Center" Margin="8,2,0,2">
+                <MenuItem Header="Инструменты">
+                    <MenuItem Header="Выделение элементов (Курсор)"
+                              Command="{Binding SelectToolCommand}"
+                              CommandParameter="Selection"
+                              InputGesture="Ctrl+M"/>
+                    <MenuItem Header="Отменить последнее добавление импоста"
+                              Command="{Binding UndoLastElementCommand}"/>
+                    <MenuItem Header="Отменить действие (Undo)"
+                              Command="{Binding GlobalUndoCommand}"
+                              InputGesture="Ctrl+Z"/>
+                    <Separator/>
+                    <MenuItem Header="Удалить выбранный объект"
+                              Command="{Binding DeleteSelectedCommand}"
+                              InputGesture="Delete"/>
+                    <MenuItem Header="Очистить всю конструкцию"
+                              Command="{Binding ClearConstructionCommand}"/>
+
+                    <Separator/>
+                    <MenuItem Header="Режимы выделения">
+                        <MenuItem Header="Выделение всей рамы"
+                                  Command="{Binding SelectToolCommand}"
+                                  CommandParameter="SelectFullFrame"/>
+                        <MenuItem Header="Выделение профиля/импоста"
+                                  Command="{Binding SelectToolCommand}"
+                                  CommandParameter="SelectProfile"/>
+                        <MenuItem Header="Выделение вершины"
+                                  Command="{Binding SelectToolCommand}"
+                                  CommandParameter="SelectVertex"/>
+                    </MenuItem>
+
+                    <Separator/>
+                    <MenuItem Header="Геометрия импостов">
+                        <MenuItem Header="Установить координаты вершины..."
+                                  Command="{Binding SetVertexCoordinatesCommand}"/>
+                        <MenuItem Header="Разбить профиль надвое"
+                                  Command="{Binding SplitProfileCommand}"/>
+                        <MenuItem Header="Сместить импост вертикально"
+                                  Command="{Binding SelectToolCommand}"
+                                  CommandParameter="MoveMullionVertical"/>
+                        <MenuItem Header="Сместить импост горизонтально"
+                                  Command="{Binding SelectToolCommand}"
+                                  CommandParameter="MoveMullionHorizontal"/>
+                        <MenuItem Header="Равномерное выравнивание импостов"
+                                  Command="{Binding AlignMullionsCommand}"/>
+                    </MenuItem>
+
+                    <Separator/>
+                    <MenuItem Header="Выравнивание и размеры">
+                        <MenuItem Header="Выравнивание по стеклопакетам"
+                                  Command="{Binding AlignGlassUnitsCommand}"/>
+                        <MenuItem Header="Выравнивание просветов 'в свету'"
+                                  Command="{Binding AlignClearOpeningsCommand}"/>
+                        <MenuItem Header="Изменить габаритные размеры окна..."
+                                  Command="{Binding ChangeOuterDimensionsCommand}"/>
+                    </MenuItem>
+                </MenuItem>
+            </Menu>
+        </Border>
+
+        <Border Grid.Row="1"
                 Background="White"
                 BorderBrush="#E2E8F0"
                 BorderThickness="0,0,0,1"
@@ -190,7 +254,7 @@
             </ScrollViewer>
         </Border>
 
-        <Grid Grid.Row="1" ColumnDefinitions="150,*">
+        <Grid Grid.Row="2" ColumnDefinitions="150,*">
             <Border Grid.Column="0"
                     Margin="0"
                     Background="White"
@@ -215,14 +279,63 @@
                                     <Panel>
                                         <Border Width="148"
                                                 Height="1"
-                                                Background="Gray"
+                                                Background="#AEAEAE"
                                                 Margin="2,5"
                                                 IsVisible="{Binding IsSeparator}"/>
                                         <Button Classes.cadTool="True"
                                                 Classes.active="{Binding IsActive}"
                                                 Width="34"
                                                 Height="34"
-                                                IsVisible="{Binding !IsSeparator}"
+                                                IsVisible="{Binding IsCommandButton}"
+                                                Command="{Binding Command}"
+                                                ToolTip.Tip="{Binding Title}">
+                                            <Viewbox Width="24" Height="24">
+                                                <Panel Width="24" Height="24">
+                                                    <TextBlock Text="&#xEA48;"
+                                                       FontFamily="Segoe MDL2 Assets"
+                                                       Foreground="Black"
+                                                       FontSize="20"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center"
+                                                       IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=UndoLast}"/>
+                                                    <TextBlock Text="&#xE7A7;"
+                                                       FontFamily="Segoe MDL2 Assets"
+                                                       Foreground="Black"
+                                                       FontSize="20"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center"
+                                                       IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=UndoGlobal}"/>
+                                                    <TextBlock Text="&#xF271;"
+                                                       FontFamily="Segoe MDL2 Assets"
+                                                       Foreground="Black"
+                                                       FontSize="20"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center"
+                                                       IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=ZoomFit}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 3,18 H 21 M 3,18 A 9,9 0 0 1 21,18 M 12,10 V 16 M 9,13 H 15"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=ArchHeight}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 4,8 H 20 V 16 H 4 Z M 8,12 H 16 M 6,6 L 8,8 M 18,6 L 16,8 M 6,18 L 8,16 M 18,18 L 16,16"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Resize}"/>
+                                                    <TextBlock Text="&#xE74D;"
+                                                           FontFamily="Segoe MDL2 Assets"
+                                                           Foreground="Black"
+                                                           FontSize="20"
+                                                           VerticalAlignment="Center"
+                                                           HorizontalAlignment="Center"
+                                                           IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Trash}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 5,7 H 19 M 8,7 V 5 H 16 V 7 M 7,7 L 8,19 H 16 L 17,7 M 10,10 V 16 M 14,10 V 16"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=ClearAll}"/>
+                                                </Panel>
+                                            </Viewbox>
+                                        </Button>
+                                        <Button Classes.cadTool="True"
+                                                Classes.active="{Binding IsActive}"
+                                                Width="34"
+                                                Height="34"
+                                                IsVisible="{Binding IsModeButton}"
                                                 Command="{Binding $parent[UserControl].((vm:CadEditorViewModel)DataContext).SelectToolModeCommand}"
                                                 CommandParameter="{Binding Mode}"
                                                 ToolTip.Tip="{Binding Title}">
@@ -279,19 +392,61 @@
                                                     <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
                                                           Data="M 4,12 H 20 M 4,9 V 15 M 20,9 V 15"
                                                           IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=RealHorizontalImpost}"/>
-                                                   <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-      Data="M 9,2 V 22 M 12,2 V 22 M 15,2 V 22 
-            M 4,2 L 20,2 M 4,22 L 20,22"
-      IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=DoubleVerticalImpost}"/>
                                                     <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-      Data="M 2,9 H 22 M 2,12 H 22 M 2,15 H 22 
-            M 2,4 L 2,20 M 22,4 L 22,20"
-      IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=DoubleHorizontalImpost}"/>
+                                                          Data="M 9,2 V 22 M 12,2 V 22 M 15,2 V 22 
+                                                                M 4,2 L 20,2 M 4,22 L 20,22"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=DoubleVerticalImpost}"/>
                                                     <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-      Data="M 4,20 L 20,4 
-            M 2,22 L 6,18 
-            M 18,6 L 22,2"
-      IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=SlantedImpost}"/>
+                                                          Data="M 2,9 H 22 M 2,12 H 22 M 2,15 H 22 
+                                                                M 2,4 L 2,20 M 22,4 L 22,20"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=DoubleHorizontalImpost}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 4,20 L 20,4 
+                                                                M 2,22 L 6,18 
+                                                                M 18,6 L 22,2"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=SlantedImpost}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 7,4 L 7,18 L 11,14 L 14,21 L 16,20 L 13,13 L 18,13 Z"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Selection}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 4,6 H 20 V 18 H 4 Z M 7,9 H 17 M 7,12 H 17 M 7,15 H 17"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=SelectObject}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 4,6 H 20 V 18 H 4 Z M 4,6 L 12,12 L 20,6 M 12,12 V 18"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=SelectProfile}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 12,4 L 12,20 M 4,12 L 20,12 M 12,4 L 10,6 M 12,4 L 14,6 M 12,20 L 10,18 M 12,20 L 14,18 M 4,12 L 6,10 M 4,12 L 6,14 M 20,12 L 18,10 M 20,12 L 18,14"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=SelectVertex}"/>
+                                                    <TextBlock Text="&#xE8A3;"
+                                                           FontFamily="Segoe MDL2 Assets"
+                                                           Foreground="Black"
+                                                           FontSize="20"
+                                                           VerticalAlignment="Center"
+                                                           HorizontalAlignment="Center"
+                                                           IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Zoom}"/>
+                                                    <TextBlock Text="&#xEBFC;"
+                                                           FontFamily="Segoe MDL2 Assets"
+                                                           Foreground="Black"
+                                                           FontSize="20"
+                                                           VerticalAlignment="Center"
+                                                           HorizontalAlignment="Center"
+                                                           IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Hand}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 12,3 V 21 M 5,12 H 9 M 7,10 L 5,12 L 7,14 M 19,12 H 15 M 17,10 L 19,12 L 17,14"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=MoveMullionVertical}"/>
+
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 3,12 H 21 M 12,5 V 9 M 10,7 L 12,5 L 14,7 M 12,19 V 15 M 10,17 L 12,19 L 14,17"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=MoveMullionHorizontal}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 4,6 H 20 M 4,12 H 20 M 4,18 H 20 M 8,4 V 20 M 16,4 V 20"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=AlignMullions}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 3,5 H 14 V 16 H 3 Z M 10,8 H 21 V 19 H 10 Z"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=AlignGlassUnits}"/>
+                                                    <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
+                                                          Data="M 4,6 H 20 V 18 H 4 Z M 7,12 H 17 M 7,12 L 9,10 M 7,12 L 9,14 M 17,12 L 15,10 M 17,12 L 15,14"
+                                                          IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=AlignClearOpenings}"/>
                                                 </Panel>
                                             </Viewbox>
                                         </Button>
@@ -352,7 +507,7 @@
                                       ClipToBounds="True"/>
         </Grid>
 
-        <Grid Grid.Row="2" ColumnDefinitions="180,*" Height="30">
+        <Grid Grid.Row="3" ColumnDefinitions="180,*" Height="30">
             <Border Grid.Column="0"
                     Background="#F8FAFC"
                     BorderBrush="#E2E8F0"
@@ -367,7 +522,7 @@
                                    VerticalAlignment="Stretch"/>
         </Grid>
 
-        <Border Grid.Row="3"
+        <Border Grid.Row="4"
                 Height="32"
                 Background="#F0F0F0"
                 BorderBrush="#E2E8F0"
@@ -377,11 +532,27 @@
                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="10,0,5,0" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="4">
                         <TextBlock Classes="paramLabel" Text="X =" VerticalAlignment="Center"/>
-                        <TextBlock Width="72" VerticalAlignment="Center" Text="{Binding SelectedElementX, StringFormat={}{0:F1}}"/>
+                        <TextBlock Width="72"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding !IsImpostPanelActive}"
+                                   Text="{Binding SelectedElementX, StringFormat={}{0:F1}}"/>
+                        <TextBox Width="72"
+                                 Classes="coordField"
+                                 VerticalAlignment="Center"
+                                 IsVisible="{Binding IsImpostPanelActive}"
+                                 Text="{Binding ImpostPanelX, Mode=TwoWay}"
+                                 behaviors:SignedDecimalInputBehavior.AllowNegative="True"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="4">
                         <TextBlock Classes="paramLabel" Text="Y =" VerticalAlignment="Center"/>
-                        <TextBlock Width="72" VerticalAlignment="Center" Text="{Binding SelectedElementY, StringFormat={}{0:F1}}"/>
+                        <TextBlock Width="72"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding !IsImpostPanelActive}"
+                                   Text="{Binding SelectedElementY, StringFormat={}{0:F1}}"/>
+                        <TextBlock Width="72"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding IsImpostPanelActive}"
+                                   Text="{Binding ImpostPanelY, StringFormat={}{0:F1}}"/>
                     </StackPanel>
                 </StackPanel>
 
@@ -390,11 +561,29 @@
                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="5,0,10,0" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="4">
                         <TextBlock Classes="paramLabel" Text="L =" VerticalAlignment="Center"/>
-                        <TextBlock Width="72" VerticalAlignment="Center" Text="{Binding SelectedElementLength, StringFormat={}{0:F1}}"/>
+                        <TextBlock Width="72"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding !IsImpostPanelActive}"
+                                   Text="{Binding SelectedElementLength, StringFormat={}{0:F1}}"/>
+                        <TextBox Width="72"
+                                 Classes="coordField"
+                                 VerticalAlignment="Center"
+                                 IsVisible="{Binding IsImpostPanelActive}"
+                                 Text="{Binding ImpostPanelL, Mode=TwoWay}"
+                                 behaviors:SignedDecimalInputBehavior.AllowNegative="False"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="4">
                         <TextBlock Classes="paramLabel" Text="H =" VerticalAlignment="Center"/>
-                        <TextBlock Width="72" VerticalAlignment="Center" Text="{Binding SelectedElementHeight, StringFormat={}{0:F1}}"/>
+                        <TextBlock Width="72"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding !IsImpostPanelActive}"
+                                   Text="{Binding SelectedElementHeight, StringFormat={}{0:F1}}"/>
+                        <TextBox Width="72"
+                                 Classes="coordField"
+                                 VerticalAlignment="Center"
+                                 IsVisible="{Binding IsImpostPanelActive}"
+                                 Text="{Binding ImpostPanelH, Mode=TwoWay}"
+                                 behaviors:SignedDecimalInputBehavior.AllowNegative="False"/>
                     </StackPanel>
                 </StackPanel>
             </StackPanel>

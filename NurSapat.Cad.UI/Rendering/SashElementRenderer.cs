@@ -10,25 +10,35 @@ namespace NurSapat.Cad.UI.Rendering;
 public static class SashElementRenderer
 {
     private static readonly IBrush OpeningLineBrush = new SolidColorBrush(Color.Parse("#696969"));
-    private static readonly IPen OpeningPen = new Pen(OpeningLineBrush, 1.0);
+    private static readonly IPen HardwareOpeningPen = new Pen(
+        OpeningLineBrush,
+        1.0,
+        new DashStyle(new double[] { 4, 3 }, 0));
     private static readonly IPen PreviewPen = new Pen(new SolidColorBrush(Color.Parse("#0078D7")), 1, new DashStyle(new double[] { 4, 3 }, 0));
-    private static readonly IPen HardwarePen = new Pen(new SolidColorBrush(FrameVolumeRenderer.ProfileStrokeColor), 1.2);
-    private static readonly IBrush HandleBackgroundBrush = new SolidColorBrush(Colors.White);
+    private static readonly IPen HingePen = new Pen(new SolidColorBrush(Color.Parse("#969696")), 2.0);
+    private static readonly IBrush HandleBackgroundBrush = Brushes.White;
     private static readonly IBrush HandlePreviewFillBrush = new SolidColorBrush(Color.FromArgb(48, 0, 120, 215));
+    private static readonly IPen HandleOutlinePen = new Pen(new SolidColorBrush(Color.Parse("#969696")), 1.8);
 
-    /// <summary>Длина рукояти в сторону стекла (мм).</summary>
-    private const double HandleArmLengthMm = 120.0;
-    /// <summary>Толщина рукояти (мм).</summary>
-    private const double HandleArmThicknessMm = 24.0;
-    /// <summary>Глубина розетки вдоль профиля створки (мм).</summary>
-    private const double HandleRosetteDepthMm = 30.0;
+    /// <summary>Ширина розетки вдоль профиля створки (мм).</summary>
+    private const double HandleBaseWidthMm = 24.0;
     /// <summary>Высота розетки вдоль створки (мм).</summary>
-    private const double HandleRosetteHeightMm = 100.0;
-    private const double HandleGlassClearanceMm = 6.0;
-    /// <summary>На сколько шейка отходит от розетки в сторону стекла (мм).</summary>
-    private const double HandleNeckLengthMm = 12.0;
-    /// <summary>Толщина шейки ручки (мм).</summary>
-    private const double HandleNeckThicknessMm = 16.0;
+    private const double HandleBaseHeightMm = 65.0;
+    /// <summary>Толщина рукоятки (мм).</summary>
+    private const double HandleLeverThicknessMm = 16.0;
+    /// <summary>Длина рукоятки в сторону стекла (мм).</summary>
+    private const double HandleLeverLengthMm = 110.0;
+    private const double HandleGlassInsetMm = 4.0;
+
+    /// <summary>Ширина петли вдоль профиля створки (мм).</summary>
+    private const double HingeWidthMm = 19.0;
+    /// <summary>Высота петли вдоль створки / глубина в раму (мм).</summary>
+    private const double HingeHeightMm = 65.0;
+    /// <summary>Технологический отступ петли от края створки (мм).</summary>
+    private const double HingeEdgeOffsetMm = 60.0;
+    /// <summary>Нахлёст петли на раму за внешним контуром створки (мм).</summary>
+    private const double HingeFrameOverlapMm = 6.0;
+    private static readonly IBrush HingeFillBrush = Brushes.White;
 
     public static void DrawAll(DrawingContext context, CadEditorViewModel editor, IEnumerable<GeometryElement> elements)
     {
@@ -57,11 +67,13 @@ public static class SashElementRenderer
         }
 
         var hinge = element.HingeSide ?? SashHingeSide.Left;
+        var opening = element.OpeningType ?? SashOpeningType.TiltTurn;
         DrawSashBody(
             context,
             editor,
             inner,
             hinge,
+            opening,
             element.HasHardware,
             element.HasHandle,
             preview: false);
@@ -85,6 +97,7 @@ public static class SashElementRenderer
                 Top = preview.OriginY + preview.Height
             },
             preview.HingeSide,
+            SashOpeningType.TiltTurn,
             hasHardware: false,
             hasHandle: false,
             preview: true);
@@ -125,6 +138,7 @@ public static class SashElementRenderer
         CadEditorViewModel editor,
         SashGeometry.InnerOpeningBounds inner,
         SashHingeSide hingeSide,
+        SashOpeningType openingType,
         bool hasHardware,
         bool hasHandle,
         bool preview)
@@ -156,13 +170,17 @@ public static class SashElementRenderer
             return;
         }
 
-        var glassRect = WorldGlassRect(editor, glassLeft, glassBottom, glassRight, glassTop);
-
-        DrawOpeningTriangle(context, editor, glassLeft, glassBottom, glassRight, glassTop, hingeSide);
-
-        if (hasHardware && glassRect.Width > 0 && glassRect.Height > 0)
+        if (hasHardware && !preview)
         {
-            DrawHingeBlocks(context, glassRect, hingeSide);
+            DrawOpeningTriangle(
+                context,
+                editor,
+                glassLeft,
+                glassBottom,
+                glassRight,
+                glassTop,
+                hingeSide,
+                HardwareOpeningPen);
         }
 
         if (hasHandle && glassRight > glassLeft && glassTop > glassBottom)
@@ -177,6 +195,11 @@ public static class SashElementRenderer
                 outer,
                 hingeSide,
                 preview);
+        }
+
+        if (hasHardware && !preview)
+        {
+            DrawSashHinges(context, editor, outer, hingeSide, openingType, preview);
         }
     }
 
@@ -200,18 +223,6 @@ public static class SashElementRenderer
         return (glassLeft, glassBottom, glassRight, glassTop, outer);
     }
 
-    private static Rect WorldGlassRect(
-        CadEditorViewModel editor,
-        double glassLeft,
-        double glassBottom,
-        double glassRight,
-        double glassTop)
-    {
-        var topLeft = editor.Viewport!.WorldToScreen(new CadPoint(glassLeft, glassTop));
-        var bottomRight = editor.Viewport.WorldToScreen(new CadPoint(glassRight, glassBottom));
-        return new Rect(new Point(topLeft.X, topLeft.Y), new Point(bottomRight.X, bottomRight.Y));
-    }
-
     private static void DrawOpeningTriangle(
         DrawingContext context,
         CadEditorViewModel editor,
@@ -219,7 +230,8 @@ public static class SashElementRenderer
         double glassBottom,
         double glassRight,
         double glassTop,
-        SashHingeSide hingeSide)
+        SashHingeSide hingeSide,
+        IPen pen)
     {
         var apex = GetApexWorldPoint(glassLeft, glassBottom, glassRight, glassTop, hingeSide);
         var (hingeA, hingeB) = GetHingeCornerWorldPoints(glassLeft, glassBottom, glassRight, glassTop, hingeSide);
@@ -228,32 +240,158 @@ public static class SashElementRenderer
         var pHingeA = WorldToScreen(editor, hingeA);
         var pHingeB = WorldToScreen(editor, hingeB);
 
-        context.DrawLine(OpeningPen, pHingeA, pApex);
-        context.DrawLine(OpeningPen, pHingeB, pApex);
+        context.DrawLine(pen, pHingeA, pApex);
+        context.DrawLine(pen, pHingeB, pApex);
     }
 
-    private static void DrawHingeBlocks(DrawingContext context, Rect glassRect, SashHingeSide hingeSide)
+    private static void DrawSashHinges(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        SashGeometry.OuterBounds outer,
+        SashHingeSide hingeSide,
+        SashOpeningType openingType,
+        bool preview)
     {
-        const double block = 6;
-        switch (hingeSide)
+        var pen = preview ? PreviewPen : HingePen;
+        var effectiveSide = ResolveHingeMountSide(hingeSide, openingType);
+
+        switch (effectiveSide)
         {
             case SashHingeSide.Left:
-                context.DrawRectangle(null, HardwarePen, new Rect(glassRect.Left, glassRect.Top + 12, block, block));
-                context.DrawRectangle(null, HardwarePen, new Rect(glassRect.Left, glassRect.Bottom - 18, block, block));
-                break;
             case SashHingeSide.Right:
-                context.DrawRectangle(null, HardwarePen, new Rect(glassRect.Right - block, glassRect.Top + 12, block, block));
-                context.DrawRectangle(null, HardwarePen, new Rect(glassRect.Right - block, glassRect.Bottom - 18, block, block));
+                DrawVerticalSashHinges(context, editor, outer, effectiveSide, pen);
                 break;
             case SashHingeSide.Top:
-                context.DrawRectangle(null, HardwarePen, new Rect(glassRect.Left + 12, glassRect.Top, block, block));
-                context.DrawRectangle(null, HardwarePen, new Rect(glassRect.Right - 18, glassRect.Top, block, block));
+                DrawHorizontalSashHinges(context, editor, outer, mountOnTop: true, pen);
                 break;
             case SashHingeSide.Bottom:
-                context.DrawRectangle(null, HardwarePen, new Rect(glassRect.Left + 12, glassRect.Bottom - block, block, block));
-                context.DrawRectangle(null, HardwarePen, new Rect(glassRect.Right - 18, glassRect.Bottom - block, block, block));
+                DrawHorizontalSashHinges(context, editor, outer, mountOnTop: false, pen);
                 break;
         }
+    }
+
+    /// <summary>
+    /// Петли на стороне HingeSide (противоположной ручке — куда сходятся линии открывания).
+    /// </summary>
+    private static SashHingeSide ResolveHingeMountSide(SashHingeSide hingeSide, SashOpeningType _) => hingeSide;
+
+    private static void DrawVerticalSashHinges(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        SashGeometry.OuterBounds outer,
+        SashHingeSide hingeSide,
+        IPen pen)
+    {
+        var offset = ResolveHingeEdgeOffset(outer.Height);
+        var hingeHeight = Math.Min(HingeHeightMm, Math.Max(HingeHeightMm * 0.85, outer.Height - offset * 2 - 10));
+        if (hingeHeight <= CadMath.Epsilon)
+        {
+            return;
+        }
+
+        var topHingeBottom = outer.Top - offset;
+        var topHingeTop = topHingeBottom - hingeHeight;
+        var bottomHingeBottom = outer.Bottom + offset;
+        var bottomHingeTop = bottomHingeBottom + hingeHeight;
+
+        if (hingeSide == SashHingeSide.Right)
+        {
+            var innerX = outer.Right - HingeWidthMm;
+            var outerX = outer.Right + HingeFrameOverlapMm;
+            DrawWorldHingeRect(context, editor, innerX, topHingeTop, outerX, topHingeBottom, vertical: true, pen);
+            DrawWorldHingeRect(context, editor, innerX, bottomHingeBottom, outerX, bottomHingeTop, vertical: true, pen);
+        }
+        else
+        {
+            var innerX = outer.Left + HingeWidthMm;
+            var outerX = outer.Left - HingeFrameOverlapMm;
+            DrawWorldHingeRect(context, editor, outerX, topHingeTop, innerX, topHingeBottom, vertical: true, pen);
+            DrawWorldHingeRect(context, editor, outerX, bottomHingeBottom, innerX, bottomHingeTop, vertical: true, pen);
+        }
+    }
+
+    private static void DrawHorizontalSashHinges(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        SashGeometry.OuterBounds outer,
+        bool mountOnTop,
+        IPen pen)
+    {
+        var hingeAlongEdge = HingeWidthMm;
+        var hingeIntoFrame = HingeHeightMm;
+        if (hingeAlongEdge <= CadMath.Epsilon)
+        {
+            return;
+        }
+
+        var centerX = (outer.Left + outer.Right) / 2.0;
+        var gap = 16.0;
+        var leftInner = centerX - gap - hingeAlongEdge;
+        var leftOuter = centerX - gap;
+        var rightInner = centerX + gap;
+        var rightOuter = centerX + gap + hingeAlongEdge;
+
+        if (mountOnTop)
+        {
+            var innerY = outer.Top - HingeWidthMm;
+            var outerY = outer.Top + hingeIntoFrame;
+            DrawWorldHingeRect(context, editor, leftInner, innerY, leftOuter, outerY, vertical: false, pen);
+            DrawWorldHingeRect(context, editor, rightInner, innerY, rightOuter, outerY, vertical: false, pen);
+        }
+        else
+        {
+            var innerY = outer.Bottom + HingeWidthMm;
+            var outerY = outer.Bottom - hingeIntoFrame;
+            DrawWorldHingeRect(context, editor, leftInner, outerY, leftOuter, innerY, vertical: false, pen);
+            DrawWorldHingeRect(context, editor, rightInner, outerY, rightOuter, innerY, vertical: false, pen);
+        }
+    }
+
+    private static double ResolveHingeEdgeOffset(double spanMm) =>
+        Math.Min(HingeEdgeOffsetMm, Math.Max(30, spanMm * 0.12));
+
+    private static void DrawWorldHingeRect(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        double left,
+        double bottom,
+        double right,
+        double top,
+        bool vertical,
+        IPen pen)
+    {
+        if (right - left <= CadMath.Epsilon || top - bottom <= CadMath.Epsilon)
+        {
+            return;
+        }
+
+        var rect = WorldBoundsToScreenRect(editor, left, bottom, right - left, top - bottom);
+        context.FillRectangle(HingeFillBrush, rect);
+        context.DrawRectangle(null, pen, rect);
+
+        var divisionPen = new Pen(pen.Brush, 1.0);
+        if (vertical)
+        {
+            var splitX = rect.Left + rect.Width * 0.35;
+            context.DrawLine(divisionPen, new Point(splitX, rect.Top), new Point(splitX, rect.Bottom));
+        }
+        else
+        {
+            var splitY = rect.Top + rect.Height * 0.35;
+            context.DrawLine(divisionPen, new Point(rect.Left, splitY), new Point(rect.Right, splitY));
+        }
+    }
+
+    private static Rect WorldBoundsToScreenRect(
+        CadEditorViewModel editor,
+        double originX,
+        double originY,
+        double width,
+        double height)
+    {
+        var topLeft = editor.Viewport!.WorldToScreen(new CadPoint(originX, originY + height));
+        var bottomRight = editor.Viewport.WorldToScreen(new CadPoint(originX + width, originY));
+        return new Rect(new Point(topLeft.X, topLeft.Y), new Point(bottomRight.X, bottomRight.Y));
     }
 
     private static void DrawHandleOnGlass(
@@ -267,623 +405,183 @@ public static class SashElementRenderer
         SashHingeSide hingeSide,
         bool preview)
     {
-        var centerX = (glassLeft + glassRight) / 2.0;
-        var centerY = (glassBottom + glassTop) / 2.0;
-        var glassWidth = glassRight - glassLeft;
-        var glassHeight = glassTop - glassBottom;
+        if (glassRight <= glassLeft || glassTop <= glassBottom)
+        {
+            return;
+        }
+
         var fill = preview ? HandlePreviewFillBrush : HandleBackgroundBrush;
-        var pen = ResolveHandlePen(preview);
+        var pen = preview ? PreviewPen : HandleOutlinePen;
 
         switch (hingeSide)
         {
             case SashHingeSide.Right:
-                DrawVerticalHandleLayers(
-                    context, editor, fill, pen,
-                    handleOnLeft: true,
-                    glassLeft, glassRight, centerY,
-                    glassWidth, glassHeight,
-                    Math.Max(0, glassLeft - outer.Left));
+                DrawVerticalSashHandle(context, editor, outer, glassLeft, glassRight, glassBottom, glassTop, handleOnLeft: true, fill, pen);
                 break;
             case SashHingeSide.Left:
-                DrawVerticalHandleLayers(
-                    context, editor, fill, pen,
-                    handleOnLeft: false,
-                    glassLeft, glassRight, centerY,
-                    glassWidth, glassHeight,
-                    Math.Max(0, outer.Right - glassRight));
+                DrawVerticalSashHandle(context, editor, outer, glassLeft, glassRight, glassBottom, glassTop, handleOnLeft: false, fill, pen);
                 break;
             case SashHingeSide.Top:
-                DrawHorizontalHandleLayers(
-                    context, editor, fill, pen,
-                    handleOnBottom: true,
-                    glassBottom, glassTop, centerX,
-                    glassWidth, glassHeight, glassRight,
-                    Math.Max(0, glassBottom - outer.Bottom));
+                DrawHorizontalSashHandle(context, editor, outer, glassLeft, glassRight, glassBottom, glassTop, handleOnBottom: true, fill, pen);
                 break;
             case SashHingeSide.Bottom:
-                DrawHorizontalHandleLayers(
-                    context, editor, fill, pen,
-                    handleOnBottom: false,
-                    glassBottom, glassTop, centerX,
-                    glassWidth, glassHeight, glassRight,
-                    Math.Max(0, outer.Top - glassTop));
+                DrawHorizontalSashHandle(context, editor, outer, glassLeft, glassRight, glassBottom, glassTop, handleOnBottom: false, fill, pen);
                 break;
         }
     }
 
-    private static void DrawVerticalHandleLayers(
+    private static void DrawVerticalSashHandle(
         DrawingContext context,
         CadEditorViewModel editor,
-        IBrush fill,
-        IPen pen,
-        bool handleOnLeft,
+        SashGeometry.OuterBounds outer,
         double glassLeft,
         double glassRight,
-        double centerY,
-        double glassWidth,
-        double glassHeight,
-        double profileDepth)
-    {
-        var dims = ResolveVerticalHandleDimensions(glassWidth, glassHeight, profileDepth);
-        if (dims == null)
-        {
-            return;
-        }
-
-        var (rosetteDepth, rh2, neckLength, armLength, nh, ah) = dims.Value;
-
-        CadPoint[] neckArmOutline;
-        CadPoint[] rosetteOutline;
-        CadPoint[] fullOutline;
-
-        if (handleOnLeft)
-        {
-            var rosetteLeft = glassLeft - rosetteDepth;
-            var neckEndX = glassLeft + neckLength;
-            var armEndX = neckEndX + armLength;
-            neckArmOutline = BuildNeckArmLeftVerticalOutline(glassLeft, centerY, neckEndX, armEndX, nh, ah);
-            rosetteOutline = BuildRosetteVerticalOutline(rosetteLeft, glassLeft, centerY, rh2);
-            fullOutline = BuildLeftSideVerticalOutline(
-                rosetteLeft, glassLeft, centerY, rh2,
-                glassLeft, neckEndX, armEndX, nh, ah);
-        }
-        else
-        {
-            var rosetteRight = glassRight + rosetteDepth;
-            var neckStartX = glassRight - neckLength;
-            var armStartX = neckStartX - armLength;
-            neckArmOutline = BuildNeckArmRightVerticalOutline(glassRight, centerY, neckStartX, armStartX, nh, ah);
-            rosetteOutline = BuildRosetteVerticalOutline(glassRight, rosetteRight, centerY, rh2);
-            fullOutline = BuildRightSideVerticalOutline(
-                glassRight, rosetteRight, centerY, rh2,
-                glassRight, neckStartX, armStartX, nh, ah);
-        }
-
-        DrawFilledHandleGeometry(context, editor, fill, neckArmOutline);
-        DrawFilledHandleGeometry(context, editor, fill, rosetteOutline);
-        DrawStrokedHandleGeometry(context, editor, pen, fullOutline);
-    }
-
-    private static void DrawHorizontalHandleLayers(
-        DrawingContext context,
-        CadEditorViewModel editor,
-        IBrush fill,
-        IPen pen,
-        bool handleOnBottom,
         double glassBottom,
         double glassTop,
-        double centerX,
-        double glassWidth,
-        double glassHeight,
-        double glassRight,
-        double profileDepth)
+        bool handleOnLeft,
+        IBrush fill,
+        IPen pen)
     {
-        var dims = ResolveHorizontalHandleDimensions(glassWidth, glassHeight, glassRight, centerX, profileDepth);
-        if (dims == null)
+        var profileLeft = handleOnLeft ? outer.Left : glassRight;
+        var profileRight = handleOnLeft ? glassLeft : outer.Right;
+        if (profileRight - profileLeft <= CadMath.Epsilon)
         {
             return;
         }
 
-        var (rosetteDepth, rs2, neckLength, armLength, nh, ah) = dims.Value;
+        var axisX = (profileLeft + profileRight) / 2.0;
+        var centerY = (glassBottom + glassTop) / 2.0;
+        var baseHalfW = HandleBaseWidthMm / 2.0;
+        var baseHalfH = Math.Min(HandleBaseHeightMm / 2.0, (glassTop - glassBottom) * 0.45);
 
-        CadPoint[] neckArmOutline;
-        CadPoint[] rosetteOutline;
-        CadPoint[] fullOutline;
+        DrawWorldHandleRect(
+            context,
+            editor,
+            axisX - baseHalfW,
+            centerY - baseHalfH,
+            axisX + baseHalfW,
+            centerY + baseHalfH,
+            fill,
+            pen);
 
+        var leverHalf = HandleLeverThicknessMm / 2.0;
+        if (handleOnLeft)
+        {
+            var leverLength = Math.Min(
+                HandleLeverLengthMm,
+                Math.Max(0, glassRight - axisX - HandleGlassInsetMm));
+            DrawWorldHandleRect(
+                context,
+                editor,
+                axisX,
+                centerY - leverHalf,
+                axisX + leverLength,
+                centerY + leverHalf,
+                fill,
+                pen);
+        }
+        else
+        {
+            var leverLength = Math.Min(
+                HandleLeverLengthMm,
+                Math.Max(0, axisX - glassLeft - HandleGlassInsetMm));
+            DrawWorldHandleRect(
+                context,
+                editor,
+                axisX - leverLength,
+                centerY - leverHalf,
+                axisX,
+                centerY + leverHalf,
+                fill,
+                pen);
+        }
+    }
+
+    private static void DrawHorizontalSashHandle(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        SashGeometry.OuterBounds outer,
+        double glassLeft,
+        double glassRight,
+        double glassBottom,
+        double glassTop,
+        bool handleOnBottom,
+        IBrush fill,
+        IPen pen)
+    {
+        var profileBottom = handleOnBottom ? outer.Bottom : glassTop;
+        var profileTop = handleOnBottom ? glassBottom : outer.Top;
+        if (profileTop - profileBottom <= CadMath.Epsilon)
+        {
+            return;
+        }
+
+        var axisY = (profileBottom + profileTop) / 2.0;
+        var centerX = (glassLeft + glassRight) / 2.0;
+        var baseHalfDepth = HandleBaseWidthMm / 2.0;
+        var baseHalfSpan = Math.Min(HandleBaseHeightMm / 2.0, (glassRight - glassLeft) * 0.45);
+
+        DrawWorldHandleRect(
+            context,
+            editor,
+            centerX - baseHalfSpan,
+            axisY - baseHalfDepth,
+            centerX + baseHalfSpan,
+            axisY + baseHalfDepth,
+            fill,
+            pen);
+
+        var leverHalf = HandleLeverThicknessMm / 2.0;
         if (handleOnBottom)
         {
-            var neckEndY = glassBottom + neckLength;
-            neckArmOutline = BuildNeckArmBottomOutline(centerX, glassBottom, neckEndY, armLength, nh, ah);
-            rosetteOutline = BuildRosetteHorizontalOutline(centerX, rs2, glassBottom - rosetteDepth, glassBottom);
-            fullOutline = BuildBottomSashOutline(centerX, glassBottom, rs2, rosetteDepth, neckEndY, armLength, nh, ah);
+            var leverLength = Math.Min(
+                HandleLeverLengthMm,
+                Math.Max(0, glassTop - axisY - HandleGlassInsetMm));
+            DrawWorldHandleRect(
+                context,
+                editor,
+                centerX - leverHalf,
+                axisY,
+                centerX + leverHalf,
+                axisY + leverLength,
+                fill,
+                pen);
         }
         else
         {
-            var neckStartY = glassTop - neckLength;
-            neckArmOutline = BuildNeckArmTopOutline(centerX, glassTop, neckStartY, armLength, nh, ah);
-            rosetteOutline = BuildRosetteHorizontalOutline(centerX, rs2, glassTop, glassTop + rosetteDepth);
-            fullOutline = BuildTopSashOutline(centerX, glassTop, rs2, rosetteDepth, neckStartY, armLength, nh, ah);
+            var leverLength = Math.Min(
+                HandleLeverLengthMm,
+                Math.Max(0, axisY - glassBottom - HandleGlassInsetMm));
+            DrawWorldHandleRect(
+                context,
+                editor,
+                centerX - leverHalf,
+                axisY - leverLength,
+                centerX + leverHalf,
+                axisY,
+                fill,
+                pen);
         }
-
-        DrawFilledHandleGeometry(context, editor, fill, neckArmOutline);
-        DrawFilledHandleGeometry(context, editor, fill, rosetteOutline);
-        DrawStrokedHandleGeometry(context, editor, pen, fullOutline);
     }
 
-    private static (double RosetteDepth, double RosetteHalfSpan, double NeckLength, double ArmLength, double NeckHalf, double ArmHalf)?
-        ResolveVerticalHandleDimensions(double glassWidth, double glassHeight, double profileDepth)
-    {
-        var rosetteDepth = Math.Min(HandleRosetteDepthMm, profileDepth * 0.92);
-        var rosetteHeight = Math.Min(HandleRosetteHeightMm, glassHeight - HandleGlassClearanceMm);
-        if (rosetteDepth <= 0 || rosetteHeight <= 0)
-        {
-            return null;
-        }
-
-        var availableWidth = Math.Max(0, glassWidth - HandleGlassClearanceMm);
-        var neckLength = Math.Min(HandleNeckLengthMm, availableWidth);
-        var armLength = Math.Min(HandleArmLengthMm, Math.Max(0, availableWidth - neckLength));
-        if (neckLength <= 0 && armLength <= 0)
-        {
-            return null;
-        }
-
-        return (
-            rosetteDepth,
-            rosetteHeight / 2.0,
-            neckLength,
-            armLength,
-            HandleNeckThicknessMm / 2.0,
-            HandleArmThicknessMm / 2.0);
-    }
-
-    private static (double RosetteDepth, double RosetteHalfSpan, double NeckLength, double ArmLength, double NeckHalf, double ArmHalf)?
-        ResolveHorizontalHandleDimensions(
-            double glassWidth,
-            double glassHeight,
-            double glassRight,
-            double centerX,
-            double profileDepth)
-    {
-        var rosetteDepth = Math.Min(HandleRosetteDepthMm, profileDepth * 0.92);
-        var rosetteSpan = Math.Min(HandleRosetteHeightMm, glassWidth - HandleGlassClearanceMm);
-        if (rosetteDepth <= 0 || rosetteSpan <= 0)
-        {
-            return null;
-        }
-
-        var availableHeight = Math.Max(0, glassHeight - HandleGlassClearanceMm);
-        var neckLength = Math.Min(HandleNeckLengthMm, availableHeight);
-        var armLength = Math.Min(
-            HandleArmLengthMm,
-            Math.Max(0, glassRight - centerX - HandleGlassClearanceMm));
-        if (neckLength <= 0 && armLength <= 0)
-        {
-            return null;
-        }
-
-        return (
-            rosetteDepth,
-            rosetteSpan / 2.0,
-            neckLength,
-            armLength,
-            HandleNeckThicknessMm / 2.0,
-            HandleArmThicknessMm / 2.0);
-    }
-
-    private static CadPoint[] BuildRosetteVerticalOutline(
-        double innerEdge,
-        double outerEdge,
-        double centerY,
-        double halfHeight) =>
-    [
-        new(outerEdge, centerY + halfHeight),
-        new(outerEdge, centerY - halfHeight),
-        new(innerEdge, centerY - halfHeight),
-        new(innerEdge, centerY + halfHeight)
-    ];
-
-    private static CadPoint[] BuildRosetteHorizontalOutline(
-        double centerX,
-        double halfSpan,
-        double outerEdge,
-        double innerEdge) =>
-    [
-        new(centerX - halfSpan, innerEdge),
-        new(centerX - halfSpan, outerEdge),
-        new(centerX + halfSpan, outerEdge),
-        new(centerX + halfSpan, innerEdge)
-    ];
-
-    private static CadPoint[] BuildNeckArmLeftVerticalOutline(
-        double glassEdge,
-        double centerY,
-        double neckOuterX,
-        double armOuterX,
-        double nh,
-        double ah)
-    {
-        var points = new List<CadPoint>(8)
-        {
-            new(glassEdge, centerY - nh),
-            new(neckOuterX, centerY - nh)
-        };
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(neckOuterX, centerY - ah));
-        }
-
-        points.Add(new(armOuterX, centerY - ah));
-        points.Add(new(armOuterX, centerY + ah));
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(neckOuterX, centerY + ah));
-        }
-
-        points.Add(new(neckOuterX, centerY + nh));
-        points.Add(new(glassEdge, centerY + nh));
-        return points.ToArray();
-    }
-
-    private static CadPoint[] BuildNeckArmRightVerticalOutline(
-        double glassEdge,
-        double centerY,
-        double neckOuterX,
-        double armOuterX,
-        double nh,
-        double ah)
-    {
-        var points = new List<CadPoint>(8)
-        {
-            new(glassEdge, centerY - nh),
-            new(neckOuterX, centerY - nh)
-        };
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(neckOuterX, centerY - ah));
-        }
-
-        points.Add(new(armOuterX, centerY - ah));
-        points.Add(new(armOuterX, centerY + ah));
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(neckOuterX, centerY + ah));
-        }
-
-        points.Add(new(neckOuterX, centerY + nh));
-        points.Add(new(glassEdge, centerY + nh));
-        return points.ToArray();
-    }
-
-    private static CadPoint[] BuildNeckArmBottomOutline(
-        double centerX,
-        double glassEdge,
-        double neckOuterY,
-        double armLength,
-        double nh,
-        double ah)
-    {
-        var armOuterX = centerX + nh + armLength;
-        var points = new List<CadPoint>(8)
-        {
-            new(centerX + nh, glassEdge),
-            new(centerX + nh, neckOuterY)
-        };
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(centerX + ah, neckOuterY));
-        }
-
-        points.Add(new(armOuterX, neckOuterY - ah));
-        points.Add(new(armOuterX, neckOuterY + ah));
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(centerX + ah, neckOuterY + ah));
-        }
-
-        points.Add(new(centerX + nh, neckOuterY + ah));
-        points.Add(new(centerX + nh, glassEdge));
-        return points.ToArray();
-    }
-
-    private static CadPoint[] BuildNeckArmTopOutline(
-        double centerX,
-        double glassEdge,
-        double neckOuterY,
-        double armLength,
-        double nh,
-        double ah)
-    {
-        var armOuterX = centerX + nh + armLength;
-        var points = new List<CadPoint>(8)
-        {
-            new(centerX + nh, glassEdge),
-            new(centerX + nh, neckOuterY)
-        };
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(centerX + ah, neckOuterY));
-        }
-
-        points.Add(new(armOuterX, neckOuterY - ah));
-        points.Add(new(armOuterX, neckOuterY + ah));
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(centerX + ah, neckOuterY + ah));
-        }
-
-        points.Add(new(centerX + nh, neckOuterY + ah));
-        points.Add(new(centerX + nh, glassEdge));
-        return points.ToArray();
-    }
-
-    private static void DrawFilledHandleGeometry(
+    private static void DrawWorldHandleRect(
         DrawingContext context,
         CadEditorViewModel editor,
+        double left,
+        double bottom,
+        double right,
+        double top,
         IBrush fill,
-        IReadOnlyList<CadPoint> worldOutline)
+        IPen pen)
     {
-        var geometry = BuildHandleStreamGeometry(editor, worldOutline);
-        if (geometry == null)
+        if (right - left <= CadMath.Epsilon || top - bottom <= CadMath.Epsilon)
         {
             return;
         }
 
-        context.DrawGeometry(fill, null, geometry);
+        var rect = WorldBoundsToScreenRect(editor, left, bottom, right - left, top - bottom);
+        context.DrawRectangle(fill, pen, rect);
     }
-
-    private static void DrawStrokedHandleGeometry(
-        DrawingContext context,
-        CadEditorViewModel editor,
-        IPen pen,
-        IReadOnlyList<CadPoint> worldOutline)
-    {
-        var geometry = BuildHandleStreamGeometry(editor, worldOutline);
-        if (geometry == null)
-        {
-            return;
-        }
-
-        context.DrawGeometry(null, pen, geometry);
-    }
-
-    private static StreamGeometry? BuildHandleStreamGeometry(
-        CadEditorViewModel editor,
-        IReadOnlyList<CadPoint> worldOutline)
-    {
-        if (worldOutline.Count < 3)
-        {
-            return null;
-        }
-
-        var geometry = new StreamGeometry();
-        using (var geometryContext = geometry.Open())
-        {
-            geometryContext.BeginFigure(WorldToScreen(editor, worldOutline[0]), isFilled: true);
-            for (var i = 1; i < worldOutline.Count; i++)
-            {
-                geometryContext.LineTo(WorldToScreen(editor, worldOutline[i]));
-            }
-
-            geometryContext.EndFigure(isClosed: true);
-        }
-
-        return geometry;
-    }
-
-    private static CadPoint[] BuildLeftSideVerticalOutline(
-        double rosetteLeft,
-        double glassEdge,
-        double centerY,
-        double rh2,
-        double neckInner,
-        double neckOuter,
-        double armOuter,
-        double nh,
-        double ah)
-    {
-        var points = new List<CadPoint>(12)
-        {
-            new(rosetteLeft, centerY + rh2),
-            new(rosetteLeft, centerY - rh2),
-            new(glassEdge, centerY - rh2)
-        };
-
-        if (rh2 > nh + CadMath.Epsilon)
-        {
-            points.Add(new(glassEdge, centerY - nh));
-        }
-
-        points.Add(new(neckOuter, centerY - nh));
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(neckOuter, centerY - ah));
-        }
-
-        points.Add(new(armOuter, centerY - ah));
-        points.Add(new(armOuter, centerY + ah));
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(neckOuter, centerY + ah));
-            points.Add(new(neckOuter, centerY + nh));
-        }
-        else
-        {
-            points.Add(new(neckOuter, centerY + nh));
-        }
-
-        if (rh2 > nh + CadMath.Epsilon)
-        {
-            points.Add(new(glassEdge, centerY + nh));
-            points.Add(new(glassEdge, centerY + rh2));
-        }
-
-        return points.ToArray();
-    }
-
-    private static CadPoint[] BuildRightSideVerticalOutline(
-        double glassEdge,
-        double rosetteRight,
-        double centerY,
-        double rh2,
-        double neckInner,
-        double neckOuter,
-        double armOuter,
-        double nh,
-        double ah)
-    {
-        var points = new List<CadPoint>(12)
-        {
-            new(rosetteRight, centerY + rh2),
-            new(rosetteRight, centerY - rh2),
-            new(glassEdge, centerY - rh2)
-        };
-
-        if (rh2 > nh + CadMath.Epsilon)
-        {
-            points.Add(new(glassEdge, centerY - nh));
-        }
-
-        points.Add(new(neckOuter, centerY - nh));
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(neckOuter, centerY - ah));
-        }
-
-        points.Add(new(armOuter, centerY - ah));
-        points.Add(new(armOuter, centerY + ah));
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(neckOuter, centerY + ah));
-            points.Add(new(neckOuter, centerY + nh));
-        }
-        else
-        {
-            points.Add(new(neckOuter, centerY + nh));
-        }
-
-        if (rh2 > nh + CadMath.Epsilon)
-        {
-            points.Add(new(glassEdge, centerY + nh));
-            points.Add(new(glassEdge, centerY + rh2));
-        }
-
-        return points.ToArray();
-    }
-
-    private static CadPoint[] BuildBottomSashOutline(
-        double centerX,
-        double glassEdge,
-        double rs2,
-        double rosetteDepth,
-        double neckOuterY,
-        double armLength,
-        double nh,
-        double ah)
-    {
-        var armOuterX = centerX + nh + armLength;
-        var points = new List<CadPoint>(12)
-        {
-            new(centerX - rs2, glassEdge),
-            new(centerX - rs2, glassEdge - rosetteDepth),
-            new(centerX + rs2, glassEdge - rosetteDepth),
-            new(centerX + rs2, glassEdge)
-        };
-
-        if (rs2 > nh + CadMath.Epsilon)
-        {
-            points.Add(new(centerX + nh, glassEdge));
-        }
-
-        points.Add(new(centerX + nh, neckOuterY));
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(centerX + ah, neckOuterY));
-        }
-
-        points.Add(new(armOuterX, neckOuterY - ah));
-        points.Add(new(armOuterX, neckOuterY + ah));
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(centerX + ah, neckOuterY + ah));
-            points.Add(new(centerX + nh, neckOuterY + ah));
-        }
-        else
-        {
-            points.Add(new(centerX + nh, neckOuterY + ah));
-        }
-
-        points.Add(new(centerX + nh, glassEdge));
-        points.Add(new(centerX - rs2, glassEdge));
-
-        return points.ToArray();
-    }
-
-    private static CadPoint[] BuildTopSashOutline(
-        double centerX,
-        double glassEdge,
-        double rs2,
-        double rosetteDepth,
-        double neckOuterY,
-        double armLength,
-        double nh,
-        double ah)
-    {
-        var armOuterX = centerX + nh + armLength;
-        var points = new List<CadPoint>(12)
-        {
-            new(centerX - rs2, glassEdge),
-            new(centerX - rs2, glassEdge + rosetteDepth),
-            new(centerX + rs2, glassEdge + rosetteDepth),
-            new(centerX + rs2, glassEdge)
-        };
-
-        if (rs2 > nh + CadMath.Epsilon)
-        {
-            points.Add(new(centerX + nh, glassEdge));
-        }
-
-        points.Add(new(centerX + nh, neckOuterY));
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(centerX + ah, neckOuterY));
-        }
-
-        points.Add(new(armOuterX, neckOuterY - ah));
-        points.Add(new(armOuterX, neckOuterY + ah));
-
-        if (ah > nh + CadMath.Epsilon)
-        {
-            points.Add(new(centerX + ah, neckOuterY + ah));
-            points.Add(new(centerX + nh, neckOuterY + ah));
-        }
-        else
-        {
-            points.Add(new(centerX + nh, neckOuterY + ah));
-        }
-
-        points.Add(new(centerX + nh, glassEdge));
-        points.Add(new(centerX - rs2, glassEdge));
-
-        return points.ToArray();
-    }
-
-    private static IPen ResolveHandlePen(bool preview) => preview ? PreviewPen : HardwarePen;
 
     private static CadPoint GetApexWorldPoint(
         double glassLeft,

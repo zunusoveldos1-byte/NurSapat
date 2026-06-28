@@ -422,6 +422,103 @@ public sealed class FrameNode
         return true;
     }
 
+    public bool TrySetVerticalImpostAxisWorldX(double axisWorldX)
+    {
+        if (IsLeaf || IsUniformSplit || SplitOrientation != SplitOrientation.Vertical
+            || ChildA is null || ChildB is null)
+        {
+            return false;
+        }
+
+        var centerLocal = axisWorldX - X;
+        var thickness = GetResolvedImpostThicknessMm();
+        centerLocal = ClampVerticalSplitCenter(centerLocal, thickness);
+        if (!TryComputeBinaryVerticalChildren(centerLocal, thickness, out var leftWidth, out var childBStartLocal, out var rightWidth))
+        {
+            return false;
+        }
+
+        ChildA.X = X;
+        ChildA.Y = Y;
+        ChildA.Width = leftWidth;
+        ChildA.Height = Height;
+
+        ChildB.X = X + childBStartLocal;
+        ChildB.Y = Y;
+        ChildB.Width = rightWidth;
+        ChildB.Height = Height;
+        return true;
+    }
+
+    public bool TrySetHorizontalImpostAxisWorldY(double axisWorldY)
+    {
+        if (IsLeaf || IsUniformSplit || SplitOrientation != SplitOrientation.Horizontal
+            || ChildA is null || ChildB is null)
+        {
+            return false;
+        }
+
+        var centerLocal = axisWorldY - Y;
+        var thickness = GetResolvedImpostThicknessMm();
+        centerLocal = ClampHorizontalSplitCenter(centerLocal, thickness);
+        if (!TryComputeBinaryHorizontalChildren(centerLocal, thickness, out var bottomHeight, out var childBStartLocal, out var topHeight))
+        {
+            return false;
+        }
+
+        ChildA.X = X;
+        ChildA.Y = Y;
+        ChildA.Width = Width;
+        ChildA.Height = bottomHeight;
+
+        ChildB.X = X;
+        ChildB.Y = Y + childBStartLocal;
+        ChildB.Width = Width;
+        ChildB.Height = topHeight;
+        return true;
+    }
+
+    /// <summary>
+    /// Ширины световых проёмов слева/справа от вертикального импоста (между внутренними фальцами).
+    /// </summary>
+    public bool TryGetVerticalLightOpeningWidths(out double leftWidth, out double rightWidth)
+    {
+        leftWidth = rightWidth = 0;
+        if (IsLeaf || IsUniformSplit || SplitOrientation != SplitOrientation.Vertical
+            || ChildA is null || ChildB is null
+            || !TryGetVerticalImpostAxisWorldX(out var axisWorldX))
+        {
+            return false;
+        }
+
+        var half = GetResolvedImpostThicknessMm() / 2.0;
+        leftWidth = CadMath.RoundMm((axisWorldX - X) - half);
+        rightWidth = CadMath.RoundMm((X + Width - axisWorldX) - half);
+        return leftWidth > CadMath.Epsilon && rightWidth > CadMath.Epsilon;
+    }
+
+    public bool TrySetVerticalLightOpeningLeftWidth(double leftWidth)
+    {
+        if (leftWidth <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var half = GetResolvedImpostThicknessMm() / 2.0;
+        return TrySetVerticalImpostAxisWorldX(X + half + leftWidth);
+    }
+
+    public bool TrySetVerticalLightOpeningRightWidth(double rightWidth)
+    {
+        if (rightWidth <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var half = GetResolvedImpostThicknessMm() / 2.0;
+        return TrySetVerticalImpostAxisWorldX(X + Width - half - rightWidth);
+    }
+
     private bool TryComputeBinaryVerticalChildren(
         double centerLocal,
         double thickness,

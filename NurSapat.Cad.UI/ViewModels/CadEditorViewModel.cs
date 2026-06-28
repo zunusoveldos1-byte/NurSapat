@@ -45,6 +45,13 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private bool _isShapeSizeDialogOpen;
     private readonly List<FrameNode> _impostSplitHistory = [];
 
+    private FrameNode? _hoveredVerticalImpost;
+    private FrameNode? _selectedVerticalImpost;
+    private FrameNode? _draggingVerticalImpost;
+    private bool _isSyncingImpostPanel;
+
+    private const double VerticalImpostHitToleranceMm = 18;
+
     private static bool IsDragCreateShapeMode(WindowToolMode mode) =>
         mode is WindowToolMode.RealFrame
             or WindowToolMode.FakeFrame
@@ -173,7 +180,19 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private ICadTool _activeTool;
 
     [ObservableProperty]
-    private WindowToolMode _currentToolMode = WindowToolMode.RealFrame;
+    private WindowToolMode _currentToolMode = WindowToolMode.SelectElement;
+
+    public WindowToolMode ActiveToolMode
+    {
+        get => CurrentToolMode;
+        set
+        {
+            if (CurrentToolMode != value)
+            {
+                _ = SelectToolModeAsync(value);
+            }
+        }
+    }
 
     [ObservableProperty]
     private string _statusText = "Выберите инструмент";
@@ -301,8 +320,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         InitializeDesignTools();
         EnsureDefaultConstructions();
-        ActiveTool = _toolFactory.Create("select");
-        SetActiveToolVisual(WindowToolMode.RealFrame);
+        ActiveTool = _toolFactory.Create(CadToolMetadata.GetId(CadToolKind.SelectElements));
+        ActiveToolId = CadToolMetadata.GetId(CadToolKind.SelectElements);
+        UpdateDesignToolSelection(WindowToolMode.SelectElement);
         Viewport.ResetToDefaultScale(15.0);
     }
 
@@ -383,6 +403,25 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     public double SelectedElementY =>
         SelectedElement is FrameNode frame ? RoundMm(frame.Y) : RoundMm(CoordinateY);
+
+    public bool IsImpostPanelActive =>
+        CurrentToolMode == WindowToolMode.OffsetImpostVertical && _selectedVerticalImpost != null;
+
+    [ObservableProperty]
+    private double _impostPanelX;
+
+    [ObservableProperty]
+    private double _impostPanelY;
+
+    [ObservableProperty]
+    private double _impostPanelL;
+
+    [ObservableProperty]
+    private double _impostPanelH;
+
+    public bool IsVerticalImpostHighlighted(FrameNode node) =>
+        CurrentToolMode == WindowToolMode.OffsetImpostVertical &&
+        (node == _hoveredVerticalImpost || node == _selectedVerticalImpost || node == _draggingVerticalImpost);
 
     public double GridSnapStep => Viewport.ChooseGridStep();
 
@@ -489,7 +528,13 @@ public sealed partial class CadEditorViewModel : ObservableObject
         TryClearConstruction = TryClearConstructionFromTool,
         TryChangeOverallDimensions = TryChangeOverallDimensionsFromTool,
         HitTestSelection = HitTestSelectionTarget,
-        SelectTarget = SelectConstructionTarget
+        SelectTarget = SelectConstructionTarget,
+        GetFrameRoot = () => FrameRoot,
+        SnapAxis = SnapToGrid,
+        UpdateVerticalImpostHover = UpdateVerticalImpostHover,
+        TryBeginVerticalImpostDrag = TryBeginVerticalImpostDrag,
+        UpdateVerticalImpostDrag = UpdateVerticalImpostDrag,
+        EndVerticalImpostDrag = EndVerticalImpostDrag
     };
 
     private void ActivateCadTool(string id)
@@ -651,6 +696,11 @@ public sealed partial class CadEditorViewModel : ObservableObject
             _impostSplitHistory.Add(splitNode);
         }
     }
+
+    private double ResolveFrameSplitInset(FrameNode leaf) =>
+        leaf.Parent == null
+            ? FrameProfileGeometry.ResolveInnerInset(leaf.Width, leaf.Height, FrameThickness)
+            : 0;
 
     private bool TryApplyMullionLineToFrame(DesignPlacementCommit commit)
     {
@@ -1268,7 +1318,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
                 GetImpostOrientation(CurrentToolMode),
                 impostCount.Value,
                 GetImpostProfileWidth(CurrentToolMode),
-                leaf.Parent == null ? FrameThickness : 0))
+                ResolveFrameSplitInset(leaf)))
         {
             StatusText = "Область слишком мала для деления";
             return;
@@ -1314,8 +1364,21 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     partial void OnSelectedProfileSeriesChanged(string? value) => ApplySeriesThickness(value);
 
-    partial void OnCurrentToolModeChanged(WindowToolMode value) =>
+    partial void OnCurrentToolModeChanged(WindowToolMode value)
+    {
         OnPropertyChanged(nameof(IsDragCreateShapeToolActive));
+        OnPropertyChanged(nameof(ActiveToolMode));
+        if (value != WindowToolMode.OffsetImpostVertical)
+        {
+            ClearVerticalImpostInteractionState();
+        }
+    }
+
+    partial void OnImpostPanelXChanged(double value) => ApplyImpostPanelAxisX(value);
+
+    partial void OnImpostPanelLChanged(double value) => ApplyImpostPanelLeftOpening(value);
+
+    partial void OnImpostPanelHChanged(double value) => ApplyImpostPanelRightOpening(value);
 
     partial void OnPlacementAnchorChanged(PlacementAnchor value)
     {
@@ -1393,28 +1456,124 @@ public sealed partial class CadEditorViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void DeleteSelected()
-    {
-        if (SelectedRectangle == null)
-        {
-            return;
-        }
-
-        Document.RemoveRectangle(SelectedRectangle.Value);
-        SelectedRectangle = null;
-        RefreshSelection();
-        RequestSceneRefresh();
-        StatusText = "Выбранный объект удален";
-    }
+    private void DeleteSelected() =>
+        ActivateCadTool(CadToolMetadata.GetId(CadToolKind.DeleteSelection));
 
     [RelayCommand]
     private void Undo()
     {
+        if (!Commands.CanUndo)
+        {
+            StatusText = "Нет действий для отмены";
+            return;
+        }
+
         Commands.Undo();
         RefreshSelection();
         RequestSceneRefresh();
-        StatusText = "Отменить";
+        StatusText = "Действие отменено";
     }
+
+    [RelayCommand]
+    private void GlobalUndo() => Undo();
+
+    [RelayCommand]
+    private void UndoLastElement() => ActivateCadTool(CadToolMetadata.GetId(CadToolKind.DeleteLastPlaced));
+
+    [RelayCommand]
+    private void DeleteLastElement() => UndoLastElement();
+
+    [RelayCommand]
+    private void ClearConstruction() => ActivateCadTool(CadToolMetadata.GetId(CadToolKind.ClearConstruction));
+
+    [RelayCommand]
+    private void ClearAll() => ClearConstruction();
+
+    [RelayCommand]
+    private void ZoomToFit()
+    {
+        FitDocumentToViewport();
+        StatusText = "Автомасштаб";
+    }
+
+    [RelayCommand]
+    private void ChangeDimensions() =>
+        ActivateCadTool(CadToolMetadata.GetId(CadToolKind.ChangeOverallDimensions));
+
+    [RelayCommand]
+    private async Task SetArchHeight()
+    {
+        if (!TryGetPrimaryElement(out var element) ||
+            element!.Kind is not (GeometryElementKind.ArchFrame or GeometryElementKind.ArchDummyFrame))
+        {
+            StatusText = "Выберите арочную конструкцию";
+            return;
+        }
+
+        var currentHeight = (double)element.HeightMm;
+        var width = (double)element.WidthMm;
+        var result = await _dialogService.ShowSizeInputAsync(width, currentHeight, CoordinateX, CoordinateY);
+        if (result == null)
+        {
+            StatusText = "Ввод высоты арки отменён";
+            return;
+        }
+
+        var archHeight = RoundMm(result.Height);
+        if (archHeight <= 0 || archHeight > width / 2.0)
+        {
+            StatusText = "Высота арки должна быть от 0 до половины ширины";
+            return;
+        }
+
+        _isSyncingSelection = true;
+        Height = archHeight;
+        Length = width;
+        _isSyncingSelection = false;
+        ApplyCoordinatesToSelection();
+        StatusText = $"Высота арки: {archHeight:F1} мм";
+        RequestSceneRefresh();
+    }
+
+    [RelayCommand]
+    private void SelectTool(string? toolKey)
+    {
+        var toolId = toolKey switch
+        {
+            "Selection" => CadToolMetadata.GetId(CadToolKind.SelectElements),
+            "SelectFullFrame" => CadToolMetadata.GetId(CadToolKind.SelectObject),
+            "SelectProfile" => CadToolMetadata.GetId(CadToolKind.SelectProfile),
+            "SelectVertex" => CadToolMetadata.GetId(CadToolKind.SelectVertex),
+            "MoveMullionVertical" => CadToolMetadata.GetId(CadToolKind.OffsetImpostVertical),
+            "MoveMullionHorizontal" => CadToolMetadata.GetId(CadToolKind.OffsetImpostHorizontal),
+            _ => null
+        };
+
+        if (toolId is not null)
+        {
+            ActivateCadTool(toolId);
+        }
+    }
+
+    [RelayCommand]
+    private void SetVertexCoordinates() =>
+        ActivateCadTool(CadToolMetadata.GetId(CadToolKind.SetVertexCoordinates));
+
+    [RelayCommand]
+    private void SplitProfile() => ActivateCadTool(CadToolMetadata.GetId(CadToolKind.SplitProfile));
+
+    [RelayCommand]
+    private void AlignMullions() => ActivateCadTool(CadToolMetadata.GetId(CadToolKind.AlignImposts));
+
+    [RelayCommand]
+    private void AlignGlassUnits() => ActivateCadTool(CadToolMetadata.GetId(CadToolKind.AlignGlazingUnits));
+
+    [RelayCommand]
+    private void AlignClearOpenings() => ActivateCadTool(CadToolMetadata.GetId(CadToolKind.AlignDeadLights));
+
+    [RelayCommand]
+    private void ChangeOuterDimensions() =>
+        ActivateCadTool(CadToolMetadata.GetId(CadToolKind.ChangeOverallDimensions));
 
     [RelayCommand]
     private void Redo()
@@ -1501,7 +1660,60 @@ public sealed partial class CadEditorViewModel : ObservableObject
     {
         DesignTools.Clear();
 
-        // БЛОК 1: ФИКТИВНЫЕ КОНТУРЫ И ОСИ
+        // Группа 1: управление и модификация геометрии
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.SelectElement,
+            "Выделение элементов",
+            DesignToolIcon.Selection));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.OffsetImpostVertical,
+            "Сместить импост вертикально",
+            DesignToolIcon.MoveMullionVertical));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.OffsetImpostHorizontal,
+            "Сместить импост горизонтально",
+            DesignToolIcon.MoveMullionHorizontal));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.Other,
+            "Удалить последний установленный элемент",
+            DesignToolIcon.UndoLast,
+            command: DeleteLastElementCommand));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.Other,
+            "Отменить действие",
+            DesignToolIcon.UndoGlobal,
+            command: UndoCommand));
+        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Separator, string.Empty, isSeparator: true));
+
+        // Группа 2: выравнивание и навигация
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.AlignImposts,
+            "Выравнивание импостов",
+            DesignToolIcon.AlignMullions));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.AlignGlazingUnits,
+            "Выравнивание стеклопакетов",
+            DesignToolIcon.AlignGlassUnits));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.AlignDeadLights,
+            "Выравнивание просветов в свету",
+            DesignToolIcon.AlignClearOpenings));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.ZoomView,
+            "Увеличить/уменьшить вид",
+            DesignToolIcon.Zoom));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.PanView,
+            "Переместить вид",
+            DesignToolIcon.Hand));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.Other,
+            "Автомасштаб",
+            DesignToolIcon.ZoomFit,
+            command: ZoomToFitCommand));
+        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Separator, string.Empty, isSeparator: true));
+
+        // Группа 3: фиктивные контуры
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.FakeFrame, "Коробка (фиктивная)", DesignToolIcon.FakeFrame));
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.FakeFrameCircle, "Коробка фиктивная круглая", DesignToolIcon.FakeCircle));
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.FakeFrameTriangle, "Коробка фиктивная треугольная", DesignToolIcon.FakeTriangle));
@@ -1509,11 +1721,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.FakeVerticalImpost, "Импост верт.", DesignToolIcon.VerticalImpost));
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.FakeHorizontalImpost, "Импост гориз.", DesignToolIcon.HorizontalImpost));
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.RackRigelNone, "Стойка/ригель", DesignToolIcon.RackRigel));
-
-        // РАЗДЕЛИТЕЛЬ ПАНЕЛИ
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Separator, "--- РЕАЛЬНЫЕ ПРОФИЛИ ---", isSeparator: true));
 
-        // БЛОК 2: РЕАЛЬНЫЕ КОНСТРУКТИВНЫЕ ЭЛЕМЕНТЫ
+        // Группа 4: реальные конструктивные элементы
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.RealFrame, "Коробка (рама)", DesignToolIcon.RealFrame));
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.AdapterProfile, "Переходный профиль", DesignToolIcon.AdapterProfile));
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Sash, "Створка", DesignToolIcon.Sash));
@@ -1524,9 +1734,53 @@ public sealed partial class CadEditorViewModel : ObservableObject
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.DoubleVerticalImpost, "Импост двойной верт.", DesignToolIcon.DoubleVerticalImpost));
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.DoubleHorizontalImpost, "Импост двойной гориз.", DesignToolIcon.DoubleHorizontalImpost));
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.SlantedImpost, "Импост наклонный", DesignToolIcon.SlantedImpost));
+        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Separator, string.Empty, isSeparator: true));
+
+        // Группа 5: выделение подобъектов и глобальные операции
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.Select,
+            "Выделение объекта",
+            DesignToolIcon.SelectObject));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.SelectProfile,
+            "Выделение профиля",
+            DesignToolIcon.SelectProfile));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.SelectVertex,
+            "Выделение вершины",
+            DesignToolIcon.SelectVertex));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.Other,
+            "Задать высоту арки",
+            DesignToolIcon.ArchHeight,
+            command: SetArchHeightCommand));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.Other,
+            "Изменить габаритные размеры",
+            DesignToolIcon.Resize,
+            command: ChangeDimensionsCommand));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.Other,
+            "Удаление",
+            DesignToolIcon.Trash,
+            command: DeleteSelectedCommand));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.Other,
+            "Очистить всю конструкцию",
+            DesignToolIcon.ClearAll,
+            command: ClearAllCommand));
     }
 
     private void SetActiveToolVisual(WindowToolMode mode)
+    {
+        UpdateDesignToolSelection(mode);
+        ActiveTool = _toolFactory.Create("select");
+        ActiveToolId = "select";
+        OnPropertyChanged(nameof(ActiveToolDisplayName));
+        StatusText = DesignTools.FirstOrDefault(t => t.Mode == mode)?.Title ?? "Инструмент";
+    }
+
+    private void UpdateDesignToolSelection(WindowToolMode mode)
     {
         CurrentToolMode = mode;
         foreach (var tool in DesignTools)
@@ -1537,11 +1791,28 @@ public sealed partial class CadEditorViewModel : ObservableObject
         var active = DesignTools.FirstOrDefault(t => t.Mode == mode);
         ActiveDesignToolLabel = active?.Title;
         ActiveDesignToolId = mode.ToString();
-        ActiveTool = _toolFactory.Create("select");
-        ActiveToolId = "select";
-        OnPropertyChanged(nameof(ActiveToolDisplayName));
         OnPropertyChanged(nameof(CanvasHintText));
-        StatusText = active?.Title ?? "Инструмент";
+    }
+
+    private static bool TryResolveCadToolId(WindowToolMode mode, out string toolId)
+    {
+        toolId = mode switch
+        {
+            WindowToolMode.SelectElement => CadToolMetadata.GetId(CadToolKind.SelectElements),
+            WindowToolMode.Select => CadToolMetadata.GetId(CadToolKind.SelectObject),
+            WindowToolMode.SelectProfile => CadToolMetadata.GetId(CadToolKind.SelectProfile),
+            WindowToolMode.SelectVertex => CadToolMetadata.GetId(CadToolKind.SelectVertex),
+            WindowToolMode.OffsetImpostVertical => CadToolMetadata.GetId(CadToolKind.OffsetImpostVertical),
+            WindowToolMode.OffsetImpostHorizontal => CadToolMetadata.GetId(CadToolKind.OffsetImpostHorizontal),
+            WindowToolMode.AlignImposts => CadToolMetadata.GetId(CadToolKind.AlignImposts),
+            WindowToolMode.AlignGlazingUnits => CadToolMetadata.GetId(CadToolKind.AlignGlazingUnits),
+            WindowToolMode.AlignDeadLights => CadToolMetadata.GetId(CadToolKind.AlignDeadLights),
+            WindowToolMode.ClearConstruction => CadToolMetadata.GetId(CadToolKind.ClearConstruction),
+            WindowToolMode.Other => string.Empty,
+            _ => string.Empty
+        };
+
+        return toolId.Length > 0;
     }
 
     private async Task SelectToolModeAsync(WindowToolMode mode)
@@ -1551,7 +1822,36 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
-        if (mode is WindowToolMode.Other or WindowToolMode.Separator)
+        if (mode is WindowToolMode.Separator)
+        {
+            return;
+        }
+
+        if (mode is WindowToolMode.ZoomView or WindowToolMode.PanView)
+        {
+            UpdateDesignToolSelection(mode);
+            ActiveTool = _toolFactory.Create(CadToolMetadata.GetId(CadToolKind.SelectElements));
+            ActiveToolId = CadToolMetadata.GetId(CadToolKind.SelectElements);
+            StatusText = mode switch
+            {
+                WindowToolMode.ZoomView => "Лупа: ЛКМ — увеличить, ПКМ — уменьшить",
+                WindowToolMode.PanView => "Рука: зажмите ЛКМ для панорамирования",
+                _ => "Инструмент"
+            };
+            await Task.CompletedTask;
+            return;
+        }
+
+        if (TryResolveCadToolId(mode, out var cadToolId))
+        {
+            UpdateDesignToolSelection(mode);
+            ActivateCadTool(cadToolId);
+            StatusText = DesignTools.FirstOrDefault(t => t.Mode == mode)?.Title ?? "Инструмент";
+            await Task.CompletedTask;
+            return;
+        }
+
+        if (mode is WindowToolMode.Other)
         {
             return;
         }
@@ -1579,8 +1879,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
             StatusText = mode switch
             {
                 WindowToolMode.Sash => "Створка: зажмите ЛКМ и укажите направление открывания",
-                WindowToolMode.Hardware => "Фурнитура: кликните по створке",
-                WindowToolMode.Handle => "Ручка: кликните по створке",
+                WindowToolMode.Hardware => "Фурнитура: клик по створке — петли справа → слева → снизу → снять",
+                WindowToolMode.Handle => "Ручка: клик по створке — установить / снять",
                 _ => DesignTools.FirstOrDefault(t => t.Mode == mode)?.Title is { Length: > 0 } title
                     ? $"Выбран инструмент {title}"
                     : "Инструмент"
@@ -1828,7 +2128,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
                     GetImpostOrientation(mode),
                     impostCount: 1,
                     GetImpostProfileWidth(mode),
-                    leaf.Parent == null ? FrameThickness : 0))
+                    ResolveFrameSplitInset(leaf)))
             {
                 StatusText = "Область слишком мала для деления";
                 return false;
@@ -1860,7 +2160,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
     {
         var orientation = GetImpostOrientation(mode);
         var impostWidth = GetImpostProfileWidth(mode);
-        var frameInset = leaf.Parent == null ? FrameThickness : 0;
+        var frameInset = ResolveFrameSplitInset(leaf);
         var lineStyle = GetImpostLineStyle(mode);
 
         if (!leaf.TrySplitUniformWithVolume(orientation, impostCount, impostWidth, frameInset, lineStyle))
@@ -2078,6 +2378,236 @@ public sealed partial class CadEditorViewModel : ObservableObject
     public CadPoint SnapPointToGrid(CadPoint point) =>
         new(SnapToGrid(point.X), SnapToGrid(point.Y));
 
+    public void UpdateVerticalImpostHover(CadPoint worldPoint)
+    {
+        if (CurrentToolMode != WindowToolMode.OffsetImpostVertical || _draggingVerticalImpost != null)
+        {
+            return;
+        }
+
+        var next = double.IsNaN(worldPoint.X) || FrameRoot is null
+            ? null
+            : FindVerticalImpostNear(FrameRoot, worldPoint.X);
+        if (next == _hoveredVerticalImpost)
+        {
+            return;
+        }
+
+        _hoveredVerticalImpost = next;
+        RequestSceneRefresh();
+    }
+
+    public bool TryBeginVerticalImpostDrag(CadPoint worldPoint)
+    {
+        if (FrameRoot is null)
+        {
+            StatusText = "Сначала создайте коробку";
+            return false;
+        }
+
+        var node = FindVerticalImpostNear(FrameRoot, worldPoint.X);
+        if (node is null)
+        {
+            return false;
+        }
+
+        _selectedVerticalImpost = node;
+        _draggingVerticalImpost = node;
+        _hoveredVerticalImpost = node;
+        SyncImpostPanelFromSelection();
+        OnPropertyChanged(nameof(IsImpostPanelActive));
+        StatusText = "Перетаскивание импоста";
+        return true;
+    }
+
+    public void UpdateVerticalImpostDrag(CadPoint worldPoint)
+    {
+        if (_draggingVerticalImpost is null)
+        {
+            return;
+        }
+
+        var axisX = SnapToGrid(worldPoint.X);
+        if (!_draggingVerticalImpost.TrySetVerticalImpostAxisWorldX(axisX))
+        {
+            return;
+        }
+
+        SyncImpostPanelFromSelection();
+        StatusText = $"Свет слева {ImpostPanelL:F0} · справа {ImpostPanelH:F0} мм";
+        RequestSceneRefresh();
+    }
+
+    public void EndVerticalImpostDrag()
+    {
+        _draggingVerticalImpost = null;
+        SyncImpostPanelFromSelection();
+        StatusText = $"Импост: L={ImpostPanelL:F0} · H={ImpostPanelH:F0} мм";
+        RequestSceneRefresh();
+    }
+
+    private void ApplyImpostPanelAxisX(double axisX)
+    {
+        if (_isSyncingImpostPanel || _selectedVerticalImpost is null)
+        {
+            return;
+        }
+
+        if (_selectedVerticalImpost.TrySetVerticalImpostAxisWorldX(axisX))
+        {
+            SyncImpostPanelFromSelection();
+            RequestSceneRefresh();
+        }
+    }
+
+    private void ApplyImpostPanelLeftOpening(double leftWidth)
+    {
+        if (_isSyncingImpostPanel || _selectedVerticalImpost is null)
+        {
+            return;
+        }
+
+        if (_selectedVerticalImpost.TrySetVerticalLightOpeningLeftWidth(leftWidth))
+        {
+            SyncImpostPanelFromSelection();
+            RequestSceneRefresh();
+        }
+    }
+
+    private void ApplyImpostPanelRightOpening(double rightWidth)
+    {
+        if (_isSyncingImpostPanel || _selectedVerticalImpost is null)
+        {
+            return;
+        }
+
+        if (_selectedVerticalImpost.TrySetVerticalLightOpeningRightWidth(rightWidth))
+        {
+            SyncImpostPanelFromSelection();
+            RequestSceneRefresh();
+        }
+    }
+
+    private void SyncImpostPanelFromSelection()
+    {
+        if (_selectedVerticalImpost is null)
+        {
+            return;
+        }
+
+        _isSyncingImpostPanel = true;
+        if (_selectedVerticalImpost.TryGetVerticalImpostAxisWorldX(out var axisX))
+        {
+            ImpostPanelX = RoundMm(axisX);
+        }
+
+        ImpostPanelY = RoundMm(_selectedVerticalImpost.Y);
+        if (_selectedVerticalImpost.TryGetVerticalLightOpeningWidths(out var left, out var right))
+        {
+            ImpostPanelL = RoundMm(left);
+            ImpostPanelH = RoundMm(right);
+        }
+
+        _isSyncingImpostPanel = false;
+    }
+
+    private void ClearVerticalImpostInteractionState()
+    {
+        _hoveredVerticalImpost = null;
+        _selectedVerticalImpost = null;
+        _draggingVerticalImpost = null;
+        OnPropertyChanged(nameof(IsImpostPanelActive));
+        RequestSceneRefresh();
+    }
+
+    private static FrameNode? FindVerticalImpostNear(FrameNode root, double worldX)
+    {
+        FrameNode? best = null;
+        var bestDistance = double.MaxValue;
+
+        foreach (var node in root.EnumerateInternalNodes())
+        {
+            if (node.IsUniformSplit || node.SplitOrientation != SplitOrientation.Vertical)
+            {
+                continue;
+            }
+
+            if (!node.TryGetVerticalImpostAxisWorldX(out var axisX))
+            {
+                continue;
+            }
+
+            var distance = Math.Abs(worldX - axisX);
+            if (distance <= VerticalImpostHitToleranceMm && distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = node;
+            }
+        }
+
+        return best;
+    }
+
+    public bool TryCycleSashHardware(CadPoint worldPoint)
+    {
+        if (CurrentToolMode != WindowToolMode.Hardware)
+        {
+            return false;
+        }
+
+        var sash = FindSashAt(worldPoint);
+        if (sash is null)
+        {
+            StatusText = "Кликните по створке";
+            return false;
+        }
+
+        if (!sash.HasHardware)
+        {
+            sash.HasHardware = true;
+            sash.HingeSide = SashHingeSide.Right;
+            StatusText = "Петли справа";
+        }
+        else if (sash.HingeSide == SashHingeSide.Right)
+        {
+            sash.HingeSide = SashHingeSide.Left;
+            StatusText = "Петли слева";
+        }
+        else if (sash.HingeSide == SashHingeSide.Left)
+        {
+            sash.HingeSide = SashHingeSide.Bottom;
+            StatusText = "Петли снизу (фрамуга)";
+        }
+        else
+        {
+            sash.HasHardware = false;
+            StatusText = "Петли сняты";
+        }
+
+        RequestSceneRefresh();
+        return true;
+    }
+
+    public bool TryToggleSashHandle(CadPoint worldPoint)
+    {
+        if (CurrentToolMode != WindowToolMode.Handle)
+        {
+            return false;
+        }
+
+        var sash = FindSashAt(worldPoint);
+        if (sash is null)
+        {
+            StatusText = "Кликните по створке";
+            return false;
+        }
+
+        sash.HasHandle = !sash.HasHandle;
+        StatusText = sash.HasHandle ? "Ручка установлена" : "Ручка снята";
+        RequestSceneRefresh();
+        return true;
+    }
+
     public bool TryBeginPointerInteraction(CadPoint worldPoint)
     {
         if (!IsInteractiveToolMode(CurrentToolMode))
@@ -2088,8 +2618,6 @@ public sealed partial class CadEditorViewModel : ObservableObject
         return CurrentToolMode switch
         {
             WindowToolMode.Sash => BeginSashDrag(worldPoint),
-            WindowToolMode.Handle => BeginHandleHover(worldPoint),
-            WindowToolMode.Hardware => FindSashAt(worldPoint) != null,
             _ => false
         };
     }
@@ -2128,8 +2656,6 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return CurrentToolMode switch
             {
                 WindowToolMode.Sash => EndSashDrag(worldPoint),
-                WindowToolMode.Hardware => PlaceHardwareOnSash(worldPoint),
-                WindowToolMode.Handle => PlaceHandleOnSash(worldPoint),
                 _ => false
             };
         }
@@ -2171,14 +2697,6 @@ public sealed partial class CadEditorViewModel : ObservableObject
         return true;
     }
 
-    private bool BeginHandleHover(CadPoint worldPoint)
-    {
-        var sash = FindSashAt(worldPoint);
-        HandlePreviewSashId = sash?.Id;
-        OnPropertyChanged(nameof(HandlePreviewSashId));
-        return sash is not null;
-    }
-
     private bool EndSashDrag(CadPoint worldPoint)
     {
         if (!_isCanvasDragging || _interactionStartWorld is not CadPoint start || _interactionLeaf is not FrameNode leaf)
@@ -2203,42 +2721,6 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         CanvasElements.Add(sash);
         StatusText = "Створка создана";
-        RequestSceneRefresh();
-        return true;
-    }
-
-    private bool PlaceHardwareOnSash(CadPoint worldPoint)
-    {
-        var sash = FindSashAt(worldPoint);
-        if (sash is null)
-        {
-            StatusText = "Кликните по активной створке";
-            return false;
-        }
-
-        if (sash.HasHardware)
-        {
-            StatusText = "Фурнитура уже установлена";
-            return false;
-        }
-
-        sash.HasHardware = true;
-        StatusText = "Фурнитура установлена";
-        RequestSceneRefresh();
-        return true;
-    }
-
-    private bool PlaceHandleOnSash(CadPoint worldPoint)
-    {
-        var sash = FindSashAt(worldPoint);
-        if (sash is null)
-        {
-            StatusText = "Кликните по створке";
-            return false;
-        }
-
-        sash.HasHandle = true;
-        StatusText = "Ручка установлена";
         RequestSceneRefresh();
         return true;
     }
@@ -2346,7 +2828,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
     }
 
     private static bool IsInteractiveToolMode(WindowToolMode mode) =>
-        mode is WindowToolMode.Sash or WindowToolMode.Hardware or WindowToolMode.Handle;
+        mode is WindowToolMode.Sash;
 
     private CadPoint SnapWorldPoint(CadPoint point)
     {

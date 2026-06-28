@@ -1,4 +1,5 @@
-﻿using Avalonia;
+﻿using System.ComponentModel;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -42,6 +43,9 @@ public sealed class CadCanvasControl : Control
     private static readonly Pen MajorGridPen = new(new SolidColorBrush(Color.FromArgb(150, 224, 224, 224)), 1);
     private static readonly IBrush AxisBrush = new SolidColorBrush(Color.Parse("#64748B"));
     private static readonly Pen AxisPen = new(AxisBrush, 1.2);
+    private static readonly Cursor PanHandCursor = new(StandardCursorType.Hand);
+    private static readonly Cursor PanDragCursor = new(StandardCursorType.SizeAll);
+    private static readonly Cursor DefaultCanvasCursor = new(StandardCursorType.Arrow);
 
     private Point? _lastPanPoint;
     private bool _isPanning;
@@ -61,6 +65,55 @@ public sealed class CadCanvasControl : Control
     {
         Focusable = true;
         ClipToBounds = true;
+    }
+
+    static CadCanvasControl()
+    {
+        EditorProperty.Changed.AddClassHandler<CadCanvasControl>((control, e) =>
+        {
+            if (e.OldValue is CadEditorViewModel oldEditor)
+            {
+                oldEditor.PropertyChanged -= control.OnEditorPropertyChanged;
+            }
+
+            if (e.NewValue is CadEditorViewModel newEditor)
+            {
+                newEditor.PropertyChanged += control.OnEditorPropertyChanged;
+            }
+
+            control.UpdateInteractionCursor(control._isPanning);
+        });
+    }
+
+    private void OnEditorPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(CadEditorViewModel.CurrentToolMode))
+        {
+            UpdateInteractionCursor(_isPanning);
+        }
+    }
+
+    private void UpdateInteractionCursor(bool isDragging)
+    {
+        if (Editor?.CurrentToolMode == WindowToolMode.PanView)
+        {
+            Cursor = isDragging ? PanDragCursor : PanHandCursor;
+            return;
+        }
+
+        Cursor = DefaultCanvasCursor;
+    }
+
+    protected override void OnPointerEntered(PointerEventArgs e)
+    {
+        base.OnPointerEntered(e);
+        UpdateInteractionCursor(_isPanning);
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        Cursor = DefaultCanvasCursor;
     }
 
     public override void Render(DrawingContext context)
@@ -178,11 +231,12 @@ public sealed class CadCanvasControl : Control
         }
 
         var sash = Editor.CanvasElements.FirstOrDefault(e => e.Id == sashId && e.Kind == GeometryElementKind.Sash);
-        if (sash?.HingeSide is not SashHingeSide hingeSide)
+        if (sash is null)
         {
             return;
         }
 
+        var hingeSide = sash.HingeSide ?? SashHingeSide.Left;
         SashElementRenderer.DrawHandleMarker(context, Editor, sash, hingeSide, preview: true);
     }
 
@@ -290,6 +344,35 @@ public sealed class CadCanvasControl : Control
             return;
         }
 
+        if (Editor.CurrentToolMode == WindowToolMode.PanView && properties.IsLeftButtonPressed)
+        {
+            _isPanning = true;
+            _lastPanPoint = point;
+            UpdateInteractionCursor(isDragging: true);
+            e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
+
+        if (Editor.CurrentToolMode == WindowToolMode.ZoomView)
+        {
+            var screenPoint = new ScreenPoint(point.X, point.Y);
+            if (properties.IsLeftButtonPressed)
+            {
+                Editor.Viewport.ZoomAt(screenPoint, 1.25);
+            }
+            else if (properties.IsRightButtonPressed)
+            {
+                Editor.Viewport.ZoomAt(screenPoint, 1 / 1.25);
+            }
+
+            Editor.UpdateCursor(Editor.Viewport.ScreenToWorld(screenPoint));
+            Editor.RequestSceneRefresh();
+            e.Handled = true;
+            InvalidateVisual();
+            return;
+        }
+
         if (Editor != null && IsDragCreateShapeTool(Editor.CurrentToolMode))
         {
             if (properties.IsRightButtonPressed)
@@ -314,6 +397,27 @@ public sealed class CadCanvasControl : Control
         }
 
         var cadEvent = ToCadEvent(point, e.KeyModifiers);
+
+        if (Editor != null && Editor.CurrentToolMode == WindowToolMode.Hardware && properties.IsLeftButtonPressed)
+        {
+            if (Editor.TryCycleSashHardware(cadEvent.WorldPoint))
+            {
+                e.Handled = true;
+                InvalidateVisual();
+                return;
+            }
+        }
+
+        if (Editor != null && Editor.CurrentToolMode == WindowToolMode.Handle && properties.IsLeftButtonPressed)
+        {
+            if (Editor.TryToggleSashHandle(cadEvent.WorldPoint))
+            {
+                e.Handled = true;
+                InvalidateVisual();
+                return;
+            }
+        }
+
         if (Editor?.TryBeginPointerInteraction(cadEvent.WorldPoint) == true)
         {
             e.Pointer.Capture(this);
@@ -375,6 +479,7 @@ public sealed class CadCanvasControl : Control
         var point = e.GetPosition(this);
         var worldPoint = Editor.Viewport.ScreenToWorld(new ScreenPoint(point.X, point.Y));
         Editor.UpdateCursor(worldPoint);
+        UpdateInteractionCursor(_isPanning);
 
         if (_isDrawingFrame)
         {
@@ -401,8 +506,13 @@ public sealed class CadCanvasControl : Control
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
+        var wasPanning = _isPanning;
         _isPanning = false;
         _lastPanPoint = null;
+        if (wasPanning)
+        {
+            UpdateInteractionCursor(isDragging: false);
+        }
 
         if (_isDrawingFrame)
         {

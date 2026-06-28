@@ -160,21 +160,30 @@ internal static class SashGeometry
     public static InnerOpeningBounds ResolveLeafInnerOpeningBounds(
         FrameNode leaf,
         FrameNode? frameRoot,
+        double frameThickness) =>
+        ResolveNodeInnerOpeningBounds(leaf, frameRoot, frameThickness);
+
+    /// <summary>
+    /// Внутренний световой контур ячейки (листа или узла перед сплитом) с учётом фальца рамы и осей импостов-предков.
+    /// </summary>
+    public static InnerOpeningBounds ResolveNodeInnerOpeningBounds(
+        FrameNode node,
+        FrameNode? frameRoot,
         double frameThickness)
     {
         var inner = new InnerOpeningBounds
         {
-            Left = leaf.X,
-            Bottom = leaf.Y,
-            Right = leaf.X + leaf.Width,
-            Top = leaf.Y + leaf.Height
+            Left = node.X,
+            Bottom = node.Y,
+            Right = node.X + node.Width,
+            Top = node.Y + node.Height
         };
 
-        ApplyImpostAxisEdges(leaf, ref inner);
+        ApplyImpostAxisEdges(node, ref inner);
 
         if (frameRoot is not null)
         {
-            PinFrameInnerEdges(leaf, frameRoot, frameThickness, ref inner);
+            PinFrameInnerEdges(node, frameRoot, frameThickness, ref inner);
         }
 
         return RoundBounds(inner);

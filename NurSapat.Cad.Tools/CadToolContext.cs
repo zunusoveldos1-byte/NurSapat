@@ -1,6 +1,7 @@
 using NurSapat.Cad.Core.Commands;
 using NurSapat.Cad.Core.Document;
 using NurSapat.Cad.Core.Geometry;
+using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.Core.Snapping;
 using NurSapat.Cad.Core.Viewport;
 
@@ -38,6 +39,18 @@ public sealed class CadToolContext
     public Func<bool>? TryChangeOverallDimensions { get; set; }
     public Func<CadPoint, CadSelectionMode, CadSelectionTarget?>? HitTestSelection { get; set; }
     public Action<CadSelectionTarget>? SelectTarget { get; set; }
+
+    public Func<FrameNode?>? GetFrameRoot { get; set; }
+
+    public Func<double, double>? SnapAxis { get; set; }
+
+    public Action<CadPoint>? UpdateVerticalImpostHover { get; set; }
+
+    public Func<CadPoint, bool>? TryBeginVerticalImpostDrag { get; set; }
+
+    public Action<CadPoint>? UpdateVerticalImpostDrag { get; set; }
+
+    public Action? EndVerticalImpostDrag { get; set; }
 
     public CadToolContext(CadDocument document, CadCommandManager commands, CadSnappingEngine snapping)
     {

@@ -84,6 +84,22 @@ public enum WindowToolMode
     /// <summary>Ручка.</summary>
     Handle,
 
+    // CAD-редактирование (панель инструментов)
+    /// <summary>Сместить импост вертикально.</summary>
+    OffsetImpostVertical,
+
+    /// <summary>Сместить импост горизонтально.</summary>
+    OffsetImpostHorizontal,
+
+    /// <summary>Выравнивание импостов.</summary>
+    AlignImposts,
+
+    /// <summary>Выравнивание стеклопакетов.</summary>
+    AlignGlazingUnits,
+
+    /// <summary>Выравнивание глухих просветов.</summary>
+    AlignDeadLights,
+
     // Системные
     /// <summary>Разделитель панели инструментов.</summary>
     Separator,

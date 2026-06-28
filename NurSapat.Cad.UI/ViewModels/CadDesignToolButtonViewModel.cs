@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using NurSapat.Cad.Core.Models;
 
 namespace NurSapat.Cad.UI.ViewModels;
@@ -21,7 +22,25 @@ public enum DesignToolIcon
     RealHorizontalImpost,
     DoubleVerticalImpost,
     DoubleHorizontalImpost,
-    SlantedImpost
+    SlantedImpost,
+    Selection,
+    UndoLast,
+    UndoGlobal,
+    SelectObject,
+    SelectProfile,
+    SelectVertex,
+    Zoom,
+    Hand,
+    ZoomFit,
+    ArchHeight,
+    Resize,
+    Trash,
+    ClearAll,
+    MoveMullionVertical,
+    MoveMullionHorizontal,
+    AlignMullions,
+    AlignGlassUnits,
+    AlignClearOpenings
 }
 
 public sealed partial class CadDesignToolButtonViewModel : ObservableObject
@@ -30,12 +49,14 @@ public sealed partial class CadDesignToolButtonViewModel : ObservableObject
         WindowToolMode mode,
         string title,
         DesignToolIcon icon = DesignToolIcon.FakeFrame,
+        IRelayCommand? command = null,
         bool isPlaceholder = false,
         bool isSeparator = false)
     {
         Mode = mode;
         Title = title;
         Icon = icon;
+        Command = command;
         IsPlaceholder = isPlaceholder;
         IsSeparator = isSeparator;
     }
@@ -45,6 +66,12 @@ public sealed partial class CadDesignToolButtonViewModel : ObservableObject
     public string Title { get; }
 
     public DesignToolIcon Icon { get; }
+
+    public IRelayCommand? Command { get; }
+
+    public bool IsCommandButton => Command != null;
+
+    public bool IsModeButton => !IsSeparator && !IsCommandButton;
 
     public bool IsPlaceholder { get; }
 

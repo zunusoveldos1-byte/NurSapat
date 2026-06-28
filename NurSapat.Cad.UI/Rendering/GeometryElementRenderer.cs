@@ -512,11 +512,11 @@ public static class GeometryElementRenderer
         out IReadOnlyList<double> segmentWidthsMm,
         out IReadOnlyList<double> boundaryWorldX)
     {
-        var segments = new List<(double LeftX, double Width)>();
-        CollectBottomRowLeafSegments(root, segments);
-        segments.Sort((a, b) => a.LeftX.CompareTo(b.LeftX));
+        var axes = new List<double>();
+        CollectVerticalImpostAxes(root, axes);
+        axes.Sort();
 
-        if (segments.Count <= 1)
+        if (axes.Count == 0)
         {
             segmentWidthsMm = Array.Empty<double>();
             boundaryWorldX = Array.Empty<double>();
@@ -527,19 +527,13 @@ public static class GeometryElementRenderer
         var externalRight = root.X + root.Width;
 
         var boundaries = new List<double> { externalLeft };
-        for (var i = 0; i < segments.Count - 1; i++)
-        {
-            var gapStart = segments[i].LeftX + segments[i].Width;
-            var gapEnd = segments[i + 1].LeftX;
-            boundaries.Add((gapStart + gapEnd) / 2.0);
-        }
-
+        boundaries.AddRange(axes);
         boundaries.Add(externalRight);
 
         var widths = new List<double>();
         for (var i = 0; i < boundaries.Count - 1; i++)
         {
-            widths.Add(boundaries[i + 1] - boundaries[i]);
+            widths.Add(CadMath.RoundMm(boundaries[i + 1] - boundaries[i]));
         }
 
         segmentWidthsMm = widths;
@@ -547,34 +541,32 @@ public static class GeometryElementRenderer
         return true;
     }
 
-    private static void CollectBottomRowLeafSegments(FrameNode node, List<(double LeftX, double Width)> segments)
+    private static void CollectVerticalImpostAxes(FrameNode node, List<double> axes)
     {
-        if (node.IsLeaf)
+        if (!node.IsLeaf)
         {
-            segments.Add((node.X, node.Width));
-            return;
+            if (node.IsUniformSplit && node.SplitOrientation == SplitOrientation.Vertical)
+            {
+                for (var i = 0; i < node.UniformCells.Count - 1; i++)
+                {
+                    if (node.TryGetUniformImpostAxisWorld(SplitOrientation.Vertical, i, out var axis))
+                    {
+                        axes.Add(axis);
+                    }
+                }
+            }
+            else if (node.SplitOrientation == SplitOrientation.Vertical
+                     && node.TryGetVerticalImpostAxisWorldX(out var axis))
+            {
+                axes.Add(axis);
+            }
         }
 
-        if (node.IsUniformSplit && node.SplitOrientation == SplitOrientation.Vertical)
+        if (node.IsUniformSplit)
         {
             foreach (var cell in node.UniformCells)
             {
-                segments.Add((cell.X, cell.Width));
-            }
-
-            return;
-        }
-
-        if (node.SplitOrientation == SplitOrientation.Vertical)
-        {
-            if (node.ChildA != null)
-            {
-                CollectBottomRowLeafSegments(node.ChildA, segments);
-            }
-
-            if (node.ChildB != null)
-            {
-                CollectBottomRowLeafSegments(node.ChildB, segments);
+                CollectVerticalImpostAxes(cell, axes);
             }
 
             return;
@@ -582,7 +574,12 @@ public static class GeometryElementRenderer
 
         if (node.ChildA != null)
         {
-            CollectBottomRowLeafSegments(node.ChildA, segments);
+            CollectVerticalImpostAxes(node.ChildA, axes);
+        }
+
+        if (node.ChildB != null)
+        {
+            CollectVerticalImpostAxes(node.ChildB, axes);
         }
     }
 

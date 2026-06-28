@@ -12,6 +12,7 @@ public static class FrameNodeRenderer
     private static readonly IBrush FrameStrokeBrush = new SolidColorBrush(FrameVolumeRenderer.ProfileStrokeColor);
     private static readonly IPen DashedPen = new Pen(FrameStrokeBrush, 1.5, new DashStyle(new double[] { 5, 3 }, 0));
     private static readonly IPen SolidPen = new Pen(FrameStrokeBrush, 1.5);
+    private static readonly IPen HighlightPen = new Pen(new SolidColorBrush(Color.Parse("#FF0404")), 2.0);
 
     public static void DrawImposts(DrawingContext context, CadEditorViewModel editor, FrameNode? root)
     {
@@ -65,12 +66,11 @@ public static class FrameNodeRenderer
         }
 
         var pen = node.LineStyle == ImpostLineStyle.Dashed ? DashedPen : SolidPen;
-        var frameInset = ResolveFrameProfileInset(editor, node);
         var thickness = ResolveImpostThickness(node);
 
         if (node.SplitOrientation == SplitOrientation.Vertical)
         {
-            var (yBottom, yTop) = ResolveVerticalSpan(node, frameInset);
+            var (yBottom, yTop) = ResolveVerticalImpostSpan(editor, node);
             for (var i = 0; i < cells.Count - 1; i++)
             {
                 if (!TryResolveUniformVerticalImpostBounds(node, i, out var left, out var right))
@@ -83,7 +83,7 @@ public static class FrameNodeRenderer
         }
         else
         {
-            var (xLeft, xRight) = ResolveHorizontalSpan(node, frameInset);
+            var (xLeft, xRight) = ResolveHorizontalImpostSpan(editor, node);
             for (var i = 0; i < cells.Count - 1; i++)
             {
                 if (!TryResolveHorizontalImpostBounds(
@@ -108,9 +108,8 @@ public static class FrameNodeRenderer
             return;
         }
 
-        var pen = node.LineStyle == ImpostLineStyle.Dashed ? DashedPen : SolidPen;
-        var frameInset = ResolveFrameProfileInset(editor, node);
-        var (yBottom, yTop) = ResolveVerticalSpan(node, frameInset);
+        var pen = ResolveImpostPen(editor, node);
+        var (yBottom, yTop) = ResolveVerticalImpostSpan(editor, node);
         DrawVerticalProfileVolume(context, editor, left, right, yBottom, yTop, pen);
     }
 
@@ -122,8 +121,7 @@ public static class FrameNodeRenderer
         }
 
         var pen = node.LineStyle == ImpostLineStyle.Dashed ? DashedPen : SolidPen;
-        var frameInset = ResolveFrameProfileInset(editor, node);
-        var (xLeft, xRight) = ResolveHorizontalSpan(node, frameInset);
+        var (xLeft, xRight) = ResolveHorizontalImpostSpan(editor, node);
         DrawHorizontalProfileVolume(context, editor, xLeft, xRight, bottom, top, pen);
     }
 
@@ -132,9 +130,16 @@ public static class FrameNodeRenderer
             ? node.ImpostThicknessMm
             : FrameNode.DefaultImpostProfileMm;
 
-    /// <summary>
-    /// Ось импоста = засечка размера; визуально расширен вправо под нахлест створки.
-    /// </summary>
+    private static IPen ResolveImpostPen(CadEditorViewModel editor, FrameNode node)
+    {
+        if (editor.IsVerticalImpostHighlighted(node))
+        {
+            return HighlightPen;
+        }
+
+        return node.LineStyle == ImpostLineStyle.Dashed ? DashedPen : SolidPen;
+    }
+
     private static bool TryResolveVerticalImpostBounds(FrameNode node, out double left, out double right)
     {
         left = right = 0;
@@ -161,6 +166,9 @@ public static class FrameNodeRenderer
         return TryResolveVerticalImpostRenderBounds(centerX, ResolveImpostThickness(node), out left, out right);
     }
 
+    /// <summary>
+    /// Ось импоста = засечка размера; профиль симметричен относительно оси.
+    /// </summary>
     private static bool TryResolveVerticalImpostRenderBounds(
         double centerX,
         double thickness,
@@ -175,7 +183,7 @@ public static class FrameNodeRenderer
 
         var half = thickness / 2.0;
         left = CadMath.RoundMm(centerX - half);
-        right = CadMath.RoundMm(centerX + thickness);
+        right = CadMath.RoundMm(centerX + half);
         return right - left > CadMath.Epsilon;
     }
 
@@ -215,40 +223,48 @@ public static class FrameNodeRenderer
         return top - bottom > CadMath.Epsilon;
     }
 
-    private static (double Bottom, double Top) ResolveVerticalSpan(FrameNode node, double frameInset)
+    private static (double Bottom, double Top) ResolveVerticalImpostSpan(CadEditorViewModel editor, FrameNode splitNode)
     {
-        var yBottom = node.Y + frameInset;
-        var yTop = node.Y + node.Height - frameInset;
-        if (yTop <= yBottom)
+        if (editor.FrameRoot is null)
         {
-            yBottom = node.Y;
-            yTop = node.Y + node.Height;
+            return (splitNode.Y, splitNode.Y + splitNode.Height);
         }
 
-        return (yBottom, yTop);
+        var inner = SashGeometry.ResolveNodeInnerOpeningBounds(
+            splitNode,
+            editor.FrameRoot,
+            editor.FrameThickness);
+
+        if (inner.Height <= CadMath.Epsilon)
+        {
+            return (splitNode.Y, splitNode.Y + splitNode.Height);
+        }
+
+        return (
+            CadMath.RoundMm(Math.Clamp(inner.Bottom, splitNode.Y, splitNode.Y + splitNode.Height)),
+            CadMath.RoundMm(Math.Clamp(inner.Top, splitNode.Y, splitNode.Y + splitNode.Height)));
     }
 
-    private static (double Left, double Right) ResolveHorizontalSpan(FrameNode node, double frameInset)
+    private static (double Left, double Right) ResolveHorizontalImpostSpan(CadEditorViewModel editor, FrameNode splitNode)
     {
-        var xLeft = node.X + frameInset;
-        var xRight = node.X + node.Width - frameInset;
-        if (xRight <= xLeft)
+        if (editor.FrameRoot is null)
         {
-            xLeft = node.X;
-            xRight = node.X + node.Width;
+            return (splitNode.X, splitNode.X + splitNode.Width);
         }
 
-        return (xLeft, xRight);
-    }
+        var inner = SashGeometry.ResolveNodeInnerOpeningBounds(
+            splitNode,
+            editor.FrameRoot,
+            editor.FrameThickness);
 
-    private static double ResolveFrameProfileInset(CadEditorViewModel editor, FrameNode node)
-    {
-        if (node.Parent != null)
+        if (inner.Width <= CadMath.Epsilon)
         {
-            return 0;
+            return (splitNode.X, splitNode.X + splitNode.Width);
         }
 
-        return FrameProfileGeometry.ResolveInnerInset(node.Width, node.Height, editor.FrameThickness);
+        return (
+            CadMath.RoundMm(Math.Clamp(inner.Left, splitNode.X, splitNode.X + splitNode.Width)),
+            CadMath.RoundMm(Math.Clamp(inner.Right, splitNode.X, splitNode.X + splitNode.Width)));
     }
 
     private static void DrawVerticalProfileVolume(
