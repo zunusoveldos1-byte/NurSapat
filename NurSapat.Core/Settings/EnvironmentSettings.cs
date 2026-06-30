@@ -10,12 +10,15 @@ public sealed class EnvironmentSettings
 
     public string LogsPath { get; init; }
 
+    public string AppDataPath { get; init; }
+
     public EnvironmentSettings()
     {
         var root = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "NurSapat");
 
+        AppDataPath = root;
         DbPath = Path.Combine(root, "db");
         DocumentsPath = Path.Combine(root, "documents");
         SketchesPath = Path.Combine(root, "sketches");
@@ -24,6 +27,7 @@ public sealed class EnvironmentSettings
 
     public EnvironmentSettings(string dbPath, string documentsPath, string sketchesPath, string logsPath)
     {
+        AppDataPath = Path.GetDirectoryName(dbPath) ?? dbPath;
         DbPath = dbPath;
         DocumentsPath = documentsPath;
         SketchesPath = sketchesPath;

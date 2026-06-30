@@ -4,7 +4,16 @@ public static class CadMath
 {
     public const double Epsilon = 0.000001;
 
+    /// <summary>Округление до сотых долей миллиметра (стандарт CAD).</summary>
+    public const double MmPrecision = 0.01;
+
     public static double Clamp(double value, double min, double max) => Math.Min(max, Math.Max(min, value));
+
+    public static double RoundMm(double value) =>
+        Math.Round(value, 2, MidpointRounding.AwayFromZero);
+
+    public static bool NearlyEqual(double a, double b, double tolerance = MmPrecision) =>
+        Math.Abs(a - b) <= tolerance;
 
     public static CadPoint? Intersect(CadLine a, CadLine b)
     {

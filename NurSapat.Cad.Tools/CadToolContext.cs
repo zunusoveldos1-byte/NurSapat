@@ -1,77 +1,73 @@
 using NurSapat.Cad.Core.Commands;
 using NurSapat.Cad.Core.Document;
 using NurSapat.Cad.Core.Geometry;
-using NurSapat.Cad.Core.Parametric;
+using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.Core.Snapping;
+using NurSapat.Cad.Core.Viewport;
 
 namespace NurSapat.Cad.Tools;
 
 public sealed class CadToolContext
 {
     public CadDocument Document { get; }
-
-    public CadCommandManager Commands { get; }
-
+    public CadCommandManager CommandManager { get; }
     public CadSnappingEngine Snapping { get; }
+    public CadViewport Viewport { get; set; } = null!;
+    public Action? Invalidate { get; set; }
+    public Action<CadPoint>? InvokeSizeInput { get; set; }
+    public Action<DesignPlacementCommit>? CommitPlacement { get; set; }
+    public string? ActiveDesignToolId { get; set; }
+    public string? ActiveDesignToolLabel { get; set; }
+    public Func<CadPoint, CadPoint>? SnapPoint { get; set; }
 
-    public WindowSection? HoveredSection { get; private set; }
+    /// <summary>Толщина профиля рамы (мм) для расчёта светового проёма.</summary>
+    public double FrameProfileThickness { get; set; } = 70;
 
-    public Action<string, string, string>? Track { get; init; }
+    /// <summary>Активный режим выделения (для инструментов группы 2).</summary>
+    public CadSelectionMode ActiveSelectionMode { get; set; }
+
+    /// <summary>Подсвечиваемая цель при наведении в режиме выделения.</summary>
+    public CadSelectionTarget? HighlightedTarget { get; set; }
+
+    public Action<string>? SetStatus { get; set; }
+
+    public Func<bool>? TryUndo { get; set; }
+    public Func<bool>? TryDeleteLastPlaced { get; set; }
+    public Func<bool>? TryDeleteSelection { get; set; }
+    public Func<bool>? TryClearConstruction { get; set; }
+    public Func<CadPoint, (double X, double Y)?>? ShowVertexCoordinateDialog { get; set; }
+    public Func<bool>? TryChangeOverallDimensions { get; set; }
+    public Func<CadPoint, CadSelectionMode, CadSelectionTarget?>? HitTestSelection { get; set; }
+    public Action<CadSelectionTarget>? SelectTarget { get; set; }
+
+    public Func<FrameNode?>? GetFrameRoot { get; set; }
+
+    public Func<double, double>? SnapAxis { get; set; }
 
     public CadToolContext(CadDocument document, CadCommandManager commands, CadSnappingEngine snapping)
     {
         Document = document;
-        Commands = commands;
+        CommandManager = commands;
         Snapping = snapping;
     }
 
-    public WindowSection? HitTest(CadPoint point)
+    // Простой HitTest для прямоугольников (вместо сложного из Parametric)
+    public CadRect? HitTest(CadPoint point)
     {
-        if (Document.Structure.HitTestImpost(point, Math.Max(5, Snapping.ToleranceWorld), out var impostOwner) && impostOwner != null)
+        // Ищем первый прямоугольник, содержащий точку
+        foreach (var rect in Document.Rectangles)
         {
-            Document.Structure.SelectImpost(impostOwner.Id);
-            HoveredSection = null;
-            return null;
+            if (rect.Contains(point))
+                return rect;
         }
-
-        HoveredSection = Document.Structure.HitTestLeaf(point);
-        if (HoveredSection != null)
-        {
-            Document.Structure.SelectSection(HoveredSection.Id);
-        }
-        else
-        {
-            Document.Structure.SelectFrame();
-        }
-
-        return HoveredSection;
+        return null;
     }
 
-    public void InitializeFrame(double width, double height, bool hiddenProfile)
+    public IReadOnlyList<CadRect> SelectWithin(CadRect selectionBounds)
     {
-        Document.Structure.InitializeFrame(width, height, hiddenProfile);
-        Track?.Invoke(hiddenProfile ? "Коробка фиктивная" : "Коробка", $"Инициализация конструкции {width:0}x{height:0} мм", "Успешно");
-    }
-
-    public void SplitSelected(SectionSplitOrientation orientation, CadPoint point)
-    {
-        Document.Structure.SplitSelected(orientation, point);
-        Track?.Invoke(
-            orientation == SectionSplitOrientation.Vertical ? "Импост вертикальный" :
-            orientation == SectionSplitOrientation.Horizontal ? "Импост горизонтальный" : "Импост наклонный",
-            "Деление выбранного проема",
-            "Успешно");
-    }
-
-    public void ApplyFill(SectionFillKind kind)
-    {
-        Document.Structure.ApplyFillToSelected(kind);
-        Track?.Invoke(kind.ToString(), "Заполнение выбранного проема", "Успешно");
-    }
-
-    public void AddHardware(SashHardwareModifier modifier)
-    {
-        Document.Structure.AddHardwareToSelected(modifier);
-        Track?.Invoke(modifier.ToString(), "Добавление фурнитурного модификатора створки", "Успешно");
+        var selected = Document.Rectangles
+            .Where(rect => rect.Intersects(selectionBounds))
+            .ToArray();
+        return selected;
     }
 }

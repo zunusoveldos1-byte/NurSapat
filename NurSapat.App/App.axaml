@@ -16,6 +16,7 @@
 
 	<Application.Styles>
 		<FluentTheme />
+		<StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
 		<StyleInclude Source="/Styles/ButtonStyles.axaml"/>
 
 		<!-- Базовое состояние -->
@@ -63,8 +64,14 @@
 		<DataTemplate DataType="vm:WorkspaceSectionViewModel">
 			<views:WorkspaceSectionView/>
 		</DataTemplate>
-		<DataTemplate DataType="vm:OrderEditViewModel">
-			<views:OrderEditView/>
+		<DataTemplate DataType="vm:OrderSheetViewModel">
+			<views:OrderSheetView/>
+		</DataTemplate>
+		<DataTemplate DataType="vm:OrderDrawingViewModel">
+			<views:OrderDrawingView/>
+		</DataTemplate>
+		<DataTemplate DataType="vm:AdditionalDashboardViewModel">
+			<views:AdditionalDashboardView/>
 		</DataTemplate>
 		<DataTemplate DataType="vm:ProductionOptionsViewModel">
 			<views:ProductionOptionsView/>
@@ -80,6 +87,10 @@
 		</DataTemplate>
 		<DataTemplate DataType="cadVm:CadEditorViewModel">
 			<cadViews:CadEditorView/>
+		</DataTemplate>
+		<!-- ДОБАВЛЕНО: Шаблон для MaterialsViewModel -->
+		<DataTemplate DataType="vm:MaterialsViewModel">
+			<views:MaterialsView/>
 		</DataTemplate>
 	</Application.DataTemplates>
 </Application>

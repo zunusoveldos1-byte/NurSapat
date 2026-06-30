@@ -7,12 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="12.0.4" />
+    <PackageReference Include="Avalonia" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Headless" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="12.0.5" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Material.Icons.Avalonia" Version="3.0.2" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\NurSapat.Core\NurSapat.Core.csproj" />
     <ProjectReference Include="..\NurSapat.Cad.Core\NurSapat.Cad.Core.csproj" />
     <ProjectReference Include="..\NurSapat.Cad.Tools\NurSapat.Cad.Tools.csproj" />
   </ItemGroup>

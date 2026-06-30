@@ -8,11 +8,16 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Opened += OnOpened;
     }
 
     public MainWindow(LoginViewModel viewModel) : this()
     {
         DataContext = viewModel;
-        viewModel.LoginSucceeded += (_, _) => Close();
+    }
+
+    private void OnOpened(object? sender, EventArgs e)
+    {
+        RootBorder.Opacity = 1;
     }
 }

@@ -1,14 +1,8 @@
-using CommunityToolkit.Mvvm.ComponentModel;
-using NurSapat.Cad.UI.ViewModels;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace NurSapat.App.ViewModels;
 
 public sealed partial class OrderEditViewModel : ObservableObject
 {
-    public OrderCalculationState Calculation { get; }
-
-    public OrderEditViewModel(OrderCalculationState calculation)
-    {
-        Calculation = calculation;
-    }
+    // Заглушка: нет зависимостей, не привязан к CAD-редактору
 }
