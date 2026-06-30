@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Project;
 using System.Collections.ObjectModel;
+using System.Runtime.Versioning;
 
 namespace NurSapat.App.ViewModels;
 
@@ -95,7 +96,7 @@ public sealed partial class PrintDialogViewModel : ObservableObject
         {
             if (OperatingSystem.IsWindows())
             {
-                foreach (string printer in System.Drawing.Printing.PrinterSettings.InstalledPrinters)
+                foreach (string printer in GetWindowsInstalledPrinters())
                 {
                     Printers.Add(printer);
                 }
@@ -107,5 +108,14 @@ public sealed partial class PrintDialogViewModel : ObservableObject
         }
 
         SelectedPrinter = Printers.FirstOrDefault();
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static IEnumerable<string> GetWindowsInstalledPrinters()
+    {
+        foreach (string printer in System.Drawing.Printing.PrinterSettings.InstalledPrinters)
+        {
+            yield return printer;
+        }
     }
 }

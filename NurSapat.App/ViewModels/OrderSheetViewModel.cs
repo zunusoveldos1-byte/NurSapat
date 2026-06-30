@@ -1,7 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NurSapat.App.Services.Documents;
+using NurSapat.App.Views.Dialogs;
 using NurSapat.Cad.Core.Viewport;
+using NurSapat.Cad.UI.Dialogs;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Calculations;
 using NurSapat.Core.Models;
@@ -9,19 +11,32 @@ using NurSapat.Core.Models.Calculation;
 using NurSapat.Core.Models.Orders;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using Avalonia.Controls;
 
 namespace NurSapat.App.ViewModels;
 
 public sealed partial class OrderSheetViewModel : ViewModelBase
 {
+    public const int PageSize = 3;
+
+    private const double WeightKgPerSqM = 25.0;
+    private const decimal FallbackAreaPricePerSqM = 5_000m;
+
+    private readonly OrderWorkspaceViewModel _workspace;
     private readonly OrderCalculationService _calculationService = new();
     private IDocumentManager? _documentManager;
+    private readonly List<OrderConstructionLookupItemViewModel> _allConstructionCards = [];
+    private bool _suppressPageChangedRefresh;
 
     public CadEditorViewModel PreviewEditor { get; }
 
     public Order Order { get; }
 
     public ObservableCollection<OrderConstruction> Constructions { get; } = new();
+
+    public ObservableCollection<ConstructionModel> ConstructionModels { get; } = new();
+
+    public ObservableCollection<OrderConstructionLookupItemViewModel> PagedConstructionCards { get; } = new();
 
     public ObservableCollection<MaterialQuantityLine> MaterialLines { get; } = new();
 
@@ -41,11 +56,269 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
     private OrderConstruction? _selectedConstruction;
 
     [ObservableProperty]
+    private ConstructionModel? _selectedConstructionModel;
+
+    [ObservableProperty]
+    private int _totalCount;
+
+    [ObservableProperty]
+    private double _totalArea;
+
+    [ObservableProperty]
+    private double _totalWeight;
+
+    [ObservableProperty]
+    private decimal _totalPrice;
+
+    public ObservableCollection<string> Managers { get; } =
+    [
+        "Иванов И.И.",
+        "Петров П.П.",
+        "Сидоров А.А."
+    ];
+
+    public ObservableCollection<string> Supervisors { get; } =
+    [
+        "Петров П.П.",
+        "Козлов В.В.",
+        "Нурбеков Э.Э."
+    ];
+
+    public ObservableCollection<string> Currencies { get; } =
+    [
+        "KGS",
+        "USD",
+        "RUB",
+        "EUR"
+    ];
+
+    private DateTimeOffset? _lastAutosaveAt;
+
+    public decimal AmountPaid
+    {
+        get => Payment.PaidAmount;
+        set
+        {
+            if (Payment.PaidAmount == value)
+            {
+                return;
+            }
+
+            Payment.PaidAmount = value;
+            OnPropertyChanged();
+            NotifyPaymentDerivedProperties();
+            RecalculateOrderTotals();
+            ProjectModified?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public string SelectedCurrency
+    {
+        get => Payment.CurrencyCode;
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value) || Payment.CurrencyCode == value)
+            {
+                return;
+            }
+
+            Payment.CurrencyCode = value;
+            Header.CurrencyCode = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CurrencyCode));
+            OnPropertyChanged(nameof(TotalPriceDisplay));
+            OnPropertyChanged(nameof(AmountLeftToPayDisplay));
+            NotifyPaymentDerivedProperties();
+            ProjectModified?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public decimal AmountLeftToPay => Math.Max(0, TotalPrice - AmountPaid);
+
+    public string AmountLeftToPayDisplay => $"{AmountLeftToPay:N2} {SelectedCurrency}";
+
+    public decimal AmountToPay => AmountLeftToPay;
+
+    public string AmountToPayDisplay => AmountLeftToPayDisplay;
+
+    public double PaymentPercentage => TotalPrice > 0
+        ? Math.Min(100, (double)(AmountPaid / TotalPrice) * 100)
+        : 0;
+
+    public string PaymentPercentageDisplay => $"{Math.Round(PaymentPercentage)}%";
+
+    public string ProfileType => ActiveConstruction.ProfileDisplay;
+
+    public string ProfileColor => ActiveProfileColorDisplay;
+
+    public string GlassPacket => ActiveConstruction.GlazingDisplay;
+
+    public string Hardware => ActiveConstruction.HardwareDisplay;
+
+    public string SaveStatusBulletText => $"• {SaveStatusShortText}";
+
+    public bool IsUnsavedChanges => _documentManager?.IsModified == true;
+
+    public string SaveStatusShortText => IsAutoSaving
+        ? "Сохранение..."
+        : IsUnsavedChanges
+            ? "Есть несохранённые изменения"
+            : "Изменения сохранены";
+
+    public string LastAutosaveTimeDisplay => _lastAutosaveAt is null
+        ? "Автосохранение: ещё не выполнялось"
+        : $"Автосохранение: {FormatRelativeAutosave(_lastAutosaveAt.Value)}";
+
+    public string CustomerName
+    {
+        get => Header.CustomerName;
+        set
+        {
+            if (Header.CustomerName == value)
+            {
+                return;
+            }
+
+            Header.CustomerName = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string CustomerPhone
+    {
+        get => Header.CustomerPhone;
+        set
+        {
+            if (Header.CustomerPhone == value)
+            {
+                return;
+            }
+
+            Header.CustomerPhone = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string ObjectAddress
+    {
+        get => Header.SiteAddress;
+        set
+        {
+            if (Header.SiteAddress == value)
+            {
+                return;
+            }
+
+            Header.SiteAddress = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string ContractNumber
+    {
+        get => Header.ContractNumber;
+        set
+        {
+            if (Header.ContractNumber == value)
+            {
+                return;
+            }
+
+            Header.ContractNumber = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string OrderManagerName
+    {
+        get => Header.OrderManagerName;
+        set
+        {
+            if (Header.OrderManagerName == value)
+            {
+                return;
+            }
+
+            Header.OrderManagerName = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string TotalCountDisplay => $"{TotalCount} шт.";
+
+    public string TotalAreaDisplay => $"{TotalArea:F2} м²";
+
+    public string TotalWeightDisplay => $"{TotalWeight:F1} кг";
+
+    public string TotalPriceDisplay => $"{TotalPrice:N2} {CurrencyCode}";
+
+    public string ActiveProfileColorDisplay => "Белый";
+
+    public bool ActiveWhiteOrientation => true;
+
+    public string ActiveDimensionsDisplay => ActiveConstruction.DimensionsDisplay;
+
+    [ObservableProperty]
     private bool _isAutoSaving;
+
+    [ObservableProperty]
+    private int _currentPage = 1;
+
+    [ObservableProperty]
+    private string _constructionSearchText = string.Empty;
+
+    [ObservableProperty]
+    private OrderConstructionLookupItemViewModel? _selectedConstructionCard;
+
+    public const string DefaultActiveHintText = "Готово. Наведите на элемент для подсказки...";
+
+    [ObservableProperty]
+    private string _activeHintText = DefaultActiveHintText;
+
+    private bool _isToolbarHintActive;
+
+    public void ShowToolbarHint(string hint)
+    {
+        _isToolbarHintActive = true;
+        ActiveHintText = hint;
+    }
+
+    public void ResetToolbarHint()
+    {
+        _isToolbarHintActive = false;
+        ActiveHintText = DefaultActiveHintText;
+    }
+
+    public void UpdateCanvasHoverHint(string hint)
+    {
+        if (_isToolbarHintActive)
+        {
+            return;
+        }
+
+        ActiveHintText = string.IsNullOrWhiteSpace(hint) ? DefaultActiveHintText : hint;
+    }
 
     public bool HasConstructions => Constructions.Any(HasConstructionContent);
 
     public bool ShowConstructionEmptyState => !HasConstructions;
+
+    public bool ShowConstructionCardsEmptyState => GetFilteredConstructionCards().Count == 0;
+
+    public bool CanGoToPreviousPage => CurrentPage > 1;
+
+    public bool CanGoToNextPage => CurrentPage < TotalPages;
+
+    public int TotalPages
+    {
+        get
+        {
+            var count = GetFilteredConstructionCards().Count;
+            return Math.Max(1, (int)Math.Ceiling(count / (double)PageSize));
+        }
+    }
+
+    public string PageIndicatorText => $"Стр. {CurrentPage} / {TotalPages}";
 
     public bool IsConstructionSelected => SelectedConstruction != null;
 
@@ -158,18 +431,27 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
 
     public event EventHandler? ProjectModified;
 
-    public OrderSheetViewModel(Order order, CadEditorViewModel previewEditor)
+    public OrderSheetViewModel(OrderWorkspaceViewModel workspace, CadEditorViewModel previewEditor)
     {
-        Order = order;
+        _workspace = workspace;
+        Order = workspace.Order;
         PreviewEditor = previewEditor;
         Order.Payment.PropertyChanged += OnPaymentPropertyChanged;
         Order.Totals.PropertyChanged += OnTotalsPropertyChanged;
 
         RebuildConstructions();
+        RebuildConstructionCards();
         SelectedConstruction = Order.EnsureDefaultConstruction();
         ActiveConstruction.Cost.PropertyChanged += OnCostPropertyChanged;
 
         RecalculateAll();
+        RecalculateOrderTotals();
+
+        if (string.IsNullOrWhiteSpace(Payment.CurrencyCode))
+        {
+            Payment.CurrencyCode = "KGS";
+            Header.CurrencyCode = "KGS";
+        }
     }
 
     public void AttachDocumentManager(IDocumentManager documentManager)
@@ -187,6 +469,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
     public void EnterViewMode()
     {
         PreviewEditor.IsViewOnlyMode = true;
+        RebuildConstructionCards();
         SyncPreviewFromActiveConstruction();
     }
 
@@ -203,6 +486,11 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
             : Order.EnsureDefaultConstruction();
 
         OnPropertyChanged(nameof(Header));
+        OnPropertyChanged(nameof(CustomerName));
+        OnPropertyChanged(nameof(CustomerPhone));
+        OnPropertyChanged(nameof(ObjectAddress));
+        OnPropertyChanged(nameof(ContractNumber));
+        OnPropertyChanged(nameof(OrderManagerName));
         RecalculateAll();
     }
 
@@ -210,15 +498,172 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
     {
         if (value is null)
         {
+            SelectedConstructionModel = null;
             NotifySelectionProperties();
+            RebuildConstructionCards();
             return;
         }
 
         Order.SelectedConstruction = value;
         value.Cost.PropertyChanged += OnCostPropertyChanged;
+        SyncSelectedConstructionModel();
         SyncPreviewFromActiveConstruction();
         RecalculateAll();
         NotifySelectionProperties();
+    }
+
+    partial void OnSelectedConstructionModelChanged(ConstructionModel? value)
+    {
+        OnPropertyChanged(nameof(ActiveConstructionModel));
+    }
+
+    partial void OnConstructionSearchTextChanged(string value)
+    {
+        CurrentPage = 1;
+        RefreshPagedConstructions();
+    }
+
+    partial void OnCurrentPageChanged(int value)
+    {
+        if (_suppressPageChangedRefresh)
+        {
+            return;
+        }
+
+        UpdatePagedItems();
+        NotifyPaginationProperties();
+    }
+
+    partial void OnSelectedConstructionCardChanged(OrderConstructionLookupItemViewModel? value)
+    {
+        if (value is not null && SelectedConstruction?.Id != value.Id)
+        {
+            SelectedConstruction = value.Construction;
+        }
+    }
+
+    [RelayCommand]
+    private void SelectConstructionCard(OrderConstructionLookupItemViewModel? card)
+    {
+        if (card is null)
+        {
+            return;
+        }
+
+        SelectedConstructionCard = card;
+        SelectedConstruction = card.Construction;
+    }
+
+    [RelayCommand]
+    private async Task AddConstructionAsync()
+    {
+        await _workspace.AddNewConstructionAsync();
+        GoToLastPage();
+        RefreshPagedConstructions();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDuplicateConstruction))]
+    private async Task DuplicateConstructionAsync()
+    {
+        if (SelectedConstruction is null)
+        {
+            return;
+        }
+
+        await _workspace.DuplicateConstructionAsync(SelectedConstruction.Id);
+        GoToLastPage();
+        RefreshPagedConstructions();
+    }
+
+    private bool CanDuplicateConstruction => SelectedConstruction is not null;
+
+    [RelayCommand(CanExecute = nameof(CanEditConstruction))]
+    private async Task EditConstructionAsync()
+    {
+        if (SelectedConstruction is null)
+        {
+            return;
+        }
+
+        await _workspace.EditConstructionInDrawingAsync(SelectedConstruction.Id);
+    }
+
+    private bool CanEditConstruction => SelectedConstruction is not null;
+
+    [RelayCommand(CanExecute = nameof(CanDeleteConstruction))]
+    private async Task DeleteConstructionAsync()
+    {
+        if (SelectedConstruction is null)
+        {
+            return;
+        }
+
+        var confirmed = await ShowDeleteConfirmationAsync();
+        if (!confirmed)
+        {
+            return;
+        }
+
+        var deletedId = SelectedConstruction.Id;
+        await _workspace.RemoveConstructionAsync(deletedId);
+
+        if (GetFilteredConstructionCards().Count == 0)
+        {
+            CurrentPage = 1;
+        }
+        else if (PagedConstructionCards.Count == 0 && CurrentPage > 1)
+        {
+            CurrentPage--;
+        }
+        else
+        {
+            RefreshPagedConstructions();
+        }
+
+        DeleteConstructionCommand.NotifyCanExecuteChanged();
+        DuplicateConstructionCommand.NotifyCanExecuteChanged();
+        EditConstructionCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanDeleteConstruction =>
+        SelectedConstruction is not null && Order.Constructions.Count > 1;
+
+    [RelayCommand(CanExecute = nameof(CanGoToPreviousPage))]
+    private void GoToPreviousPage()
+    {
+        if (CurrentPage > 1)
+        {
+            CurrentPage--;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanGoToNextPage))]
+    private void GoToNextPage()
+    {
+        if (CurrentPage < TotalPages)
+        {
+            CurrentPage++;
+        }
+    }
+
+    private async Task<bool> ShowDeleteConfirmationAsync()
+    {
+        var owner = GetOwnerWindow();
+        if (owner is null)
+        {
+            return false;
+        }
+
+        var viewModel = new ConfirmDialogViewModel(
+            "Вы уверены, что хотите удалить выбранную конструкцию?");
+        var window = new ConfirmDialogWindow
+        {
+            Title = "Удаление конструкции",
+            DataContext = viewModel
+        };
+
+        viewModel.CloseRequested += (_, confirmed) => window.Close(confirmed);
+        return await window.ShowDialog<bool?>(owner) == true;
     }
 
     [RelayCommand]
@@ -230,6 +675,40 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         }
 
         SelectedConstruction = construction;
+    }
+
+    [RelayCommand]
+    private async Task OpenPreviewAsync(OrderConstructionLookupItemViewModel? construction)
+    {
+        if (construction is null)
+        {
+            return;
+        }
+
+        var owner = GetOwnerWindow();
+        if (owner is null)
+        {
+            return;
+        }
+
+        var viewModel = new PreviewWindowViewModel(construction);
+        var window = new PreviewWindow
+        {
+            DataContext = viewModel
+        };
+
+        await window.ShowDialog(owner);
+    }
+
+    private static Window? GetOwnerWindow()
+    {
+        if (Avalonia.Application.Current?.ApplicationLifetime
+            is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            return desktop.MainWindow;
+        }
+
+        return null;
     }
 
     [RelayCommand]
@@ -267,6 +746,8 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         OnPropertyChanged(nameof(PreviewZoomPercent));
     }
 
+    public ConstructionModel? ActiveConstructionModel => SelectedConstructionModel;
+
     private void RebuildConstructions()
     {
         Constructions.Clear();
@@ -279,10 +760,304 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         {
             Order.EnsureDefaultConstruction();
             RebuildConstructions();
+            return;
         }
 
+        RebuildConstructionModels();
         OnPropertyChanged(nameof(HasConstructions));
         OnPropertyChanged(nameof(ShowConstructionEmptyState));
+        RebuildConstructionCards();
+    }
+
+    private void RebuildConstructionModels()
+    {
+        DetachConstructionModels();
+        ConstructionModels.Clear();
+
+        foreach (var construction in Order.Constructions)
+        {
+            var previewEditor = construction.Id == SelectedConstruction?.Id ? PreviewEditor : null;
+            var model = new ConstructionModel(construction, previewEditor);
+            model.PropertyChanged += OnConstructionModelPropertyChanged;
+            ConstructionModels.Add(model);
+        }
+
+        SyncSelectedConstructionModel();
+        RecalculateOrderTotals();
+    }
+
+    private void DetachConstructionModels()
+    {
+        foreach (var model in ConstructionModels)
+        {
+            model.PropertyChanged -= OnConstructionModelPropertyChanged;
+            model.Detach();
+        }
+    }
+
+    private void SyncSelectedConstructionModel()
+    {
+        foreach (var model in ConstructionModels)
+        {
+            model.SetPreviewEditor(model.Id == SelectedConstruction?.Id ? PreviewEditor : null);
+        }
+
+        SelectedConstructionModel = SelectedConstruction is null
+            ? null
+            : ConstructionModels.FirstOrDefault(m => m.Id == SelectedConstruction.Id);
+    }
+
+    private void OnConstructionModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        RecalculateOrderTotals();
+
+        if (sender is not ConstructionModel model || SelectedConstruction?.Id != model.Id)
+        {
+            return;
+        }
+
+        if (e.PropertyName is nameof(ConstructionModel.Width) or nameof(ConstructionModel.Height))
+        {
+            _calculationService.Recalculate(Order);
+            SyncPreviewFromActiveConstruction();
+            NotifyFinancialProperties();
+            RebuildConstructionCards();
+            OnPropertyChanged(nameof(ActiveDimensionsDisplay));
+            OnPropertyChanged(nameof(ProfileType));
+            OnPropertyChanged(nameof(ProfileColor));
+            OnPropertyChanged(nameof(GlassPacket));
+            OnPropertyChanged(nameof(Hardware));
+        }
+        else if (e.PropertyName is nameof(ConstructionModel.Quantity))
+        {
+            _calculationService.Recalculate(Order);
+            NotifyFinancialProperties();
+            RebuildConstructionCards();
+        }
+        else if (e.PropertyName is nameof(ConstructionModel.Name))
+        {
+            RebuildConstructionCards();
+        }
+    }
+
+    public void RecalculateOrderTotals()
+    {
+        TotalCount = ConstructionModels.Sum(model => model.Quantity);
+        TotalArea = ConstructionModels.Sum(model => model.Area);
+        TotalWeight = TotalArea * WeightKgPerSqM;
+
+        TotalPrice = Totals.GrandTotal > 0
+            ? Totals.GrandTotal
+            : decimal.Round((decimal)TotalArea * FallbackAreaPricePerSqM, 2, MidpointRounding.AwayFromZero);
+
+        if (Payment.AgreedAmount != TotalPrice)
+        {
+            Payment.AgreedAmount = TotalPrice;
+        }
+
+        NotifyOrderTotalsProperties();
+        NotifyPaymentDerivedProperties();
+    }
+
+    private void NotifyPaymentDerivedProperties()
+    {
+        OnPropertyChanged(nameof(AmountLeftToPay));
+        OnPropertyChanged(nameof(AmountLeftToPayDisplay));
+        OnPropertyChanged(nameof(AmountToPay));
+        OnPropertyChanged(nameof(AmountToPayDisplay));
+        OnPropertyChanged(nameof(PaymentPercentage));
+        OnPropertyChanged(nameof(PaymentPercentageDisplay));
+        OnPropertyChanged(nameof(PaidAmountDisplay));
+        OnPropertyChanged(nameof(RemainingAmountDisplay));
+        OnPropertyChanged(nameof(PaymentDebt));
+    }
+
+    private void NotifyStatusProperties()
+    {
+        OnPropertyChanged(nameof(IsUnsavedChanges));
+        OnPropertyChanged(nameof(SaveStatusShortText));
+        OnPropertyChanged(nameof(SaveStatusBulletText));
+        OnPropertyChanged(nameof(SaveStatusText));
+        OnPropertyChanged(nameof(LastAutosaveTimeDisplay));
+    }
+
+    private static string FormatRelativeAutosave(DateTimeOffset savedAt)
+    {
+        var elapsed = DateTimeOffset.Now - savedAt;
+        if (elapsed.TotalMinutes < 1)
+        {
+            return "только что";
+        }
+
+        if (elapsed.TotalMinutes < 60)
+        {
+            return $"{(int)elapsed.TotalMinutes} мин. назад";
+        }
+
+        if (elapsed.TotalHours < 24)
+        {
+            return $"{(int)elapsed.TotalHours} ч. назад";
+        }
+
+        return savedAt.LocalDateTime.ToString("dd.MM.yyyy HH:mm");
+    }
+
+    [RelayCommand]
+    private async Task CancelAsync()
+    {
+        if (_documentManager is null || !IsUnsavedChanges)
+        {
+            return;
+        }
+
+        var path = _documentManager.FilePath;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        await _documentManager.OpenOrderAsync(path);
+    }
+
+    [RelayCommand]
+    private async Task SaveAsync()
+    {
+        if (_documentManager is null)
+        {
+            return;
+        }
+
+        if (await _documentManager.SaveOrderAsync())
+        {
+            _lastAutosaveAt = DateTimeOffset.Now;
+            NotifyStatusProperties();
+        }
+    }
+
+    [RelayCommand]
+    private async Task SaveAndCloseAsync()
+    {
+        if (_documentManager is null)
+        {
+            return;
+        }
+
+        if (await _documentManager.SaveOrderAsync())
+        {
+            _lastAutosaveAt = DateTimeOffset.Now;
+            NotifyStatusProperties();
+        }
+    }
+
+    [RelayCommand]
+    private async Task ExpandPreviewAsync()
+    {
+        var card = SelectedConstructionCard
+            ?? _allConstructionCards.FirstOrDefault(c => c.Id == SelectedConstruction?.Id);
+        if (card is not null)
+        {
+            await OpenPreviewAsync(card);
+        }
+    }
+
+    private void NotifyOrderTotalsProperties()
+    {
+        OnPropertyChanged(nameof(TotalCountDisplay));
+        OnPropertyChanged(nameof(TotalAreaDisplay));
+        OnPropertyChanged(nameof(TotalWeightDisplay));
+        OnPropertyChanged(nameof(TotalPriceDisplay));
+    }
+
+    private void RebuildConstructionCards()
+    {
+        _allConstructionCards.Clear();
+
+        foreach (var construction in Order.Constructions.OrderBy(c => c.Number))
+        {
+            _allConstructionCards.Add(new OrderConstructionLookupItemViewModel(
+                construction,
+                isActive: construction.Id == SelectedConstruction?.Id));
+        }
+
+        RefreshPagedConstructions();
+    }
+
+    private void RefreshPagedConstructions()
+    {
+        var filtered = GetFilteredConstructionCards();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)PageSize));
+        var targetPage = Math.Clamp(CurrentPage, 1, totalPages);
+
+        if (targetPage != CurrentPage)
+        {
+            _suppressPageChangedRefresh = true;
+            CurrentPage = targetPage;
+            _suppressPageChangedRefresh = false;
+        }
+
+        UpdatePagedItems();
+        OnPropertyChanged(nameof(ShowConstructionCardsEmptyState));
+        NotifyPaginationProperties();
+    }
+
+    private void UpdatePagedItems()
+    {
+        var filtered = GetFilteredConstructionCards();
+        PagedConstructionCards.Clear();
+        foreach (var card in filtered.Skip((CurrentPage - 1) * PageSize).Take(PageSize))
+        {
+            PagedConstructionCards.Add(card);
+        }
+
+        SyncSelectedConstructionCard();
+    }
+
+    private void SyncSelectedConstructionCard()
+    {
+        if (SelectedConstruction is null)
+        {
+            SelectedConstructionCard = null;
+            return;
+        }
+
+        var match = PagedConstructionCards.FirstOrDefault(c => c.Id == SelectedConstruction.Id)
+            ?? _allConstructionCards.FirstOrDefault(c => c.Id == SelectedConstruction.Id);
+        if (match is not null && !ReferenceEquals(SelectedConstructionCard, match))
+        {
+            SelectedConstructionCard = match;
+        }
+    }
+
+    private List<OrderConstructionLookupItemViewModel> GetFilteredConstructionCards()
+    {
+        if (string.IsNullOrWhiteSpace(ConstructionSearchText))
+        {
+            return _allConstructionCards;
+        }
+
+        var query = ConstructionSearchText.Trim();
+        return _allConstructionCards
+            .Where(c =>
+                c.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || c.DimensionsDisplay.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || c.QuantityDisplay.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private void GoToLastPage()
+    {
+        var count = GetFilteredConstructionCards().Count;
+        CurrentPage = Math.Max(1, (int)Math.Ceiling(count / (double)PageSize));
+    }
+
+    private void NotifyPaginationProperties()
+    {
+        OnPropertyChanged(nameof(CanGoToPreviousPage));
+        OnPropertyChanged(nameof(CanGoToNextPage));
+        OnPropertyChanged(nameof(TotalPages));
+        OnPropertyChanged(nameof(PageIndicatorText));
+        GoToPreviousPageCommand.NotifyCanExecuteChanged();
+        GoToNextPageCommand.NotifyCanExecuteChanged();
     }
 
     public void RecalculateAll()
@@ -291,6 +1066,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         RebuildMaterialLines();
         NotifyFinancialProperties();
         RefreshConstructionList();
+        RecalculateOrderTotals();
     }
 
     private void RefreshConstructionList()
@@ -386,6 +1162,14 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
     private void NotifySelectionProperties()
     {
         OnPropertyChanged(nameof(ActiveConstruction));
+        OnPropertyChanged(nameof(ActiveConstructionModel));
+        OnPropertyChanged(nameof(ActiveProfileColorDisplay));
+        OnPropertyChanged(nameof(ActiveWhiteOrientation));
+        OnPropertyChanged(nameof(ActiveDimensionsDisplay));
+        OnPropertyChanged(nameof(ProfileType));
+        OnPropertyChanged(nameof(ProfileColor));
+        OnPropertyChanged(nameof(GlassPacket));
+        OnPropertyChanged(nameof(Hardware));
         OnPropertyChanged(nameof(Cost));
         OnPropertyChanged(nameof(Metrics));
         OnPropertyChanged(nameof(IsConstructionSelected));
@@ -404,24 +1188,37 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         OnPropertyChanged(nameof(ProfitabilityDisplay));
         OnPropertyChanged(nameof(MarkupDisplay));
         OnPropertyChanged(nameof(PaymentTotalDisplay));
+        DuplicateConstructionCommand.NotifyCanExecuteChanged();
+        EditConstructionCommand.NotifyCanExecuteChanged();
+        DeleteConstructionCommand.NotifyCanExecuteChanged();
     }
 
-    private void OnDocumentStateChanged(object? sender, EventArgs e) =>
-        OnPropertyChanged(nameof(SaveStatusText));
+    private void OnDocumentStateChanged(object? sender, EventArgs e)
+    {
+        if (!IsUnsavedChanges)
+        {
+            _lastAutosaveAt = DateTimeOffset.Now;
+        }
+
+        NotifyStatusProperties();
+    }
 
     private void OnPaymentPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        OnPropertyChanged(nameof(PaymentDebt));
+        OnPropertyChanged(nameof(AmountPaid));
+        OnPropertyChanged(nameof(SelectedCurrency));
+        NotifyPaymentDerivedProperties();
         OnPropertyChanged(nameof(PaymentPercent));
-        OnPropertyChanged(nameof(PaidAmountDisplay));
-        OnPropertyChanged(nameof(RemainingAmountDisplay));
         OnPropertyChanged(nameof(LastPaymentDisplay));
         OnPropertyChanged(nameof(HasPaymentData));
         OnPropertyChanged(nameof(PaymentEmptyHint));
     }
 
-    private void OnTotalsPropertyChanged(object? sender, PropertyChangedEventArgs e) =>
+    private void OnTotalsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
         NotifyFinancialProperties();
+        RecalculateOrderTotals();
+    }
 
     private void OnCostPropertyChanged(object? sender, PropertyChangedEventArgs e) =>
         NotifyFinancialProperties();

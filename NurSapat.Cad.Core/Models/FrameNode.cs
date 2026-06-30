@@ -519,6 +519,133 @@ public sealed class FrameNode
         return TrySetVerticalImpostAxisWorldX(X + Width - half - rightWidth);
     }
 
+    public bool TrySetUniformVerticalImpostGapAxisWorldX(int gapIndex, double axisWorldX)
+    {
+        if (!IsUniformSplit || SplitOrientation != SplitOrientation.Vertical
+            || gapIndex < 0 || gapIndex >= _uniformCells.Count - 1)
+        {
+            return false;
+        }
+
+        var thickness = GetResolvedImpostThicknessMm();
+        var half = thickness / 2.0;
+        var leftCell = _uniformCells[gapIndex];
+        var rightCell = _uniformCells[gapIndex + 1];
+
+        var minAxis = leftCell.X + MinSplitSizeMm + half;
+        var maxAxis = rightCell.X + rightCell.Width - MinSplitSizeMm - half;
+        if (maxAxis < minAxis)
+        {
+            return false;
+        }
+
+        axisWorldX = Math.Clamp(CadMath.RoundMm(axisWorldX), minAxis, maxAxis);
+        var newLeftWidth = CadMath.RoundMm(axisWorldX - leftCell.X - half);
+        leftCell.Width = newLeftWidth;
+
+        var rightEdge = rightCell.X + rightCell.Width;
+        rightCell.X = CadMath.RoundMm(leftCell.X + newLeftWidth + thickness);
+        rightCell.Width = CadMath.RoundMm(rightEdge - rightCell.X);
+        if (rightCell.Width < MinSplitSizeMm)
+        {
+            return false;
+        }
+
+        var cursorX = rightCell.X + rightCell.Width + thickness;
+        for (var i = gapIndex + 2; i < _uniformCells.Count; i++)
+        {
+            var cell = _uniformCells[i];
+            cell.X = CadMath.RoundMm(cursorX);
+            cursorX = cell.X + cell.Width + thickness;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Высоты световых проёмов снизу/сверху от горизонтального импоста.
+    /// </summary>
+    public bool TryGetHorizontalLightOpeningHeights(out double bottomHeight, out double topHeight)
+    {
+        bottomHeight = topHeight = 0;
+        if (IsLeaf || IsUniformSplit || SplitOrientation != SplitOrientation.Horizontal
+            || ChildA is null || ChildB is null
+            || !TryGetHorizontalImpostAxisWorldY(out var axisWorldY))
+        {
+            return false;
+        }
+
+        var half = GetResolvedImpostThicknessMm() / 2.0;
+        bottomHeight = CadMath.RoundMm((axisWorldY - Y) - half);
+        topHeight = CadMath.RoundMm((Y + Height - axisWorldY) - half);
+        return bottomHeight > CadMath.Epsilon && topHeight > CadMath.Epsilon;
+    }
+
+    public bool TrySetHorizontalLightOpeningBottomHeight(double bottomHeight)
+    {
+        if (bottomHeight <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var half = GetResolvedImpostThicknessMm() / 2.0;
+        return TrySetHorizontalImpostAxisWorldY(Y + half + bottomHeight);
+    }
+
+    public bool TrySetHorizontalLightOpeningTopHeight(double topHeight)
+    {
+        if (topHeight <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var half = GetResolvedImpostThicknessMm() / 2.0;
+        return TrySetHorizontalImpostAxisWorldY(Y + Height - half - topHeight);
+    }
+
+    public bool TrySetUniformHorizontalImpostGapAxisWorldY(int gapIndex, double axisWorldY)
+    {
+        if (!IsUniformSplit || SplitOrientation != SplitOrientation.Horizontal
+            || gapIndex < 0 || gapIndex >= _uniformCells.Count - 1)
+        {
+            return false;
+        }
+
+        var thickness = GetResolvedImpostThicknessMm();
+        var half = thickness / 2.0;
+        var bottomCell = _uniformCells[gapIndex];
+        var topCell = _uniformCells[gapIndex + 1];
+
+        var minAxis = bottomCell.Y + MinSplitSizeMm + half;
+        var maxAxis = topCell.Y + topCell.Height - MinSplitSizeMm - half;
+        if (maxAxis < minAxis)
+        {
+            return false;
+        }
+
+        axisWorldY = Math.Clamp(CadMath.RoundMm(axisWorldY), minAxis, maxAxis);
+        var newBottomHeight = CadMath.RoundMm(axisWorldY - bottomCell.Y - half);
+        bottomCell.Height = newBottomHeight;
+
+        var topEdge = topCell.Y + topCell.Height;
+        topCell.Y = CadMath.RoundMm(bottomCell.Y + newBottomHeight + thickness);
+        topCell.Height = CadMath.RoundMm(topEdge - topCell.Y);
+        if (topCell.Height < MinSplitSizeMm)
+        {
+            return false;
+        }
+
+        var cursorY = topCell.Y + topCell.Height + thickness;
+        for (var i = gapIndex + 2; i < _uniformCells.Count; i++)
+        {
+            var cell = _uniformCells[i];
+            cell.Y = CadMath.RoundMm(cursorY);
+            cursorY = cell.Y + cell.Height + thickness;
+        }
+
+        return true;
+    }
+
     private bool TryComputeBinaryVerticalChildren(
         double centerLocal,
         double thickness,
@@ -565,6 +692,80 @@ public sealed class FrameNode
             WindowToolMode.RealFrame or WindowToolMode.FakeFrame => Parent is null,
             _ => IsLeaf
         };
+    }
+
+    /// <summary>
+    /// Изменяет внешние габариты коробки, пропорционально пересчитывая дочерние ячейки и импосты.
+    /// </summary>
+    public bool TryResizeOuter(double newWidth, double newHeight)
+    {
+        if (newWidth < MinSplitSizeMm * 2 || newHeight < MinSplitSizeMm * 2)
+        {
+            return false;
+        }
+
+        if (Width <= CadMath.Epsilon || Height <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var scaleX = newWidth / Width;
+        var scaleY = newHeight / Height;
+        var originX = X;
+        var originY = Y;
+
+        if (!IsLeaf)
+        {
+            ScaleSubtreeFromOrigin(originX, originY, scaleX, scaleY);
+        }
+
+        Width = CadMath.RoundMm(newWidth);
+        Height = CadMath.RoundMm(newHeight);
+        return true;
+    }
+
+    private void ScaleSubtreeFromOrigin(double originX, double originY, double scaleX, double scaleY)
+    {
+        if (IsUniformSplit)
+        {
+            foreach (var cell in _uniformCells)
+            {
+                cell.X = CadMath.RoundMm(originX + (cell.X - originX) * scaleX);
+                cell.Y = CadMath.RoundMm(originY + (cell.Y - originY) * scaleY);
+                cell.Width = CadMath.RoundMm(cell.Width * scaleX);
+                cell.Height = CadMath.RoundMm(cell.Height * scaleY);
+                if (!cell.IsLeaf)
+                {
+                    cell.ScaleSubtreeFromOrigin(originX, originY, scaleX, scaleY);
+                }
+            }
+
+            return;
+        }
+
+        if (ChildA != null)
+        {
+            ChildA.X = CadMath.RoundMm(originX + (ChildA.X - originX) * scaleX);
+            ChildA.Y = CadMath.RoundMm(originY + (ChildA.Y - originY) * scaleY);
+            ChildA.Width = CadMath.RoundMm(ChildA.Width * scaleX);
+            ChildA.Height = CadMath.RoundMm(ChildA.Height * scaleY);
+            if (!ChildA.IsLeaf)
+            {
+                ChildA.ScaleSubtreeFromOrigin(originX, originY, scaleX, scaleY);
+            }
+        }
+
+        if (ChildB != null)
+        {
+            ChildB.X = CadMath.RoundMm(originX + (ChildB.X - originX) * scaleX);
+            ChildB.Y = CadMath.RoundMm(originY + (ChildB.Y - originY) * scaleY);
+            ChildB.Width = CadMath.RoundMm(ChildB.Width * scaleX);
+            ChildB.Height = CadMath.RoundMm(ChildB.Height * scaleY);
+            if (!ChildB.IsLeaf)
+            {
+                ChildB.ScaleSubtreeFromOrigin(originX, originY, scaleX, scaleY);
+            }
+        }
     }
 
     public IEnumerable<FrameNode> EnumerateInternalNodes()
@@ -722,6 +923,135 @@ public sealed class FrameNode
 
     public static FrameNode CreateRoot(double x, double y, double width, double height) =>
         new() { X = x, Y = y, Width = width, Height = height };
+
+    /// <summary>Глубокий снимок узла и всех потомков для undo/redo дерева рамы.</summary>
+    public TreeSnapshot CaptureTreeSnapshot()
+    {
+        if (IsUniformSplit)
+        {
+            return new TreeSnapshot
+            {
+                X = X,
+                Y = Y,
+                Width = Width,
+                Height = Height,
+                IsLeaf = IsLeaf,
+                IsUniformSplit = IsUniformSplit,
+                SplitOrientation = SplitOrientation,
+                LineStyle = LineStyle,
+                ImpostThicknessMm = ImpostThicknessMm,
+                UniformImpostCount = UniformImpostCount,
+                UniformCells = UniformCells.Select(cell => cell.CaptureTreeSnapshot()).ToList()
+            };
+        }
+
+        if (!IsLeaf && ChildA is not null && ChildB is not null)
+        {
+            return new TreeSnapshot
+            {
+                X = X,
+                Y = Y,
+                Width = Width,
+                Height = Height,
+                IsLeaf = IsLeaf,
+                IsUniformSplit = IsUniformSplit,
+                SplitOrientation = SplitOrientation,
+                LineStyle = LineStyle,
+                ImpostThicknessMm = ImpostThicknessMm,
+                UniformImpostCount = UniformImpostCount,
+                ChildA = ChildA.CaptureTreeSnapshot(),
+                ChildB = ChildB.CaptureTreeSnapshot()
+            };
+        }
+
+        return new TreeSnapshot
+        {
+            X = X,
+            Y = Y,
+            Width = Width,
+            Height = Height,
+            IsLeaf = IsLeaf,
+            IsUniformSplit = IsUniformSplit,
+            SplitOrientation = SplitOrientation,
+            LineStyle = LineStyle,
+            ImpostThicknessMm = ImpostThicknessMm,
+            UniformImpostCount = UniformImpostCount
+        };
+    }
+
+    /// <summary>Снимок узла рамы для восстановления дерева из сериализованного состояния.</summary>
+    public sealed class TreeSnapshot
+    {
+        public double X { get; init; }
+        public double Y { get; init; }
+        public double Width { get; init; }
+        public double Height { get; init; }
+        public bool IsLeaf { get; init; } = true;
+        public bool IsUniformSplit { get; init; }
+        public SplitOrientation SplitOrientation { get; init; } = SplitOrientation.None;
+        public ImpostLineStyle LineStyle { get; init; } = ImpostLineStyle.Dashed;
+        public double ImpostThicknessMm { get; init; }
+        public int UniformImpostCount { get; init; }
+        public IReadOnlyList<TreeSnapshot> UniformCells { get; init; } = [];
+        public TreeSnapshot? ChildA { get; init; }
+        public TreeSnapshot? ChildB { get; init; }
+    }
+
+    public static FrameNode? RestoreTree(TreeSnapshot? snapshot)
+    {
+        if (snapshot is null)
+        {
+            return null;
+        }
+
+        var root = CreateRoot(snapshot.X, snapshot.Y, snapshot.Width, snapshot.Height);
+        root.ApplyTreeSnapshot(snapshot);
+        return root;
+    }
+
+    private void ApplyTreeSnapshot(TreeSnapshot snapshot)
+    {
+        X = snapshot.X;
+        Y = snapshot.Y;
+        Width = snapshot.Width;
+        Height = snapshot.Height;
+        IsLeaf = snapshot.IsLeaf;
+        IsUniformSplit = snapshot.IsUniformSplit;
+        SplitOrientation = snapshot.SplitOrientation;
+        LineStyle = snapshot.LineStyle;
+        ImpostThicknessMm = snapshot.ImpostThicknessMm;
+        UniformImpostCount = snapshot.UniformImpostCount;
+
+        _uniformCells.Clear();
+        ChildA = null;
+        ChildB = null;
+
+        if (snapshot.IsUniformSplit)
+        {
+            foreach (var cellSnapshot in snapshot.UniformCells)
+            {
+                var cell = new FrameNode { Parent = this };
+                cell.ApplyTreeSnapshot(cellSnapshot);
+                _uniformCells.Add(cell);
+            }
+
+            IsLeaf = false;
+            return;
+        }
+
+        if (!snapshot.IsLeaf && snapshot.ChildA is not null && snapshot.ChildB is not null)
+        {
+            ChildA = new FrameNode { Parent = this };
+            ChildA.ApplyTreeSnapshot(snapshot.ChildA);
+            ChildB = new FrameNode { Parent = this };
+            ChildB.ApplyTreeSnapshot(snapshot.ChildB);
+            return;
+        }
+
+        ClearUniformSplitState();
+        IsLeaf = true;
+        SplitOrientation = SplitOrientation.None;
+    }
 
     public void ClearSplits()
     {

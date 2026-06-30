@@ -96,6 +96,9 @@ public sealed class Workspace : IWorkspace
         public IReadOnlyList<string> GetUndoNames() => Array.Empty<string>();
         public IReadOnlyList<string> GetRedoNames() => Array.Empty<string>();
 
+        // Reserved for future use: raised when undo/redo stack integration is completed.
+#pragma warning disable CS0067
         public event EventHandler? HistoryChanged;
+#pragma warning restore CS0067
     }
 }

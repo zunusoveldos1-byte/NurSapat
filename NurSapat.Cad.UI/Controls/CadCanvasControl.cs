@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Threading;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.Tools;
@@ -61,6 +62,29 @@ public sealed class CadCanvasControl : Control
     public static readonly StyledProperty<CadEditorViewModel?> EditorProperty =
         AvaloniaProperty.Register<CadCanvasControl, CadEditorViewModel?>(nameof(Editor));
 
+    public static readonly StyledProperty<bool> AutoFitOnResizeProperty =
+        AvaloniaProperty.Register<CadCanvasControl, bool>(nameof(AutoFitOnResize), false);
+
+    public bool AutoFitOnResize
+    {
+        get => GetValue(AutoFitOnResizeProperty);
+        set => SetValue(AutoFitOnResizeProperty, value);
+    }
+
+    public static readonly StyledProperty<bool> IsThumbnailPreviewProperty =
+        AvaloniaProperty.Register<CadCanvasControl, bool>(nameof(IsThumbnailPreview), false);
+
+    public bool IsThumbnailPreview
+    {
+        get => GetValue(IsThumbnailPreviewProperty);
+        set => SetValue(IsThumbnailPreviewProperty, value);
+    }
+
+    private Size _lastAutoFitBounds;
+    private bool _invalidateVisualScheduled;
+
+    public void ResetThumbnailAutoFit() => _lastAutoFitBounds = default;
+
     public CadCanvasControl()
     {
         Focusable = true;
@@ -74,15 +98,36 @@ public sealed class CadCanvasControl : Control
             if (e.OldValue is CadEditorViewModel oldEditor)
             {
                 oldEditor.PropertyChanged -= control.OnEditorPropertyChanged;
+                oldEditor.SceneInvalidated -= control.OnSceneInvalidated;
             }
 
             if (e.NewValue is CadEditorViewModel newEditor)
             {
                 newEditor.PropertyChanged += control.OnEditorPropertyChanged;
+                newEditor.SceneInvalidated += control.OnSceneInvalidated;
             }
 
+            control._lastAutoFitBounds = default;
             control.UpdateInteractionCursor(control._isPanning);
+            control.ScheduleInvalidateVisual();
         });
+    }
+
+    private void ScheduleInvalidateVisual()
+    {
+        if (_invalidateVisualScheduled)
+        {
+            return;
+        }
+
+        _invalidateVisualScheduled = true;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                _invalidateVisualScheduled = false;
+                InvalidateVisual();
+            },
+            DispatcherPriority.Render);
     }
 
     private void OnEditorPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -91,6 +136,44 @@ public sealed class CadCanvasControl : Control
         {
             UpdateInteractionCursor(_isPanning);
         }
+    }
+
+    private void OnSceneInvalidated(object? sender, EventArgs e)
+    {
+        _lastAutoFitBounds = default;
+        ScheduleInvalidateVisual();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _lastAutoFitBounds = default;
+        ScheduleInvalidateVisual();
+    }
+
+    protected override void OnSizeChanged(SizeChangedEventArgs e)
+    {
+        base.OnSizeChanged(e);
+        if (AutoFitOnResize)
+        {
+            _lastAutoFitBounds = default;
+        }
+    }
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        if (IsThumbnailPreview && Width > 0 && Height > 0)
+        {
+            var width = double.IsPositiveInfinity(availableSize.Width)
+                ? Width
+                : Math.Min(Width, availableSize.Width);
+            var height = double.IsPositiveInfinity(availableSize.Height)
+                ? Height
+                : Math.Min(Height, availableSize.Height);
+            return new Size(Math.Max(0, width), Math.Max(0, height));
+        }
+
+        return base.MeasureOverride(availableSize);
     }
 
     private void UpdateInteractionCursor(bool isDragging)
@@ -114,14 +197,22 @@ public sealed class CadCanvasControl : Control
     {
         base.OnPointerExited(e);
         Cursor = DefaultCanvasCursor;
+        if (!IsThumbnailPreview)
+        {
+            Editor?.ClearCanvasHoverHint();
+        }
     }
+
+    private bool ShouldDrawDimensions => !IsThumbnailPreview && Editor is { ShowDimensions: true };
 
     public override void Render(DrawingContext context)
     {
         base.Render(context);
         if (Editor == null) return;
 
+        Editor.ClearDimensionHits();
         Editor.Viewport.Resize(Bounds.Width, Bounds.Height);
+        TryAutoFitOnResize();
         context.FillRectangle(CanvasBrush, Bounds);
 
         if (Editor.IsGridEnabled) DrawGrid(context);
@@ -142,7 +233,10 @@ public sealed class CadCanvasControl : Control
                     rect.Height,
                     Editor.FrameThickness,
                     dashed: !Editor.HasRealFrameOnCanvas);
-                DrawRectangleDimensions(context, rect, isTemporary: false);
+                if (ShouldDrawDimensions)
+                {
+                    DrawRectangleDimensions(context, rect, isTemporary: false);
+                }
             }
         }
 
@@ -159,6 +253,9 @@ public sealed class CadCanvasControl : Control
         if (!suppressCommittedFrame && Editor.CanvasElements.Count > 0)
         {
             SashElementRenderer.DrawAll(context, Editor, Editor.CanvasElements);
+            GeometryElementRenderer.DrawGlazingLayer(context, Editor, Editor.CanvasElements);
+            SashElementRenderer.DrawOpeningIndicators(context, Editor, Editor.CanvasElements);
+            SashElementRenderer.DrawHardwareOverlays(context, Editor, Editor.CanvasElements);
         }
 
         if (Editor.SashDragPreview is { } sashPreview)
@@ -186,7 +283,10 @@ public sealed class CadCanvasControl : Control
                 GeometryElementRenderer.DrawPlacementPreview(context, Editor, Editor.CurrentToolMode, framePreview);
             }
 
-            DrawRectangleDimensions(context, framePreview, isTemporary: true);
+            if (ShouldDrawDimensions)
+            {
+                DrawRectangleDimensions(context, framePreview, isTemporary: true);
+            }
         }
 
         DrawHandlePreview(context);
@@ -195,7 +295,10 @@ public sealed class CadCanvasControl : Control
         if (Editor.ActiveTool is RectangleTool rectTool && rectTool.PreviewRect is CadRect preview)
         {
             DrawRect(context, preview, null, FramePen);
-            DrawRectangleDimensions(context, preview, isTemporary: true);
+            if (ShouldDrawDimensions)
+            {
+                DrawRectangleDimensions(context, preview, isTemporary: true);
+            }
         }
 
         // Превью одиночного импоста внутри светового проёма
@@ -220,7 +323,40 @@ public sealed class CadCanvasControl : Control
             }
         }
 
-        DrawAxisIndicator(context);
+        if (!IsThumbnailPreview)
+        {
+            DrawAxisIndicator(context);
+        }
+    }
+
+    private void TryAutoFitOnResize()
+    {
+        if (!AutoFitOnResize || Editor is null || Bounds.Width <= 0 || Bounds.Height <= 0)
+        {
+            return;
+        }
+
+        var bounds = Bounds.Size;
+        if (Math.Abs(bounds.Width - _lastAutoFitBounds.Width) < 0.5 &&
+            Math.Abs(bounds.Height - _lastAutoFitBounds.Height) < 0.5)
+        {
+            return;
+        }
+
+        _lastAutoFitBounds = bounds;
+        if (IsThumbnailPreview)
+        {
+            var thumbMargin = Math.Max(12, Math.Min(Bounds.Width, Bounds.Height) * 0.18);
+            Editor.FitThumbnailPreview(thumbMargin, boundsPaddingRatio: 0.36);
+        }
+        else if (Editor.IsViewOnlyMode)
+        {
+            Editor.FitPreviewViewport(0.85);
+        }
+        else
+        {
+            Editor.Viewport.FitToBounds(Editor.GetWorldBounds());
+        }
     }
 
     private void DrawHandlePreview(DrawingContext context)
@@ -248,7 +384,13 @@ public sealed class CadCanvasControl : Control
             return;
         }
 
-        if (Editor.IsViewOnlyMode || e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        if (Editor.IsViewOnlyMode)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
             var p = e.GetPosition(this);
             Editor.Viewport.ZoomAt(new ScreenPoint(p.X, p.Y), e.Delta.Y > 0 ? 1.12 : 1 / 1.12);
@@ -285,7 +427,9 @@ public sealed class CadCanvasControl : Control
                 context,
                 new Rect(left, top, right - left, bottom - top),
                 $"{rect.Width:F1}",
-                $"{rect.Height:F1}");
+                $"{rect.Height:F1}",
+                Editor,
+                registerHits: !isTemporary && ShouldDrawDimensions);
         }
         catch (Exception ex)
         {
@@ -323,16 +467,28 @@ public sealed class CadCanvasControl : Control
 
         if (Editor?.IsViewOnlyMode == true)
         {
-            if (properties.IsMiddleButtonPressed
-                || properties.IsLeftButtonPressed
-                || e.KeyModifiers.HasFlag(KeyModifiers.Control))
-            {
-                _isPanning = true;
-                _lastPanPoint = point;
-                e.Pointer.Capture(this);
-            }
-
             e.Handled = true;
+            return;
+        }
+
+        if (ShouldDrawDimensions
+            && Editor != null
+            && properties.IsLeftButtonPressed
+            && Editor.DismissDimensionEditIfClickOutside(point))
+        {
+            Focus();
+            e.Handled = true;
+            InvalidateVisual();
+            return;
+        }
+
+        if (ShouldDrawDimensions
+            && Editor != null
+            && properties.IsLeftButtonPressed
+            && Editor.TryBeginDimensionEdit(point))
+        {
+            e.Handled = true;
+            InvalidateVisual();
             return;
         }
 
@@ -344,7 +500,7 @@ public sealed class CadCanvasControl : Control
             return;
         }
 
-        if (Editor.CurrentToolMode == WindowToolMode.PanView && properties.IsLeftButtonPressed)
+        if (Editor?.CurrentToolMode == WindowToolMode.PanView && properties.IsLeftButtonPressed)
         {
             _isPanning = true;
             _lastPanPoint = point;
@@ -354,7 +510,7 @@ public sealed class CadCanvasControl : Control
             return;
         }
 
-        if (Editor.CurrentToolMode == WindowToolMode.ZoomView)
+        if (Editor?.CurrentToolMode == WindowToolMode.ZoomView)
         {
             var screenPoint = new ScreenPoint(point.X, point.Y);
             if (properties.IsLeftButtonPressed)
@@ -416,6 +572,34 @@ public sealed class CadCanvasControl : Control
                 InvalidateVisual();
                 return;
             }
+        }
+
+        if (Editor != null
+            && Editor.CurrentToolMode == WindowToolMode.OffsetImpostVertical
+            && properties.IsLeftButtonPressed)
+        {
+            e.Handled = true;
+            if (Editor.TryPressVerticalImpostOffset(cadEvent.WorldPoint))
+            {
+                e.Pointer.Capture(this);
+            }
+
+            InvalidateVisual();
+            return;
+        }
+
+        if (Editor != null
+            && Editor.CurrentToolMode == WindowToolMode.OffsetImpostHorizontal
+            && properties.IsLeftButtonPressed)
+        {
+            e.Handled = true;
+            if (Editor.TryPressHorizontalImpostOffset(cadEvent.WorldPoint))
+            {
+                e.Pointer.Capture(this);
+            }
+
+            InvalidateVisual();
+            return;
         }
 
         if (Editor?.TryBeginPointerInteraction(cadEvent.WorldPoint) == true)
@@ -490,6 +674,20 @@ public sealed class CadCanvasControl : Control
 
         Editor.UpdatePointerInteraction(worldPoint);
 
+        if (Editor.IsVerticalImpostDragging)
+        {
+            Editor.UpdateVerticalImpostOffsetDrag(worldPoint);
+            InvalidateVisual();
+            return;
+        }
+
+        if (Editor.IsHorizontalImpostDragging)
+        {
+            Editor.UpdateHorizontalImpostOffsetDrag(worldPoint);
+            InvalidateVisual();
+            return;
+        }
+
         if (_isPanning && _lastPanPoint is Point last)
         {
             Editor.Viewport.Pan(new CadVector(point.X - last.X, point.Y - last.Y));
@@ -501,6 +699,12 @@ public sealed class CadCanvasControl : Control
 
         Editor?.ActiveTool?.OnMouseMove(Editor.CreateToolContext(), ToCadEvent(point, e.KeyModifiers));
         Editor?.RefreshSelection();
+
+        if (!IsThumbnailPreview && Editor is { IsViewOnlyMode: false })
+        {
+            Editor.UpdateCanvasHoverHint(point, worldPoint);
+        }
+
         InvalidateVisual();
     }
 
@@ -546,6 +750,25 @@ public sealed class CadCanvasControl : Control
         {
             var releasePoint = e.GetPosition(this);
             var worldPoint = Editor.Viewport.ScreenToWorld(new ScreenPoint(releasePoint.X, releasePoint.Y));
+
+            if (Editor.IsVerticalImpostDragging)
+            {
+                Editor.UpdateVerticalImpostOffsetDrag(worldPoint);
+                Editor.ReleaseVerticalImpostOffset();
+                e.Pointer.Capture(null);
+                InvalidateVisual();
+                return;
+            }
+
+            if (Editor.IsHorizontalImpostDragging)
+            {
+                Editor.UpdateHorizontalImpostOffsetDrag(worldPoint);
+                Editor.ReleaseHorizontalImpostOffset();
+                e.Pointer.Capture(null);
+                InvalidateVisual();
+                return;
+            }
+
             if (Editor.TryEndPointerInteraction(worldPoint))
             {
                 e.Pointer.Capture(null);
@@ -572,12 +795,21 @@ public sealed class CadCanvasControl : Control
             return;
         }
 
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Alt) && e.Key == Key.Z)
+        {
+            Editor.UndoLastElementCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
         if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.Z)
         {
             Editor.UndoCommand.Execute(null);
             e.Handled = true;
+            return;
         }
-        else if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.Y)
+
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.Y)
         {
             Editor.RedoCommand.Execute(null);
             e.Handled = true;

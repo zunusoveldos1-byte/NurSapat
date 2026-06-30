@@ -19,7 +19,9 @@ public enum HorizontalTickEdge
 
 public sealed class CadSceneControl : Grid
 {
+    private readonly Grid _canvasHost = new();
     private readonly CadCanvasControl _canvas = new();
+    private readonly DimensionEditorOverlay _dimensionOverlay = new();
     private readonly RulerControl _horizontalRuler = new()
     {
         Orientation = RulerOrientation.Horizontal,
@@ -63,6 +65,8 @@ public sealed class CadSceneControl : Grid
     public CadSceneControl()
     {
         Background = Brushes.White;
+        _canvasHost.Children.Add(_canvas);
+        _canvasHost.Children.Add(_dimensionOverlay);
         RebuildLayout();
     }
 
@@ -112,10 +116,10 @@ public sealed class CadSceneControl : Grid
             RowDefinitions.Add(new RowDefinition(GridLength.Star));
             SetRow(_verticalRuler, 0);
             SetColumn(_verticalRuler, 0);
-            SetRow(_canvas, 0);
-            SetColumn(_canvas, 1);
+            SetRow(_canvasHost, 0);
+            SetColumn(_canvasHost, 1);
             Children.Add(_verticalRuler);
-            Children.Add(_canvas);
+            Children.Add(_canvasHost);
             BindEditor();
             return;
         }
@@ -125,8 +129,8 @@ public sealed class CadSceneControl : Grid
 
         SetRow(_verticalRuler, 0);
         SetColumn(_verticalRuler, 0);
-        SetRow(_canvas, 0);
-        SetColumn(_canvas, 1);
+        SetRow(_canvasHost, 0);
+        SetColumn(_canvasHost, 1);
         SetRow(_corner, 1);
         SetColumn(_corner, 0);
         SetRow(_horizontalRuler, 1);
@@ -135,13 +139,14 @@ public sealed class CadSceneControl : Grid
         Children.Add(_corner);
         Children.Add(_horizontalRuler);
         Children.Add(_verticalRuler);
-        Children.Add(_canvas);
+        Children.Add(_canvasHost);
         BindEditor();
     }
 
     private void BindEditor()
     {
         _canvas.Editor = Editor;
+        _dimensionOverlay.Editor = Editor;
         _horizontalRuler.Editor = Editor;
         _verticalRuler.Editor = Editor;
     }

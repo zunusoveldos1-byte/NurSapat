@@ -9,10 +9,14 @@ namespace NurSapat.Cad.UI.Rendering;
 public static class FrameNodeRenderer
 {
     private static readonly IBrush ImpostFillBrush = Brushes.White;
-    private static readonly IBrush FrameStrokeBrush = new SolidColorBrush(FrameVolumeRenderer.ProfileStrokeColor);
-    private static readonly IPen DashedPen = new Pen(FrameStrokeBrush, 1.5, new DashStyle(new double[] { 5, 3 }, 0));
-    private static readonly IPen SolidPen = new Pen(FrameStrokeBrush, 1.5);
-    private static readonly IPen HighlightPen = new Pen(new SolidColorBrush(Color.Parse("#FF0404")), 2.0);
+    private static readonly IPen HighlightPen = new Pen(
+        new SolidColorBrush(Color.Parse("#FF0404")),
+        FrameVolumeRenderer.ProfileStrokeThickness);
+    private static readonly IBrush GhostImpostFillBrush = new SolidColorBrush(Color.Parse("#50FF0404"));
+    private static readonly IPen GhostImpostPen = new Pen(
+        new SolidColorBrush(Color.Parse("#FF0404")),
+        FrameVolumeRenderer.ProfileStrokeThickness,
+        new DashStyle(new double[] { 6, 4 }, 0));
 
     public static void DrawImposts(DrawingContext context, CadEditorViewModel editor, FrameNode? root)
     {
@@ -25,6 +29,9 @@ public static class FrameNodeRenderer
         {
             DrawSplitLine(context, editor, node);
         }
+
+        DrawDraggingVerticalImpostGhost(context, editor);
+        DrawDraggingHorizontalImpostGhost(context, editor);
     }
 
     private static void DrawSplitLine(DrawingContext context, CadEditorViewModel editor, FrameNode node)
@@ -34,7 +41,7 @@ public static class FrameNodeRenderer
             DrawWorldLine(
                 context,
                 editor,
-                SolidPen,
+                ResolveImpostPen(editor, node),
                 new CadPoint(node.X, node.Y),
                 new CadPoint(node.X + node.Width, node.Y + node.Height));
             return;
@@ -65,7 +72,6 @@ public static class FrameNodeRenderer
             return;
         }
 
-        var pen = node.LineStyle == ImpostLineStyle.Dashed ? DashedPen : SolidPen;
         var thickness = ResolveImpostThickness(node);
 
         if (node.SplitOrientation == SplitOrientation.Vertical)
@@ -78,7 +84,7 @@ public static class FrameNodeRenderer
                     continue;
                 }
 
-                DrawVerticalProfileVolume(context, editor, left, right, yBottom, yTop, pen);
+                DrawVerticalProfileVolume(context, editor, left, right, yBottom, yTop, ResolveImpostPen(editor, node, i));
             }
         }
         else
@@ -96,7 +102,14 @@ public static class FrameNodeRenderer
                     continue;
                 }
 
-                DrawHorizontalProfileVolume(context, editor, xLeft, xRight, bottom, top, pen);
+                DrawHorizontalProfileVolume(
+                    context,
+                    editor,
+                    xLeft,
+                    xRight,
+                    bottom,
+                    top,
+                    ResolveHorizontalImpostPen(editor, node, i));
             }
         }
     }
@@ -108,7 +121,7 @@ public static class FrameNodeRenderer
             return;
         }
 
-        var pen = ResolveImpostPen(editor, node);
+        var pen = ResolveImpostPen(editor, node, uniformGapIndex: 0);
         var (yBottom, yTop) = ResolveVerticalImpostSpan(editor, node);
         DrawVerticalProfileVolume(context, editor, left, right, yBottom, yTop, pen);
     }
@@ -120,7 +133,7 @@ public static class FrameNodeRenderer
             return;
         }
 
-        var pen = node.LineStyle == ImpostLineStyle.Dashed ? DashedPen : SolidPen;
+        var pen = ResolveHorizontalImpostPen(editor, node);
         var (xLeft, xRight) = ResolveHorizontalImpostSpan(editor, node);
         DrawHorizontalProfileVolume(context, editor, xLeft, xRight, bottom, top, pen);
     }
@@ -130,14 +143,24 @@ public static class FrameNodeRenderer
             ? node.ImpostThicknessMm
             : FrameNode.DefaultImpostProfileMm;
 
-    private static IPen ResolveImpostPen(CadEditorViewModel editor, FrameNode node)
+    private static IPen ResolveImpostPen(CadEditorViewModel editor, FrameNode node, int uniformGapIndex = 0)
     {
-        if (editor.IsVerticalImpostHighlighted(node))
+        if (editor.IsVerticalImpostHighlighted(node, uniformGapIndex))
         {
             return HighlightPen;
         }
 
-        return node.LineStyle == ImpostLineStyle.Dashed ? DashedPen : SolidPen;
+        return FrameVolumeRenderer.ResolveProfileOutlinePen(node.LineStyle == ImpostLineStyle.Dashed);
+    }
+
+    private static IPen ResolveHorizontalImpostPen(CadEditorViewModel editor, FrameNode node, int uniformGapIndex = 0)
+    {
+        if (editor.IsHorizontalImpostHighlighted(node, uniformGapIndex))
+        {
+            return HighlightPen;
+        }
+
+        return FrameVolumeRenderer.ResolveProfileOutlinePen(node.LineStyle == ImpostLineStyle.Dashed);
     }
 
     private static bool TryResolveVerticalImpostBounds(FrameNode node, out double left, out double right)
@@ -223,6 +246,24 @@ public static class FrameNodeRenderer
         return top - bottom > CadMath.Epsilon;
     }
 
+    private static bool TryResolveHorizontalImpostRenderBounds(
+        double centerY,
+        double thickness,
+        out double bottom,
+        out double top)
+    {
+        if (thickness <= CadMath.Epsilon)
+        {
+            bottom = top = 0;
+            return false;
+        }
+
+        var half = thickness / 2.0;
+        bottom = CadMath.RoundMm(centerY - half);
+        top = CadMath.RoundMm(centerY + half);
+        return top - bottom > CadMath.Epsilon;
+    }
+
     private static (double Bottom, double Top) ResolveVerticalImpostSpan(CadEditorViewModel editor, FrameNode splitNode)
     {
         if (editor.FrameRoot is null)
@@ -276,13 +317,60 @@ public static class FrameNodeRenderer
         double yTop,
         IPen pen)
     {
+        DrawVerticalProfileVolume(context, editor, left, right, yBottom, yTop, ImpostFillBrush, pen);
+    }
+
+    private static void DrawDraggingVerticalImpostGhost(DrawingContext context, CadEditorViewModel editor)
+    {
+        if (editor.SelectedMullion is not { } target || editor.DraggingMullionWorldX is not double axisX)
+        {
+            return;
+        }
+
+        var node = target.SplitNode;
+        if (!TryResolveVerticalImpostRenderBounds(axisX, ResolveImpostThickness(node), out var left, out var right))
+        {
+            return;
+        }
+
+        var (yBottom, yTop) = ResolveVerticalImpostSpan(editor, node);
+        DrawVerticalProfileVolume(context, editor, left, right, yBottom, yTop, GhostImpostFillBrush, GhostImpostPen);
+    }
+
+    private static void DrawDraggingHorizontalImpostGhost(DrawingContext context, CadEditorViewModel editor)
+    {
+        if (editor.SelectedMullion is not { } target || editor.DraggingMullionWorldY is not double axisY)
+        {
+            return;
+        }
+
+        var node = target.SplitNode;
+        if (!TryResolveHorizontalImpostRenderBounds(axisY, ResolveImpostThickness(node), out var bottom, out var top))
+        {
+            return;
+        }
+
+        var (xLeft, xRight) = ResolveHorizontalImpostSpan(editor, node);
+        DrawHorizontalProfileVolume(context, editor, xLeft, xRight, bottom, top, GhostImpostFillBrush, GhostImpostPen);
+    }
+
+    private static void DrawVerticalProfileVolume(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        double left,
+        double right,
+        double yBottom,
+        double yTop,
+        IBrush fill,
+        IPen pen)
+    {
         var rect = WorldBoundsToScreenRect(editor, left, yBottom, right - left, yTop - yBottom);
         if (rect.Width <= 0 || rect.Height <= 0)
         {
             return;
         }
 
-        context.FillRectangle(ImpostFillBrush, rect);
+        context.FillRectangle(fill, rect);
         context.DrawRectangle(null, pen, rect);
     }
 
@@ -295,13 +383,26 @@ public static class FrameNodeRenderer
         double top,
         IPen pen)
     {
+        DrawHorizontalProfileVolume(context, editor, xLeft, xRight, bottom, top, ImpostFillBrush, pen);
+    }
+
+    private static void DrawHorizontalProfileVolume(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        double xLeft,
+        double xRight,
+        double bottom,
+        double top,
+        IBrush fill,
+        IPen pen)
+    {
         var rect = WorldBoundsToScreenRect(editor, xLeft, bottom, xRight - xLeft, top - bottom);
         if (rect.Width <= 0 || rect.Height <= 0)
         {
             return;
         }
 
-        context.FillRectangle(ImpostFillBrush, rect);
+        context.FillRectangle(fill, rect);
         context.DrawRectangle(null, pen, rect);
     }
 

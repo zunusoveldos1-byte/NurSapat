@@ -88,4 +88,24 @@ public sealed class CadDialogService : ICadDialogService
 
         return viewModel.AppliedTemplate;
     }
+
+    public async Task<bool> ShowConfirmationAsync(string title, string message)
+    {
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop ||
+            desktop.MainWindow is not Window owner)
+        {
+            return false;
+        }
+
+        var viewModel = new ConfirmDialogViewModel(message);
+        var window = new ConfirmDialogWindow
+        {
+            Title = title,
+            DataContext = viewModel
+        };
+
+        viewModel.CloseRequested += (_, confirmed) => window.Close(confirmed);
+
+        return await window.ShowDialog<bool?>(owner) == true;
+    }
 }

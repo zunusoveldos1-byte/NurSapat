@@ -49,6 +49,8 @@ public sealed class OrderHeaderData
 
     public string DealerName { get; set; } = "";
 
+    public string OrderManagerName { get; set; } = "";
+
     public string CustomerCity { get; set; } = "";
 
     public string CustomerCode { get; set; } = "";
@@ -85,6 +87,16 @@ public sealed class ConstructionProjectData
     public bool IsSelectedForCalculation { get; set; } = true;
 
     public string ProfileSystemName { get; set; } = "";
+
+    public DateTimeOffset? ManufactureDate { get; set; }
+
+    public DateTimeOffset? DeliveryDate { get; set; }
+
+    public string Manager { get; set; } = "";
+
+    public string Supervisor { get; set; } = "";
+
+    public string Notes { get; set; } = "";
 
     public GeometryProjectData Geometry { get; set; } = new();
 

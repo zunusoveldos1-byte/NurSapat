@@ -11,6 +11,7 @@ namespace NurSapat.App.ViewModels;
 
 public sealed partial class OrderDrawingViewModel : ViewModelBase
 {
+    private readonly OrderWorkspaceViewModel _workspace;
     private readonly Order _order;
     private readonly OrderSheetViewModel _sheet;
     private readonly CadEditorViewModel _cadEditor;
@@ -34,10 +35,11 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
 
     public event EventHandler? ProjectModified;
 
-    public OrderDrawingViewModel(Order order, OrderSheetViewModel sheet, CadEditorViewModel cadEditor)
+    public OrderDrawingViewModel(OrderWorkspaceViewModel workspace, CadEditorViewModel cadEditor)
     {
-        _order = order;
-        _sheet = sheet;
+        _workspace = workspace;
+        _order = workspace.Order;
+        _sheet = workspace.Sheet;
         _cadEditor = cadEditor;
 
         AllTools = BuildTools();
@@ -49,21 +51,29 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
         _cadEditor.PropertyChanged += OnCadEditorPropertyChanged;
         _cadEditor.NewTemplateRequested += OnNewTemplateRequested;
         _cadEditor.FrameCreated += OnFrameCreated;
-        SyncDesignElements();
         SelectTool(AllTools.First(t => t.Id == "select"));
     }
 
     public void ReloadFromOrder()
     {
-        SyncDesignElements();
+        if (_cadEditor.IsResettingCanvas)
+        {
+            return;
+        }
+
+        var construction = _order.SelectedConstruction ?? _order.EnsureDefaultConstruction();
+        _workspace.LoadConstructionToCanvas(construction);
         StatusMessage = "Чертеж загружен";
     }
 
     private void NotifyModified() => ProjectModified?.Invoke(this, EventArgs.Empty);
 
+    private ConstructionGeometry ActiveGeometry =>
+        (_order.SelectedConstruction ?? _order.EnsureDefaultConstruction()).Geometry;
+
     private void OnFrameCreated(object? sender, NurSapat.Cad.UI.Models.FrameCreatedEventArgs e)
     {
-        var geometry = _order.EnsureDefaultConstruction().Geometry;
+        var geometry = ActiveGeometry;
         if (e.ReplaceExisting)
         {
             geometry.Elements.Clear();
@@ -72,7 +82,6 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
         geometry.Elements.Add(e.Element);
         geometry.OuterWidthMm = e.Element.WidthMm;
         geometry.OuterHeightMm = e.Element.HeightMm;
-        SyncDesignElements();
         _sheet.RecalculateAll();
         StatusMessage = $"Создано: {e.Element.Label}";
         NotifyModified();
@@ -80,11 +89,10 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
 
     private void OnNewTemplateRequested(object? sender, EventArgs e)
     {
-        var geometry = _order.EnsureDefaultConstruction().Geometry;
+        var geometry = ActiveGeometry;
         geometry.Elements.Clear();
         geometry.OuterWidthMm = 0;
         geometry.OuterHeightMm = 0;
-        SyncDesignElements();
         _sheet.RecalculateAll();
         StatusMessage = "Новый чертеж";
         NotifyModified();
@@ -155,6 +163,11 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
 
     private void OnSceneInvalidated(object? sender, EventArgs e)
     {
+        if (_cadEditor.IsResettingCanvas)
+        {
+            return;
+        }
+
         SyncGeometryFromCad();
         _workspaceRecalculate();
     }
@@ -163,19 +176,7 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
 
     private void SyncGeometryFromCad()
     {
-        var construction = _order.EnsureDefaultConstruction();
-        var geometry = construction.Geometry;
-        var rects = _cadEditor.Document.Rectangles;
-
-        if (rects.Count == 0) return;
-
-        var minX = rects.Min(r => r.X);
-        var maxX = rects.Max(r => r.X + r.Width);
-        var minY = rects.Min(r => r.Y - r.Height);
-        var maxY = rects.Max(r => r.Y);
-
-        geometry.OuterWidthMm = (decimal)Math.Round(maxX - minX, 1);
-        geometry.OuterHeightMm = (decimal)Math.Round(maxY - minY, 1);
+        _workspace.CommitActiveConstructionGeometry();
     }
 
     private bool HandleDesignPlacement(CadPoint worldPoint)
@@ -245,13 +246,13 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
             element.EndY = (decimal)end.Y;
         }
 
-        _order.EnsureDefaultConstruction().Geometry.Elements.Add(element);
+        ActiveGeometry.Elements.Add(element);
         FinishPlacement(tool.Title);
     }
 
     private void PlaceRectElement(GeometryElementKind kind, CadDesignTool tool, CadRect rect)
     {
-        _order.EnsureDefaultConstruction().Geometry.Elements.Add(new GeometryElement
+        ActiveGeometry.Elements.Add(new GeometryElement
         {
             Kind = kind,
             Label = tool.Title,
@@ -267,7 +268,7 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
 
     private void PlacePointElement(GeometryElementKind kind, CadDesignTool tool, CadPoint worldPoint)
     {
-        var geometry = _order.EnsureDefaultConstruction().Geometry;
+        var geometry = ActiveGeometry;
         geometry.Elements.Add(new GeometryElement
         {
             Kind = kind,
@@ -285,7 +286,6 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
     private void FinishPlacement(string title)
     {
         StatusMessage = $"Добавлено: {title}";
-        SyncDesignElements();
         _sheet.RecalculateAll();
     }
 
@@ -296,12 +296,6 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
         GeometryElementKind.SlidingSash when toolId == "slide-right" => SashOpeningType.SlideRight,
         _ => null
     };
-
-    private void SyncDesignElements()
-    {
-        var elements = _order.EnsureDefaultConstruction().Geometry.Elements;
-        _cadEditor.SetDesignElements(elements);
-    }
 
     private void BuildGroups()
     {

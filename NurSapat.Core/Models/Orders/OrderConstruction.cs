@@ -20,6 +20,16 @@ public sealed class OrderConstruction
 
     public string ProfileSystemName { get; set; } = "";
 
+    public DateTimeOffset? ManufactureDate { get; set; }
+
+    public DateTimeOffset? DeliveryDate { get; set; }
+
+    public string Manager { get; set; } = "";
+
+    public string Supervisor { get; set; } = "";
+
+    public string Notes { get; set; } = "";
+
     public string DimensionsDisplay =>
         Geometry.OuterWidthMm > 0 && Geometry.OuterHeightMm > 0
             ? $"{Geometry.OuterWidthMm:0} × {Geometry.OuterHeightMm:0}"

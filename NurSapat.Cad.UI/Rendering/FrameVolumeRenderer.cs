@@ -14,13 +14,22 @@ public static class FrameVolumeRenderer
     public static readonly Color MiterColor = Color.Parse("#919191");
     public static readonly Color ProfileStrokeColor = Color.Parse("#919191");
 
+    /// <summary>Толщина контура профиля коробки и импоста (px).</summary>
+    public const double ProfileStrokeThickness = 1.5;
+
     private static readonly IBrush InnerOpeningFill = Brushes.White;
     private static readonly IBrush ProfileFill = new SolidColorBrush(Color.FromArgb(48, 0xE5, 0xE5, 0xE5));
     private static readonly IBrush ProfileStrokeBrush = new SolidColorBrush(ProfileStrokeColor);
     private static readonly IBrush MiterBrush = new SolidColorBrush(MiterColor);
-    private static readonly IPen ProfilePen = new Pen(ProfileStrokeBrush, 1.5);
+    public static readonly IPen ProfilePen = new Pen(ProfileStrokeBrush, ProfileStrokeThickness);
     private static readonly IPen MiterPen = new Pen(MiterBrush, 1.2);
-    private static readonly IPen DashedProfilePen = new Pen(ProfileStrokeBrush, 1.5, new DashStyle(new double[] { 4, 3 }, 0));
+    public static readonly IPen DashedProfilePen = new Pen(
+        ProfileStrokeBrush,
+        ProfileStrokeThickness,
+        new DashStyle(new double[] { 4, 3 }, 0));
+
+    public static IPen ResolveProfileOutlinePen(bool dashed) =>
+        dashed ? DashedProfilePen : ProfilePen;
 
     public static void Draw(
         DrawingContext context,

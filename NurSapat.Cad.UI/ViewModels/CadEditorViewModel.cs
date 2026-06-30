@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Avalonia;
 using Avalonia.Threading;
 using NurSapat.Cad.Core.Commands;
 using NurSapat.Cad.Core.Document;
@@ -12,7 +13,10 @@ using NurSapat.Cad.UI.Diagnostics;
 using NurSapat.Cad.UI.Models;
 using NurSapat.Cad.UI.Rendering;
 using NurSapat.Cad.UI.Services;
+using NurSapat.Core.Interfaces;
+using NurSapat.Core.Models;
 using NurSapat.Core.Models.Orders;
+using MaterialModel = NurSapat.Core.Models.Material;
 using System.Collections.ObjectModel;
 
 namespace NurSapat.Cad.UI.ViewModels;
@@ -22,6 +26,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private readonly CadToolFactory _toolFactory = new();
     private readonly ICadDialogService _dialogService;
     private readonly CadTemplateStore _templateStore;
+    private readonly IMaterialRepository? _materialRepository;
+    private readonly List<MaterialModel> _allMaterials = [];
+    private bool _isApplyingDrawingTemplate;
     private bool _isSyncingSelection;
     private bool _isRunningFramePipeline;
     private CadPoint? _interactionStartWorld;
@@ -44,13 +51,22 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private bool _isCommittingRealFrame;
     private bool _isShapeSizeDialogOpen;
     private readonly List<FrameNode> _impostSplitHistory = [];
+    private readonly ConstructionPlacementHistory _placementHistory = new();
 
-    private FrameNode? _hoveredVerticalImpost;
-    private FrameNode? _selectedVerticalImpost;
-    private FrameNode? _draggingVerticalImpost;
+    private VerticalImpostTarget? _selectedMullion;
+    private bool _isVerticalImpostDragging;
+    private bool _isHorizontalImpostDragging;
+    private double? _draggingMullionWorldX;
+    private double? _draggingMullionWorldY;
     private bool _isSyncingImpostPanel;
 
     private const double VerticalImpostHitToleranceMm = 18;
+    private const double VerticalImpostHitScreenPx = 14;
+    private const double ImpostDragInnerInsetMm = 50;
+    private const double MinEditableOpeningMm = 150;
+
+    private readonly List<DimensionHitInfo> _dimensionHits = [];
+    private DimensionHitInfo? _activeDimensionHit;
 
     private static bool IsDragCreateShapeMode(WindowToolMode mode) =>
         mode is WindowToolMode.RealFrame
@@ -157,6 +173,12 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     public Action<DesignPlacementCommit>? OnDesignPlacementCommit { get; set; }
 
+    public bool CanUndoPlacement => _placementHistory.CanUndo;
+
+    public bool CanRedoPlacement => _placementHistory.CanRedo;
+
+    public bool CanUndo => CanUndoPlacement || Commands.CanUndo;
+
     public IReadOnlyList<GeometryElement> DesignElements => CanvasElements;
 
     public string? ActiveDesignToolId { get; set; }
@@ -172,6 +194,20 @@ public sealed partial class CadEditorViewModel : ObservableObject
     ];
 
     public ObservableCollection<ConstructionItemViewModel> Constructions { get; } = [];
+
+    public ObservableCollection<MaterialModel> FilteredMaterials { get; } = [];
+
+    public ObservableCollection<string> MaterialColors { get; } =
+    [
+        "Белый",
+        "Коричневый",
+        "Антрацит",
+        "Золотой дуб",
+        "Махагон",
+        "Серый"
+    ];
+
+    public IReadOnlyList<CadDrawingTemplate> DrawingTemplates => _templateStore.Templates;
 
     [ObservableProperty]
     private string _activeToolId = "select";
@@ -225,6 +261,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private bool _isViewOnlyMode;
 
     [ObservableProperty]
+    private bool _showDimensions = true;
+
+    [ObservableProperty]
     private CadRect? _selectedRectangle;
 
     [ObservableProperty]
@@ -234,22 +273,31 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private ConstructionItemViewModel? _selectedConstruction;
 
     [ObservableProperty]
-    private bool _showAllConstructions;
+    private bool _showAllMaterials;
 
     [ObservableProperty]
-    private bool _blockTilt;
+    private bool _isTiltBlockerEnabled;
 
     [ObservableProperty]
-    private bool _microVentilation;
+    private bool _isMicroVentilationEnabled;
 
     [ObservableProperty]
-    private bool _balconyKit;
+    private bool _isBalconyKitEnabled;
 
     [ObservableProperty]
-    private bool _microLift;
+    private bool _isMicroliftEnabled;
 
     [ObservableProperty]
     private int _constructionQuantity = 1;
+
+    [ObservableProperty]
+    private MaterialModel? _selectedMaterial;
+
+    [ObservableProperty]
+    private string? _selectedMaterialColor = "Белый";
+
+    [ObservableProperty]
+    private CadDrawingTemplate? _selectedDrawingTemplate;
 
     [ObservableProperty]
     private double _frameThickness = 80;
@@ -294,9 +342,20 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     public IRelayCommand<WindowToolMode> SelectToolModeCommand { get; }
 
-    public IRelayCommand KonAddExecuteCommand { get; }
+    public Func<Task>? AddConstructionHandler { get; set; }
 
-    public IRelayCommand KonDelExecuteCommand { get; }
+    public Func<Guid, Task>? SelectConstructionHandler { get; set; }
+
+    public Func<Guid, Task>? RemoveConstructionHandler { get; set; }
+
+    public Func<Task>? OpenConstructionsLookupHandler { get; set; }
+
+    private bool _suppressConstructionSelectionCallback;
+    private bool _isResettingCanvas;
+    private int _canvasResetDepth;
+    private Guid? _activeOrderConstructionId;
+
+    public bool IsResettingCanvas => _isResettingCanvas || _canvasResetDepth > 0;
 
     public IRelayCommand ToggleLeftPanelCommand => new RelayCommand(() => IsLeftPanelVisible = !IsLeftPanelVisible);
     public IRelayCommand ToggleRightPanelCommand => new RelayCommand(() => IsRightPanelVisible = !IsRightPanelVisible);
@@ -304,26 +363,36 @@ public sealed partial class CadEditorViewModel : ObservableObject
     public IRelayCommand ToggleTopPanelCommand => new RelayCommand(() => IsTopPanelVisible = !IsTopPanelVisible);
 
     public CadEditorViewModel()
-        : this(new CadDialogService(), new CadTemplateStore())
+        : this(new CadDialogService(), new CadTemplateStore(), null)
     {
     }
 
     public CadEditorViewModel(ICadDialogService dialogService, CadTemplateStore templateStore)
+        : this(dialogService, templateStore, null)
+    {
+    }
+
+    public CadEditorViewModel(ICadDialogService dialogService, CadTemplateStore templateStore, IMaterialRepository? materialRepository)
     {
         _dialogService = dialogService;
         _templateStore = templateStore;
+        _materialRepository = materialRepository;
         Commands = new CadCommandManager(Document);
         ActivateToolCommand = new RelayCommand<string>(ActivateCadTool);
         SelectToolModeCommand = new RelayCommand<WindowToolMode>(mode => _ = SelectToolModeAsync(mode));
-        KonAddExecuteCommand = new RelayCommand(KonAddExecute);
-        KonDelExecuteCommand = new RelayCommand(KonDelExecute);
 
         InitializeDesignTools();
         EnsureDefaultConstructions();
+        _isApplyingDrawingTemplate = true;
+        SelectedDrawingTemplate = DrawingTemplates.FirstOrDefault();
+        _isApplyingDrawingTemplate = false;
+        _ = LoadMaterialsAsync();
         ActiveTool = _toolFactory.Create(CadToolMetadata.GetId(CadToolKind.SelectElements));
         ActiveToolId = CadToolMetadata.GetId(CadToolKind.SelectElements);
         UpdateDesignToolSelection(WindowToolMode.SelectElement);
         Viewport.ResetToDefaultScale(15.0);
+        _placementHistory.Changed += (_, _) => NotifyPlacementHistoryChanged();
+        Commands.HistoryChanged += (_, _) => NotifyPlacementHistoryChanged();
     }
 
     public double MillimetersPerPixel =>
@@ -341,6 +410,10 @@ public sealed partial class CadEditorViewModel : ObservableObject
     public bool IsDragCreateShapeToolActive => IsDragCreateShapeMode(CurrentToolMode);
 
     public string CanvasHintText => string.Empty;
+
+    public Action<string>? CanvasHoverHintChanged { get; set; }
+
+    private string _lastCanvasHoverHint = string.Empty;
 
     public bool HasFakeFrameOnCanvas
     {
@@ -405,7 +478,23 @@ public sealed partial class CadEditorViewModel : ObservableObject
         SelectedElement is FrameNode frame ? RoundMm(frame.Y) : RoundMm(CoordinateY);
 
     public bool IsImpostPanelActive =>
-        CurrentToolMode == WindowToolMode.OffsetImpostVertical && _selectedVerticalImpost != null;
+        _selectedMullion != null &&
+        CurrentToolMode is WindowToolMode.OffsetImpostVertical or WindowToolMode.OffsetImpostHorizontal;
+
+    public VerticalImpostTarget? SelectedMullion => _selectedMullion;
+
+    public DimensionHitInfo? ActiveDimensionHit => _activeDimensionHit;
+
+    public bool IsVerticalImpostDragging => _isVerticalImpostDragging;
+
+    public bool IsHorizontalImpostDragging => _isHorizontalImpostDragging;
+
+    public double? DraggingMullionWorldX => _draggingMullionWorldX;
+
+    public double? DraggingMullionWorldY => _draggingMullionWorldY;
+
+    public bool IsSelectedForOffset(FrameNode node, int uniformGapIndex = 0) =>
+        _selectedMullion?.Matches(node, uniformGapIndex) == true;
 
     [ObservableProperty]
     private double _impostPanelX;
@@ -419,14 +508,25 @@ public sealed partial class CadEditorViewModel : ObservableObject
     [ObservableProperty]
     private double _impostPanelH;
 
-    public bool IsVerticalImpostHighlighted(FrameNode node) =>
+    public bool IsVerticalImpostHighlighted(FrameNode node, int uniformGapIndex = 0) =>
         CurrentToolMode == WindowToolMode.OffsetImpostVertical &&
-        (node == _hoveredVerticalImpost || node == _selectedVerticalImpost || node == _draggingVerticalImpost);
+        !_draggingMullionWorldX.HasValue &&
+        IsSelectedForOffset(node, uniformGapIndex);
+
+    public bool IsHorizontalImpostHighlighted(FrameNode node, int uniformGapIndex = 0) =>
+        CurrentToolMode == WindowToolMode.OffsetImpostHorizontal &&
+        !_draggingMullionWorldY.HasValue &&
+        IsSelectedForOffset(node, uniformGapIndex);
 
     public double GridSnapStep => Viewport.ChooseGridStep();
 
     public void SetDesignElements(IReadOnlyList<GeometryElement> elements)
     {
+        if (_isResettingCanvas && _canvasResetDepth == 0)
+        {
+            return;
+        }
+
         CanvasElements.Clear();
         foreach (var element in elements)
         {
@@ -458,6 +558,473 @@ public sealed partial class CadEditorViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(MillimetersPerPixel));
         SceneInvalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void ClearDimensionHits() => _dimensionHits.Clear();
+
+    public void RegisterDimensionHit(DimensionHitInfo hit) => _dimensionHits.Add(hit);
+
+    public bool IsDimensionLabelBeingEdited(DimensionHitKind kind, int segmentIndex = 0) =>
+        _activeDimensionHit is { } active &&
+        active.Kind == kind &&
+        active.SegmentIndex == segmentIndex;
+
+    public bool TryBeginDimensionEdit(Point screenPoint)
+    {
+        if (!ShowDimensions || IsViewOnlyMode || FrameRoot is null || _activeDimensionHit is not null)
+        {
+            return false;
+        }
+
+        var hit = HitTestDimension(screenPoint);
+        if (hit is null)
+        {
+            return false;
+        }
+
+        _activeDimensionHit = hit;
+        OnPropertyChanged(nameof(ActiveDimensionHit));
+        RequestSceneRefresh();
+        return true;
+    }
+
+    public void CancelDimensionEdit()
+    {
+        if (_activeDimensionHit is null)
+        {
+            return;
+        }
+
+        _activeDimensionHit = null;
+        OnPropertyChanged(nameof(ActiveDimensionHit));
+        RequestSceneRefresh();
+    }
+
+    public bool DismissDimensionEditIfClickOutside(Point screenPoint)
+    {
+        if (_activeDimensionHit is null)
+        {
+            return false;
+        }
+
+        if (HitTestDimension(screenPoint) is not null)
+        {
+            return false;
+        }
+
+        CancelDimensionEdit();
+        return true;
+    }
+
+    public bool TryCommitDimensionEdit(string? text)
+    {
+        if (_activeDimensionHit is not { } hit)
+        {
+            return false;
+        }
+
+        if (!TryParseDimensionInput(text, out var newValueMm))
+        {
+            StatusText = "Некорректное значение размера";
+            CancelDimensionEdit();
+            return false;
+        }
+
+        if (Math.Abs(newValueMm - hit.ValueMm) < CadMath.Epsilon)
+        {
+            CancelDimensionEdit();
+            return true;
+        }
+
+        var applied = RecordPlacement(
+            $"Размер {hit.Kind}: {hit.ValueMm:0} → {newValueMm:0} мм",
+            () => TryChangeDimension(hit, newValueMm));
+
+        CancelDimensionEdit();
+
+        if (applied)
+        {
+            SyncFrameGeometryToDocument();
+            RequestSceneRefresh();
+            StatusText = $"Размер изменён: {newValueMm:0} мм";
+        }
+        else
+        {
+            StatusText = $"Минимальный проём — {MinEditableOpeningMm:0} мм";
+        }
+
+        return applied;
+    }
+
+    /// <summary>Применяет новое значение размерной надписи (в мм).</summary>
+    public bool TryChangeDimension(DimensionHitInfo hit, double newValueMm)
+    {
+        if (newValueMm <= 0 || double.IsNaN(newValueMm) || double.IsInfinity(newValueMm))
+        {
+            return false;
+        }
+
+        newValueMm = RoundMm(newValueMm);
+
+        return hit.Kind switch
+        {
+            DimensionHitKind.OverallWidth => TryChangeOverallWidth(newValueMm),
+            DimensionHitKind.OverallHeight => TryChangeOverallHeight(newValueMm),
+            DimensionHitKind.SegmentWidth => TryChangeSegmentWidth(hit, newValueMm),
+            _ => false
+        };
+    }
+
+    [RelayCommand]
+    private void ChangeDimension(string? valueText)
+    {
+        if (_activeDimensionHit is not null)
+        {
+            TryCommitDimensionEdit(valueText);
+        }
+    }
+
+    private DimensionHitInfo? HitTestDimension(Point screenPoint)
+    {
+        DimensionHitInfo? best = null;
+        var bestArea = double.MaxValue;
+
+        foreach (var hit in _dimensionHits)
+        {
+            if (!hit.ScreenRect.Contains(screenPoint))
+            {
+                continue;
+            }
+
+            var area = hit.ScreenRect.Width * hit.ScreenRect.Height;
+            if (area < bestArea)
+            {
+                bestArea = area;
+                best = hit;
+            }
+        }
+
+        return best;
+    }
+
+    private const string CanvasHintImpost =
+        "Зажмите левую кнопку мыши (ЛКМ), чтобы переместить импост";
+    private const string CanvasHintDimension =
+        "Нажмите, чтобы изменить значение размера конструкции";
+    private const string CanvasHintSash =
+        "Выберите створку, чтобы настроить фурнитуру и тип открывания";
+    private const string CanvasHintEmpty =
+        "Чертеж конструкции. Используйте инструменты для редактирования";
+
+    public void UpdateCanvasHoverHint(Point screenPoint, CadPoint worldPoint)
+    {
+        var hint = ResolveCanvasHoverHint(screenPoint, worldPoint);
+        if (string.Equals(hint, _lastCanvasHoverHint, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastCanvasHoverHint = hint;
+        CanvasHoverHintChanged?.Invoke(hint);
+    }
+
+    public void ClearCanvasHoverHint()
+    {
+        if (string.IsNullOrEmpty(_lastCanvasHoverHint))
+        {
+            return;
+        }
+
+        _lastCanvasHoverHint = string.Empty;
+        CanvasHoverHintChanged?.Invoke(string.Empty);
+    }
+
+    private string ResolveCanvasHoverHint(Point screenPoint, CadPoint worldPoint)
+    {
+        if (ShowDimensions && HitTestDimension(screenPoint) is not null)
+        {
+            return CanvasHintDimension;
+        }
+
+        if (HitTestVerticalImpost(worldPoint) is not null || HitTestHorizontalImpost(worldPoint) is not null)
+        {
+            return CanvasHintImpost;
+        }
+
+        if (FindSashAt(worldPoint) is not null)
+        {
+            return CanvasHintSash;
+        }
+
+        return CanvasHintEmpty;
+    }
+
+    private static bool TryParseDimensionInput(string? text, out double valueMm)
+    {
+        valueMm = 0;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var normalized = text.Trim().Replace(',', '.');
+        return double.TryParse(
+            normalized,
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out valueMm) && valueMm > 0;
+    }
+
+    private bool TryChangeOverallWidth(double newWidthMm)
+    {
+        if (FrameRoot is null || newWidthMm < MinEditableOpeningMm)
+        {
+            return false;
+        }
+
+        if (!FrameRoot.TryResizeOuter(newWidthMm, FrameRoot.Height))
+        {
+            return false;
+        }
+
+        SyncFillingsToFrameLayout();
+        return true;
+    }
+
+    private bool TryChangeOverallHeight(double newHeightMm)
+    {
+        if (FrameRoot is null || newHeightMm < MinEditableOpeningMm)
+        {
+            return false;
+        }
+
+        if (!FrameRoot.TryResizeOuter(FrameRoot.Width, newHeightMm))
+        {
+            return false;
+        }
+
+        SyncFillingsToFrameLayout();
+        return true;
+    }
+
+    private bool TryChangeSegmentWidth(DimensionHitInfo hit, double newValueMm)
+    {
+        if (FrameRoot is null
+            || hit.BoundaryWorldX is not { Count: >= 2 } boundaries
+            || newValueMm < MinEditableOpeningMm)
+        {
+            return false;
+        }
+
+        if (!ValidateNeighborSegmentWidth(boundaries, hit.SegmentIndex, hit.MoveRightBoundary, newValueMm))
+        {
+            return false;
+        }
+
+        double newAxisWorldX = hit.MoveRightBoundary
+            ? boundaries[hit.SegmentIndex] + newValueMm
+            : boundaries[hit.SegmentIndex + 1] - newValueMm;
+
+        var target = hit.ImpostTarget;
+        if (target is null)
+        {
+            return false;
+        }
+
+        return MoveVerticalImpost(target, newAxisWorldX);
+    }
+
+    private static bool ValidateNeighborSegmentWidth(
+        IReadOnlyList<double> boundaries,
+        int segmentIndex,
+        bool moveRightBoundary,
+        double newValueMm)
+    {
+        if (newValueMm < MinEditableOpeningMm)
+        {
+            return false;
+        }
+
+        double neighborWidth;
+        if (moveRightBoundary)
+        {
+            if (segmentIndex + 2 >= boundaries.Count)
+            {
+                return true;
+            }
+
+            neighborWidth = boundaries[segmentIndex + 2] - (boundaries[segmentIndex] + newValueMm);
+        }
+        else
+        {
+            if (segmentIndex <= 0)
+            {
+                return true;
+            }
+
+            neighborWidth = (boundaries[segmentIndex + 1] - newValueMm) - boundaries[segmentIndex - 1];
+        }
+
+        return neighborWidth >= MinEditableOpeningMm;
+    }
+
+    private bool MoveVerticalImpost(VerticalImpostTarget target, double axisWorldX)
+    {
+        var node = target.SplitNode;
+        bool moved;
+        if (node.IsUniformSplit && target.UniformGapIndex is int gapIndex)
+        {
+            moved = node.TrySetUniformVerticalImpostGapAxisWorldX(gapIndex, axisWorldX);
+        }
+        else
+        {
+            moved = node.TrySetVerticalImpostAxisWorldX(axisWorldX);
+        }
+
+        if (moved)
+        {
+            SyncFillingsToFrameLayout();
+        }
+
+        return moved;
+    }
+
+    private bool MoveHorizontalImpost(VerticalImpostTarget target, double axisWorldY)
+    {
+        var node = target.SplitNode;
+        bool moved;
+        if (node.IsUniformSplit && target.UniformGapIndex is int gapIndex)
+        {
+            moved = node.TrySetUniformHorizontalImpostGapAxisWorldY(gapIndex, axisWorldY);
+        }
+        else
+        {
+            moved = node.TrySetHorizontalImpostAxisWorldY(axisWorldY);
+        }
+
+        if (moved)
+        {
+            SyncFillingsToFrameLayout();
+        }
+
+        return moved;
+    }
+
+    /// <summary>
+    /// Пересчитывает координаты и размеры створок и остекления по актуальной геометрии листьев FrameRoot.
+    /// </summary>
+    private void SyncFillingsToFrameLayout()
+    {
+        if (FrameRoot is null)
+        {
+            return;
+        }
+
+        foreach (var element in CanvasElements)
+        {
+            if (element.Kind == GeometryElementKind.Sash)
+            {
+                SyncSashElementToLeaf(element);
+            }
+        }
+
+        foreach (var element in CanvasElements)
+        {
+            if (element.Kind == GeometryElementKind.Glazing)
+            {
+                SyncGlazingElementToLayout(element);
+            }
+        }
+    }
+
+    private void SyncSashElementToLeaf(GeometryElement sash)
+    {
+        var leaf = FrameRoot!.FindLeafAt((double)sash.X, (double)sash.Y);
+        if (leaf is not { IsLeaf: true })
+        {
+            return;
+        }
+
+        var (innerX, innerY, innerW, innerH) = SashGeometry.ResolveLeafInnerOpening(
+            leaf,
+            FrameRoot,
+            FrameThickness);
+        if (innerW <= 0 || innerH <= 0)
+        {
+            return;
+        }
+
+        sash.X = (decimal)(innerX + innerW / 2.0);
+        sash.Y = (decimal)(innerY + innerH / 2.0);
+        sash.WidthMm = (decimal)innerW;
+        sash.HeightMm = (decimal)innerH;
+    }
+
+    private void SyncGlazingElementToLayout(GeometryElement glazing)
+    {
+        if (glazing.HostSashId is Guid sashId)
+        {
+            var sash = CanvasElements.FirstOrDefault(e => e.Id == sashId && e.Kind == GeometryElementKind.Sash);
+            if (sash is null)
+            {
+                return;
+            }
+
+            var leaf = FrameRoot!.FindLeafAt((double)sash.X, (double)sash.Y);
+            var updated = CreateGlazingElementForSash(sash, leaf);
+            if (updated is null)
+            {
+                return;
+            }
+
+            glazing.X = updated.X;
+            glazing.Y = updated.Y;
+            glazing.WidthMm = updated.WidthMm;
+            glazing.HeightMm = updated.HeightMm;
+            return;
+        }
+
+        var glazingLeaf = FrameRoot!.FindLeafAt((double)glazing.X, (double)glazing.Y);
+        if (glazingLeaf is not { IsLeaf: true })
+        {
+            return;
+        }
+
+        var standalone = CreateGlazingElement(glazingLeaf);
+        if (standalone is null)
+        {
+            return;
+        }
+
+        glazing.X = standalone.X;
+        glazing.Y = standalone.Y;
+        glazing.WidthMm = standalone.WidthMm;
+        glazing.HeightMm = standalone.HeightMm;
+    }
+
+    private void SyncFrameGeometryToDocument()
+    {
+        if (FrameRoot is null)
+        {
+            return;
+        }
+
+        var bounds = new CadRect(
+            FrameRoot.X,
+            FrameRoot.Y + FrameRoot.Height,
+            FrameRoot.Width,
+            FrameRoot.Height);
+        UpdatePrimaryElementGeometry(bounds);
+
+        if (Document.Rectangles.Count > 0)
+        {
+            var existing = Document.Rectangles[0];
+            Document.RemoveRectangle(existing);
+            Document.AddRectangle(bounds);
+            SelectedRectangle = bounds;
+        }
+
+        NotifyFrameSelectionProperties();
     }
 
     public void FitToCanvas(double itemWidthMm, double itemHeightMm)
@@ -498,12 +1065,113 @@ public sealed partial class CadEditorViewModel : ObservableObject
         return new CadRect(minX - 100, maxY + 100, maxX - minX + 200, maxY - minY + 200);
     }
 
-    public void FitDocumentToViewport()
+    /// <summary>Границы только установленной конструкции (без полей холста) — для миниатюр.</summary>
+    public CadRect GetConstructionContentBounds()
     {
-        Viewport.FitToBounds(GetWorldBounds());
+        if (FrameRoot != null)
+        {
+            return new CadRect(
+                FrameRoot.X,
+                FrameRoot.Y + FrameRoot.Height,
+                FrameRoot.Width,
+                FrameRoot.Height);
+        }
+
+        if (CanvasElements.Count > 0)
+        {
+            var minX = double.PositiveInfinity;
+            var maxX = double.NegativeInfinity;
+            var minY = double.PositiveInfinity;
+            var maxY = double.NegativeInfinity;
+
+            foreach (var element in CanvasElements)
+            {
+                var halfW = (double)element.WidthMm / 2.0;
+                var halfH = (double)element.HeightMm / 2.0;
+                var centerX = (double)element.X;
+                var centerY = (double)element.Y;
+                minX = Math.Min(minX, centerX - halfW);
+                maxX = Math.Max(maxX, centerX + halfW);
+                minY = Math.Min(minY, centerY - halfH);
+                maxY = Math.Max(maxY, centerY + halfH);
+            }
+
+            if (minX < maxX && minY < maxY)
+            {
+                return new CadRect(minX, maxY, maxX - minX, maxY - minY);
+            }
+        }
+
+        var rects = Document.Rectangles;
+        if (rects.Count > 0)
+        {
+            var minX = rects.Min(r => r.X);
+            var maxX = rects.Max(r => r.X + r.Width);
+            var minY = rects.Min(r => r.Y - r.Height);
+            var maxY = rects.Max(r => r.Y);
+            return new CadRect(minX, maxY, maxX - minX, maxY - minY);
+        }
+
+        return GetWorldBounds();
+    }
+
+    /// <summary>Границы конструкции с запасом под выносные размерные линии (для превью).</summary>
+    public CadRect GetPreviewViewportBounds()
+    {
+        var content = GetConstructionContentBounds();
+        if (content.Width <= 0 || content.Height <= 0)
+        {
+            return content;
+        }
+
+        var span = Math.Max(content.Width, content.Height);
+        var paddingRatio = Math.Clamp(180.0 / span, 0.18, 0.32);
+        return InflateContentBounds(content, paddingRatio);
+    }
+
+    public void FitThumbnailPreview(double marginPx = 8, double boundsPaddingRatio = 0.36)
+    {
+        var bounds = InflateContentBounds(GetConstructionContentBounds(), boundsPaddingRatio);
+        var margin = marginPx > 0
+            ? marginPx
+            : Math.Max(10, Math.Min(Viewport.Width, Viewport.Height) * 0.16);
+        Viewport.FitToBounds(bounds, margin);
+        OnPropertyChanged(nameof(ZoomPercent));
+        OnPropertyChanged(nameof(MillimetersPerPixel));
+    }
+
+    public void FitPreviewViewport(double fillRatio = 0.85)
+    {
+        if (Viewport.Width <= CadMath.Epsilon || Viewport.Height <= CadMath.Epsilon)
+        {
+            return;
+        }
+
+        Viewport.FitToCanvas(GetPreviewViewportBounds(), fillRatio);
         OnPropertyChanged(nameof(ZoomPercent));
         OnPropertyChanged(nameof(MillimetersPerPixel));
         RequestSceneRefresh();
+    }
+
+    public void FitDocumentToViewport()
+    {
+        FitPreviewViewport();
+    }
+
+    private static CadRect InflateContentBounds(CadRect bounds, double ratio)
+    {
+        if (ratio <= CadMath.Epsilon || bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return bounds;
+        }
+
+        var padX = bounds.Width * ratio / 2.0;
+        var padY = bounds.Height * ratio / 2.0;
+        return new CadRect(
+            bounds.X - padX,
+            bounds.Y + padY,
+            bounds.Width + padX * 2,
+            bounds.Height + padY * 2);
     }
 
     public CadToolContext CreateToolContext() => new(Document, Commands, Snapping)
@@ -530,15 +1198,16 @@ public sealed partial class CadEditorViewModel : ObservableObject
         HitTestSelection = HitTestSelectionTarget,
         SelectTarget = SelectConstructionTarget,
         GetFrameRoot = () => FrameRoot,
-        SnapAxis = SnapToGrid,
-        UpdateVerticalImpostHover = UpdateVerticalImpostHover,
-        TryBeginVerticalImpostDrag = TryBeginVerticalImpostDrag,
-        UpdateVerticalImpostDrag = UpdateVerticalImpostDrag,
-        EndVerticalImpostDrag = EndVerticalImpostDrag
+        SnapAxis = SnapToGrid
     };
 
-    private void ActivateCadTool(string id)
+    private void ActivateCadTool(string? id)
     {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return;
+        }
+
         var previous = ActiveTool;
         var tool = _toolFactory.Create(id);
         var context = CreateToolContext();
@@ -565,6 +1234,11 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     private bool TryUndoFromTool()
     {
+        if (TryUndoConstructionSnapshot())
+        {
+            return true;
+        }
+
         if (!Commands.CanUndo)
         {
             return false;
@@ -572,8 +1246,206 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         Commands.Undo();
         RefreshSelection();
+        RequestSceneRefresh();
         StatusText = "Действие отменено";
         return true;
+    }
+
+    private bool TryDeleteLastPlacedFromTool() => TryUndoLastPlacement();
+
+    private bool TryUndoLastPlacement()
+    {
+        if (!_placementHistory.TryUndo(ApplyConstructionMemento, out var description))
+        {
+            StatusText = "Нет элементов для удаления";
+            return false;
+        }
+
+        RefreshAfterPlacementHistoryChange();
+        StatusText = description ?? "Последний элемент удалён";
+        return true;
+    }
+
+    private bool TryUndoConstructionSnapshot()
+    {
+        if (!_placementHistory.TryUndo(ApplyConstructionMemento, out var description))
+        {
+            return false;
+        }
+
+        RefreshAfterPlacementHistoryChange();
+        StatusText = description ?? "Действие отменено";
+        return true;
+    }
+
+    private void RecordPlacement(string description, Action applyChange)
+    {
+        if (_isResettingCanvas)
+        {
+            applyChange();
+            return;
+        }
+
+        var before = CaptureConstructionMemento();
+        applyChange();
+        var after = CaptureConstructionMemento();
+        _placementHistory.Record(before, after, description);
+        NotifyPlacementHistoryChanged();
+    }
+
+    private bool RecordPlacement(string description, Func<bool> tryApply)
+    {
+        if (_isResettingCanvas)
+        {
+            return tryApply();
+        }
+
+        var before = CaptureConstructionMemento();
+        if (!tryApply())
+        {
+            return false;
+        }
+
+        _placementHistory.Record(before, CaptureConstructionMemento(), description);
+        NotifyPlacementHistoryChanged();
+        return true;
+    }
+
+    private ConstructionMemento CaptureConstructionMemento() => new()
+    {
+        FrameRootSnapshot = FrameRoot?.CaptureTreeSnapshot(),
+        Elements = CanvasElements.Select(ConstructionMemento.CloneElement).ToList(),
+        DocumentRect = Document.Rectangles.Count > 0 ? Document.Rectangles[0] : null
+    };
+
+    private void ApplyConstructionMemento(ConstructionMemento memento)
+    {
+        FrameRoot = memento.FrameRootSnapshot is null
+            ? null
+            : FrameNode.RestoreTree(memento.FrameRootSnapshot);
+
+        Document.ClearRectangles();
+        if (memento.DocumentRect is CadRect rect)
+        {
+            Document.AddRectangle(rect);
+            SelectedRectangle = rect;
+        }
+        else
+        {
+            SelectedRectangle = null;
+        }
+
+        CanvasElements.Clear();
+        foreach (var element in memento.Elements)
+        {
+            CanvasElements.Add(ConstructionMemento.CloneElement(element));
+        }
+    }
+
+    private void RefreshAfterPlacementHistoryChange()
+    {
+        PurgeOrphanedSashes();
+        RebuildImpostSplitHistory();
+        OnPropertyChanged(nameof(HasFrameOnCanvas));
+        OnPropertyChanged(nameof(HasFakeFrameOnCanvas));
+        OnPropertyChanged(nameof(HasRealFrameOnCanvas));
+        OnPropertyChanged(nameof(FrameRoot));
+        RefreshSelection();
+        RequestSceneRefresh();
+    }
+
+    private void PurgeOrphanedSashes()
+    {
+        if (FrameRoot is null)
+        {
+            for (var i = CanvasElements.Count - 1; i >= 0; i--)
+            {
+                if (CanvasElements[i].Kind == GeometryElementKind.Sash)
+                {
+                    CanvasElements.RemoveAt(i);
+                }
+            }
+
+            return;
+        }
+
+        for (var i = CanvasElements.Count - 1; i >= 0; i--)
+        {
+            var element = CanvasElements[i];
+            if (element.Kind != GeometryElementKind.Sash)
+            {
+                continue;
+            }
+
+            if (!IsSashAnchoredInFrame(element))
+            {
+                CanvasElements.RemoveAt(i);
+            }
+        }
+    }
+
+    private bool IsSashAnchoredInFrame(GeometryElement sash)
+    {
+        if (FrameRoot is null)
+        {
+            return false;
+        }
+
+        var centerX = (double)sash.X;
+        var centerY = (double)sash.Y;
+        var leaf = FrameRoot.FindLeafAt(centerX, centerY);
+        return leaf is { IsLeaf: true };
+    }
+
+    private void RebuildImpostSplitHistory()
+    {
+        _impostSplitHistory.Clear();
+        if (FrameRoot is null)
+        {
+            return;
+        }
+
+        CollectImpostSplitNodes(FrameRoot);
+    }
+
+    private void CollectImpostSplitNodes(FrameNode node)
+    {
+        if (node.IsLeaf)
+        {
+            return;
+        }
+
+        _impostSplitHistory.Add(node);
+
+        if (node.IsUniformSplit)
+        {
+            foreach (var cell in node.UniformCells)
+            {
+                CollectImpostSplitNodes(cell);
+            }
+
+            return;
+        }
+
+        if (node.ChildA is not null)
+        {
+            CollectImpostSplitNodes(node.ChildA);
+        }
+
+        if (node.ChildB is not null)
+        {
+            CollectImpostSplitNodes(node.ChildB);
+        }
+    }
+
+    private void NotifyPlacementHistoryChanged()
+    {
+        OnPropertyChanged(nameof(CanUndoPlacement));
+        OnPropertyChanged(nameof(CanRedoPlacement));
+        OnPropertyChanged(nameof(CanUndo));
+        UndoLastElementCommand.NotifyCanExecuteChanged();
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
     }
 
     private bool TryDeleteSelectionFromTool()
@@ -609,86 +1481,6 @@ public sealed partial class CadEditorViewModel : ObservableObject
         return true;
     }
 
-    private bool TryDeleteLastPlacedFromTool()
-    {
-        if (TryRemoveLastFrameImpost())
-        {
-            return true;
-        }
-
-        if (TryRemoveLastMullionElement())
-        {
-            return true;
-        }
-
-        StatusText = "Нет импостов для удаления";
-        return false;
-    }
-
-    private bool TryRemoveLastFrameImpost()
-    {
-        if (FrameRoot is null)
-        {
-            return false;
-        }
-
-        while (_impostSplitHistory.Count > 0)
-        {
-            var node = _impostSplitHistory[^1];
-            _impostSplitHistory.RemoveAt(_impostSplitHistory.Count - 1);
-
-            if (node.IsLeaf)
-            {
-                continue;
-            }
-
-            if (node.TryRemoveImpostSplit())
-            {
-                FinishImpostRemoval();
-                return true;
-            }
-        }
-
-        var fallback = FrameNode.FindDeepestInternalNode(FrameRoot);
-        if (fallback?.TryRemoveImpostSplit() == true)
-        {
-            FinishImpostRemoval();
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool TryRemoveLastMullionElement()
-    {
-        for (var i = CanvasElements.Count - 1; i >= 0; i--)
-        {
-            var element = CanvasElements[i];
-            if (element.Kind is GeometryElementKind.Mullion
-                or GeometryElementKind.DummyMullion
-                or GeometryElementKind.EdgeMullion)
-            {
-                CanvasElements.RemoveAt(i);
-                StatusText = "Последний импост удалён";
-                RequestSceneRefresh();
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private void FinishImpostRemoval()
-    {
-        SelectedElement = FrameRoot;
-        OnPropertyChanged(nameof(FrameRoot));
-        OnPropertyChanged(nameof(SelectedElement));
-        OnPropertyChanged(nameof(SelectedElementLength));
-        OnPropertyChanged(nameof(SelectedElementHeight));
-        StatusText = "Последний импост удалён";
-        RequestSceneRefresh();
-    }
-
     private void TrackImpostSplit(FrameNode splitNode)
     {
         if (!splitNode.IsLeaf)
@@ -718,32 +1510,42 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         var impostWidth = SingleMullionPlacementWidthMm;
 
-        var split = commit.ToolId switch
-        {
-            "mullion-place-h" => leaf.TrySplitHorizontalAt(
-                point.Y - leaf.Y,
-                ImpostLineStyle.Solid,
-                impostWidth),
-            "mullion-place-d" => leaf.AddSplit(
-                SplitOrientation.Vertical,
-                point.X - leaf.X,
-                ImpostLineStyle.Slanted,
-                impostWidth),
-            _ => leaf.TrySplitVerticalAt(
-                point.X - leaf.X,
-                ImpostLineStyle.Solid,
-                impostWidth)
-        };
+        if (!RecordPlacement(
+                string.IsNullOrWhiteSpace(commit.Label) ? "Импост установлен" : $"{commit.Label} установлен",
+                () =>
+                {
+                    var split = commit.ToolId switch
+                    {
+                        "mullion-place-h" => leaf.TrySplitHorizontalAt(
+                            point.Y - leaf.Y,
+                            ImpostLineStyle.Solid,
+                            impostWidth),
+                        "mullion-place-d" => leaf.AddSplit(
+                            SplitOrientation.Vertical,
+                            point.X - leaf.X,
+                            ImpostLineStyle.Slanted,
+                            impostWidth),
+                        _ => leaf.TrySplitVerticalAt(
+                            point.X - leaf.X,
+                            ImpostLineStyle.Solid,
+                            impostWidth)
+                    };
 
-        if (!split)
+                    if (!split)
+                    {
+                        return false;
+                    }
+
+                    TrackImpostSplit(leaf);
+                    SelectedElement = FrameRoot;
+                    OnPropertyChanged(nameof(FrameRoot));
+                    return true;
+                }))
         {
             StatusText = "Невозможно установить импост в этой ячейке";
             return false;
         }
 
-        TrackImpostSplit(leaf);
-        SelectedElement = FrameRoot;
-        OnPropertyChanged(nameof(FrameRoot));
         StatusText = string.IsNullOrWhiteSpace(commit.Label)
             ? "Импост установлен"
             : $"{commit.Label} установлен";
@@ -981,10 +1783,11 @@ public sealed partial class CadEditorViewModel : ObservableObject
     {
         if (mode == WindowToolMode.RealFrame)
         {
-            return CommitRealFrameAt(originX, originY, width, height);
+            return RecordPlacement("Коробка (рама) создана", () => CommitRealFrameAt(originX, originY, width, height));
         }
 
-        return CommitFakeShapeAt(mode, originX, originY, width, height);
+        var (_, label) = GetDragShapeKindLabel(mode);
+        return RecordPlacement($"{label} создана", () => CommitFakeShapeAt(mode, originX, originY, width, height));
     }
 
     private bool CommitFakeShapeAt(WindowToolMode mode, double originX, double originY, double width, double height)
@@ -1242,6 +2045,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
         SashDragPreview = null;
         HandlePreviewSashId = null;
         _impostSplitHistory.Clear();
+        _placementHistory.Clear();
+        NotifyPlacementHistoryChanged();
 
         _isSyncingSelection = true;
         Length = 0;
@@ -1299,9 +2104,17 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         if (CurrentToolMode == WindowToolMode.SlantedImpost)
         {
-            if (ExecuteSlantedImpostSplit(worldPoint, leaf!))
+            if (RecordPlacement("Импост установлен", () =>
+                {
+                    if (!ExecuteSlantedImpostSplit(worldPoint, leaf!))
+                    {
+                        return false;
+                    }
+
+                    TrackImpostSplit(leaf!);
+                    return true;
+                }))
             {
-                TrackImpostSplit(leaf!);
                 RefreshAfterImpostAdded(CurrentToolMode);
             }
 
@@ -1364,21 +2177,124 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     partial void OnSelectedProfileSeriesChanged(string? value) => ApplySeriesThickness(value);
 
+    public bool AreFurnitureOptionsEnabled =>
+        CurrentToolMode is WindowToolMode.Hardware or WindowToolMode.Sash;
+
+    public void SetSelectedConstructionSilently(ConstructionItemViewModel? item)
+    {
+        _suppressConstructionSelectionCallback = true;
+        try
+        {
+            SelectedConstruction = item;
+            _activeOrderConstructionId = item?.OrderConstructionId;
+        }
+        finally
+        {
+            _suppressConstructionSelectionCallback = false;
+        }
+    }
+
+    public void PrepareForNewConstruction()
+    {
+        if (_isResettingCanvas)
+        {
+            return;
+        }
+
+        try
+        {
+            _isResettingCanvas = true;
+            ClearDrawing();
+            ConstructionQuantity = 1;
+            StatusText = "Новая конструкция — начните с чистого листа";
+        }
+        finally
+        {
+            _isResettingCanvas = false;
+        }
+    }
+
+    partial void OnSelectedConstructionChanged(ConstructionItemViewModel? value)
+    {
+        if (_suppressConstructionSelectionCallback
+            || _isResettingCanvas
+            || value is null
+            || SelectConstructionHandler is null)
+        {
+            return;
+        }
+
+        if (_activeOrderConstructionId == value.OrderConstructionId)
+        {
+            return;
+        }
+
+        _ = SelectConstructionHandler(value.OrderConstructionId);
+    }
+
+    partial void OnShowAllMaterialsChanged(bool value) => RefreshFilteredMaterials();
+
+    partial void OnSelectedDrawingTemplateChanged(CadDrawingTemplate? value)
+    {
+        if (value is null || _isApplyingDrawingTemplate)
+        {
+            return;
+        }
+
+        ApplyDrawingTemplate(value);
+    }
+
     partial void OnCurrentToolModeChanged(WindowToolMode value)
     {
         OnPropertyChanged(nameof(IsDragCreateShapeToolActive));
         OnPropertyChanged(nameof(ActiveToolMode));
-        if (value != WindowToolMode.OffsetImpostVertical)
+        OnPropertyChanged(nameof(AreFurnitureOptionsEnabled));
+        RefreshFilteredMaterials();
+        if (value is not WindowToolMode.OffsetImpostVertical and not WindowToolMode.OffsetImpostHorizontal)
         {
-            ClearVerticalImpostInteractionState();
+            ClearImpostOffsetInteractionState();
         }
     }
 
-    partial void OnImpostPanelXChanged(double value) => ApplyImpostPanelAxisX(value);
+    partial void OnImpostPanelXChanged(double value)
+    {
+        if (CurrentToolMode == WindowToolMode.OffsetImpostVertical)
+        {
+            ApplyImpostPanelAxisX(value);
+        }
+    }
 
-    partial void OnImpostPanelLChanged(double value) => ApplyImpostPanelLeftOpening(value);
+    partial void OnImpostPanelYChanged(double value)
+    {
+        if (CurrentToolMode == WindowToolMode.OffsetImpostHorizontal)
+        {
+            ApplyImpostPanelAxisY(value);
+        }
+    }
 
-    partial void OnImpostPanelHChanged(double value) => ApplyImpostPanelRightOpening(value);
+    partial void OnImpostPanelLChanged(double value)
+    {
+        if (CurrentToolMode == WindowToolMode.OffsetImpostHorizontal)
+        {
+            ApplyImpostPanelBottomOpening(value);
+        }
+        else if (CurrentToolMode == WindowToolMode.OffsetImpostVertical)
+        {
+            ApplyImpostPanelLeftOpening(value);
+        }
+    }
+
+    partial void OnImpostPanelHChanged(double value)
+    {
+        if (CurrentToolMode == WindowToolMode.OffsetImpostHorizontal)
+        {
+            ApplyImpostPanelTopOpening(value);
+        }
+        else if (CurrentToolMode == WindowToolMode.OffsetImpostVertical)
+        {
+            ApplyImpostPanelRightOpening(value);
+        }
+    }
 
     partial void OnPlacementAnchorChanged(PlacementAnchor value)
     {
@@ -1459,9 +2375,14 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private void DeleteSelected() =>
         ActivateCadTool(CadToolMetadata.GetId(CadToolKind.DeleteSelection));
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanUndo))]
     private void Undo()
     {
+        if (TryUndoConstructionSnapshot())
+        {
+            return;
+        }
+
         if (!Commands.CanUndo)
         {
             StatusText = "Нет действий для отмены";
@@ -1477,11 +2398,25 @@ public sealed partial class CadEditorViewModel : ObservableObject
     [RelayCommand]
     private void GlobalUndo() => Undo();
 
-    [RelayCommand]
-    private void UndoLastElement() => ActivateCadTool(CadToolMetadata.GetId(CadToolKind.DeleteLastPlaced));
+    [RelayCommand(CanExecute = nameof(CanUndoPlacement))]
+    private void UndoLastElement()
+    {
+        TryUndoLastPlacement();
+    }
 
-    [RelayCommand]
-    private void DeleteLastElement() => UndoLastElement();
+    [RelayCommand(CanExecute = nameof(CanRedoPlacement))]
+    private void Redo()
+    {
+        if (!_placementHistory.TryRedo(ApplyConstructionMemento, out var description))
+        {
+            StatusText = "Нечего повторять";
+            return;
+        }
+
+        RefreshAfterPlacementHistoryChange();
+        StatusText = description ?? "Действие возвращено";
+        RequestSceneRefresh();
+    }
 
     [RelayCommand]
     private void ClearConstruction() => ActivateCadTool(CadToolMetadata.GetId(CadToolKind.ClearConstruction));
@@ -1576,19 +2511,19 @@ public sealed partial class CadEditorViewModel : ObservableObject
         ActivateCadTool(CadToolMetadata.GetId(CadToolKind.ChangeOverallDimensions));
 
     [RelayCommand]
-    private void Redo()
-    {
-        Commands.Redo();
-        RefreshSelection();
-        RequestSceneRefresh();
-        StatusText = "Повторить";
-    }
-
-    [RelayCommand]
     private void FitAll()
     {
         FitDocumentToViewport();
         StatusText = "Показать всё";
+    }
+
+    [RelayCommand]
+    private async Task OpenConstructionsLookupAsync()
+    {
+        if (OpenConstructionsLookupHandler is not null)
+        {
+            await OpenConstructionsLookupHandler();
+        }
     }
 
     [RelayCommand]
@@ -1600,7 +2535,16 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
-        ApplyDrawingTemplate(template);
+        _isApplyingDrawingTemplate = true;
+        try
+        {
+            SelectedDrawingTemplate = template;
+            ApplyDrawingTemplate(template);
+        }
+        finally
+        {
+            _isApplyingDrawingTemplate = false;
+        }
     }
 
     [RelayCommand]
@@ -1623,19 +2567,48 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     private void ApplyDrawingTemplate(CadDrawingTemplate template)
     {
-        if (template.IsBlank)
+        _isApplyingDrawingTemplate = true;
+        try
         {
-            ClearDrawing();
-            StatusText = "Пустой чертеж";
-            return;
-        }
+            if (template.IsBlank)
+            {
+                ClearDrawing();
+                StatusText = "Пустой чертеж";
+                return;
+            }
 
-        var mode = template.IsFakeFrame ? WindowToolMode.FakeFrame : WindowToolMode.RealFrame;
-        CreatePlacedShape(mode, template.WidthMm, template.HeightMm);
-        StatusText = $"Применён шаблон: {template.Name}";
+            var mode = template.IsFakeFrame ? WindowToolMode.FakeFrame : WindowToolMode.RealFrame;
+            CreatePlacedShape(mode, template.WidthMm, template.HeightMm);
+            StatusText = $"Применён шаблон: {template.Name}";
+        }
+        finally
+        {
+            _isApplyingDrawingTemplate = false;
+        }
     }
 
     private void ClearDrawing()
+    {
+        if (_canvasResetDepth > 0)
+        {
+            ClearDrawingCore();
+            return;
+        }
+
+        try
+        {
+            _canvasResetDepth++;
+            _isResettingCanvas = true;
+            ClearDrawingCore();
+        }
+        finally
+        {
+            _isResettingCanvas = false;
+            _canvasResetDepth--;
+        }
+    }
+
+    private void ClearDrawingCore()
     {
         Document.ClearRectangles();
         CanvasElements.Clear();
@@ -1675,14 +2648,19 @@ public sealed partial class CadEditorViewModel : ObservableObject
             DesignToolIcon.MoveMullionHorizontal));
         DesignTools.Add(new CadDesignToolButtonViewModel(
             WindowToolMode.Other,
-            "Удалить последний установленный элемент",
+            "Удалить последний установленный элемент (Ctrl+Alt+Z)",
             DesignToolIcon.UndoLast,
-            command: DeleteLastElementCommand));
+            command: UndoLastElementCommand));
         DesignTools.Add(new CadDesignToolButtonViewModel(
             WindowToolMode.Other,
-            "Отменить действие",
+            "Отменить действие (Ctrl+Z)",
             DesignToolIcon.UndoGlobal,
             command: UndoCommand));
+        DesignTools.Add(new CadDesignToolButtonViewModel(
+            WindowToolMode.Other,
+            "Вернуть действие (Ctrl+Y)",
+            DesignToolIcon.RedoGlobal,
+            command: RedoCommand));
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Separator, string.Empty, isSeparator: true));
 
         // Группа 2: выравнивание и навигация
@@ -1734,6 +2712,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.DoubleVerticalImpost, "Импост двойной верт.", DesignToolIcon.DoubleVerticalImpost));
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.DoubleHorizontalImpost, "Импост двойной гориз.", DesignToolIcon.DoubleHorizontalImpost));
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.SlantedImpost, "Импост наклонный", DesignToolIcon.SlantedImpost));
+        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Glassing, "Остекление", DesignToolIcon.Glassing));
         DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Separator, string.Empty, isSeparator: true));
 
         // Группа 5: выделение подобъектов и глобальные операции
@@ -1886,6 +2865,12 @@ public sealed partial class CadEditorViewModel : ObservableObject
                     : "Инструмент"
             };
         }
+        else if (mode == WindowToolMode.Glassing)
+        {
+            StatusText = FrameRoot is null || !HasRealFrameOnCanvas
+                ? "Сначала создайте коробку (рама)"
+                : "Остекление: кликните по пустому проёму или по створке";
+        }
         else
         {
             var active = DesignTools.FirstOrDefault(t => t.Mode == mode);
@@ -1952,6 +2937,31 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
+        var (_, label) = mode switch
+        {
+            WindowToolMode.RealFrame => (GeometryElementKind.Frame, "Коробка (рама)"),
+            WindowToolMode.FakeFrame => (GeometryElementKind.DummyFrame, "Коробка (фиктивная)"),
+            WindowToolMode.FakeFrameCircle => (GeometryElementKind.RoundDummyFrame, "Коробка фиктивная круглая"),
+            WindowToolMode.FakeFrameTriangle => (GeometryElementKind.TriangleDummyFrame, "Коробка фиктивная треугольная"),
+            WindowToolMode.FakeFrameArch => (GeometryElementKind.ArchDummyFrame, "Полукруг (фиктивная)"),
+            _ => (GeometryElementKind.DummyFrame, "Коробка")
+        };
+
+        RecordPlacement($"{label} создана", () =>
+        {
+            CreatePlacedShapeCore(mode, width, height, originBottomLeft, snapToGrid, clickCenter);
+            return true;
+        });
+    }
+
+    private void CreatePlacedShapeCore(
+        WindowToolMode mode,
+        double width,
+        double height,
+        CadPoint? originBottomLeft,
+        bool snapToGrid,
+        CadPoint? clickCenter)
+    {
         Document.ClearRectangles();
         CanvasElements.Clear();
 
@@ -2043,11 +3053,51 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     private void KonAddExecute()
     {
-        var nextId = Constructions.Count + 1;
-        var item = new ConstructionItemViewModel(nextId, $"Конструкция {nextId}");
+        var nextNumber = Constructions.Count + 1;
+        var item = new ConstructionItemViewModel(Guid.NewGuid(), nextNumber, $"Конструкция {nextNumber}");
         Constructions.Add(item);
         SelectedConstruction = item;
         StatusText = "Добавлена конструкция";
+    }
+
+    [RelayCommand]
+    private async Task AddConstructionAsync()
+    {
+        if (AddConstructionHandler is not null)
+        {
+            await AddConstructionHandler();
+            return;
+        }
+
+        KonAddExecute();
+    }
+
+    [RelayCommand]
+    private async Task RemoveConstructionAsync()
+    {
+        if (Constructions.Count <= 1 || SelectedConstruction is null)
+        {
+            StatusText = "Нельзя удалить единственную конструкцию";
+            return;
+        }
+
+        var name = SelectedConstruction.Name;
+        var confirmed = await _dialogService.ShowConfirmationAsync(
+            "Удаление конструкции",
+            $"Удалить «{name}»?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        if (RemoveConstructionHandler is not null && SelectedConstruction is not null)
+        {
+            await RemoveConstructionHandler(SelectedConstruction.OrderConstructionId);
+            return;
+        }
+
+        KonDelExecute();
     }
 
     private void KonDelExecute()
@@ -2067,11 +3117,91 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private void EnsureDefaultConstructions()
     {
         Constructions.Clear();
-        var first = new ConstructionItemViewModel(1, "Конструкция 1");
+        var first = new ConstructionItemViewModel(Guid.NewGuid(), 1, "Конструкция 1");
         Constructions.Add(first);
         SelectedConstruction = first;
         Document.Name = "Новый чертеж";
     }
+
+    private async Task LoadMaterialsAsync()
+    {
+        _allMaterials.Clear();
+
+        try
+        {
+            if (_materialRepository is not null)
+            {
+                _allMaterials.AddRange(await _materialRepository.GetAllAsync());
+            }
+        }
+        catch (Exception ex)
+        {
+            CadDiagnostics.LogWarning("LoadMaterials failed", ex);
+        }
+
+        if (_allMaterials.Count == 0)
+        {
+            _allMaterials.AddRange(CreateSeedMaterials());
+        }
+
+        RefreshFilteredMaterials();
+    }
+
+    private static IEnumerable<MaterialModel> CreateSeedMaterials() =>
+    [
+        new MaterialModel { Article = "PR-70", Name = "Профиль рамы 70 мм", Category = MaterialCategory.Profile },
+        new MaterialModel { Article = "PS-70", Name = "Профиль створки 70 мм", Category = MaterialCategory.Profile },
+        new MaterialModel { Article = "IM-70", Name = "Импост 70 мм", Category = MaterialCategory.Profile },
+        new MaterialModel { Article = "HW-01", Name = "Фурнитурный набор поворотный", Category = MaterialCategory.Hardware },
+        new MaterialModel { Article = "HW-02", Name = "Фурнитурный набор откидной", Category = MaterialCategory.Hardware },
+        new MaterialModel { Article = "GL-24", Name = "Стеклопакет 24 мм", Category = MaterialCategory.Glazing },
+        new MaterialModel { Article = "SL-01", Name = "Уплотнитель EPDM", Category = MaterialCategory.Sealant },
+        new MaterialModel { Article = "AC-01", Name = "Москитная сетка", Category = MaterialCategory.Accessory }
+    ];
+
+    private void RefreshFilteredMaterials()
+    {
+        var previousId = SelectedMaterial?.Id;
+        var filtered = (ShowAllMaterials
+                ? _allMaterials
+                : _allMaterials.Where(MatchesActiveTool))
+            .OrderBy(material => material.Name)
+            .ToList();
+
+        FilteredMaterials.Clear();
+        foreach (var material in filtered)
+        {
+            FilteredMaterials.Add(material);
+        }
+
+        SelectedMaterial = previousId is Guid id
+            ? FilteredMaterials.FirstOrDefault(material => material.Id == id)
+            : FilteredMaterials.FirstOrDefault();
+    }
+
+    private bool MatchesActiveTool(MaterialModel material)
+    {
+        var category = ResolveMaterialCategoryForTool(CurrentToolMode);
+        return category is not null && material.Category == category;
+    }
+
+    private static MaterialCategory? ResolveMaterialCategoryForTool(WindowToolMode mode) => mode switch
+    {
+        WindowToolMode.Hardware or WindowToolMode.Handle => MaterialCategory.Hardware,
+        WindowToolMode.Sash or WindowToolMode.SlidingSash => MaterialCategory.Profile,
+        WindowToolMode.RealFrame or WindowToolMode.FakeFrame or WindowToolMode.FakeFrameCircle
+            or WindowToolMode.FakeFrameTriangle or WindowToolMode.FakeFrameArch or WindowToolMode.Frame
+            or WindowToolMode.AdapterProfile or WindowToolMode.RealVerticalImpost
+            or WindowToolMode.RealHorizontalImpost or WindowToolMode.DoubleVerticalImpost
+            or WindowToolMode.DoubleHorizontalImpost or WindowToolMode.SlantedImpost
+            or WindowToolMode.VerticalImpost or WindowToolMode.HorizontalImpost
+            or WindowToolMode.DiagonalImpost or WindowToolMode.MullionVertical
+            or WindowToolMode.MullionHorizontal or WindowToolMode.Post => MaterialCategory.Profile,
+        WindowToolMode.Glass or WindowToolMode.GlassWithBead or WindowToolMode.BeadSystem
+            or WindowToolMode.Glassing => MaterialCategory.Glazing,
+        WindowToolMode.AdditionalElement or WindowToolMode.Corrugation => MaterialCategory.Accessory,
+        _ => null
+    };
 
     private void ApplySeriesThickness(string? series)
     {
@@ -2142,6 +3272,31 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return true;
         }
 
+        if (mode == WindowToolMode.Glassing)
+        {
+            if (FrameRoot is null || !HasRealFrameOnCanvas)
+            {
+                StatusText = "Сначала создайте коробку (рама)";
+                return false;
+            }
+
+            if (leaf is null || !leaf.IsLeaf)
+            {
+                StatusText = "Кликните внутри проёма или по створке";
+                return false;
+            }
+
+            if (!CanApplyGlazingInLeaf(leaf))
+            {
+                StatusText = FindGlazingInLeaf(leaf) is not null
+                    ? "Остекление уже установлено в этом проёме"
+                    : "Проём содержит панель — остекление недоступно";
+                return false;
+            }
+
+            return true;
+        }
+
         return false;
     }
 
@@ -2153,6 +3308,11 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return true;
         }
 
+        if (mode == WindowToolMode.Glassing && leaf is not null)
+        {
+            return TryPlaceGlazingInLeaf(leaf);
+        }
+
         return false;
     }
 
@@ -2162,8 +3322,11 @@ public sealed partial class CadEditorViewModel : ObservableObject
         var impostWidth = GetImpostProfileWidth(mode);
         var frameInset = ResolveFrameSplitInset(leaf);
         var lineStyle = GetImpostLineStyle(mode);
+        var active = DesignTools.FirstOrDefault(t => t.Mode == mode);
+        var description = active?.Title ?? "Импост";
 
-        if (!leaf.TrySplitUniformWithVolume(orientation, impostCount, impostWidth, frameInset, lineStyle))
+        if (!RecordPlacement(description, () =>
+                leaf.TrySplitUniformWithVolume(orientation, impostCount, impostWidth, frameInset, lineStyle)))
         {
             StatusText = "Невозможно разделить область";
             return;
@@ -2378,82 +3541,348 @@ public sealed partial class CadEditorViewModel : ObservableObject
     public CadPoint SnapPointToGrid(CadPoint point) =>
         new(SnapToGrid(point.X), SnapToGrid(point.Y));
 
-    public void UpdateVerticalImpostHover(CadPoint worldPoint)
+    public bool TryPressVerticalImpostOffset(CadPoint worldPoint)
     {
-        if (CurrentToolMode != WindowToolMode.OffsetImpostVertical || _draggingVerticalImpost != null)
-        {
-            return;
-        }
-
-        var next = double.IsNaN(worldPoint.X) || FrameRoot is null
-            ? null
-            : FindVerticalImpostNear(FrameRoot, worldPoint.X);
-        if (next == _hoveredVerticalImpost)
-        {
-            return;
-        }
-
-        _hoveredVerticalImpost = next;
-        RequestSceneRefresh();
-    }
-
-    public bool TryBeginVerticalImpostDrag(CadPoint worldPoint)
-    {
-        if (FrameRoot is null)
-        {
-            StatusText = "Сначала создайте коробку";
-            return false;
-        }
-
-        var node = FindVerticalImpostNear(FrameRoot, worldPoint.X);
-        if (node is null)
+        if (CurrentToolMode != WindowToolMode.OffsetImpostVertical || FrameRoot is null)
         {
             return false;
         }
 
-        _selectedVerticalImpost = node;
-        _draggingVerticalImpost = node;
-        _hoveredVerticalImpost = node;
-        SyncImpostPanelFromSelection();
+        var hit = HitTestVerticalImpost(worldPoint);
+        if (hit is null)
+        {
+            StatusText = "Кликните по вертикальному импосту";
+            return false;
+        }
+
+        _selectedMullion = hit;
+        _isVerticalImpostDragging = true;
+        _draggingMullionWorldX = ResolveSelectedMullionAxisX();
+        SyncImpostPanelFromGhostAxis(_draggingMullionWorldX ?? worldPoint.X);
+        OnPropertyChanged(nameof(SelectedMullion));
+        OnPropertyChanged(nameof(DraggingMullionWorldX));
         OnPropertyChanged(nameof(IsImpostPanelActive));
-        StatusText = "Перетаскивание импоста";
+        OnPropertyChanged(nameof(IsVerticalImpostDragging));
+        StatusText = "Импост выделен — перетащите или измените L/H";
+        RequestSceneRefresh();
         return true;
     }
 
-    public void UpdateVerticalImpostDrag(CadPoint worldPoint)
+    public void UpdateVerticalImpostOffsetDrag(CadPoint worldPoint)
     {
-        if (_draggingVerticalImpost is null)
+        if (!_isVerticalImpostDragging || _selectedMullion is null)
         {
             return;
         }
 
-        var axisX = SnapToGrid(worldPoint.X);
-        if (!_draggingVerticalImpost.TrySetVerticalImpostAxisWorldX(axisX))
+        if (!TryResolveVerticalImpostDragAxisRange(_selectedMullion, out var minX, out var maxX))
         {
             return;
         }
 
-        SyncImpostPanelFromSelection();
-        StatusText = $"Свет слева {ImpostPanelL:F0} · справа {ImpostPanelH:F0} мм";
+        var axisX = RoundMm(Math.Clamp(worldPoint.X, minX, maxX));
+        _draggingMullionWorldX = axisX;
+        TryMoveSelectedVerticalImpost(axisX);
+        OnPropertyChanged(nameof(DraggingMullionWorldX));
+        SyncImpostPanelFromGhostAxis(axisX);
+        StatusText = $"Свет слева {ImpostPanelL:F1} · справа {ImpostPanelH:F1} мм";
         RequestSceneRefresh();
     }
 
-    public void EndVerticalImpostDrag()
+    public void ReleaseVerticalImpostOffset()
     {
-        _draggingVerticalImpost = null;
-        SyncImpostPanelFromSelection();
-        StatusText = $"Импост: L={ImpostPanelL:F0} · H={ImpostPanelH:F0} мм";
+        if (!_isVerticalImpostDragging)
+        {
+            return;
+        }
+
+        if (_selectedMullion is not null && _draggingMullionWorldX is double axisX)
+        {
+            TryMoveSelectedVerticalImpost(axisX);
+            SyncImpostPanelFromSelection();
+        }
+
+        _isVerticalImpostDragging = false;
+        _draggingMullionWorldX = null;
+        OnPropertyChanged(nameof(DraggingMullionWorldX));
+        OnPropertyChanged(nameof(IsVerticalImpostDragging));
+        if (_selectedMullion is not null)
+        {
+            StatusText = $"Импост: L={ImpostPanelL:F0} · H={ImpostPanelH:F0} мм";
+        }
+
         RequestSceneRefresh();
+    }
+
+    public bool TryPressHorizontalImpostOffset(CadPoint worldPoint)
+    {
+        if (CurrentToolMode != WindowToolMode.OffsetImpostHorizontal || FrameRoot is null)
+        {
+            return false;
+        }
+
+        var hit = HitTestHorizontalImpost(worldPoint);
+        if (hit is null)
+        {
+            StatusText = "Кликните по горизонтальному импосту";
+            return false;
+        }
+
+        _selectedMullion = hit;
+        _isHorizontalImpostDragging = true;
+        _draggingMullionWorldY = ResolveSelectedMullionAxisY();
+        SyncImpostPanelFromGhostAxisY(_draggingMullionWorldY ?? worldPoint.Y);
+        OnPropertyChanged(nameof(SelectedMullion));
+        OnPropertyChanged(nameof(DraggingMullionWorldY));
+        OnPropertyChanged(nameof(IsImpostPanelActive));
+        OnPropertyChanged(nameof(IsHorizontalImpostDragging));
+        StatusText = "Импост выделен — перетащите или измените L/H";
+        RequestSceneRefresh();
+        return true;
+    }
+
+    public void UpdateHorizontalImpostOffsetDrag(CadPoint worldPoint)
+    {
+        if (!_isHorizontalImpostDragging || _selectedMullion is null)
+        {
+            return;
+        }
+
+        if (!TryResolveHorizontalImpostDragAxisRange(_selectedMullion, out var minY, out var maxY))
+        {
+            return;
+        }
+
+        var axisY = RoundMm(Math.Clamp(worldPoint.Y, minY, maxY));
+        _draggingMullionWorldY = axisY;
+        TryMoveSelectedHorizontalImpost(axisY);
+        OnPropertyChanged(nameof(DraggingMullionWorldY));
+        SyncImpostPanelFromGhostAxisY(axisY);
+        StatusText = $"Свет снизу {ImpostPanelL:F1} · сверху {ImpostPanelH:F1} мм";
+        RequestSceneRefresh();
+    }
+
+    public void ReleaseHorizontalImpostOffset()
+    {
+        if (!_isHorizontalImpostDragging)
+        {
+            return;
+        }
+
+        if (_selectedMullion is not null && _draggingMullionWorldY is double axisY)
+        {
+            TryMoveSelectedHorizontalImpost(axisY);
+            SyncImpostPanelFromSelection();
+        }
+
+        _isHorizontalImpostDragging = false;
+        _draggingMullionWorldY = null;
+        OnPropertyChanged(nameof(DraggingMullionWorldY));
+        OnPropertyChanged(nameof(IsHorizontalImpostDragging));
+        if (_selectedMullion is not null)
+        {
+            StatusText = $"Импост: L={ImpostPanelL:F0} · H={ImpostPanelH:F0} мм";
+        }
+
+        RequestSceneRefresh();
+    }
+
+    private double? ResolveSelectedMullionAxisX()
+    {
+        if (_selectedMullion is null)
+        {
+            return null;
+        }
+
+        var node = _selectedMullion.SplitNode;
+        if (node.IsUniformSplit && _selectedMullion.UniformGapIndex is int gapIndex
+            && node.TryGetUniformImpostAxisWorld(SplitOrientation.Vertical, gapIndex, out var uniformAxis))
+        {
+            return RoundMm(uniformAxis);
+        }
+
+        return node.TryGetVerticalImpostAxisWorldX(out var axisX) ? RoundMm(axisX) : null;
+    }
+
+    private double? ResolveSelectedMullionAxisY()
+    {
+        if (_selectedMullion is null)
+        {
+            return null;
+        }
+
+        var node = _selectedMullion.SplitNode;
+        if (node.IsUniformSplit && _selectedMullion.UniformGapIndex is int gapIndex
+            && node.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, gapIndex, out var uniformAxis))
+        {
+            return RoundMm(uniformAxis);
+        }
+
+        return node.TryGetHorizontalImpostAxisWorldY(out var axisY) ? RoundMm(axisY) : null;
+    }
+
+    private bool TryResolveVerticalImpostDragAxisRange(
+        VerticalImpostTarget target,
+        out double minAxisX,
+        out double maxAxisX)
+    {
+        minAxisX = maxAxisX = 0;
+        var node = target.SplitNode;
+        var thickness = node.GetResolvedImpostThicknessMm();
+        var half = thickness / 2.0;
+        const double minCellMm = 40;
+
+        var nodeMin = node.X + minCellMm + half;
+        var nodeMax = node.X + node.Width - minCellMm - half;
+
+        if (FrameRoot is null)
+        {
+            minAxisX = nodeMin;
+            maxAxisX = nodeMax;
+            return maxAxisX > minAxisX;
+        }
+
+        var inner = SashGeometry.ResolveNodeInnerOpeningBounds(node, FrameRoot, FrameThickness);
+        var innerMin = inner.Left + ImpostDragInnerInsetMm + half;
+        var innerMax = inner.Right - ImpostDragInnerInsetMm - half;
+
+        minAxisX = Math.Max(nodeMin, innerMin);
+        maxAxisX = Math.Min(nodeMax, innerMax);
+        return maxAxisX > minAxisX;
+    }
+
+    private bool TryResolveHorizontalImpostDragAxisRange(
+        VerticalImpostTarget target,
+        out double minAxisY,
+        out double maxAxisY)
+    {
+        minAxisY = maxAxisY = 0;
+        var node = target.SplitNode;
+        var thickness = node.GetResolvedImpostThicknessMm();
+        var half = thickness / 2.0;
+        const double minCellMm = 40;
+
+        var nodeMin = node.Y + minCellMm + half;
+        var nodeMax = node.Y + node.Height - minCellMm - half;
+
+        if (FrameRoot is null)
+        {
+            minAxisY = nodeMin;
+            maxAxisY = nodeMax;
+            return maxAxisY > minAxisY;
+        }
+
+        var inner = SashGeometry.ResolveNodeInnerOpeningBounds(node, FrameRoot, FrameThickness);
+        var innerMin = inner.Bottom + ImpostDragInnerInsetMm + half;
+        var innerMax = inner.Top - ImpostDragInnerInsetMm - half;
+
+        minAxisY = Math.Max(nodeMin, innerMin);
+        maxAxisY = Math.Min(nodeMax, innerMax);
+        return maxAxisY > minAxisY;
+    }
+
+    private void SyncImpostPanelFromGhostAxis(double axisWorldX)
+    {
+        if (_selectedMullion is null)
+        {
+            return;
+        }
+
+        var node = _selectedMullion.SplitNode;
+        var half = node.GetResolvedImpostThicknessMm() / 2.0;
+        _isSyncingImpostPanel = true;
+        ImpostPanelX = RoundMm(axisWorldX);
+        ImpostPanelY = RoundMm(node.Y);
+
+        if (node.IsUniformSplit && _selectedMullion.UniformGapIndex is int gapIndex)
+        {
+            var leftCell = node.UniformCells[gapIndex];
+            var rightCell = node.UniformCells[gapIndex + 1];
+            var rightEdge = rightCell.X + rightCell.Width;
+            ImpostPanelL = RoundMm(axisWorldX - leftCell.X - half);
+            ImpostPanelH = RoundMm(rightEdge - axisWorldX - half);
+        }
+        else
+        {
+            ImpostPanelL = RoundMm((axisWorldX - node.X) - half);
+            ImpostPanelH = RoundMm((node.X + node.Width - axisWorldX) - half);
+        }
+
+        _isSyncingImpostPanel = false;
+    }
+
+    private void SyncImpostPanelFromGhostAxisY(double axisWorldY)
+    {
+        if (_selectedMullion is null)
+        {
+            return;
+        }
+
+        var node = _selectedMullion.SplitNode;
+        var half = node.GetResolvedImpostThicknessMm() / 2.0;
+        _isSyncingImpostPanel = true;
+        ImpostPanelY = RoundMm(axisWorldY);
+        ImpostPanelX = RoundMm(node.X);
+
+        if (node.IsUniformSplit && _selectedMullion.UniformGapIndex is int gapIndex)
+        {
+            var bottomCell = node.UniformCells[gapIndex];
+            var topCell = node.UniformCells[gapIndex + 1];
+            var topEdge = topCell.Y + topCell.Height;
+            ImpostPanelL = RoundMm(axisWorldY - bottomCell.Y - half);
+            ImpostPanelH = RoundMm(topEdge - axisWorldY - half);
+        }
+        else
+        {
+            ImpostPanelL = RoundMm((axisWorldY - node.Y) - half);
+            ImpostPanelH = RoundMm((node.Y + node.Height - axisWorldY) - half);
+        }
+
+        _isSyncingImpostPanel = false;
+    }
+
+    private bool TryMoveSelectedVerticalImpost(double axisWorldX)
+    {
+        if (_selectedMullion is null)
+        {
+            return false;
+        }
+
+        return MoveVerticalImpost(_selectedMullion, axisWorldX);
+    }
+
+    private bool TryMoveSelectedHorizontalImpost(double axisWorldY)
+    {
+        if (_selectedMullion is null)
+        {
+            return false;
+        }
+
+        return MoveHorizontalImpost(_selectedMullion, axisWorldY);
     }
 
     private void ApplyImpostPanelAxisX(double axisX)
     {
-        if (_isSyncingImpostPanel || _selectedVerticalImpost is null)
+        if (_isSyncingImpostPanel || _selectedMullion is null)
         {
             return;
         }
 
-        if (_selectedVerticalImpost.TrySetVerticalImpostAxisWorldX(axisX))
+        if (TryMoveSelectedVerticalImpost(axisX))
+        {
+            SyncImpostPanelFromSelection();
+            RequestSceneRefresh();
+        }
+    }
+
+    private void ApplyImpostPanelAxisY(double axisY)
+    {
+        if (_isSyncingImpostPanel || _selectedMullion is null)
+        {
+            return;
+        }
+
+        if (TryMoveSelectedHorizontalImpost(axisY))
         {
             SyncImpostPanelFromSelection();
             RequestSceneRefresh();
@@ -2462,13 +3891,18 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     private void ApplyImpostPanelLeftOpening(double leftWidth)
     {
-        if (_isSyncingImpostPanel || _selectedVerticalImpost is null)
+        if (_isSyncingImpostPanel || _selectedMullion is null)
         {
             return;
         }
 
-        if (_selectedVerticalImpost.TrySetVerticalLightOpeningLeftWidth(leftWidth))
+        var node = _selectedMullion.SplitNode;
+        var moved = node.IsUniformSplit && _selectedMullion.UniformGapIndex is int gap
+            ? TrySetUniformVerticalLightOpeningLeftWidth(node, gap, leftWidth)
+            : node.TrySetVerticalLightOpeningLeftWidth(leftWidth);
+        if (moved)
         {
+            SyncFillingsToFrameLayout();
             SyncImpostPanelFromSelection();
             RequestSceneRefresh();
         }
@@ -2476,13 +3910,56 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     private void ApplyImpostPanelRightOpening(double rightWidth)
     {
-        if (_isSyncingImpostPanel || _selectedVerticalImpost is null)
+        if (_isSyncingImpostPanel || _selectedMullion is null)
         {
             return;
         }
 
-        if (_selectedVerticalImpost.TrySetVerticalLightOpeningRightWidth(rightWidth))
+        var node = _selectedMullion.SplitNode;
+        var moved = node.IsUniformSplit && _selectedMullion.UniformGapIndex is int gap
+            ? TrySetUniformVerticalLightOpeningRightWidth(node, gap, rightWidth)
+            : node.TrySetVerticalLightOpeningRightWidth(rightWidth);
+        if (moved)
         {
+            SyncFillingsToFrameLayout();
+            SyncImpostPanelFromSelection();
+            RequestSceneRefresh();
+        }
+    }
+
+    private void ApplyImpostPanelBottomOpening(double bottomHeight)
+    {
+        if (_isSyncingImpostPanel || _selectedMullion is null)
+        {
+            return;
+        }
+
+        var node = _selectedMullion.SplitNode;
+        var moved = node.IsUniformSplit && _selectedMullion.UniformGapIndex is int gap
+            ? TrySetUniformHorizontalLightOpeningBottomHeight(node, gap, bottomHeight)
+            : node.TrySetHorizontalLightOpeningBottomHeight(bottomHeight);
+        if (moved)
+        {
+            SyncFillingsToFrameLayout();
+            SyncImpostPanelFromSelection();
+            RequestSceneRefresh();
+        }
+    }
+
+    private void ApplyImpostPanelTopOpening(double topHeight)
+    {
+        if (_isSyncingImpostPanel || _selectedMullion is null)
+        {
+            return;
+        }
+
+        var node = _selectedMullion.SplitNode;
+        var moved = node.IsUniformSplit && _selectedMullion.UniformGapIndex is int gap
+            ? TrySetUniformHorizontalLightOpeningTopHeight(node, gap, topHeight)
+            : node.TrySetHorizontalLightOpeningTopHeight(topHeight);
+        if (moved)
+        {
+            SyncFillingsToFrameLayout();
             SyncImpostPanelFromSelection();
             RequestSceneRefresh();
         }
@@ -2490,62 +3967,356 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     private void SyncImpostPanelFromSelection()
     {
-        if (_selectedVerticalImpost is null)
+        if (_selectedMullion is null)
         {
             return;
         }
 
+        var node = _selectedMullion.SplitNode;
         _isSyncingImpostPanel = true;
-        if (_selectedVerticalImpost.TryGetVerticalImpostAxisWorldX(out var axisX))
-        {
-            ImpostPanelX = RoundMm(axisX);
-        }
 
-        ImpostPanelY = RoundMm(_selectedVerticalImpost.Y);
-        if (_selectedVerticalImpost.TryGetVerticalLightOpeningWidths(out var left, out var right))
+        if (CurrentToolMode == WindowToolMode.OffsetImpostHorizontal)
         {
-            ImpostPanelL = RoundMm(left);
-            ImpostPanelH = RoundMm(right);
+            if (node.IsUniformSplit && _selectedMullion.UniformGapIndex is int horizontalGapIndex)
+            {
+                if (node.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, horizontalGapIndex, out var axisY))
+                {
+                    ImpostPanelY = RoundMm(axisY);
+                }
+
+                ImpostPanelX = RoundMm(node.X);
+                if (TryGetUniformHorizontalLightOpeningHeights(node, horizontalGapIndex, out var bottom, out var top))
+                {
+                    ImpostPanelL = RoundMm(bottom);
+                    ImpostPanelH = RoundMm(top);
+                }
+            }
+            else
+            {
+                if (node.TryGetHorizontalImpostAxisWorldY(out var axisY))
+                {
+                    ImpostPanelY = RoundMm(axisY);
+                }
+
+                ImpostPanelX = RoundMm(node.X);
+                if (node.TryGetHorizontalLightOpeningHeights(out var bottom, out var top))
+                {
+                    ImpostPanelL = RoundMm(bottom);
+                    ImpostPanelH = RoundMm(top);
+                }
+            }
+        }
+        else if (node.IsUniformSplit && _selectedMullion.UniformGapIndex is int gapIndex)
+        {
+            if (node.TryGetUniformImpostAxisWorld(SplitOrientation.Vertical, gapIndex, out var axisX))
+            {
+                ImpostPanelX = RoundMm(axisX);
+            }
+
+            ImpostPanelY = RoundMm(node.Y);
+            if (TryGetUniformVerticalLightOpeningWidths(node, gapIndex, out var left, out var right))
+            {
+                ImpostPanelL = RoundMm(left);
+                ImpostPanelH = RoundMm(right);
+            }
+        }
+        else
+        {
+            if (node.TryGetVerticalImpostAxisWorldX(out var axisX))
+            {
+                ImpostPanelX = RoundMm(axisX);
+            }
+
+            ImpostPanelY = RoundMm(node.Y);
+            if (node.TryGetVerticalLightOpeningWidths(out var left, out var right))
+            {
+                ImpostPanelL = RoundMm(left);
+                ImpostPanelH = RoundMm(right);
+            }
         }
 
         _isSyncingImpostPanel = false;
     }
 
-    private void ClearVerticalImpostInteractionState()
+    private void ClearImpostOffsetInteractionState()
     {
-        _hoveredVerticalImpost = null;
-        _selectedVerticalImpost = null;
-        _draggingVerticalImpost = null;
+        _selectedMullion = null;
+        _isVerticalImpostDragging = false;
+        _isHorizontalImpostDragging = false;
+        _draggingMullionWorldX = null;
+        _draggingMullionWorldY = null;
+        OnPropertyChanged(nameof(SelectedMullion));
+        OnPropertyChanged(nameof(DraggingMullionWorldX));
+        OnPropertyChanged(nameof(DraggingMullionWorldY));
         OnPropertyChanged(nameof(IsImpostPanelActive));
+        OnPropertyChanged(nameof(IsVerticalImpostDragging));
+        OnPropertyChanged(nameof(IsHorizontalImpostDragging));
         RequestSceneRefresh();
     }
 
-    private static FrameNode? FindVerticalImpostNear(FrameNode root, double worldX)
+    private double ResolveVerticalImpostHitToleranceMm() =>
+        Math.Max(VerticalImpostHitToleranceMm, VerticalImpostHitScreenPx * MillimetersPerPixel);
+
+    private VerticalImpostTarget? HitTestVerticalImpost(CadPoint worldPoint)
     {
-        FrameNode? best = null;
+        if (FrameRoot is null)
+        {
+            return null;
+        }
+
+        var tolerance = ResolveVerticalImpostHitToleranceMm();
+        VerticalImpostTarget? best = null;
         var bestDistance = double.MaxValue;
 
-        foreach (var node in root.EnumerateInternalNodes())
+        foreach (var node in FrameRoot.EnumerateInternalNodes())
         {
-            if (node.IsUniformSplit || node.SplitOrientation != SplitOrientation.Vertical)
+            if (node.SplitOrientation != SplitOrientation.Vertical)
             {
                 continue;
             }
 
-            if (!node.TryGetVerticalImpostAxisWorldX(out var axisX))
+            if (node.IsUniformSplit)
+            {
+                for (var gapIndex = 0; gapIndex < node.UniformCells.Count - 1; gapIndex++)
+                {
+                    if (!node.TryGetUniformImpostAxisWorld(SplitOrientation.Vertical, gapIndex, out var axisX))
+                    {
+                        continue;
+                    }
+
+                    if (!IsPointNearVerticalImpost(node, axisX, worldPoint, tolerance, out var distance))
+                    {
+                        continue;
+                    }
+
+                    if (distance < bestDistance)
+                    {
+                        bestDistance = distance;
+                        best = new VerticalImpostTarget
+                        {
+                            SplitNode = node,
+                            UniformGapIndex = gapIndex
+                        };
+                    }
+                }
+
+                continue;
+            }
+
+            if (!node.TryGetVerticalImpostAxisWorldX(out var binaryAxisX))
             {
                 continue;
             }
 
-            var distance = Math.Abs(worldX - axisX);
-            if (distance <= VerticalImpostHitToleranceMm && distance < bestDistance)
+            if (!IsPointNearVerticalImpost(node, binaryAxisX, worldPoint, tolerance, out var binaryDistance))
             {
-                bestDistance = distance;
-                best = node;
+                continue;
+            }
+
+            if (binaryDistance < bestDistance)
+            {
+                bestDistance = binaryDistance;
+                best = new VerticalImpostTarget { SplitNode = node };
             }
         }
 
         return best;
+    }
+
+    private VerticalImpostTarget? HitTestHorizontalImpost(CadPoint worldPoint)
+    {
+        if (FrameRoot is null)
+        {
+            return null;
+        }
+
+        var tolerance = ResolveVerticalImpostHitToleranceMm();
+        VerticalImpostTarget? best = null;
+        var bestDistance = double.MaxValue;
+
+        foreach (var node in FrameRoot.EnumerateInternalNodes())
+        {
+            if (node.SplitOrientation != SplitOrientation.Horizontal)
+            {
+                continue;
+            }
+
+            if (node.IsUniformSplit)
+            {
+                for (var gapIndex = 0; gapIndex < node.UniformCells.Count - 1; gapIndex++)
+                {
+                    if (!node.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, gapIndex, out var axisY))
+                    {
+                        continue;
+                    }
+
+                    if (!IsPointNearHorizontalImpost(node, axisY, worldPoint, tolerance, out var distance))
+                    {
+                        continue;
+                    }
+
+                    if (distance < bestDistance)
+                    {
+                        bestDistance = distance;
+                        best = new VerticalImpostTarget
+                        {
+                            SplitNode = node,
+                            UniformGapIndex = gapIndex
+                        };
+                    }
+                }
+
+                continue;
+            }
+
+            if (!node.TryGetHorizontalImpostAxisWorldY(out var binaryAxisY))
+            {
+                continue;
+            }
+
+            if (!IsPointNearHorizontalImpost(node, binaryAxisY, worldPoint, tolerance, out var binaryDistance))
+            {
+                continue;
+            }
+
+            if (binaryDistance < bestDistance)
+            {
+                bestDistance = binaryDistance;
+                best = new VerticalImpostTarget { SplitNode = node };
+            }
+        }
+
+        return best;
+    }
+
+    private static bool IsPointNearVerticalImpost(
+        FrameNode node,
+        double axisX,
+        CadPoint point,
+        double tolerance,
+        out double distance)
+    {
+        distance = Math.Abs(point.X - axisX);
+        if (distance > tolerance)
+        {
+            return false;
+        }
+
+        return point.Y >= node.Y - tolerance && point.Y <= node.Y + node.Height + tolerance;
+    }
+
+    private static bool IsPointNearHorizontalImpost(
+        FrameNode node,
+        double axisY,
+        CadPoint point,
+        double tolerance,
+        out double distance)
+    {
+        distance = Math.Abs(point.Y - axisY);
+        if (distance > tolerance)
+        {
+            return false;
+        }
+
+        return point.X >= node.X - tolerance && point.X <= node.X + node.Width + tolerance;
+    }
+
+    private static bool TryGetUniformVerticalLightOpeningWidths(
+        FrameNode splitNode,
+        int gapIndex,
+        out double leftWidth,
+        out double rightWidth)
+    {
+        leftWidth = rightWidth = 0;
+        if (!splitNode.IsUniformSplit || gapIndex < 0 || gapIndex >= splitNode.UniformCells.Count - 1)
+        {
+            return false;
+        }
+
+        leftWidth = splitNode.UniformCells[gapIndex].Width;
+        rightWidth = splitNode.UniformCells[gapIndex + 1].Width;
+        return leftWidth > CadMath.Epsilon && rightWidth > CadMath.Epsilon;
+    }
+
+    private static bool TrySetUniformVerticalLightOpeningLeftWidth(
+        FrameNode splitNode,
+        int gapIndex,
+        double leftWidth)
+    {
+        if (!splitNode.TryGetUniformImpostAxisWorld(SplitOrientation.Vertical, gapIndex, out var currentAxis))
+        {
+            return false;
+        }
+
+        var delta = leftWidth - splitNode.UniformCells[gapIndex].Width;
+        return splitNode.TrySetUniformVerticalImpostGapAxisWorldX(
+            gapIndex,
+            currentAxis + delta);
+    }
+
+    private static bool TrySetUniformVerticalLightOpeningRightWidth(
+        FrameNode splitNode,
+        int gapIndex,
+        double rightWidth)
+    {
+        if (!splitNode.TryGetUniformImpostAxisWorld(SplitOrientation.Vertical, gapIndex, out var currentAxis))
+        {
+            return false;
+        }
+
+        var delta = rightWidth - splitNode.UniformCells[gapIndex + 1].Width;
+        return splitNode.TrySetUniformVerticalImpostGapAxisWorldX(
+            gapIndex,
+            currentAxis - delta);
+    }
+
+    private static bool TryGetUniformHorizontalLightOpeningHeights(
+        FrameNode splitNode,
+        int gapIndex,
+        out double bottomHeight,
+        out double topHeight)
+    {
+        bottomHeight = topHeight = 0;
+        if (!splitNode.IsUniformSplit || gapIndex < 0 || gapIndex >= splitNode.UniformCells.Count - 1)
+        {
+            return false;
+        }
+
+        bottomHeight = splitNode.UniformCells[gapIndex].Height;
+        topHeight = splitNode.UniformCells[gapIndex + 1].Height;
+        return bottomHeight > CadMath.Epsilon && topHeight > CadMath.Epsilon;
+    }
+
+    private static bool TrySetUniformHorizontalLightOpeningBottomHeight(
+        FrameNode splitNode,
+        int gapIndex,
+        double bottomHeight)
+    {
+        if (!splitNode.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, gapIndex, out var currentAxis))
+        {
+            return false;
+        }
+
+        var delta = bottomHeight - splitNode.UniformCells[gapIndex].Height;
+        return splitNode.TrySetUniformHorizontalImpostGapAxisWorldY(
+            gapIndex,
+            currentAxis + delta);
+    }
+
+    private static bool TrySetUniformHorizontalLightOpeningTopHeight(
+        FrameNode splitNode,
+        int gapIndex,
+        double topHeight)
+    {
+        if (!splitNode.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, gapIndex, out var currentAxis))
+        {
+            return false;
+        }
+
+        var delta = topHeight - splitNode.UniformCells[gapIndex + 1].Height;
+        return splitNode.TrySetUniformHorizontalImpostGapAxisWorldY(
+            gapIndex,
+            currentAxis - delta);
     }
 
     public bool TryCycleSashHardware(CadPoint worldPoint)
@@ -2562,27 +4333,35 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return false;
         }
 
-        if (!sash.HasHardware)
+        RecordPlacement("Фурнитура", () =>
         {
-            sash.HasHardware = true;
-            sash.HingeSide = SashHingeSide.Right;
-            StatusText = "Петли справа";
-        }
-        else if (sash.HingeSide == SashHingeSide.Right)
-        {
-            sash.HingeSide = SashHingeSide.Left;
-            StatusText = "Петли слева";
-        }
-        else if (sash.HingeSide == SashHingeSide.Left)
-        {
-            sash.HingeSide = SashHingeSide.Bottom;
-            StatusText = "Петли снизу (фрамуга)";
-        }
-        else
-        {
-            sash.HasHardware = false;
-            StatusText = "Петли сняты";
-        }
+            if (!sash.HasHardware)
+            {
+                sash.HasHardware = true;
+                sash.HingeSide = SashHingeSide.Right;
+                sash.OpeningType = SashOpeningType.TiltTurn;
+                StatusText = "Петли справа";
+            }
+            else if (sash.HingeSide == SashHingeSide.Right)
+            {
+                sash.HingeSide = SashHingeSide.Left;
+                sash.OpeningType = SashOpeningType.TiltTurn;
+                StatusText = "Петли слева";
+            }
+            else if (sash.HingeSide == SashHingeSide.Left)
+            {
+                sash.HingeSide = SashHingeSide.Bottom;
+                sash.OpeningType = SashOpeningType.Turn;
+                StatusText = "Петли снизу (фрамуга)";
+            }
+            else
+            {
+                sash.HasHardware = false;
+                StatusText = "Петли сняты";
+            }
+
+            return true;
+        });
 
         RequestSceneRefresh();
         return true;
@@ -2602,8 +4381,13 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return false;
         }
 
-        sash.HasHandle = !sash.HasHandle;
-        StatusText = sash.HasHandle ? "Ручка установлена" : "Ручка снята";
+        RecordPlacement(sash.HasHandle ? "Ручка снята" : "Ручка установлена", () =>
+        {
+            sash.HasHandle = !sash.HasHandle;
+            StatusText = sash.HasHandle ? "Ручка установлена" : "Ручка снята";
+            return true;
+        });
+
         RequestSceneRefresh();
         return true;
     }
@@ -2719,7 +4503,11 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return false;
         }
 
-        CanvasElements.Add(sash);
+        RecordPlacement("Створка создана", () =>
+        {
+            CanvasElements.Add(sash);
+            return true;
+        });
         StatusText = "Створка создана";
         RequestSceneRefresh();
         return true;
@@ -2804,6 +4592,124 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     private GeometryElement? FindSashInLeaf(FrameNode leaf) =>
         CanvasElements.FirstOrDefault(e => e.Kind == GeometryElementKind.Sash && ContainsLeaf(e, leaf));
+
+    private GeometryElement? FindGlazingInLeaf(FrameNode leaf) =>
+        CanvasElements.FirstOrDefault(e =>
+            e.Kind == GeometryElementKind.Glazing &&
+            (ContainsLeaf(e, leaf) ||
+             (e.HostSashId is Guid sashId && FindSashInLeaf(leaf)?.Id == sashId)));
+
+    private bool CanApplyGlazingInLeaf(FrameNode leaf)
+    {
+        if (FindGlazingInLeaf(leaf) is not null)
+        {
+            return false;
+        }
+
+        if (CanvasElements.Any(e => e.Kind == GeometryElementKind.Corrugation && ContainsLeaf(e, leaf)))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool TryPlaceGlazingInLeaf(FrameNode leaf)
+    {
+        var glazing = CreateGlazingElement(leaf);
+        if (glazing is null)
+        {
+            StatusText = FindSashInLeaf(leaf) is not null
+                ? "Световой проём створки слишком мал для остекления"
+                : "Проём слишком мал для остекления";
+            return false;
+        }
+
+        if (!RecordPlacement("Остекление", () =>
+            {
+                CanvasElements.Add(glazing);
+                return true;
+            }))
+        {
+            return false;
+        }
+
+        StatusText = "Остекление установлено";
+        RequestSceneRefresh();
+        return true;
+    }
+
+    private GeometryElement? CreateGlazingElement(FrameNode leaf)
+    {
+        if (FrameRoot is null)
+        {
+            return null;
+        }
+
+        var sash = FindSashInLeaf(leaf);
+        if (sash is not null)
+        {
+            return CreateGlazingElementForSash(sash, leaf);
+        }
+
+        var (innerX, innerY, innerW, innerH) = SashGeometry.ResolveLeafInnerOpening(
+            leaf,
+            FrameRoot,
+            FrameThickness);
+        if (innerW < 40 || innerH < 40)
+        {
+            return null;
+        }
+
+        return new GeometryElement
+        {
+            Kind = GeometryElementKind.Glazing,
+            Label = "Остекление",
+            X = (decimal)(innerX + innerW / 2.0),
+            Y = (decimal)(innerY + innerH / 2.0),
+            WidthMm = (decimal)innerW,
+            HeightMm = (decimal)innerH,
+            SourceToolId = "glazing"
+        };
+    }
+
+    private GeometryElement? CreateGlazingElementForSash(GeometryElement sash, FrameNode? leaf)
+    {
+        if (FrameRoot is null)
+        {
+            return null;
+        }
+
+        var inner = SashGeometry.TryResolveInnerBounds(this, sash, out var liveInner)
+            ? liveInner
+            : leaf is not null
+                ? SashGeometry.ResolveLeafInnerOpeningBounds(leaf, FrameRoot, FrameThickness)
+                : SashGeometry.InnerOpeningBoundsFromElement(sash);
+        var outer = SashGeometry.ExpandInnerBoundsToOuter(inner, this);
+        var (glassLeft, glassBottom, glassRight, glassTop) = SashGeometry.ResolveInnerGlassFromOuter(
+            outer.Left,
+            outer.Bottom,
+            outer.Width,
+            outer.Height);
+        var width = glassRight - glassLeft;
+        var height = glassTop - glassBottom;
+        if (width < 20 || height < 20)
+        {
+            return null;
+        }
+
+        return new GeometryElement
+        {
+            Kind = GeometryElementKind.Glazing,
+            Label = "Остекление",
+            HostSashId = sash.Id,
+            X = (decimal)((glassLeft + glassRight) / 2.0),
+            Y = (decimal)((glassBottom + glassTop) / 2.0),
+            WidthMm = (decimal)width,
+            HeightMm = (decimal)height,
+            SourceToolId = "glazing"
+        };
+    }
 
     private static bool ContainsElement(GeometryElement element, CadPoint point)
     {
@@ -2908,20 +4814,38 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     public void ApplySnapshot(CadEditorSnapshot snapshot, IReadOnlyList<GeometryElement> elements)
     {
-        Document.Name = snapshot.DocumentName;
-        Viewport.ZoomFactor = snapshot.ViewportZoomFactor;
-        Viewport.PanOffset = new CadVector(snapshot.ViewportPanX, snapshot.ViewportPanY);
-        OnPropertyChanged(nameof(ZoomPercent));
-        OnPropertyChanged(nameof(MillimetersPerPixel));
+        if (_isResettingCanvas)
+        {
+            return;
+        }
 
-        SetDesignElements(elements);
+        try
+        {
+            _isResettingCanvas = true;
+            _canvasResetDepth++;
 
-        FrameRoot = snapshot.FrameRoot is null
-            ? TryCreateFrameFromElements(elements)
-            : RestoreFrameNode(snapshot.FrameRoot);
+            Document.Name = snapshot.DocumentName;
+            Viewport.ZoomFactor = snapshot.ViewportZoomFactor;
+            Viewport.PanOffset = new CadVector(snapshot.ViewportPanX, snapshot.ViewportPanY);
+            OnPropertyChanged(nameof(ZoomPercent));
+            OnPropertyChanged(nameof(MillimetersPerPixel));
 
-        Commands.Clear();
-        RequestSceneRefresh();
+            FrameRoot = snapshot.FrameRoot is null
+                ? TryCreateFrameFromElements(elements)
+                : RestoreFrameNode(snapshot.FrameRoot);
+
+            SetDesignElements(elements);
+
+            Commands.Clear();
+            _placementHistory.Clear();
+            NotifyPlacementHistoryChanged();
+            RequestSceneRefresh();
+        }
+        finally
+        {
+            _canvasResetDepth--;
+            _isResettingCanvas = false;
+        }
     }
 
     public void ResetWorkspace()
@@ -2937,6 +4861,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
         CoordinateY = 0;
         Viewport.ResetToDefaultScale(15.0);
         Commands.Clear();
+        _placementHistory.Clear();
+        NotifyPlacementHistoryChanged();
         OnPropertyChanged(nameof(ZoomPercent));
         OnPropertyChanged(nameof(MillimetersPerPixel));
         RequestSceneRefresh();
@@ -2959,11 +4885,35 @@ public sealed partial class CadEditorViewModel : ObservableObject
         ChildB = node.ChildB is null ? null : CaptureFrameNode(node.ChildB)
     };
 
-    private static FrameNode? RestoreFrameNode(FrameNodeSnapshot snapshot)
+    private static FrameNode? RestoreFrameNode(FrameNodeSnapshot snapshot) =>
+        FrameNode.RestoreTree(ToTreeSnapshot(snapshot));
+
+    private static FrameNode.TreeSnapshot ToTreeSnapshot(FrameNodeSnapshot snapshot) => new()
     {
-        var root = FrameNode.CreateRoot(snapshot.X, snapshot.Y, snapshot.Width, snapshot.Height);
-        return root;
-    }
+        X = snapshot.X,
+        Y = snapshot.Y,
+        Width = snapshot.Width,
+        Height = snapshot.Height,
+        IsLeaf = snapshot.IsLeaf,
+        IsUniformSplit = snapshot.IsUniformSplit,
+        SplitOrientation = ParseSplitOrientation(snapshot.SplitOrientation),
+        LineStyle = ParseImpostLineStyle(snapshot.LineStyle),
+        ImpostThicknessMm = snapshot.ImpostThicknessMm,
+        UniformImpostCount = snapshot.UniformImpostCount,
+        UniformCells = snapshot.UniformCells.Select(ToTreeSnapshot).ToList(),
+        ChildA = snapshot.ChildA is null ? null : ToTreeSnapshot(snapshot.ChildA),
+        ChildB = snapshot.ChildB is null ? null : ToTreeSnapshot(snapshot.ChildB)
+    };
+
+    private static SplitOrientation ParseSplitOrientation(string value) =>
+        Enum.TryParse<SplitOrientation>(value, ignoreCase: true, out var parsed)
+            ? parsed
+            : SplitOrientation.None;
+
+    private static ImpostLineStyle ParseImpostLineStyle(string value) =>
+        Enum.TryParse<ImpostLineStyle>(value, ignoreCase: true, out var parsed)
+            ? parsed
+            : ImpostLineStyle.Dashed;
 
     private static FrameNode? TryCreateFrameFromElements(IReadOnlyList<GeometryElement> elements)
     {
@@ -2973,10 +4923,12 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return null;
         }
 
+        var width = (double)frameElement.WidthMm;
+        var height = (double)frameElement.HeightMm;
         return FrameNode.CreateRoot(
-            (double)frameElement.X,
-            (double)frameElement.Y,
-            (double)frameElement.WidthMm,
-            (double)frameElement.HeightMm);
+            (double)frameElement.X - width / 2.0,
+            (double)frameElement.Y - height / 2.0,
+            width,
+            height);
     }
 }

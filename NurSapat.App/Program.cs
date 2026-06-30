@@ -91,7 +91,11 @@ class Program
         services.AddSingleton<OrderCalculationState>();
         services.AddSingleton<CadTemplateStore>();
         services.AddSingleton<ICadDialogService, CadDialogService>();
-        services.AddSingleton<CadEditorViewModel>();
+        services.AddSingleton<CadEditorViewModel>(sp =>
+            new CadEditorViewModel(
+                sp.GetRequiredService<ICadDialogService>(),
+                sp.GetRequiredService<CadTemplateStore>(),
+                sp.GetRequiredService<IMaterialRepository>()));
         services.AddSingleton<OrderWorkspaceViewModel>();
         services.AddSingleton<OrderSheetViewModel>(sp => sp.GetRequiredService<OrderWorkspaceViewModel>().Sheet);
         services.AddSingleton<OrderDrawingViewModel>(sp => sp.GetRequiredService<OrderWorkspaceViewModel>().Drawing);

@@ -77,6 +77,9 @@ public enum WindowToolMode
     /// <summary>Импост наклонный.</summary>
     SlantedImpost,
 
+    /// <summary>Остекление светового проёма.</summary>
+    Glassing,
+
     // Д) Элементы
     /// <summary>Переходной профиль.</summary>
     AdapterProfile,

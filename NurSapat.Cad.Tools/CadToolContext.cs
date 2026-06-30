@@ -44,14 +44,6 @@ public sealed class CadToolContext
 
     public Func<double, double>? SnapAxis { get; set; }
 
-    public Action<CadPoint>? UpdateVerticalImpostHover { get; set; }
-
-    public Func<CadPoint, bool>? TryBeginVerticalImpostDrag { get; set; }
-
-    public Action<CadPoint>? UpdateVerticalImpostDrag { get; set; }
-
-    public Action? EndVerticalImpostDrag { get; set; }
-
     public CadToolContext(CadDocument document, CadCommandManager commands, CadSnappingEngine snapping)
     {
         Document = document;

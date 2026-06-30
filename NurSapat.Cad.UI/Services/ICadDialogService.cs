@@ -15,4 +15,6 @@ public interface ICadDialogService
     Task<int?> ShowImpostCountAsync(int initialCount = 1);
 
     Task<CadDrawingTemplate?> ShowTemplatePickerAsync(CadTemplateStore store, ViewModels.CadEditorViewModel editor);
+
+    Task<bool> ShowConfirmationAsync(string title, string message);
 }

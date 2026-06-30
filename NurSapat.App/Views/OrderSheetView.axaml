@@ -1,486 +1,895 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
-             xmlns:orders="clr-namespace:NurSapat.Core.Models.Orders;assembly=NurSapat.Core"
-             xmlns:cadControls="clr-namespace:NurSapat.Cad.UI.Controls;assembly=NurSapat.Cad.UI"
+             xmlns:controls="clr-namespace:NurSapat.Cad.UI.Controls;assembly=NurSapat.Cad.UI"
+             xmlns:appControls="clr-namespace:NurSapat.App.Controls"
              x:Class="NurSapat.App.Views.OrderSheetView"
              x:DataType="vm:OrderSheetViewModel">
 
     <UserControl.Styles>
-        <Style Selector="Border.os-panel">
+        <Style Selector="Border.os-sidebar">
             <Setter Property="Background" Value="White"/>
             <Setter Property="BorderBrush" Value="#E2E8F0"/>
-            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-            <Setter Property="Padding" Value="16"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="12"/>
+        </Style>
+        <Style Selector="Border.os-card">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="12"/>
         </Style>
         <Style Selector="TextBlock.os-title">
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontSize" Value="16"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Foreground" Value="#0F172A"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
         </Style>
         <Style Selector="TextBlock.os-label">
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="Foreground" Value="#64748B"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
         </Style>
-        <Style Selector="TextBlock.os-value">
+        <Style Selector="TextBlock.os-spec-label">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#64748B"/>
+            <Setter Property="Width" Value="88"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="TextBlock.os-spec-value">
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Foreground" Value="#0F172A"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
-        <Style Selector="Border.os-line">
-            <Setter Property="Height" Value="1"/>
-            <Setter Property="Background" Value="#E2E8F0"/>
-            <Setter Property="Margin" Value="0,10"/>
+        <Style Selector="TextBox.os-search">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="MaxHeight" Value="32"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
-        <Style Selector="Button.os-tool">
+        <Style Selector="TextBox.os-field">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="MaxHeight" Value="32"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="ComboBox.os-field">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="MaxHeight" Value="32"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="DatePicker.os-field">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="MaxHeight" Value="32"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="TextBox.os-field-readonly">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="MaxHeight" Value="32"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="Background" Value="#F8FAFC"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="TextBox.os-field-multiline">
+            <Setter Property="MinHeight" Value="48"/>
+            <Setter Property="MaxHeight" Value="48"/>
+            <Setter Property="Height" Value="48"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="Button.os-listCard">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        </Style>
+        <Style Selector="Button.os-listCard:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="Border.os-listCardBorder">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="8"/>
+        </Style>
+        <Style Selector="Border.os-listCardBorder:active">
+            <Setter Property="Background" Value="#EFF6FF"/>
+            <Setter Property="BorderBrush" Value="#3B82F6"/>
+            <Setter Property="BorderThickness" Value="2"/>
+        </Style>
+        <Style Selector="ListBox.os-constructionList">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="ListBox.os-constructionList ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Top"/>
+        </Style>
+        <Style Selector="ListBox.os-constructionList ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="ListBox.os-constructionList ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="Button.os-toolbar">
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="MinWidth" Value="36"/>
+            <Setter Property="MinHeight" Value="36"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.os-toolbar:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#F8FAFC"/>
+        </Style>
+        <Style Selector="Button.os-toolbar:disabled">
+            <Setter Property="Opacity" Value="0.45"/>
+        </Style>
+        <Style Selector="Button.os-chip">
             <Setter Property="MinWidth" Value="32"/>
-            <Setter Property="Height" Value="28"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="MinHeight" Value="32"/>
             <Setter Property="Padding" Value="8,0"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="CornerRadius" Value="6"/>
             <Setter Property="Background" Value="White"/>
             <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
-        <Style Selector="Button.os-eye">
-            <Setter Property="Width" Value="28"/>
-            <Setter Property="Height" Value="28"/>
+        <Style Selector="Button.os-chip.active">
+            <Setter Property="Background" Value="#EFF6FF"/>
+            <Setter Property="BorderBrush" Value="#3B82F6"/>
+            <Setter Property="Foreground" Value="#1D4ED8"/>
+        </Style>
+        <Style Selector="Button.os-action">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.os-previewTool">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="MinWidth" Value="32"/>
+            <Setter Property="MinHeight" Value="32"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
         </Style>
-        <Style Selector="ListBox.os-list">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
+        <Style Selector="Button.os-previewTool:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#F8FAFC"/>
         </Style>
-        <Style Selector="ListBox.os-list ListBoxItem">
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-        <Style Selector="ListBox.os-list ListBoxItem:selected /template/ ContentPresenter">
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-        <Style Selector="Border.os-item">
-            <Setter Property="Background" Value="#FAFBFC"/>
+        <Style Selector="Border.os-hint">
+            <Setter Property="Background" Value="#F8FAFC"/>
             <Setter Property="BorderBrush" Value="#E2E8F0"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="12"/>
-        </Style>
-        <Style Selector="ListBox.os-list ListBoxItem:selected Border.os-item">
-            <Setter Property="Background" Value="#EFF6FF"/>
-            <Setter Property="BorderBrush" Value="#BFDBFE"/>
+            <Setter Property="Padding" Value="8"/>
         </Style>
     </UserControl.Styles>
 
     <Grid Background="#F6F9FD"
-          RowDefinitions="*,200,28">
+          Margin="12"
+          ColumnDefinitions="300,*"
+          RowDefinitions="*,Auto"
+          ColumnSpacing="12">
 
-        <!-- Верхняя зона -->
-        <Grid Grid.Row="0" MinHeight="360">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="300" MinWidth="280"/>
-                <ColumnDefinition Width="420" MinWidth="360"/>
-                <ColumnDefinition Width="*" MinWidth="320"/>
-            </Grid.ColumnDefinitions>
+        <!-- НАЧАЛО: Левая панель -->
+        <Border Grid.Row="0"
+                Grid.Column="0"
+                Classes="os-sidebar">
+            <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" RowSpacing="8">
+                <TextBlock Grid.Row="0"
+                           Classes="os-title"
+                           Text="Конструкции"
+                           Margin="0"/>
 
-            <!-- 1. Конструкции -->
-            <Border Grid.Column="0" Classes="os-panel">
-                <Grid RowDefinitions="Auto,*">
-                    <TextBlock Classes="os-title" Text="Конструкции" Margin="0,0,0,12"/>
+                <TextBox Grid.Row="1"
+                         Classes="os-search"
+                         PlaceholderText="Поиск..."
+                         Text="{Binding ConstructionSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                    <TextBox.InnerLeftContent>
+                        <TextBlock Text="&#xE721;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="14"
+                                   Foreground="#94A3B8"
+                                   VerticalAlignment="Center"
+                                   Margin="4,0,0,0"/>
+                    </TextBox.InnerLeftContent>
+                </TextBox>
 
-                    <Panel Grid.Row="1">
-                        <StackPanel VerticalAlignment="Center"
-                                    Spacing="8"
-                                    IsVisible="{Binding ShowConstructionEmptyState}">
-                            <TextBlock Text="Нет конструкций."
-                                       Classes="os-value"
-                                       HorizontalAlignment="Center"
-                                       TextAlignment="Center"/>
-                            <TextBlock Text="Создайте конструкцию на вкладке «Чертеж»."
-                                       FontSize="12"
-                                       Foreground="#94A3B8"
-                                       TextAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       HorizontalAlignment="Center"/>
-                        </StackPanel>
+                <TextBlock Grid.Row="2"
+                           Text="{Binding PageIndicatorText}"
+                           FontSize="11"
+                           Foreground="#94A3B8"
+                           HorizontalAlignment="Right"
+                           IsVisible="{Binding !ShowConstructionCardsEmptyState}"/>
 
-                        <ListBox Classes="os-list"
-                                 ItemsSource="{Binding Constructions}"
-                                 SelectedItem="{Binding SelectedConstruction}"
-                                 IsVisible="{Binding !ShowConstructionEmptyState}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:DataType="orders:OrderConstruction">
-                                    <Border Classes="os-item">
-                                        <Grid ColumnDefinitions="44,*,Auto" ColumnSpacing="10">
+                <Panel Grid.Row="3">
+                    <StackPanel VerticalAlignment="Center"
+                                Spacing="8"
+                                IsVisible="{Binding ShowConstructionCardsEmptyState}">
+                        <TextBlock Text="Нет конструкций."
+                                   FontSize="13"
+                                   Foreground="#0F172A"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"/>
+                        <TextBlock Text="Добавьте конструкцию кнопкой ниже или на вкладке «Чертеж»."
+                                   FontSize="12"
+                                   Foreground="#94A3B8"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+                    <ListBox Classes="os-constructionList"
+                             ItemsSource="{Binding PagedConstructionCards}"
+                             SelectedItem="{Binding SelectedConstructionCard, Mode=TwoWay}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             IsVisible="{Binding !ShowConstructionCardsEmptyState}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:OrderConstructionLookupItemViewModel">
+                                <Button Classes="os-listCard"
+                                        Height="96"
+                                        HorizontalAlignment="Stretch"
+                                        Command="{Binding $parent[UserControl].((vm:OrderSheetViewModel)DataContext).SelectConstructionCardCommand}"
+                                        CommandParameter="{Binding}">
+                                    <Border Classes="os-listCardBorder"
+                                            Classes.active="{Binding IsActive}"
+                                            Height="96"
+                                            HorizontalAlignment="Stretch">
+                                        <Grid ColumnDefinitions="64,*" ColumnSpacing="8">
                                             <Border Grid.Column="0"
-                                                    Width="44" Height="44"
-                                                    CornerRadius="6"
-                                                    Background="#EFF6FF"
-                                                    BorderBrush="#DBEAFE"
-                                                    BorderThickness="1">
-                                                <TextBlock Text="🪟"
-                                                           FontSize="20"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center"/>
+                                                    Width="64"
+                                                    Height="64"
+                                                    Background="#F8FAFC"
+                                                    BorderBrush="#E2E8F0"
+                                                    BorderThickness="1"
+                                                    CornerRadius="8"
+                                                    ClipToBounds="True"
+                                                    VerticalAlignment="Center">
+                                                <Viewbox Stretch="Uniform"
+                                                         StretchDirection="DownOnly"
+                                                         HorizontalAlignment="Center"
+                                                         VerticalAlignment="Center"
+                                                         Margin="4">
+                                                    <controls:CadCanvasControl Editor="{Binding PreviewEditor}"
+                                                                               AutoFitOnResize="True"
+                                                                               IsThumbnailPreview="True"
+                                                                               IsEnabled="False"
+                                                                               IsHitTestVisible="False"
+                                                                               Width="56"
+                                                                               Height="56"/>
+                                                </Viewbox>
                                             </Border>
-                                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+
+                                            <StackPanel Grid.Column="1"
+                                                        Spacing="4"
+                                                        VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding Name}"
-                                                           FontWeight="SemiBold"
                                                            FontSize="13"
-                                                           Foreground="#0F172A"/>
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#0F172A"
+                                                           TextWrapping="Wrap"
+                                                           MaxHeight="32"
+                                                           TextTrimming="CharacterEllipsis"/>
                                                 <TextBlock Text="{Binding DimensionsDisplay}"
                                                            FontSize="12"
-                                                           Foreground="#64748B"/>
-                                                <TextBlock Text="{Binding AreaDisplay}"
-                                                           FontSize="12"
-                                                           Foreground="#64748B"/>
+                                                           Foreground="#64748B"
+                                                           TextWrapping="Wrap"/>
                                                 <TextBlock Text="{Binding QuantityDisplay}"
                                                            FontSize="12"
                                                            Foreground="#64748B"/>
-                                                <TextBlock Text="{Binding StatusDisplay}"
-                                                           FontSize="12"
-                                                           Foreground="#16A34A"/>
                                             </StackPanel>
-                                            <Button Grid.Column="2"
-                                                    Classes="os-eye"
-                                                    Content="👁"
-                                                    VerticalAlignment="Top"
-                                                    ToolTip.Tip="Показать в предпросмотре"/>
                                         </Grid>
                                     </Border>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </Panel>
+                                </Button>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Panel>
+
+                <Button x:Name="AddConstructionButton"
+                        Grid.Row="4"
+                        Height="36"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Background="Transparent"
+                        BorderBrush="#3B82F6"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Cursor="Hand"
+                        Command="{Binding AddConstructionCommand}">
+                    <TextBlock Text="+ Добавить конструкцию"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="#3B82F6"/>
+                </Button>
+
+                <Grid Grid.Row="5"
+                      ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto"
+                      ColumnSpacing="8">
+                    <Button x:Name="DuplicateButton"
+                            Grid.Column="0"
+                            Classes="os-toolbar"
+                            Command="{Binding DuplicateConstructionCommand}"
+                            ToolTip.Tip="Дублировать">
+                        <TextBlock Text="&#xE8C8;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="16"
+                                   Foreground="#475569"/>
+                    </Button>
+                    <Button x:Name="EditButton"
+                            Grid.Column="1"
+                            Classes="os-toolbar"
+                            Command="{Binding EditConstructionCommand}"
+                            ToolTip.Tip="Изменить">
+                        <TextBlock Text="&#xE70F;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="16"
+                                   Foreground="#475569"/>
+                    </Button>
+                    <Button x:Name="DeleteButton"
+                            Grid.Column="2"
+                            Classes="os-toolbar"
+                            Command="{Binding DeleteConstructionCommand}"
+                            ToolTip.Tip="Удалить">
+                        <TextBlock Text="&#xE74D;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="16"
+                                   Foreground="#475569"/>
+                    </Button>
+                    <Button x:Name="PreviousPageButton"
+                            Grid.Column="4"
+                            Classes="os-toolbar"
+                            Command="{Binding GoToPreviousPageCommand}"
+                            IsEnabled="{Binding CanGoToPreviousPage}"
+                            ToolTip.Tip="Предыдущая страница">
+                        <TextBlock Text="&#xE70E;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="16"
+                                   Foreground="#475569"/>
+                    </Button>
+                    <Button x:Name="NextPageButton"
+                            Grid.Column="5"
+                            Classes="os-toolbar"
+                            Command="{Binding GoToNextPageCommand}"
+                            IsEnabled="{Binding CanGoToNextPage}"
+                            ToolTip.Tip="Следующая страница">
+                        <TextBlock Text="&#xE70D;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="16"
+                                   Foreground="#475569"/>
+                    </Button>
                 </Grid>
-            </Border>
 
-            <!-- 2. Информация о конструкции -->
-            <Border Grid.Column="1" Classes="os-panel">
-                <Grid RowDefinitions="Auto,*">
-                    <TextBlock Classes="os-title" Text="Информация о конструкции" Margin="0,0,0,12"/>
+                <Border Grid.Row="6"
+                        Classes="os-hint"
+                        MinHeight="40">
+                    <TextBlock Text="{Binding ActiveHintText}"
+                               FontSize="11"
+                               Foreground="#64748B"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center"/>
+                </Border>
+            </Grid>
+        </Border>
+        <!-- КОНЕЦ: Левая панель -->
 
-                    <Panel Grid.Row="1">
-                        <StackPanel VerticalAlignment="Center"
-                                    Spacing="8"
+        <!-- НАЧАЛО: Основная рабочая область -->
+        <Grid Grid.Row="0"
+              Grid.Column="1"
+              RowDefinitions="*,Auto"
+              RowSpacing="12">
+
+            <!-- НАЧАЛО: Верхний ярус — Параметры + Предпросмотр -->
+            <Grid Grid.Row="0"
+                  ColumnDefinitions="7*,3*"
+                  ColumnSpacing="12">
+
+                <!-- НАЧАЛО: Карточка «Параметры конструкции» -->
+                <Border Grid.Column="0"
+                        Classes="os-card"
+                        ClipToBounds="True"
+                        VerticalAlignment="Stretch">
+                    <Grid RowDefinitions="Auto,*">
+                        <TextBlock Grid.Row="0"
+                                   Classes="os-title"
+                                   Text="Параметры конструкции"/>
+
+                        <Grid Grid.Row="1"
+                              ColumnSpacing="12"
+                              IsVisible="{Binding !ShowConstructionNotSelected}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="200" MinWidth="180" MaxWidth="220"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Grid Grid.Column="0"
+                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                                  RowSpacing="6">
+                                <Grid Grid.Row="0" ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="72"/>
+                                        <ColumnDefinition Width="92"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Classes="os-label" Text="Наименование"/>
+                                        <TextBox Classes="os-field"
+                                                 Text="{Binding SelectedConstructionModel.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Classes="os-label" Text="Кол-во"/>
+                                        <TextBox Classes="os-field"
+                                                 Text="{Binding SelectedConstructionModel.Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Classes="os-label" Text="Площадь"/>
+                                        <TextBox Classes="os-field-readonly"
+                                                 IsReadOnly="True"
+                                                 Text="{Binding SelectedConstructionModel.AreaDisplay}"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="8">
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Classes="os-label" Text="Ширина (мм)"/>
+                                        <TextBox Classes="os-field"
+                                                 Text="{Binding SelectedConstructionModel.Width, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Classes="os-label" Text="Высота (мм)"/>
+                                        <TextBox Classes="os-field"
+                                                 Text="{Binding SelectedConstructionModel.Height, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="8">
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Classes="os-label" Text="Дата изготовления"/>
+                                        <DatePicker Classes="os-field"
+                                                    SelectedDate="{Binding SelectedConstructionModel.ManufactureDate, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Classes="os-label" Text="Срок поставки"/>
+                                        <DatePicker Classes="os-field"
+                                                    SelectedDate="{Binding SelectedConstructionModel.DeliveryDate, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Grid.Row="3" ColumnDefinitions="*,*" ColumnSpacing="8">
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Classes="os-label" Text="Менеджер"/>
+                                        <ComboBox Classes="os-field"
+                                                  ItemsSource="{Binding Managers}"
+                                                  SelectedItem="{Binding SelectedConstructionModel.Manager, Mode=TwoWay}"
+                                                  HorizontalAlignment="Stretch"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Classes="os-label" Text="Ответственный"/>
+                                        <ComboBox Classes="os-field"
+                                                  ItemsSource="{Binding Supervisors}"
+                                                  SelectedItem="{Binding SelectedConstructionModel.Supervisor, Mode=TwoWay}"
+                                                  HorizontalAlignment="Stretch"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <StackPanel Grid.Row="4">
+                                    <TextBlock Classes="os-label" Text="Примечание"/>
+                                    <TextBox Classes="os-field-multiline"
+                                             Height="96"
+                                             MaxHeight="96"
+                                             AcceptsReturn="True"
+                                             TextWrapping="Wrap"
+                                             PlaceholderText="Введите примечание..."
+                                             Text="{Binding SelectedConstructionModel.Notes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Border Grid.Column="1"
+                                    VerticalAlignment="Stretch"
+                                    Background="#FAFAFA"
+                                    BorderBrush="#CBD5E1"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="8">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Конструкция"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="#0F172A"/>
+                                    <Border Background="White"
+                                            BorderBrush="#E2E8F0"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            ClipToBounds="True"
+                                            Height="64">
+                                        <controls:CadCanvasControl Editor="{Binding PreviewEditor}"
+                                                                   AutoFitOnResize="True"
+                                                                   IsThumbnailPreview="True"
+                                                                   IsHitTestVisible="False"
+                                                                   IsEnabled="False"
+                                                                   Height="64"/>
+                                    </Border>
+                                    <TextBlock Text="{Binding ActiveDimensionsDisplay}"
+                                               FontSize="10"
+                                               Foreground="#94A3B8"
+                                               HorizontalAlignment="Center"/>
+                                    <Grid ColumnDefinitions="Auto,*"
+                                          RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                                          ColumnSpacing="8"
+                                          RowSpacing="2">
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Classes="os-spec-label" Text="Тип профиля"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Classes="os-spec-value" Text="{Binding ProfileType}"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Classes="os-spec-label" Text="Цвет профиля"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="1" Classes="os-spec-value" Text="{Binding ProfileColor}"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Classes="os-spec-label" Text="Стеклопакет"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1" Classes="os-spec-value" Text="{Binding GlassPacket}"/>
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Classes="os-spec-label" Text="Фурнитура"/>
+                                        <TextBlock Grid.Row="3" Grid.Column="1" Classes="os-spec-value" Text="{Binding Hardware}"/>
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Classes="os-spec-label" Text="Ориентация"/>
+                                        <CheckBox Grid.Row="4" Grid.Column="1"
+                                                  Content="Белый"
+                                                  FontSize="11"
+                                                  IsChecked="{Binding ActiveWhiteOrientation}"
+                                                  IsEnabled="False"
+                                                  Padding="0"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <StackPanel Grid.Row="1"
+                                    Spacing="4"
+                                    VerticalAlignment="Center"
                                     IsVisible="{Binding ShowConstructionNotSelected}">
-                            <TextBlock Text="Конструкция не выбрана."
-                                       Classes="os-value"
-                                       HorizontalAlignment="Center"
-                                       TextAlignment="Center"/>
-                            <TextBlock Text="Выберите конструкцию слева."
+                            <TextBlock Text="Конструкция не выбрана"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="#0F172A"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="Выберите конструкцию в списке слева."
                                        FontSize="12"
                                        Foreground="#94A3B8"
-                                       HorizontalAlignment="Center"
-                                       TextAlignment="Center"/>
-                        </StackPanel>
-
-                        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                      IsVisible="{Binding IsConstructionSelected}">
-                            <StackPanel DataContext="{Binding ActiveConstruction}" Spacing="0">
-                                <TextBlock Classes="os-label" Text="Название"/>
-                                <TextBlock Classes="os-value" Text="{Binding Name}" Margin="0,4,0,0"/>
-                                <Border Classes="os-line"/>
-
-                                <TextBlock Classes="os-label" Text="Размер"/>
-                                <TextBlock Classes="os-value" Text="{Binding DimensionsDisplay}" Margin="0,4,0,0"/>
-                                <Border Classes="os-line"/>
-
-                                <TextBlock Classes="os-label" Text="Количество"/>
-                                <TextBlock Classes="os-value" Text="{Binding Cost.Quantity}" Margin="0,4,0,0"/>
-                                <Border Classes="os-line"/>
-
-                                <TextBlock Classes="os-label" Text="Площадь"/>
-                                <TextBlock Classes="os-value" Text="{Binding AreaDisplay}" Margin="0,4,0,0"/>
-                                <Border Classes="os-line"/>
-
-                                <TextBlock Classes="os-label" Text="Периметр"/>
-                                <TextBlock Classes="os-value" Text="{Binding PerimeterDisplay}" Margin="0,4,0,0"/>
-                                <Border Classes="os-line"/>
-
-                                <TextBlock Classes="os-label" Text="Профиль"/>
-                                <TextBlock Classes="os-value" Text="{Binding ProfileDisplay}" Margin="0,4,0,0"/>
-                                <Border Classes="os-line"/>
-
-                                <TextBlock Classes="os-label" Text="Армирование"/>
-                                <TextBlock Classes="os-value" Text="{Binding ReinforcementDisplay}" Margin="0,4,0,0"/>
-                                <Border Classes="os-line"/>
-
-                                <TextBlock Classes="os-label" Text="Стеклопакет"/>
-                                <TextBlock Classes="os-value" Text="{Binding GlazingDisplay}" Margin="0,4,0,0"/>
-                                <Border Classes="os-line"/>
-
-                                <TextBlock Classes="os-label" Text="Фурнитура"/>
-                                <TextBlock Classes="os-value" Text="{Binding HardwareDisplay}" Margin="0,4,0,0"/>
-                                <Border Classes="os-line"/>
-
-                                <TextBlock Classes="os-label" Text="Статус"/>
-                                <TextBlock Classes="os-value" Text="{Binding StatusDisplay}" Margin="0,4,0,0"/>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </Panel>
-                </Grid>
-            </Border>
-
-            <!-- 3. Предпросмотр -->
-            <Border Grid.Column="2"
-                    Classes="os-panel"
-                    BorderThickness="0,0,0,1">
-                <Grid RowDefinitions="Auto,Auto,*">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Spacing="4">
-                            <TextBlock Classes="os-title" Text="Предпросмотр конструкции"/>
-                            <TextBlock Text="{Binding ActiveConstruction.Name}"
-                                       FontSize="12"
-                                       Foreground="#64748B"
-                                       IsVisible="{Binding IsConstructionSelected}"/>
-                            <TextBlock Text="{Binding ActiveConstruction.DimensionsDisplay}"
-                                       FontSize="12"
-                                       Foreground="#64748B"
-                                       IsVisible="{Binding IsConstructionSelected}"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1"
-                                    Orientation="Horizontal"
-                                    Spacing="4"
-                                    VerticalAlignment="Top">
-                            <Button Classes="os-tool" Content="−" Command="{Binding PreviewZoomOutCommand}"/>
-                            <TextBlock Text="{Binding PreviewZoomPercent}"
-                                       FontSize="12"
-                                       Foreground="#64748B"
-                                       VerticalAlignment="Center"
-                                       MinWidth="44"
-                                       TextAlignment="Center"/>
-                            <Button Classes="os-tool" Content="+" Command="{Binding PreviewZoomInCommand}"/>
-                            <Button Classes="os-tool" Content="Fit" Command="{Binding PreviewFitToScreenCommand}"/>
-                            <Button Classes="os-tool" Content="2D" IsEnabled="False"/>
-                            <Button Classes="os-tool" Content="3D" IsEnabled="False"/>
+                                       HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Grid>
+                </Border>
+                <!-- КОНЕЦ: Карточка «Параметры конструкции» -->
 
-                    <TextBlock Grid.Row="1"
-                               Text="Режим просмотра"
-                               FontSize="11"
-                               Foreground="#1D4ED8"
-                               Margin="0,8,0,8"/>
-
-                    <Border Grid.Row="2"
-                            Background="#FAFBFC"
-                            BorderBrush="#E2E8F0"
-                            BorderThickness="1"
-                            ClipToBounds="True">
-                        <Panel>
-                            <StackPanel VerticalAlignment="Center"
-                                        HorizontalAlignment="Center"
-                                        Spacing="10"
-                                        IsVisible="{Binding ShowPreviewPlaceholder}">
-                                <TextBlock Text="🪟" FontSize="36" HorizontalAlignment="Center"/>
-                                <TextBlock Text="Предпросмотр появится после создания конструкции."
-                                           FontSize="12"
-                                           Foreground="#94A3B8"
-                                           TextAlignment="Center"
-                                           TextWrapping="Wrap"
-                                           MaxWidth="280"
-                                           HorizontalAlignment="Center"/>
+                <!-- НАЧАЛО: Карточка «Предпросмотр» -->
+                <Border Grid.Column="1"
+                        Classes="os-card"
+                        VerticalAlignment="Stretch">
+                    <Grid RowDefinitions="Auto,*">
+                        <Grid Grid.Row="0"
+                              ColumnDefinitions="*,Auto"
+                              Margin="0,0,0,8">
+                            <TextBlock Classes="os-title"
+                                       Text="Предпросмотр"
+                                       Margin="0"
+                                       VerticalAlignment="Center"/>
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        Spacing="8"
+                                        VerticalAlignment="Center">
+                                <Button Classes="os-chip active" Content="2D"/>
+                                <Button Classes="os-chip" Content="3D"/>
+                                <Button Classes="os-chip"
+                                        Width="32"
+                                        Height="32"
+                                        Command="{Binding ExpandPreviewCommand}"
+                                        ToolTip.Tip="Развернуть">
+                                    <TextBlock Text="&#xE740;"
+                                               FontFamily="Segoe MDL2 Assets"
+                                               FontSize="12"/>
+                                </Button>
                             </StackPanel>
-                            <cadControls:CadSceneControl Editor="{Binding PreviewEditor}"
-                                                         ClipToBounds="True"
-                                                         IsVisible="{Binding !ShowPreviewPlaceholder}"/>
-                        </Panel>
-                    </Border>
-                </Grid>
-            </Border>
-        </Grid>
+                        </Grid>
 
-        <!-- Нижняя зона -->
-        <Grid Grid.Row="1" MinHeight="180">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2*" MinWidth="280"/>
-                <ColumnDefinition Width="1.4*" MinWidth="220"/>
-                <ColumnDefinition Width="1*" MinWidth="180"/>
-                <ColumnDefinition Width="1*" MinWidth="180"/>
-            </Grid.ColumnDefinitions>
+                        <Border Grid.Row="1"
+                                Background="#F8FAFC"
+                                BorderBrush="#E2E8F0"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                ClipToBounds="True"
+                                Padding="0">
+                            <Panel>
+                                <StackPanel HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Spacing="4"
+                                            Margin="8"
+                                            IsVisible="{Binding ShowPreviewPlaceholder}">
+                                    <TextBlock Text="Нет эскиза"
+                                               FontSize="13"
+                                               Foreground="#64748B"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Задайте габариты или откройте чертёж"
+                                               FontSize="12"
+                                               Foreground="#94A3B8"
+                                               TextAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               HorizontalAlignment="Center"/>
+                                </StackPanel>
 
-            <!-- 4. Материалы -->
-            <Border Grid.Column="0" Classes="os-panel">
-                <Grid RowDefinitions="Auto,*">
-                    <TextBlock Classes="os-title" Text="Материалы конструкции" Margin="0,0,0,12"/>
-                    <Panel Grid.Row="1">
-                        <StackPanel VerticalAlignment="Center"
-                                    Spacing="6"
-                                    IsVisible="{Binding ShowMaterialsEmptyState}">
-                            <TextBlock Text="Материалы пока отсутствуют."
-                                       Classes="os-value"
-                                       TextAlignment="Center"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="Выполните расчёт конструкции."
-                                       FontSize="12"
-                                       Foreground="#94A3B8"
-                                       TextAlignment="Center"
-                                       HorizontalAlignment="Center"/>
+                                <controls:CadCanvasControl x:Name="ConstructionPreviewCanvas"
+                                                           Editor="{Binding PreviewEditor}"
+                                                           AutoFitOnResize="True"
+                                                           HorizontalAlignment="Stretch"
+                                                           VerticalAlignment="Stretch"
+                                                           IsVisible="{Binding !ShowPreviewPlaceholder}"/>
+
+                                <StackPanel HorizontalAlignment="Right"
+                                            VerticalAlignment="Top"
+                                            Spacing="8"
+                                            Margin="0,8,8,0">
+                                    <Button Classes="os-previewTool"
+                                            Command="{Binding PreviewZoomInCommand}"
+                                            ToolTip.Tip="Увеличить">
+                                        <TextBlock Text="&#xE710;"
+                                                   FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="12"/>
+                                    </Button>
+                                    <Button Classes="os-previewTool"
+                                            Command="{Binding PreviewZoomOutCommand}"
+                                            ToolTip.Tip="Уменьшить">
+                                        <TextBlock Text="&#xE738;"
+                                                   FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="12"/>
+                                    </Button>
+                                    <Button Classes="os-previewTool"
+                                            Command="{Binding PreviewFitToScreenCommand}"
+                                            ToolTip.Tip="По размеру">
+                                        <TextBlock Text="&#xE740;"
+                                                   FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="12"/>
+                                    </Button>
+                                </StackPanel>
+                            </Panel>
+                        </Border>
+                    </Grid>
+                </Border>
+                <!-- КОНЕЦ: Карточка «Предпросмотр» -->
+            </Grid>
+            <!-- КОНЕЦ: Верхний ярус — Параметры + Предпросмотр -->
+
+            <!-- НАЧАЛО: Нижний ярус — Данные / Итоги / Оплата -->
+            <Grid Grid.Row="1"
+                  ColumnDefinitions="*,*,*"
+                  ColumnSpacing="12"
+                  VerticalAlignment="Top"
+                  MaxHeight="252">
+
+                <!-- НАЧАЛО: Карточка «Данные по заказу» -->
+                <Border Grid.Column="0"
+                        Classes="os-card"
+                        VerticalAlignment="Stretch">
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="os-title" Text="Данные по заказу"/>
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="os-label" Text="Заказчик"/>
+                                <TextBox Classes="os-field"
+                                         Text="{Binding CustomerName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Classes="os-label" Text="Телефон"/>
+                                <TextBox Classes="os-field"
+                                         PlaceholderText="+996(___) __ __ __"
+                                         Text="{Binding CustomerPhone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                        </Grid>
+                        <StackPanel>
+                            <TextBlock Classes="os-label" Text="Адрес объекта"/>
+                            <TextBox Classes="os-field"
+                                     Text="{Binding ObjectAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
-                        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                      IsVisible="{Binding !ShowMaterialsEmptyState}">
-                            <StackPanel Spacing="0">
-                                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
-                                    <TextBlock Classes="os-label" Text="Материал"/>
-                                    <TextBlock Grid.Column="1" Classes="os-label" Text="Количество"/>
-                                </Grid>
-                                <ItemsControl ItemsSource="{Binding MaterialLines}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:MaterialQuantityLine">
-                                            <StackPanel Spacing="4" Margin="0,0,0,8">
-                                                <Grid ColumnDefinitions="*,Auto">
-                                                    <StackPanel Spacing="2">
-                                                        <TextBlock Classes="os-value" Text="{Binding Name}" FontWeight="SemiBold"/>
-                                                        <TextBlock Text="{Binding Detail}"
-                                                                   FontSize="12"
-                                                                   Foreground="#64748B"/>
-                                                    </StackPanel>
-                                                    <TextBlock Grid.Column="1"
-                                                               Classes="os-value"
-                                                               Text="{Binding Quantity}"
-                                                               VerticalAlignment="Center"/>
-                                                </Grid>
-                                                <Border Classes="os-line" Margin="0,4,0,0"/>
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="os-label" Text="Договор"/>
+                                <TextBox Classes="os-field"
+                                         Text="{Binding ContractNumber, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
-                        </ScrollViewer>
-                    </Panel>
-                </Grid>
-            </Border>
-
-            <!-- 5. Итоги конструкции -->
-            <Border Grid.Column="1" Classes="os-panel">
-                <StackPanel Spacing="0">
-                    <TextBlock Classes="os-title" Text="Итоги конструкции" Margin="0,0,0,12"/>
-                    <TextBlock Classes="os-label" Text="Площадь"/>
-                    <TextBlock Classes="os-value" Text="{Binding ConstructionAreaDisplay}" Margin="0,4,0,0"/>
-                    <Border Classes="os-line"/>
-                    <TextBlock Classes="os-label" Text="Вес"/>
-                    <TextBlock Classes="os-value" Text="{Binding ConstructionWeightDisplay}" Margin="0,4,0,0"/>
-                    <Border Classes="os-line"/>
-                    <TextBlock Classes="os-label" Text="Стоимость материалов"/>
-                    <TextBlock Classes="os-value" Text="{Binding ConstructionMaterialsCostDisplay}" Margin="0,4,0,0"/>
-                    <Border Classes="os-line"/>
-                    <TextBlock Classes="os-label" Text="Стоимость работ"/>
-                    <TextBlock Classes="os-value" Text="{Binding ConstructionLaborCostDisplay}" Margin="0,4,0,0"/>
-                    <Border Classes="os-line"/>
-                    <TextBlock Classes="os-label" Text="Стоимость конструкции"/>
-                    <TextBlock Classes="os-value" Text="{Binding ConstructionTotalCostDisplay}" Margin="0,4,0,0" FontWeight="SemiBold"/>
-                </StackPanel>
-            </Border>
-
-            <!-- 6. Стоимость за 1 м² -->
-            <Border Grid.Column="2" Classes="os-panel">
-                <StackPanel Spacing="0">
-                    <TextBlock Classes="os-title" Text="Стоимость за 1 м²" Margin="0,0,0,12"/>
-                    <TextBlock Classes="os-label" Text="Стоимость конструкции"/>
-                    <TextBlock Classes="os-value" Text="{Binding ConstructionTotalCostDisplay}" Margin="0,4,0,0"/>
-                    <Border Classes="os-line"/>
-                    <TextBlock Classes="os-label" Text="Площадь"/>
-                    <TextBlock Classes="os-value" Text="{Binding ConstructionAreaDisplay}" Margin="0,4,0,0"/>
-                    <Border Classes="os-line"/>
-                    <TextBlock Classes="os-label" Text="Стоимость за 1 м²"/>
-                    <TextBlock Classes="os-value" Text="{Binding CostPerSqMDisplay}" Margin="0,4,0,0" FontWeight="SemiBold"/>
-                    <Border Classes="os-line"/>
-                    <TextBlock Classes="os-label" Text="Себестоимость"/>
-                    <TextBlock Classes="os-value" Text="{Binding CostPriceDisplay}" Margin="0,4,0,0"/>
-                    <Border Classes="os-line"/>
-                    <TextBlock Classes="os-label" Text="Рентабельность"/>
-                    <TextBlock Classes="os-value" Text="{Binding ProfitabilityDisplay}" Margin="0,4,0,0"/>
-                    <Border Classes="os-line"/>
-                    <TextBlock Classes="os-label" Text="Наценка"/>
-                    <TextBlock Classes="os-value" Text="{Binding MarkupDisplay}" Margin="0,4,0,0"/>
-                </StackPanel>
-            </Border>
-
-            <!-- 7. Оплата -->
-            <Border Grid.Column="3"
-                    Classes="os-panel"
-                    BorderThickness="0,0,0,1">
-                <Grid ColumnDefinitions="*,Auto">
-                    <StackPanel Spacing="0">
-                        <TextBlock Classes="os-title" Text="Оплата" Margin="0,0,0,12"/>
-                        <TextBlock Classes="os-label" Text="Общая стоимость"/>
-                        <TextBlock Classes="os-value" Text="{Binding PaymentTotalDisplay}" Margin="0,4,0,0"/>
-                        <Border Classes="os-line"/>
-                        <TextBlock Classes="os-label" Text="Оплачено"/>
-                        <TextBlock Classes="os-value" Text="{Binding PaidAmountDisplay}" Margin="0,4,0,0"/>
-                        <Border Classes="os-line"/>
-                        <TextBlock Classes="os-label" Text="Осталось"/>
-                        <TextBlock Classes="os-value" Text="{Binding RemainingAmountDisplay}" Margin="0,4,0,0"/>
-                        <Border Classes="os-line"/>
-                        <TextBlock Classes="os-label" Text="Последний платёж"/>
-                        <TextBlock Classes="os-value" Text="{Binding LastPaymentDisplay}" Margin="0,4,0,0"/>
-                        <Border Classes="os-line"/>
-                        <TextBlock Classes="os-label" Text="Процент оплаты"/>
-                        <TextBlock Classes="os-value"
-                                   Text="{Binding PaymentPercent, StringFormat={}{0:0}%}"
-                                   Margin="0,4,0,0"/>
-                        <TextBlock Text="{Binding PaymentEmptyHint}"
-                                   FontSize="11"
-                                   Foreground="#94A3B8"
-                                   Margin="0,8,0,0"
-                                   TextWrapping="Wrap"
-                                   IsVisible="{Binding !HasPaymentData}"/>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Classes="os-label" Text="Менеджер"/>
+                                <ComboBox Classes="os-field"
+                                          ItemsSource="{Binding Managers}"
+                                          SelectedItem="{Binding OrderManagerName, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch"/>
+                            </StackPanel>
+                        </Grid>
                     </StackPanel>
-                    <Panel Grid.Column="1"
-                           Width="64" Height="64"
-                           VerticalAlignment="Center"
-                           Margin="12,0,0,0">
-                        <Ellipse Width="64" Height="64"
-                                 Stroke="#E2E8F0"
-                                 StrokeThickness="6"
-                                 Fill="Transparent"/>
-                        <Ellipse Width="64" Height="64"
-                                 Stroke="#2563EB"
-                                 StrokeThickness="6"
-                                 Fill="Transparent"
-                                 StrokeDashArray="3,200"
-                                 RenderTransformOrigin="50%,50%">
-                            <Ellipse.RenderTransform>
-                                <RotateTransform Angle="-90"/>
-                            </Ellipse.RenderTransform>
-                        </Ellipse>
-                        <TextBlock Text="{Binding PaymentPercent, StringFormat={}{0:0}%}"
-                                   FontSize="13"
-                                   FontWeight="Bold"
-                                   Foreground="#2563EB"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"/>
-                    </Panel>
-                </Grid>
-            </Border>
-        </Grid>
+                </Border>
+                <!-- КОНЕЦ: Карточка «Данные по заказу» -->
 
-        <!-- 8. StatusBar -->
-        <Border Grid.Row="2"
-                Background="White"
+                <!-- НАЧАЛО: Карточка «Итоги по заказу» -->
+                <Border Grid.Column="1"
+                        Classes="os-card"
+                        Padding="0"
+                        VerticalAlignment="Stretch">
+                    <Grid RowDefinitions="Auto,*,Auto">
+                        <TextBlock Grid.Row="0"
+                                   Classes="os-title"
+                                   Text="Итоги по заказу"
+                                   Margin="12,12,12,0"/>
+                        <StackPanel Grid.Row="1"
+                                    Spacing="4"
+                                    Margin="12,8,12,8"
+                                    VerticalAlignment="Top">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Конструкций" FontSize="12" Foreground="#64748B"/>
+                                <TextBlock Grid.Column="1" Text="{Binding TotalCountDisplay}" FontSize="13" FontWeight="SemiBold" Foreground="#0F172A"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Общая площадь" FontSize="12" Foreground="#64748B"/>
+                                <TextBlock Grid.Column="1" Text="{Binding TotalAreaDisplay}" FontSize="13" FontWeight="SemiBold" Foreground="#0F172A"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Общий вес" FontSize="12" Foreground="#64748B"/>
+                                <TextBlock Grid.Column="1" Text="{Binding TotalWeightDisplay}" FontSize="13" FontWeight="SemiBold" Foreground="#0F172A"/>
+                            </Grid>
+                        </StackPanel>
+                        <Border Grid.Row="2"
+                                Background="#EFF6FF"
+                                BorderBrush="#BFDBFE"
+                                BorderThickness="0,1,0,0"
+                                CornerRadius="0,0,12,12"
+                                Padding="12,8">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Итого к оплате" FontSize="11" Foreground="#1D4ED8"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding TotalPriceDisplay}"
+                                           FontSize="14"
+                                           FontWeight="Bold"
+                                           Foreground="#1D4ED8"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+                <!-- КОНЕЦ: Карточка «Итоги по заказу» -->
+                
+                <!-- НАЧАЛО: Карточка «Оплата» -->
+                <Border Grid.Column="2"
+                        Classes="os-card"
+                        VerticalAlignment="Stretch">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <StackPanel Grid.Column="0" Spacing="6">
+                            <TextBlock Classes="os-title" Text="Оплата"/>
+                            <StackPanel>
+                                <TextBlock Classes="os-label" Text="Валюта"/>
+                                <ComboBox Classes="os-field"
+                                          ItemsSource="{Binding Currencies}"
+                                          SelectedItem="{Binding SelectedCurrency, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch"/>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Classes="os-label" Text="Оплачено"/>
+                                <TextBox Classes="os-field"
+                                         Text="{Binding AmountPaid, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Classes="os-label" Text="К оплате"/>
+                                <TextBox Classes="os-field-readonly"
+                                         IsReadOnly="True"
+                                         Text="{Binding AmountLeftToPayDisplay}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <appControls:PaymentProgressRing Grid.Column="1"
+                                                         Value="{Binding PaymentPercentage}"
+                                                         VerticalAlignment="Top"
+                                                         Margin="0,24,0,0"/>
+                    </Grid>
+                </Border>
+                <!-- КОНЕЦ: Карточка «Оплата» -->
+            </Grid>
+            <!-- КОНЕЦ: Нижний ярус — Данные / Итоги / Оплата -->
+        </Grid>
+        <!-- КОНЕЦ: Основная рабочая область -->
+
+        <!-- НАЧАЛО: Подвал с кнопками сохранения -->
+        <Border Grid.Row="1"
+                Grid.Column="0"
+                Grid.ColumnSpan="2"
+                Height="48"
+                MinHeight="48"
+                MaxHeight="48"
+                Background="#F8FAFC"
                 BorderBrush="#E2E8F0"
                 BorderThickness="0,1,0,0"
-                Padding="16,0">
+                Padding="12,0">
             <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="{Binding SaveStatusText}"
-                           FontSize="11"
-                           Foreground="#334155"
-                           VerticalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal"
+                          Spacing="8"
+                          VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SaveStatusBulletText}"
+                             FontSize="12"
+                             Foreground="#475569"
+                             VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding LastAutosaveTimeDisplay}"
+                             FontSize="11"
+                             Foreground="#94A3B8"
+                             VerticalAlignment="Center"/>
+                </StackPanel>
                 <StackPanel Grid.Column="1"
                             Orientation="Horizontal"
-                            Spacing="16">
-                    <TextBlock Text="{Binding AutoSaveStatusText}" FontSize="11" Foreground="#64748B" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding ProjectVersionText}" FontSize="11" Foreground="#64748B" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding CurrentUserText}" FontSize="11" Foreground="#64748B" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding LastModifiedText}" FontSize="11" Foreground="#64748B" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding LastModifiedTimeText}" FontSize="11" Foreground="#64748B" VerticalAlignment="Center"/>
+                            Spacing="8"
+                            VerticalAlignment="Center">
+                    <Button Classes="os-action"
+                            Background="Transparent"
+                            BorderBrush="#CBD5E1"
+                            BorderThickness="1"
+                            Content="Отмена"
+                            Command="{Binding CancelCommand}"/>
+                    <Button Classes="os-action"
+                            Background="White"
+                            BorderBrush="#3B82F6"
+                            BorderThickness="1"
+                            Foreground="#2563EB"
+                            Content="Сохранить"
+                            Command="{Binding SaveCommand}"/>
+                    <Button Classes="os-action"
+                            Background="#3B82F6"
+                            BorderBrush="#3B82F6"
+                            BorderThickness="1"
+                            Foreground="White"
+                            Content="Сохранить и закрыть"
+                            Command="{Binding SaveAndCloseCommand}"/>
                 </StackPanel>
             </Grid>
         </Border>
+        <!-- КОНЕЦ: Подвал с кнопками сохранения -->
+
     </Grid>
 </UserControl>

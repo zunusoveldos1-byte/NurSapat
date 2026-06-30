@@ -6,7 +6,7 @@
         Title="Количество импостов"
         WindowStartupLocation="CenterOwner"
         CanResize="False"
-        SystemDecorations="None"
+        WindowDecorations="None"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaTitleBarHeightHint="0"
         x:Class="NurSapat.Cad.UI.Dialogs.ImpostCountWindow"

@@ -37,13 +37,17 @@ public sealed class Scene : IScene
         if (obj.LayerId == Guid.Empty)
             obj.LayerId = LayerId.Default.Id;
         Objects.Add(obj);
-        _eventBus.Publish(new ObjectCreatedEvent(obj.ObjectId, obj.LayerId, obj.Name));
+        var created = new ObjectCreatedEvent(obj.ObjectId, obj.LayerId, obj.Name);
+        _eventBus.Publish(created);
+        ObjectCreated?.Invoke(this, created);
     }
 
     public bool Remove(Guid objectId)
     {
         if (!Objects.Remove(objectId)) return false;
-        _eventBus.Publish(new ObjectDeletedEvent(objectId));
+        var deleted = new ObjectDeletedEvent(objectId);
+        _eventBus.Publish(deleted);
+        ObjectDeleted?.Invoke(this, deleted);
         return true;
     }
 
@@ -92,5 +96,9 @@ public sealed class Scene : IScene
 
     public event EventHandler<ObjectCreatedEvent>? ObjectCreated;
     public event EventHandler<ObjectDeletedEvent>? ObjectDeleted;
+
+    // Reserved for future use: raised when scene object properties are updated in-place.
+#pragma warning disable CS0067
     public event EventHandler<ObjectModifiedEvent>? ObjectModified;
+#pragma warning restore CS0067
 }

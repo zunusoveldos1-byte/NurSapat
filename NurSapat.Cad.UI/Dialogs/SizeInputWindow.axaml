@@ -7,7 +7,7 @@
         Title="Введите размеры"
         WindowStartupLocation="CenterOwner"
         CanResize="False"
-        SystemDecorations="None"
+        WindowDecorations="None"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaTitleBarHeightHint="0"
         x:Class="NurSapat.Cad.UI.Dialogs.SizeInputWindow"
@@ -34,17 +34,27 @@
                          Text="{Binding CoordinateYText, Mode=TwoWay}"
                          behaviors:SignedDecimalInputBehavior.AllowNegative="True"/>
 
-                <TextBlock Grid.Row="2" Text="Ширина (L), мм" VerticalAlignment="Center"/>
-                <TextBox Grid.Row="2"
-                         Grid.Column="1"
-                         Text="{Binding WidthText, Mode=TwoWay}"
-                         behaviors:SignedDecimalInputBehavior.AllowNegative="False"/>
+                <TextBlock Grid.Row="2" 
+                       Text="Ширина (L), мм" 
+                       VerticalAlignment="Center"
+                       PointerPressed="OnWidthLabelPointerPressed"/>
+            <TextBox Grid.Row="2"
+                     Grid.Column="1"
+                     x:Name="WidthBox"
+                     Text="{Binding WidthText, Mode=TwoWay}"
+                     behaviors:SignedDecimalInputBehavior.AllowNegative="False"
+                     GotFocus="OnTextBoxGotFocus"/>
 
-                <TextBlock Grid.Row="3" Text="Высота (H), мм" VerticalAlignment="Center"/>
-                <TextBox Grid.Row="3"
-                         Grid.Column="1"
-                         Text="{Binding HeightText, Mode=TwoWay}"
-                         behaviors:SignedDecimalInputBehavior.AllowNegative="False"/>
+            <TextBlock Grid.Row="3" 
+                       Text="Высота (H), мм" 
+                       VerticalAlignment="Center"
+                       PointerPressed="OnHeightLabelPointerPressed"/>
+            <TextBox Grid.Row="3"
+                     Grid.Column="1"
+                     x:Name="HeightBox"
+                     Text="{Binding HeightText, Mode=TwoWay}"
+                     behaviors:SignedDecimalInputBehavior.AllowNegative="False"
+                     GotFocus="OnTextBoxGotFocus"/>
             </Grid>
 
             <TextBlock Grid.Row="1"

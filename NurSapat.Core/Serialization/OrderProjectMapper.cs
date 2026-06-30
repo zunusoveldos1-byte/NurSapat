@@ -65,6 +65,7 @@ public static class OrderProjectMapper
         CustomerPhone = header.CustomerPhone,
         SiteAddress = header.SiteAddress,
         DealerName = header.DealerName,
+        OrderManagerName = header.OrderManagerName,
         CustomerCity = header.CustomerCity,
         CustomerCode = header.CustomerCode,
         ContractNumber = header.ContractNumber,
@@ -87,6 +88,7 @@ public static class OrderProjectMapper
         CustomerPhone = data.CustomerPhone,
         SiteAddress = data.SiteAddress,
         DealerName = data.DealerName,
+        OrderManagerName = data.OrderManagerName,
         CustomerCity = data.CustomerCity,
         CustomerCode = data.CustomerCode,
         ContractNumber = data.ContractNumber,
@@ -108,6 +110,11 @@ public static class OrderProjectMapper
         Name = construction.Name,
         IsSelectedForCalculation = construction.IsSelectedForCalculation,
         ProfileSystemName = construction.ProfileSystemName,
+        ManufactureDate = construction.ManufactureDate,
+        DeliveryDate = construction.DeliveryDate,
+        Manager = construction.Manager,
+        Supervisor = construction.Supervisor,
+        Notes = construction.Notes,
         Geometry = ToGeometryData(construction.Geometry),
         Cost = ToCostData(construction.Cost),
         Metrics = ToMetricsData(construction.Metrics)
@@ -122,6 +129,11 @@ public static class OrderProjectMapper
             Name = data.Name,
             IsSelectedForCalculation = data.IsSelectedForCalculation,
             ProfileSystemName = data.ProfileSystemName,
+            ManufactureDate = data.ManufactureDate,
+            DeliveryDate = data.DeliveryDate,
+            Manager = data.Manager,
+            Supervisor = data.Supervisor,
+            Notes = data.Notes,
             Metrics = FromMetricsData(data.Metrics)
         };
 

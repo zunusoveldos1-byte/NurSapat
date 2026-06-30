@@ -147,6 +147,20 @@
         </Setter>
     </Style>
 
+    <Style Selector="Border.login-input TextBox:focus /template/ Border#PART_BorderElement">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    
+    <Style Selector="Border.login-input TextBox:pointerover /template/ Border#PART_BorderElement">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <Style Selector="Border.login-input TextBox:focus">
+        <Setter Property="Foreground" Value="#0F172A" />
+    </Style>
+
     <Style Selector="Button.icon-btn:pointerover">
         <Setter Property="Background" Value="#F1F5F9"/>
     </Style>

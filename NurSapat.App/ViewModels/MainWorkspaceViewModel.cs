@@ -335,6 +335,11 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         IPrintService printService)
     {
         _orderWorkspace = orderWorkspace;
+        _orderWorkspace.NavigateToCadTabHandler = () =>
+        {
+            Navigate("cad");
+            return Task.CompletedTask;
+        };
         _documentManager = documentManager;
         _recentFilesService = recentFilesService;
         _printService = printService;

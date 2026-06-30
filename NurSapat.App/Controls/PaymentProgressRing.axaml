@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NurSapat.App.Controls.PaymentProgressRing"
+             Width="56"
+             Height="56">
+
+    <Panel Width="56" Height="56">
+        <Ellipse Width="56"
+                 Height="56"
+                 Stroke="#E2E8F0"
+                 StrokeThickness="4"
+                 Fill="White"/>
+        <Path x:Name="ProgressArc"
+              Stroke="#3B82F6"
+              StrokeThickness="4"
+              StrokeLineCap="Round"
+              Fill="Transparent"/>
+        <StackPanel VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Spacing="0">
+            <TextBlock x:Name="PercentText"
+                       FontSize="12"
+                       FontWeight="Bold"
+                       Foreground="#1D4ED8"
+                       HorizontalAlignment="Center"/>
+            <TextBlock Text="Оплачено"
+                       FontSize="8"
+                       Foreground="#64748B"
+                       HorizontalAlignment="Center"/>
+        </StackPanel>
+    </Panel>
+</UserControl>

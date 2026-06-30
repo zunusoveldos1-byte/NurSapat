@@ -14,6 +14,8 @@ public sealed class OrderHeader
 
     public string DealerName { get; set; } = "";
 
+    public string OrderManagerName { get; set; } = "";
+
     public string CustomerCity { get; set; } = "";
 
     public string CustomerCode { get; set; } = "";
