@@ -1,0 +1,103 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dictionaries"
+        xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+        x:Class="NurSapat.App.Views.Dictionaries.StandardStructuresDictionaryWindow"
+        x:DataType="vm:StandardStructuresDictionaryViewModel"
+        Width="1180"
+        Height="760"
+        MinWidth="960"
+        MinHeight="600"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="40,Auto,*,Auto">
+            <Border Grid.Row="0" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="16,0,0,0">
+                        <Image Source="/Assets/logo.ico" Width="16" Height="16"/>
+                        <TextBlock Classes="mat-titlebar-text" Text="{Binding Title}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,8,0">
+                        <Button Classes="mat-chrome-btn" Click="OnMinimizeClick" Content="—"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                        <Button Classes="mat-chrome-btn" Click="OnMaximizeClick" Content="▢"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                        <Button Classes="mat-chrome-btn close" Click="OnCloseClick" Content="✕"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="1" Margin="12,12,12,0" Padding="0,0,0,10" Background="White">
+                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+                    <Button Classes="mat-primary" Content="Добавить группу" Command="{Binding AddGroupCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1" Classes="mat-toolbar" Content="Изменить группу" Command="{Binding EditGroupCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="2" Classes="mat-toolbar" Content="Удалить группу" Command="{Binding DeleteGroupCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="3" Classes="mat-primary" Content="Добавить конструкцию" Command="{Binding AddStructureCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="4" Classes="mat-toolbar" Content="Переименовать" Command="{Binding EditStructureCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="5" Classes="mat-toolbar" Content="Удалить" Command="{Binding DeleteStructureCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="6" Classes="mat-toolbar" Content="Удалить все" Command="{Binding DeleteAllStructuresCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="2" Margin="12,0,12,0" ColumnDefinitions="260,4,*">
+                <Border Grid.Column="0" Classes="mat-card" Padding="8">
+                    <Grid RowDefinitions="Auto,*">
+                        <TextBlock Classes="mat-section-title" Text="Группы"/>
+                        <ListBox Grid.Row="1"
+                                 ItemsSource="{Binding Groups}"
+                                 SelectedItem="{Binding SelectedGroup}"
+                                 DisplayMemberBinding="{Binding Name}"/>
+                    </Grid>
+                </Border>
+
+                <GridSplitter Grid.Column="1" Width="4" Background="#E2E8F0"/>
+
+                <Border Grid.Column="2" Classes="mat-card" Padding="8">
+                    <Grid RowDefinitions="Auto,*">
+                        <TextBlock Classes="mat-section-title" Text="Конструкции в группе"/>
+                        <dg:DataGrid Grid.Row="1"
+                                     ItemsSource="{Binding Structures}"
+                                     SelectedItem="{Binding SelectedStructure}"
+                                     AutoGenerateColumns="False"
+                                     CanUserSortColumns="True"
+                                     GridLinesVisibility="Horizontal"
+                                     BorderThickness="0"
+                                     IsReadOnly="True">
+                            <dg:DataGrid.Columns>
+                                <dg:DataGridTextColumn Header="Наименование" Binding="{Binding Name}" Width="2*"/>
+                                <dg:DataGridTextColumn Header="Эскиз" Binding="{Binding ThumbnailPath}" Width="*"/>
+                            </dg:DataGrid.Columns>
+                        </dg:DataGrid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Border Grid.Row="3" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Foreground="#64748B" VerticalAlignment="Center"
+                               Text="{Binding Structures.Count, StringFormat=Конструкций в группе: {0}}"/>
+                    <Button Grid.Column="1" Classes="mat-toolbar" Content="Закрыть" Command="{Binding CloseWindowCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

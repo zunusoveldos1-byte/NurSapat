@@ -55,7 +55,10 @@ public sealed partial class OrderCalculationState : ObservableObject
 
     public ObservableCollection<ExchangeRateLine> ExchangeRates { get; } =
     [
-        new("KGS", "Кыргызский сом", 1m, DateTime.Today, "Базовая валюта")
+        new("KGS", "Кыргызский сом", 1m, DateTime.Today, "Базовая валюта"),
+        new("USD", "Доллар США", 89.45m, DateTime.Today, "Ручной ввод"),
+        new("EUR", "Евро", 96.12m, DateTime.Today, "Ручной ввод"),
+        new("RUB", "Российский рубль", 0.98m, DateTime.Today, "Ручной ввод")
     ];
 
     public string OrderDateText => OrderDate.ToString("dd.MM.yyyy");
@@ -85,7 +88,11 @@ public sealed partial class OrderCalculationState : ObservableObject
 
     public OrderCalculationState()
     {
-        ActivityLog.Add(new OrderActivityEvent(DateTime.Now, "Открыт заказ", "Состояние заказа готово к расчету"));
+        ActivityLog.Add(new OrderActivityEvent(
+            DateTime.Now,
+            "Пользователь открыл заказ",
+            "Состояние заказа готово к расчёту",
+            "Иванов И.И."));
     }
 
     // ИЗМЕНЕНИЕ: метод обновления теперь принимает CadDocument
@@ -135,9 +142,9 @@ public sealed partial class OrderCalculationState : ObservableObject
         NotifyDerivedProperties();
     }
 
-    public void AddActivity(string title, string details)
+    public void AddActivity(string title, string details, string user = "Система")
     {
-        ActivityLog.Insert(0, new OrderActivityEvent(DateTime.Now, title, details));
+        ActivityLog.Insert(0, new OrderActivityEvent(DateTime.Now, title, details, user));
         while (ActivityLog.Count > 50)
         {
             ActivityLog.RemoveAt(ActivityLog.Count - 1);
@@ -221,12 +228,18 @@ public sealed partial class OrderCalculationState : ObservableObject
 
 public sealed record OrderSpecificationLine(string Name, decimal Quantity, string Unit, decimal Price);
 
-public sealed record OrderActivityEvent(DateTime Timestamp, string Title, string Details)
+public sealed record OrderActivityEvent(DateTime Timestamp, string Title, string Details, string User = "Система")
 {
-    public string Time => Timestamp.ToString("HH:mm:ss");
+    public string Time => Timestamp.ToString("HH:mm");
 }
 
 public sealed record ExchangeRateLine(string Code, string Name, decimal Rate, DateTime UpdatedAt, string Source)
 {
     public string RateText => $"{Rate:0.####}";
+
+    public string PeriodStartText => UpdatedAt.ToString("dd.MM.yyyy");
+
+    public string PeriodEndText => "—";
+
+    public string ActionText => Source;
 }

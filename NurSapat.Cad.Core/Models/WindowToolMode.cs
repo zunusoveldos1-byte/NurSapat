@@ -103,6 +103,9 @@ public enum WindowToolMode
     /// <summary>Выравнивание глухих просветов.</summary>
     AlignDeadLights,
 
+    /// <summary>Выделение радиусных вершин (преобразование верхнего профиля в дугу).</summary>
+    RadiusVertex,
+
     // Системные
     /// <summary>Разделитель панели инструментов.</summary>
     Separator,

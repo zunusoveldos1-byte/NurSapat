@@ -5,6 +5,6 @@ public sealed class SelectVertexTool : SelectionModeCadToolBase
     public override CadToolKind Kind => CadToolKind.SelectVertex;
     public override string Id => CadToolMetadata.GetId(Kind);
     public override string DisplayName => CadToolMetadata.GetDisplayName(Kind);
-    public override bool IsImplemented => false;
+    public override bool IsImplemented => true;
     protected override CadSelectionMode SelectionMode => CadSelectionMode.Vertex;
 }

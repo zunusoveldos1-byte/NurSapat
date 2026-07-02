@@ -49,7 +49,7 @@ public sealed class OrderCalculationService
 
     private static void ApplyOrderProfitability(Order order)
     {
-        foreach (var construction in order.Constructions)
+        foreach (var construction in order.Constructions.ToList())
         {
             construction.Cost.ProfitabilityPercent = order.ProfitabilityPercent;
             construction.Cost.NotifyDerived();

@@ -1,0 +1,203 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Materials"
+        xmlns:models="clr-namespace:NurSapat.App.Models.Materials"
+        xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+        x:Class="NurSapat.App.Views.Materials.MaterialEditWindow"
+        x:DataType="vm:MaterialEditViewModel"
+        Width="1120"
+        Height="820"
+        MinWidth="980"
+        MinHeight="700"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="40,*,Auto">
+            <Border Grid.Row="0"
+                    Classes="mat-titlebar"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="8"
+                                VerticalAlignment="Center"
+                                Margin="16,0,0,0">
+                        <Image Source="/Assets/logo.ico" Width="16" Height="16" VerticalAlignment="Center"/>
+                        <TextBlock Classes="mat-titlebar-text" Text="{Binding WindowTitle}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="0,0,8,0">
+                        <Button Classes="mat-chrome-btn" Click="OnMinimizeClick" Content="—"/>
+                        <Button Classes="mat-chrome-btn" Click="OnMaximizeClick" Content="▢"/>
+                        <Button Classes="mat-chrome-btn close" Click="OnCloseClick" Content="✕"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Row="1" Margin="12,12,12,0" Padding="16,0,16,16">
+                <Grid ColumnDefinitions="2*,*" ColumnSpacing="16">
+                    <StackPanel Grid.Column="0" Spacing="12">
+                        <Border Classes="mat-card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Classes="mat-section-title" Text="Основные данные"/>
+                                <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                                    <TextBlock Grid.Row="0" Text="Артикул" VerticalAlignment="Center"/>
+                                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Article}"/>
+                                    <TextBlock Grid.Row="1" Text="Наименование" VerticalAlignment="Center"/>
+                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Name}"/>
+                                    <TextBlock Grid.Row="2" Text="Примечание" VerticalAlignment="Top" Margin="0,6,0,0"/>
+                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Note}" AcceptsReturn="True" MinHeight="64"/>
+                                    <TextBlock Grid.Row="3" Text="Производитель" VerticalAlignment="Center"/>
+                                    <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding Manufacturers}" SelectedItem="{Binding Manufacturer}" IsEditable="True"/>
+                                    <TextBlock Grid.Row="4" Text="Раздел" VerticalAlignment="Center"/>
+                                    <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding Sections}" SelectedItem="{Binding Section}"/>
+                                    <TextBlock Grid.Row="5" Text="Ед. изм." VerticalAlignment="Center"/>
+                                    <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{Binding MainUnits}" SelectedItem="{Binding MainUnit}"/>
+                                    <TextBlock Grid.Row="6" Text="Группа" VerticalAlignment="Center" IsVisible="{Binding IsGroupVisible}"/>
+                                    <ComboBox Grid.Row="6" Grid.Column="1" IsVisible="{Binding IsLinearGroupVisible}"
+                                              ItemsSource="{Binding LinearGroups}" SelectedItem="{Binding LinearGroup}"/>
+                                    <ComboBox Grid.Row="6" Grid.Column="1" IsVisible="{Binding IsSquareGroupVisible}"
+                                              ItemsSource="{Binding SquareGroups}" SelectedItem="{Binding SquareGroup}"/>
+                                    <TextBlock Grid.Row="7" Text="Валюта" VerticalAlignment="Center"/>
+                                    <ComboBox Grid.Row="7" Grid.Column="1" ItemsSource="{Binding Currencies}" SelectedItem="{Binding Currency}"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="mat-card" IsVisible="{Binding IsWarmProfileVisible}">
+                            <StackPanel Spacing="8">
+                                <CheckBox Content="Теплый профиль (термо)" IsChecked="{Binding IsWarmProfile}"/>
+                                <StackPanel IsVisible="{Binding IsCoatingAreaVisible}" Spacing="8">
+                                    <TextBlock Text="Площадь покрытия внутренняя, м²/м"/>
+                                    <NumericUpDown Minimum="0" Increment="0.01" Value="{Binding InnerCoatingAreaPerMeter}"/>
+                                    <TextBlock Text="Площадь покрытия наружная, м²/м"/>
+                                    <NumericUpDown Minimum="0" Increment="0.01" Value="{Binding OuterCoatingAreaPerMeter}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="mat-card" IsVisible="{Binding IsCutLengthBlockVisible}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Classes="mat-section-title" Text="Кроить длину"/>
+                                <CheckBox Content="Активировать оптимизацию раскроя" IsChecked="{Binding EnableLengthCutOptimization}"/>
+                                <TextBlock Text="Длина прута (мм)"/>
+                                <NumericUpDown Minimum="100" Maximum="12000" Value="{Binding BarLengthMm}"/>
+                                <TextBlock Text="Неликвид (мм)"/>
+                                <NumericUpDown Minimum="0" Maximum="5000" Value="{Binding IlliquidThresholdMm}"/>
+                                <TextBlock Text="Мусор (мм)"/>
+                                <NumericUpDown Minimum="0" Maximum="1000" Value="{Binding ScrapMm}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="mat-card" IsVisible="{Binding IsCutPlaneBlockVisible}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Classes="mat-section-title" Text="Кроить плоскость"/>
+                                <CheckBox Content="Активировать оптимизацию раскроя" IsChecked="{Binding EnablePlaneCutOptimization}"/>
+                                <TextBlock Text="Ширина листа (мм)"/>
+                                <NumericUpDown Minimum="100" Maximum="8000" Value="{Binding SheetWidthMm}"/>
+                                <TextBlock Text="Высота листа (мм)"/>
+                                <NumericUpDown Minimum="100" Maximum="8000" Value="{Binding SheetHeightMm}"/>
+                                <StackPanel IsVisible="{Binding IsGlassFieldsVisible}" Spacing="8">
+                                    <TextBlock Text="Затемнение стекла (0..1)"/>
+                                    <Slider Minimum="0" Maximum="1" Value="{Binding GlassTint}"/>
+                                    <TextBlock Text="Минимальная расчетная площадь, м²"/>
+                                    <NumericUpDown Minimum="0" Maximum="10" Increment="0.1" Value="{Binding MinimumCalculatedAreaSqM}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="mat-card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Classes="mat-section-title" Text="Дополнительная единица измерения"/>
+                                <CheckBox Content="Использовать доп. ед. изм. (кг)" IsChecked="{Binding UseSecondaryUnit}"/>
+                                <StackPanel IsVisible="{Binding IsSecondaryUnitBlockVisible}" Spacing="8">
+                                    <TextBlock Text="Коэффициент перевода (удельный вес)"/>
+                                    <NumericUpDown Minimum="0" Increment="0.01" Value="{Binding SecondaryUnitCoefficient}"/>
+                                </StackPanel>
+                                <CheckBox IsVisible="{Binding IsPriceByKilogramVisible}"
+                                          Content="Расценка за килограмм (не за метр)"
+                                          IsChecked="{Binding PriceByKilogram}"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Spacing="12">
+                        <Border Classes="mat-card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Classes="mat-section-title" Text="Цена и печать"/>
+                                <TextBlock Text="Базовая цена"/>
+                                <NumericUpDown Minimum="0" Increment="10" Value="{Binding BasePrice}"/>
+                                <TextBlock Text="{Binding BasePriceDisplay}" Foreground="#64748B"/>
+                                <TextBlock Text="Отход, %"/>
+                                <NumericUpDown Minimum="0" Maximum="100" Increment="0.5" Value="{Binding WastePercent}"/>
+                                <CheckBox Content="Печать на сборочном чертеже" IsChecked="{Binding PrintOnAssemblyDrawing}"/>
+                                <CheckBox Content="Печать на коммерческом предложении" IsChecked="{Binding PrintOnCommercialOffer}"/>
+                                <CheckBox Content="Печать на отправном листе" IsChecked="{Binding PrintOnShippingSheet}"/>
+                                <CheckBox Content="Группировать позиции" IsChecked="{Binding GroupPrintPositions}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="mat-card">
+                            <StackPanel Spacing="8">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Classes="mat-section-title" Text="Цвета (цена)"/>
+                                    <Button Grid.Column="1" Classes="mat-toolbar" Content="+ Цвет" Command="{Binding AddColorCommand}"/>
+                                </Grid>
+                                <dg:DataGrid ItemsSource="{Binding ColorPrices}"
+                                             AutoGenerateColumns="False"
+                                             CanUserReorderColumns="False"
+                                             MaxHeight="220"
+                                             BorderBrush="#E2E8F0"
+                                             BorderThickness="1">
+                                    <dg:DataGrid.Columns>
+                                        <dg:DataGridTextColumn Header="Цвет" Binding="{Binding ColorName}" Width="*"/>
+                                        <dg:DataGridTextColumn Header="Артикул" Binding="{Binding ColorArticle}" Width="90"/>
+                                        <dg:DataGridTextColumn Header="Цена" Binding="{Binding PriceDisplay}" Width="100"/>
+                                    </dg:DataGrid.Columns>
+                                </dg:DataGrid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="mat-card">
+                            <StackPanel Spacing="8">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Classes="mat-section-title" Text="Цена по таблице (габариты)"/>
+                                    <Button Grid.Column="1" Classes="mat-toolbar" Content="+ Строка" Command="{Binding AddDimensionPriceCommand}"/>
+                                </Grid>
+                                <dg:DataGrid ItemsSource="{Binding DimensionPrices}"
+                                             AutoGenerateColumns="False"
+                                             CanUserReorderColumns="False"
+                                             MaxHeight="180"
+                                             BorderBrush="#E2E8F0"
+                                             BorderThickness="1">
+                                    <dg:DataGrid.Columns>
+                                        <dg:DataGridTextColumn Header="Ширина" Binding="{Binding WidthMm}" Width="80"/>
+                                        <dg:DataGridTextColumn Header="Высота" Binding="{Binding HeightMm}" Width="80"/>
+                                        <dg:DataGridTextColumn Header="Цена" Binding="{Binding PriceDisplay}" Width="*"/>
+                                    </dg:DataGrid.Columns>
+                                </dg:DataGrid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+
+            <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Classes="mat-toolbar" Content="Отмена" Command="{Binding CancelCommand}"/>
+                    <Button Classes="mat-primary" Content="Сохранить" Command="{Binding SaveCommand}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

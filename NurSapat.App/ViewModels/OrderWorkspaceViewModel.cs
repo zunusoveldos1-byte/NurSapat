@@ -1,10 +1,12 @@
 using Avalonia.Controls;
+using Avalonia.Threading;
 using NurSapat.App.Services;
 using NurSapat.App.Views.Dialogs;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models;
 using NurSapat.Core.Models.Orders;
 using NurSapat.Core.Models.Project;
+using System.Linq;
 
 namespace NurSapat.App.ViewModels;
 
@@ -15,6 +17,7 @@ public sealed class OrderWorkspaceViewModel
 {
     private readonly CadEditorViewModel _cadEditor;
     private bool _isResettingCanvas;
+    private bool _isAddingConstruction;
     private Guid? _loadedConstructionId;
 
     public Order Order { get; } = new();
@@ -66,6 +69,7 @@ public sealed class OrderWorkspaceViewModel
         construction.Geometry.DrawingJson = ConstructionDrawingStore.Serialize(_cadEditor.CaptureSnapshot());
         construction.Cost.Quantity = _cadEditor.ConstructionQuantity;
         construction.ProfileSystemName = _cadEditor.SelectedProfileSeries ?? string.Empty;
+        construction.Appearance.ColorName = _cadEditor.SelectedMaterialColor ?? construction.Appearance.ColorName;
 
         if (_cadEditor.SelectedConstruction is { } item)
         {
@@ -94,15 +98,18 @@ public sealed class OrderWorkspaceViewModel
         }
     }
 
+    public bool IsAddingConstruction => _isAddingConstruction;
+
     public async Task DuplicateConstructionAsync(Guid sourceConstructionId)
     {
-        if (_isResettingCanvas)
+        if (_isResettingCanvas || _isAddingConstruction)
         {
             return;
         }
 
         try
         {
+            _isAddingConstruction = true;
             _isResettingCanvas = true;
             CommitActiveConstructionGeometry();
 
@@ -118,7 +125,7 @@ public sealed class OrderWorkspaceViewModel
             Order.SelectedConstruction = copy;
 
             LoadConstructionToCanvas(copy);
-            SyncConstructionListToCadEditor(copy.Id);
+            ScheduleSyncConstructionListToCadEditor(copy.Id);
             Sheet.ReloadFromOrder(copy.Id);
             Sheet.RecalculateAll();
             NotifyModified();
@@ -126,6 +133,7 @@ public sealed class OrderWorkspaceViewModel
         finally
         {
             _isResettingCanvas = false;
+            _isAddingConstruction = false;
         }
 
         await Task.CompletedTask;
@@ -133,38 +141,46 @@ public sealed class OrderWorkspaceViewModel
 
     public async Task AddNewConstructionAsync()
     {
-        if (_isResettingCanvas)
+        if (_isResettingCanvas || _isAddingConstruction)
         {
             return;
         }
 
-        try
+        await Dispatcher.UIThread.InvokeAsync(() =>
         {
-            _isResettingCanvas = true;
-            CommitActiveConstructionGeometry();
-
-            var number = Order.Constructions.Count + 1;
-            var construction = new OrderConstruction
+            if (_isResettingCanvas || _isAddingConstruction)
             {
-                Number = number,
-                Name = $"Конструкция {number}"
-            };
-            Order.Constructions.Add(construction);
-            Order.SelectedConstruction = construction;
+                return;
+            }
 
-            _cadEditor.PrepareForNewConstruction();
-            _loadedConstructionId = construction.Id;
-            SyncConstructionListToCadEditor(construction.Id);
-            Sheet.ReloadFromOrder(construction.Id);
-            Sheet.RecalculateAll();
-            NotifyModified();
-        }
-        finally
-        {
-            _isResettingCanvas = false;
-        }
+            try
+            {
+                _isAddingConstruction = true;
+                _isResettingCanvas = true;
+                CommitActiveConstructionGeometry();
 
-        await Task.CompletedTask;
+                var number = Order.Constructions.Count + 1;
+                var construction = new OrderConstruction
+                {
+                    Number = number,
+                    Name = $"Конструкция {number}"
+                };
+                Order.Constructions.Add(construction);
+                Order.SelectedConstruction = construction;
+
+                _cadEditor.PrepareForNewConstruction();
+                _loadedConstructionId = construction.Id;
+                ScheduleSyncConstructionListToCadEditor(construction.Id);
+                Sheet.ReloadFromOrder(construction.Id);
+                Sheet.RecalculateAll();
+                NotifyModified();
+            }
+            finally
+            {
+                _isResettingCanvas = false;
+                _isAddingConstruction = false;
+            }
+        });
     }
 
     public async Task SwitchToConstructionAsync(Guid constructionId)
@@ -264,6 +280,8 @@ public sealed class OrderWorkspaceViewModel
             _cadEditor.SelectedProfileSeries = construction.ProfileSystemName;
         }
 
+        _cadEditor.SelectedMaterialColor = construction.Appearance.ColorName;
+
         _loadedConstructionId = construction.Id;
     }
 
@@ -272,7 +290,7 @@ public sealed class OrderWorkspaceViewModel
         var construction = Order.SelectedConstruction ?? Order.EnsureDefaultConstruction();
         var geometry = construction.Geometry;
         geometry.Elements.Clear();
-        foreach (var element in _cadEditor.CanvasElements)
+        foreach (var element in _cadEditor.CanvasElements.ToList())
         {
             geometry.Elements.Add(CloneElement(element));
         }
@@ -354,20 +372,35 @@ public sealed class OrderWorkspaceViewModel
         SyncConstructionListToCadEditor(construction.Id);
     }
 
+    private void ScheduleSyncConstructionListToCadEditor(Guid? activeConstructionId = null)
+    {
+        Dispatcher.UIThread.Post(
+            () => SyncConstructionListToCadEditor(activeConstructionId),
+            DispatcherPriority.Background);
+    }
+
     private void SyncConstructionListToCadEditor(Guid? activeConstructionId = null)
     {
         activeConstructionId ??= Order.SelectedConstruction?.Id;
 
         var previousId = _cadEditor.SelectedConstruction?.OrderConstructionId;
+        var items = Order.Constructions
+            .OrderBy(c => c.Number)
+            .Select(construction =>
+            {
+                var item = new ConstructionItemViewModel(construction.Id, construction.Number, construction.Name);
+                item.UpdateFrom(
+                    construction.Name,
+                    construction.Number,
+                    construction.DimensionsDisplay,
+                    construction.QuantityDisplay);
+                return item;
+            })
+            .ToList();
+
         _cadEditor.Constructions.Clear();
-        foreach (var construction in Order.Constructions.OrderBy(c => c.Number))
+        foreach (var item in items)
         {
-            var item = new ConstructionItemViewModel(construction.Id, construction.Number, construction.Name);
-            item.UpdateFrom(
-                construction.Name,
-                construction.Number,
-                construction.DimensionsDisplay,
-                construction.QuantityDisplay);
             _cadEditor.Constructions.Add(item);
         }
 

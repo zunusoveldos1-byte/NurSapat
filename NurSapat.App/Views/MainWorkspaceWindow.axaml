@@ -1,4 +1,4 @@
-﻿<Window xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
         x:Class="NurSapat.App.Views.MainWorkspaceWindow"
@@ -11,7 +11,7 @@
         WindowStartupLocation="CenterScreen"
         WindowDecorations="None"
         Background="#F6F9FD"
-        FontFamily="Inter">
+        FontFamily="Inter, Segoe UI">
     <Window.Styles>
         <StyleInclude Source="/Styles/WorkspaceStyles.axaml"/>
         <Style Selector="TextBlock.icon">
@@ -21,7 +21,7 @@
         </Style>
     </Window.Styles>
 
-    <Grid RowDefinitions="40,Auto,Auto,*">
+    <Grid RowDefinitions="40,Auto,28,Auto,*">
         <!-- Кастомная верхняя панель -->
         <Border Grid.Row="0"
                 Background="White"
@@ -141,17 +141,29 @@
                     <MenuItem Header="Выход" InputGesture="Alt+X" Command="{Binding ExitCommand}"/>
                 </MenuItem>
 
-                <MenuItem Header="Правка">
-                    <MenuItem Header="Копировать" Command="{Binding CopyDrawingCommand}"/>
-                    <MenuItem Header="Вставить" Command="{Binding PasteDrawingCommand}"/>
+                <MenuItem Header="Заказ">
+                    <MenuItem Header="Заказчик" Command="{Binding SelectOrderCustomerCommand}"/>
+                    <MenuItem Header="Дилер" Command="{Binding SelectOrderDealerCommand}"/>
+                    <MenuItem Header="Режим цены" Command="{Binding TogglePriceModeCommand}"/>
                     <Separator/>
-                    <MenuItem Header="Сменить элементы конструкции" Command="{Binding ChangeConstructionElementsCommand}"/>
-                    <MenuItem Header="Сменить элементы заказа" Command="{Binding ChangeOrderElementsCommand}"/>
+                    <MenuItem Header="Удалить конструкцию" Command="{Binding RemoveCurrentConstructionCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="{DynamicResource Edit_Menu_Edit}">
+                    <MenuItem Header="{DynamicResource Edit_Menu_CopyDrawing}">
+                        <MenuItem Header="{DynamicResource Edit_Menu_CopyWithoutDimensions}"
+                                  Command="{Binding OpenCopyDrawingWithoutDimensionsCommand}"/>
+                        <MenuItem Header="{DynamicResource Edit_Menu_CopyWithDimensions}"
+                                  Command="{Binding OpenCopyDrawingWithDimensionsCommand}"/>
+                    </MenuItem>
+                    <Separator/>
+                    <MenuItem Header="{DynamicResource Edit_Menu_ChangeConstructionColor}"
+                              Command="{Binding OpenConstructionColorDialogCommand}"/>
+                    <MenuItem Header="{DynamicResource Edit_Menu_ChangeOrderColor}"
+                              Command="{Binding OpenOrderColorDialogCommand}"/>
                 </MenuItem>
 
                 <MenuItem Header="Вид">
-                    <MenuItem Header="Панель инструментов" Command="{Binding ToggleToolPanelCommand}" IsChecked="{Binding IsLeftPanelVisible}"/>
-                    <Separator/>
                     <MenuItem Header="Таблица затрат" Command="{Binding CostTableCommand}"/>
                     <MenuItem Header="Сообщения" Command="{Binding MessagesCommand}"/>
                 </MenuItem>
@@ -165,6 +177,7 @@
                     <MenuItem Header="Склад (обрезки стекла)" Command="{Binding StockGlassCutsCommand}"/>
                     <MenuItem Header="Склад (готовая продукция)" Command="{Binding StockFinishedCommand}"/>
                     <MenuItem Header="Типовые конструкции" Command="{Binding StandardStructuresCommand}"/>
+                    <MenuItem Header="Графические обозначения" Command="{Binding GraphicSymbolsCommand}"/>
                     <MenuItem Header="Пользователи" Command="{Binding UsersCommand}"/>
                     <MenuItem Header="Курсы валют" Command="{Binding ExchangeRatesCommand}"/>
                     <MenuItem Header="Серии" Command="{Binding SeriesCommand}"/>
@@ -172,6 +185,7 @@
                     <MenuItem Header="Поставщики" Command="{Binding SuppliersCommand}"/>
                     <MenuItem Header="Шаблоны заказов" Command="{Binding OrderTemplatesCommand}"/>
                     <MenuItem Header="Наименования конструкций" Command="{Binding StructureNamesCommand}"/>
+                    <MenuItem Header="Цвета" Command="{Binding ColorsCommand}"/>
                 </MenuItem>
 
                 <MenuItem Header="Настройки">
@@ -206,8 +220,19 @@
             </Menu>
         </Border>
 
-        <!-- Вкладки -->
         <Border Grid.Row="2"
+                Background="#F8FAFC"
+                BorderBrush="#E2E8F0"
+                BorderThickness="0,0,0,1"
+                Padding="16,0">
+            <TextBlock Text="{Binding ConfigurationStatusText}"
+                       FontSize="12"
+                       Foreground="#64748B"
+                       VerticalAlignment="Center"/>
+        </Border>
+
+        <!-- Вкладки -->
+        <Border Grid.Row="3"
                 Background="White"
                 BorderBrush="#E2E8F0"
                 BorderThickness="0,0,0,1">
@@ -222,7 +247,7 @@
         </Border>
 
         <!-- Рабочая область -->
-        <Border Grid.Row="3" Background="#F6F9FD">
+        <Border Grid.Row="4" Background="#F6F9FD">
             <ContentControl Content="{Binding CurrentContent}"/>
         </Border>
     </Grid>

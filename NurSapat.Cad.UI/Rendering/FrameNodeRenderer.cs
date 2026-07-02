@@ -1,7 +1,9 @@
+using System.Linq;
 using Avalonia;
 using Avalonia.Media;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
+using NurSapat.Cad.UI.Diagnostics;
 using NurSapat.Cad.UI.ViewModels;
 
 namespace NurSapat.Cad.UI.Rendering;
@@ -10,11 +12,11 @@ public static class FrameNodeRenderer
 {
     private static readonly IBrush ImpostFillBrush = Brushes.White;
     private static readonly IPen HighlightPen = new Pen(
-        new SolidColorBrush(Color.Parse("#FF0404")),
+        FrameVolumeRenderer.SelectionHighlightBrush,
         FrameVolumeRenderer.ProfileStrokeThickness);
     private static readonly IBrush GhostImpostFillBrush = new SolidColorBrush(Color.Parse("#50FF0404"));
     private static readonly IPen GhostImpostPen = new Pen(
-        new SolidColorBrush(Color.Parse("#FF0404")),
+        FrameVolumeRenderer.SelectionHighlightBrush,
         FrameVolumeRenderer.ProfileStrokeThickness,
         new DashStyle(new double[] { 6, 4 }, 0));
 
@@ -76,7 +78,7 @@ public static class FrameNodeRenderer
 
         if (node.SplitOrientation == SplitOrientation.Vertical)
         {
-            var (yBottom, yTop) = ResolveVerticalImpostSpan(editor, node);
+            var yBottom = ResolveVerticalImpostBottom(editor, node);
             for (var i = 0; i < cells.Count - 1; i++)
             {
                 if (!TryResolveUniformVerticalImpostBounds(node, i, out var left, out var right))
@@ -84,12 +86,11 @@ public static class FrameNodeRenderer
                     continue;
                 }
 
-                DrawVerticalProfileVolume(context, editor, left, right, yBottom, yTop, ResolveImpostPen(editor, node, i));
+                DrawVerticalProfileVolume(context, editor, node, left, right, yBottom, ResolveImpostPen(editor, node, i));
             }
         }
         else
         {
-            var (xLeft, xRight) = ResolveHorizontalImpostSpan(editor, node);
             for (var i = 0; i < cells.Count - 1; i++)
             {
                 if (!TryResolveHorizontalImpostBounds(
@@ -105,8 +106,7 @@ public static class FrameNodeRenderer
                 DrawHorizontalProfileVolume(
                     context,
                     editor,
-                    xLeft,
-                    xRight,
+                    node,
                     bottom,
                     top,
                     ResolveHorizontalImpostPen(editor, node, i));
@@ -122,20 +122,47 @@ public static class FrameNodeRenderer
         }
 
         var pen = ResolveImpostPen(editor, node, uniformGapIndex: 0);
-        var (yBottom, yTop) = ResolveVerticalImpostSpan(editor, node);
-        DrawVerticalProfileVolume(context, editor, left, right, yBottom, yTop, pen);
+        var yBottom = ResolveVerticalImpostBottom(editor, node);
+        DrawVerticalProfileVolume(context, editor, node, left, right, yBottom, ImpostFillBrush, pen);
     }
 
     private static void DrawSingleHorizontalProfile(DrawingContext context, CadEditorViewModel editor, FrameNode node)
     {
-        if (!TryResolveHorizontalImpostBounds(node, out var bottom, out var top))
+        if (!TryResolveHorizontalImpostDrawBounds(node, out var bottom, out var top, out var renderAxisY))
         {
             return;
         }
 
+        if (editor.IsHorizontalImpostDragging)
+        {
+            var gapIndex = editor.SelectedMullion?.UniformGapIndex;
+            HorizontalImpostDragDiagnostics.Trace(
+                "render-real",
+                ghostAxisY: editor.DraggingMullionWorldY,
+                modelAxisY: HorizontalImpostDragDiagnostics.TryReadModelAxisY(node, gapIndex),
+                renderAxisY: renderAxisY,
+                splitNode: node,
+                frameRoot: editor.FrameRoot);
+        }
+
         var pen = ResolveHorizontalImpostPen(editor, node);
-        var (xLeft, xRight) = ResolveHorizontalImpostSpan(editor, node);
-        DrawHorizontalProfileVolume(context, editor, xLeft, xRight, bottom, top, pen);
+        DrawHorizontalProfileVolume(context, editor, node, bottom, top, pen);
+    }
+
+    private static bool TryResolveHorizontalImpostDrawBounds(
+        FrameNode node,
+        out double bottom,
+        out double top,
+        out double renderAxisY)
+    {
+        bottom = top = renderAxisY = 0;
+        if (!TryResolveHorizontalImpostBounds(node, out bottom, out top))
+        {
+            return false;
+        }
+
+        renderAxisY = (bottom + top) / 2.0;
+        return true;
     }
 
     private static double ResolveImpostThickness(FrameNode node) =>
@@ -264,6 +291,120 @@ public static class FrameNodeRenderer
         return top - bottom > CadMath.Epsilon;
     }
 
+    private static double ResolveVerticalImpostBottom(CadEditorViewModel editor, FrameNode splitNode)
+    {
+        var (bottom, _) = ResolveVerticalImpostSpan(editor, splitNode);
+        return bottom;
+    }
+
+    /// <summary>
+    /// Верхняя граница узла для импоста: коробка + стрела арки (не только хорда).
+    /// </summary>
+    private static double ResolveVerticalImpostExtentMaxY(CadEditorViewModel editor, FrameNode splitNode)
+    {
+        var maxY = splitNode.Y + splitNode.Height;
+        var profile = editor.FrameRoot?.TopProfile;
+        if (profile?.SegmentType == SegmentType.Arc &&
+            profile.ArcHeight > ProfileSegment.MinFlatArcHeightMm + CadMath.Epsilon)
+        {
+            maxY = Math.Max(maxY, splitNode.Y + splitNode.Height + profile.ArcHeight);
+        }
+
+        return maxY;
+    }
+
+    /// <summary>
+    /// Верх импоста — строгое пересечение вертикальных граней профиля с внутренней дугой (R_inner).
+    /// </summary>
+    private static bool TryResolveVerticalImpostArcTrim(
+        CadEditorViewModel editor,
+        FrameNode splitNode,
+        double centerX,
+        double left,
+        double right,
+        double rectangularTop,
+        out ArcSpringingGeometry arc)
+    {
+        arc = default;
+
+        if (editor.FrameRoot?.TopProfile?.SegmentType != SegmentType.Arc ||
+            !FrameProfileGeometry.TryGetArchedFrameInnerArc(editor.FrameRoot, editor.FrameThickness, out arc))
+        {
+            return false;
+        }
+
+        return VerticalImpostReachesArc(editor, splitNode, centerX, left, right, rectangularTop, arc);
+    }
+
+    private static double ResolveInnerArcTopYAtX(ArcSpringingGeometry arc, double worldX, double minY) =>
+        CadMath.RoundMm(Math.Max(ProfileSegment.GetPointOnUpperArc(arc.Center, arc.InnerRadius, worldX).Y, minY));
+
+    private static double ResolveMinInnerArcTopYBetweenX(
+        ArcSpringingGeometry arc,
+        double xLeft,
+        double xRight,
+        double minY)
+    {
+        var left = Math.Min(xLeft, xRight);
+        var right = Math.Max(xLeft, xRight);
+        var minTopY = double.MaxValue;
+        var segments = Math.Clamp((int)Math.Ceiling((right - left) / 15.0), 2, 16);
+        for (var i = 0; i <= segments; i++)
+        {
+            var x = left + (right - left) * i / segments;
+            minTopY = Math.Min(minTopY, ResolveInnerArcTopYAtX(arc, x, minY));
+        }
+
+        return minTopY;
+    }
+
+    private static bool VerticalImpostReachesArc(
+        CadEditorViewModel editor,
+        FrameNode splitNode,
+        double centerX,
+        double left,
+        double right,
+        double rectangularTop,
+        ArcSpringingGeometry arc)
+    {
+        var inner = SashGeometry.ResolveNodeInnerOpeningBounds(
+            splitNode,
+            editor.FrameRoot!,
+            editor.FrameThickness);
+
+        if (inner.PinsFrameTop)
+        {
+            return true;
+        }
+
+        var chordY = editor.FrameRoot!.Y + editor.FrameRoot.Height;
+        if (rectangularTop >= chordY - CadMath.MmPrecision)
+        {
+            return true;
+        }
+
+        var minArcTopY = ResolveMinInnerArcTopYBetweenX(arc, left, right, splitNode.Y);
+        return minArcTopY > rectangularTop + CadMath.Epsilon;
+    }
+
+    private static double ResolveVerticalImpostRectangularTop(
+        CadEditorViewModel editor,
+        FrameNode splitNode,
+        double left,
+        double right,
+        double spanTop,
+        double yBottom)
+    {
+        if (editor.FrameRoot is null ||
+            !FrameProfileGeometry.TryGetArchedFrameInnerArc(editor.FrameRoot, editor.FrameThickness, out var arc))
+        {
+            return spanTop;
+        }
+
+        var cappedTop = ResolveMinInnerArcTopYBetweenX(arc, left, right, yBottom);
+        return Math.Min(spanTop, cappedTop);
+    }
+
     private static (double Bottom, double Top) ResolveVerticalImpostSpan(CadEditorViewModel editor, FrameNode splitNode)
     {
         if (editor.FrameRoot is null)
@@ -281,80 +422,72 @@ public static class FrameNodeRenderer
             return (splitNode.Y, splitNode.Y + splitNode.Height);
         }
 
+        var maxY = ResolveVerticalImpostExtentMaxY(editor, splitNode);
         return (
-            CadMath.RoundMm(Math.Clamp(inner.Bottom, splitNode.Y, splitNode.Y + splitNode.Height)),
-            CadMath.RoundMm(Math.Clamp(inner.Top, splitNode.Y, splitNode.Y + splitNode.Height)));
+            CadMath.RoundMm(Math.Clamp(inner.Bottom, splitNode.Y, maxY)),
+            CadMath.RoundMm(Math.Clamp(inner.Top, splitNode.Y, maxY)));
     }
 
-    private static (double Left, double Right) ResolveHorizontalImpostSpan(CadEditorViewModel editor, FrameNode splitNode)
-    {
-        if (editor.FrameRoot is null)
-        {
-            return (splitNode.X, splitNode.X + splitNode.Width);
-        }
-
-        var inner = SashGeometry.ResolveNodeInnerOpeningBounds(
-            splitNode,
-            editor.FrameRoot,
-            editor.FrameThickness);
-
-        if (inner.Width <= CadMath.Epsilon)
-        {
-            return (splitNode.X, splitNode.X + splitNode.Width);
-        }
-
-        return (
-            CadMath.RoundMm(Math.Clamp(inner.Left, splitNode.X, splitNode.X + splitNode.Width)),
-            CadMath.RoundMm(Math.Clamp(inner.Right, splitNode.X, splitNode.X + splitNode.Width)));
-    }
 
     private static void DrawVerticalProfileVolume(
         DrawingContext context,
         CadEditorViewModel editor,
+        FrameNode splitNode,
         double left,
         double right,
         double yBottom,
-        double yTop,
-        IPen pen)
-    {
-        DrawVerticalProfileVolume(context, editor, left, right, yBottom, yTop, ImpostFillBrush, pen);
-    }
-
-    private static void DrawDraggingVerticalImpostGhost(DrawingContext context, CadEditorViewModel editor)
-    {
-        if (editor.SelectedMullion is not { } target || editor.DraggingMullionWorldX is not double axisX)
-        {
-            return;
-        }
-
-        var node = target.SplitNode;
-        if (!TryResolveVerticalImpostRenderBounds(axisX, ResolveImpostThickness(node), out var left, out var right))
-        {
-            return;
-        }
-
-        var (yBottom, yTop) = ResolveVerticalImpostSpan(editor, node);
-        DrawVerticalProfileVolume(context, editor, left, right, yBottom, yTop, GhostImpostFillBrush, GhostImpostPen);
-    }
-
-    private static void DrawDraggingHorizontalImpostGhost(DrawingContext context, CadEditorViewModel editor)
-    {
-        if (editor.SelectedMullion is not { } target || editor.DraggingMullionWorldY is not double axisY)
-        {
-            return;
-        }
-
-        var node = target.SplitNode;
-        if (!TryResolveHorizontalImpostRenderBounds(axisY, ResolveImpostThickness(node), out var bottom, out var top))
-        {
-            return;
-        }
-
-        var (xLeft, xRight) = ResolveHorizontalImpostSpan(editor, node);
-        DrawHorizontalProfileVolume(context, editor, xLeft, xRight, bottom, top, GhostImpostFillBrush, GhostImpostPen);
-    }
+        IPen pen) =>
+        DrawVerticalProfileVolume(context, editor, splitNode, left, right, yBottom, ImpostFillBrush, pen);
 
     private static void DrawVerticalProfileVolume(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameNode splitNode,
+        double left,
+        double right,
+        double yBottom,
+        IBrush fill,
+        IPen pen)
+    {
+        var rectangularTop = ResolveVerticalImpostRectangularTop(
+            editor,
+            splitNode,
+            left,
+            right,
+            ResolveVerticalImpostSpan(editor, splitNode).Top,
+            yBottom);
+        var centerX = (left + right) / 2.0;
+        var minY = splitNode.Y;
+
+        if (TryResolveVerticalImpostArcTrim(
+                editor,
+                splitNode,
+                centerX,
+                left,
+                right,
+                rectangularTop,
+                out var arc))
+        {
+            var yTopLeft = ResolveInnerArcTopYAtX(arc, left, minY);
+            var yTopRight = ResolveInnerArcTopYAtX(arc, right, minY);
+            if (yTopLeft - yBottom <= CadMath.Epsilon && yTopRight - yBottom <= CadMath.Epsilon)
+            {
+                return;
+            }
+
+            DrawVerticalProfileArcTrimmed(context, editor, arc, left, right, yBottom, fill, pen);
+            return;
+        }
+
+        if (rectangularTop - yBottom <= CadMath.Epsilon)
+        {
+            return;
+        }
+
+        DrawVerticalProfileVolumeRect(context, editor, left, right, yBottom, rectangularTop, fill, pen);
+    }
+
+    private static void DrawVerticalProfileVolumeRect(
         DrawingContext context,
         CadEditorViewModel editor,
         double left,
@@ -374,19 +507,192 @@ public static class FrameNodeRenderer
         context.DrawRectangle(null, pen, rect);
     }
 
-    private static void DrawHorizontalProfileVolume(
+    private static void DrawVerticalProfileArcTrimmed(
         DrawingContext context,
         CadEditorViewModel editor,
-        double xLeft,
-        double xRight,
-        double bottom,
-        double top,
+        ArcSpringingGeometry arc,
+        double left,
+        double right,
+        double yBottom,
+        IBrush fill,
         IPen pen)
     {
-        DrawHorizontalProfileVolume(context, editor, xLeft, xRight, bottom, top, ImpostFillBrush, pen);
+        var bottomLeft = WorldToScreenPoint(editor, left, yBottom);
+        var bottomRight = WorldToScreenPoint(editor, right, yBottom);
+        var arcTopPoints = TessellateInnerArcTopBetweenX(arc, left, right, yBottom);
+        if (arcTopPoints.Count < 2)
+        {
+            return;
+        }
+
+        var geometry = new StreamGeometry();
+        using (var gctx = geometry.Open())
+        {
+            gctx.BeginFigure(bottomLeft, isFilled: true);
+            gctx.LineTo(bottomRight);
+            for (var i = arcTopPoints.Count - 1; i >= 0; i--)
+            {
+                var point = arcTopPoints[i];
+                gctx.LineTo(WorldToScreenPoint(editor, point.X, point.Y));
+            }
+
+            gctx.EndFigure(true);
+        }
+
+        context.DrawGeometry(fill, pen, geometry);
+    }
+
+    private static List<CadPoint> TessellateInnerArcTopBetweenX(
+        ArcSpringingGeometry arc,
+        double xLeft,
+        double xRight,
+        double yBottom)
+    {
+        var left = Math.Min(xLeft, xRight);
+        var right = Math.Max(xLeft, xRight);
+        var span = right - left;
+        var segments = Math.Clamp((int)Math.Ceiling(span / 15.0), 2, 16);
+        var points = new List<CadPoint>(segments + 1);
+        for (var i = 0; i <= segments; i++)
+        {
+            var x = left + span * i / segments;
+            var point = ProfileSegment.GetPointOnUpperArc(arc.Center, arc.InnerRadius, x);
+            if (point.Y >= yBottom - CadMath.Epsilon)
+            {
+                points.Add(point);
+            }
+        }
+
+        return points;
+    }
+
+    private static void DrawVerticalProfilePolygon(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        double left,
+        double right,
+        double yBottom,
+        double yTopLeft,
+        double yTopRight,
+        IBrush fill,
+        IPen pen)
+    {
+        var bottomLeft = WorldToScreenPoint(editor, left, yBottom);
+        var bottomRight = WorldToScreenPoint(editor, right, yBottom);
+        var topRight = WorldToScreenPoint(editor, right, yTopRight);
+        var topLeft = WorldToScreenPoint(editor, left, yTopLeft);
+
+        var geometry = new StreamGeometry();
+        using (var gctx = geometry.Open())
+        {
+            gctx.BeginFigure(bottomLeft, isFilled: true);
+            gctx.LineTo(bottomRight);
+            gctx.LineTo(topRight);
+            gctx.LineTo(topLeft);
+            gctx.EndFigure(true);
+        }
+
+        context.DrawGeometry(fill, pen, geometry);
+    }
+
+    private static Point WorldToScreenPoint(CadEditorViewModel editor, double worldX, double worldY)
+    {
+        var screen = editor.Viewport!.WorldToScreen(new CadPoint(worldX, worldY));
+        return new Point(screen.X, screen.Y);
+    }
+
+    private static void DrawDraggingVerticalImpostGhost(DrawingContext context, CadEditorViewModel editor)
+    {
+        if (editor.SelectedMullion is not { } target || editor.DraggingMullionWorldX is not double axisX)
+        {
+            return;
+        }
+
+        var node = target.SplitNode;
+        if (!TryResolveVerticalImpostRenderBounds(axisX, ResolveImpostThickness(node), out var left, out var right))
+        {
+            return;
+        }
+
+        var yBottom = ResolveVerticalImpostBottom(editor, node);
+        DrawVerticalProfileVolume(context, editor, node, left, right, yBottom, GhostImpostFillBrush, GhostImpostPen);
+    }
+
+    private static void DrawDraggingHorizontalImpostGhost(DrawingContext context, CadEditorViewModel editor)
+    {
+        if (editor.SelectedMullion is not { } target || editor.DraggingMullionWorldY is not double axisY)
+        {
+            return;
+        }
+
+        var node = target.SplitNode;
+        if (!TryResolveHorizontalImpostRenderBounds(axisY, ResolveImpostThickness(node), out var bottom, out var top))
+        {
+            return;
+        }
+
+        if (editor.IsHorizontalImpostDragging)
+        {
+            var gapIndex = target.UniformGapIndex;
+            HorizontalImpostDragDiagnostics.Trace(
+                "render-ghost",
+                ghostAxisY: axisY,
+                modelAxisY: HorizontalImpostDragDiagnostics.TryReadModelAxisY(node, gapIndex),
+                renderAxisY: axisY,
+                splitNode: node,
+                frameRoot: editor.FrameRoot);
+        }
+
+        DrawHorizontalProfileVolume(context, editor, node, bottom, top, GhostImpostFillBrush, GhostImpostPen);
     }
 
     private static void DrawHorizontalProfileVolume(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameNode splitNode,
+        double bottom,
+        double top,
+        IPen pen) =>
+        DrawHorizontalProfileVolume(context, editor, splitNode, bottom, top, ImpostFillBrush, pen);
+
+    private static void DrawHorizontalProfileVolume(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameNode splitNode,
+        double bottom,
+        double top,
+        IBrush fill,
+        IPen pen)
+    {
+        if (HorizontalImpostGeometry.TryResolveArcAdaptedSpans(
+                editor,
+                splitNode,
+                bottom,
+                top,
+                out var leftBottom,
+                out var rightBottom,
+                out var leftTop,
+                out var rightTop))
+        {
+            DrawHorizontalProfilePolygon(
+                context,
+                editor,
+                leftBottom,
+                rightBottom,
+                leftTop,
+                rightTop,
+                bottom,
+                top,
+                fill,
+                pen);
+            return;
+        }
+
+        var (left, right) = HorizontalImpostGeometry.ResolveSpanAtY(editor, splitNode, (bottom + top) / 2.0);
+        DrawHorizontalProfileVolumeRect(context, editor, left, right, bottom, top, fill, pen);
+    }
+
+    private static void DrawHorizontalProfileVolumeRect(
         DrawingContext context,
         CadEditorViewModel editor,
         double xLeft,
@@ -404,6 +710,48 @@ public static class FrameNodeRenderer
 
         context.FillRectangle(fill, rect);
         context.DrawRectangle(null, pen, rect);
+    }
+
+    private static void DrawHorizontalProfilePolygon(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        double leftBottom,
+        double rightBottom,
+        double leftTop,
+        double rightTop,
+        double bottom,
+        double top,
+        IBrush fill,
+        IPen pen)
+    {
+        var polygon = HorizontalImpostGeometry.BuildFootprintPolygon(
+            leftBottom,
+            rightBottom,
+            leftTop,
+            rightTop,
+            bottom,
+            top);
+        var screenPoints = polygon
+            .Select(point => WorldToScreenPoint(editor, point.X, point.Y))
+            .ToList();
+        if (screenPoints.Count < 3)
+        {
+            return;
+        }
+
+        var geometry = new StreamGeometry();
+        using (var gctx = geometry.Open())
+        {
+            gctx.BeginFigure(screenPoints[0], isFilled: true);
+            for (var i = 1; i < screenPoints.Count; i++)
+            {
+                gctx.LineTo(screenPoints[i]);
+            }
+
+            gctx.EndFigure(true);
+        }
+
+        context.DrawGeometry(fill, pen, geometry);
     }
 
     private static void DrawWorldLine(DrawingContext context, CadEditorViewModel editor, IPen pen, CadPoint start, CadPoint end)

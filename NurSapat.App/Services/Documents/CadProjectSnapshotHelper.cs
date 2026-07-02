@@ -1,3 +1,4 @@
+using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Project;
 
@@ -37,7 +38,8 @@ public static class CadProjectSnapshotHelper
         UniformImpostCount = node.UniformImpostCount,
         UniformCells = node.UniformCells.Select(ToFrameData).ToList(),
         ChildA = node.ChildA is null ? null : ToFrameData(node.ChildA),
-        ChildB = node.ChildB is null ? null : ToFrameData(node.ChildB)
+        ChildB = node.ChildB is null ? null : ToFrameData(node.ChildB),
+        TopProfile = node.TopProfile is null ? null : ToProfileData(node.TopProfile)
     };
 
     private static CadEditorViewModel.FrameNodeSnapshot FromFrameData(FrameNodeData data) => new()
@@ -54,6 +56,31 @@ public static class CadProjectSnapshotHelper
         UniformImpostCount = data.UniformImpostCount,
         UniformCells = data.UniformCells.Select(FromFrameData).ToList(),
         ChildA = data.ChildA is null ? null : FromFrameData(data.ChildA),
-        ChildB = data.ChildB is null ? null : FromFrameData(data.ChildB)
+        ChildB = data.ChildB is null ? null : FromFrameData(data.ChildB),
+        TopProfile = data.TopProfile is null ? null : FromProfileData(data.TopProfile)
+    };
+
+    private static ProfileSegmentData ToProfileData(ProfileSegmentSnapshot snapshot) => new()
+    {
+        SegmentType = snapshot.SegmentType.ToString(),
+        StartX = snapshot.StartX,
+        StartY = snapshot.StartY,
+        EndX = snapshot.EndX,
+        EndY = snapshot.EndY,
+        Radius = snapshot.Radius,
+        ArcHeight = snapshot.ArcHeight
+    };
+
+    private static ProfileSegmentSnapshot FromProfileData(ProfileSegmentData data) => new()
+    {
+        SegmentType = Enum.TryParse<SegmentType>(data.SegmentType, ignoreCase: true, out var parsed)
+            ? parsed
+            : SegmentType.Line,
+        StartX = data.StartX,
+        StartY = data.StartY,
+        EndX = data.EndX,
+        EndY = data.EndY,
+        Radius = data.Radius,
+        ArcHeight = data.ArcHeight
     };
 }

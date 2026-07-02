@@ -18,6 +18,8 @@ using NurSapat.Core.Models;
 using NurSapat.Core.Models.Orders;
 using MaterialModel = NurSapat.Core.Models.Material;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Linq;
 
 namespace NurSapat.Cad.UI.ViewModels;
 
@@ -54,14 +56,26 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private readonly ConstructionPlacementHistory _placementHistory = new();
 
     private VerticalImpostTarget? _selectedMullion;
+    private readonly HashSet<CadSelectableItem> _constructionSelection = new();
     private bool _isVerticalImpostDragging;
     private bool _isHorizontalImpostDragging;
     private double? _draggingMullionWorldX;
     private double? _draggingMullionWorldY;
     private bool _isSyncingImpostPanel;
+    private bool _isCommittingHorizontalImpostRelease;
+    private bool _isTopProfileHovered;
+    private bool _isSyncingTopProfileUi;
+    private ProfileSegment? _watchedTopProfile;
+    private bool _isArcVertexDragging;
+    private ArcVertexDragTarget _arcVertexDragTarget;
+    private double _arcHeightDragStartWorldY;
+    private double _arcHeightDragStartHeight;
+    private ConstructionMemento? _constructionDragBeforeMemento;
 
     private const double VerticalImpostHitToleranceMm = 18;
     private const double VerticalImpostHitScreenPx = 14;
+    private const double TopProfileHitScreenPx = 10;
+    private const double ArcVertexHandleScreenPx = 12;
     private const double ImpostDragInnerInsetMm = 50;
     private const double MinEditableOpeningMm = 150;
 
@@ -161,7 +175,12 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     public ObservableCollection<GeometryElement> CanvasElements { get; } = [];
 
-    public ObservableCollection<CadDesignToolButtonViewModel> DesignTools { get; } = [];
+    public ObservableCollection<CadDesignToolButtonViewModel> CreationDesignTools { get; } = [];
+
+    public ObservableCollection<CadDesignToolButtonViewModel> EditingDesignTools { get; } = [];
+
+    private IEnumerable<CadDesignToolButtonViewModel> AllDesignTools =>
+        CreationDesignTools.Concat(EditingDesignTools);
 
     public event EventHandler? SceneInvalidated;
 
@@ -176,6 +195,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
     public bool CanUndoPlacement => _placementHistory.CanUndo;
 
     public bool CanRedoPlacement => _placementHistory.CanRedo;
+
+    public bool CanRedo => CanRedoPlacement || Commands.CanRedo;
 
     public bool CanUndo => CanUndoPlacement || Commands.CanUndo;
 
@@ -215,8 +236,12 @@ public sealed partial class CadEditorViewModel : ObservableObject
     [ObservableProperty]
     private ICadTool _activeTool;
 
+    private string _activeToolKey = "select-elements";
+
     [ObservableProperty]
     private WindowToolMode _currentToolMode = WindowToolMode.SelectElement;
+
+    public IRelayCommand<string> ActivateDesignToolCommand { get; }
 
     public WindowToolMode ActiveToolMode
     {
@@ -227,6 +252,27 @@ public sealed partial class CadEditorViewModel : ObservableObject
             {
                 _ = SelectToolModeAsync(value);
             }
+        }
+    }
+
+    public CanvasTool CurrentTool
+    {
+        get => CurrentToolMode switch
+        {
+            WindowToolMode.RadiusVertex => CanvasTool.RadiusVertex,
+            WindowToolMode.SelectElement => CanvasTool.SelectElement,
+            _ => CanvasTool.None
+        };
+        set
+        {
+            var mode = value switch
+            {
+                CanvasTool.RadiusVertex => WindowToolMode.RadiusVertex,
+                CanvasTool.SelectElement => WindowToolMode.SelectElement,
+                _ => WindowToolMode.SelectElement
+            };
+
+            ActiveToolMode = mode;
         }
     }
 
@@ -350,6 +396,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     public Func<Task>? OpenConstructionsLookupHandler { get; set; }
 
+    public Func<Task>? OpenStandardStructuresHandler { get; set; }
+
     private bool _suppressConstructionSelectionCallback;
     private bool _isResettingCanvas;
     private int _canvasResetDepth;
@@ -378,8 +426,11 @@ public sealed partial class CadEditorViewModel : ObservableObject
         _templateStore = templateStore;
         _materialRepository = materialRepository;
         Commands = new CadCommandManager(Document);
+        ActiveTool = _toolFactory.Create(CadToolMetadata.GetId(CadToolKind.SelectElements));
+        ActiveToolId = CadToolMetadata.GetId(CadToolKind.SelectElements);
         ActivateToolCommand = new RelayCommand<string>(ActivateCadTool);
         SelectToolModeCommand = new RelayCommand<WindowToolMode>(mode => _ = SelectToolModeAsync(mode));
+        ActivateDesignToolCommand = new RelayCommand<string>(toolKey => _ = ActivateDesignToolAsync(toolKey));
 
         InitializeDesignTools();
         EnsureDefaultConstructions();
@@ -387,9 +438,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
         SelectedDrawingTemplate = DrawingTemplates.FirstOrDefault();
         _isApplyingDrawingTemplate = false;
         _ = LoadMaterialsAsync();
-        ActiveTool = _toolFactory.Create(CadToolMetadata.GetId(CadToolKind.SelectElements));
-        ActiveToolId = CadToolMetadata.GetId(CadToolKind.SelectElements);
-        UpdateDesignToolSelection(WindowToolMode.SelectElement);
+        UpdateDesignToolSelection(WindowToolMode.SelectElement, "select-elements");
+        ActiveTool.OnActivated(CreateToolContext());
         Viewport.ResetToDefaultScale(15.0);
         _placementHistory.Changed += (_, _) => NotifyPlacementHistoryChanged();
         Commands.HistoryChanged += (_, _) => NotifyPlacementHistoryChanged();
@@ -400,7 +450,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     public string ZoomPercent => $"{Viewport.ZoomFactor * 100:0}%";
 
-    public string ActiveToolDisplayName => ActiveDesignToolLabel ?? ActiveTool.DisplayName;
+    public string ActiveToolDisplayName => ActiveDesignToolLabel ?? ActiveTool?.DisplayName ?? "Инструмент";
 
     public bool IsPlacementToolActive =>
         CurrentToolMode is WindowToolMode.RealFrame or WindowToolMode.FakeFrame
@@ -477,11 +527,39 @@ public sealed partial class CadEditorViewModel : ObservableObject
     public double SelectedElementY =>
         SelectedElement is FrameNode frame ? RoundMm(frame.Y) : RoundMm(CoordinateY);
 
+    public bool ShowStatusBarDimensions => IsShapePlacementActive;
+
+    public double StatusBarLength => ShowStatusBarDimensions ? SelectedElementLength : 0;
+
+    public double StatusBarHeight => ShowStatusBarDimensions ? SelectedElementHeight : 0;
+
     public bool IsImpostPanelActive =>
         _selectedMullion != null &&
         CurrentToolMode is WindowToolMode.OffsetImpostVertical or WindowToolMode.OffsetImpostHorizontal;
 
     public VerticalImpostTarget? SelectedMullion => _selectedMullion;
+
+    public IReadOnlyCollection<CadSelectableItem> ConstructionSelection => _constructionSelection;
+
+    public bool IsConstructionItemSelected(CadSelectableItem item) => _constructionSelection.Contains(item);
+
+    public bool IsGeometryElementSelected(Guid elementId) =>
+        _constructionSelection.Any(item =>
+            item.ElementId == elementId &&
+            item.Kind is CadSelectableKind.Sash
+                or CadSelectableKind.Glazing
+                or CadSelectableKind.Bead);
+
+    public bool IsFrameConstructionSelected =>
+        _constructionSelection.Any(item => item.Kind == CadSelectableKind.Frame);
+
+    public bool IsImpostConstructionSelected(FrameNode node, int uniformGapIndex = 0) =>
+        _constructionSelection.Any(item =>
+            item.Kind == CadSelectableKind.Impost &&
+            ReferenceEquals(item.ImpostNode, node) &&
+            item.ImpostGapIndex == uniformGapIndex);
+
+    private bool HasCommittedConstruction => FrameRoot != null || CanvasElements.Count > 0;
 
     public DimensionHitInfo? ActiveDimensionHit => _activeDimensionHit;
 
@@ -509,14 +587,80 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private double _impostPanelH;
 
     public bool IsVerticalImpostHighlighted(FrameNode node, int uniformGapIndex = 0) =>
-        CurrentToolMode == WindowToolMode.OffsetImpostVertical &&
-        !_draggingMullionWorldX.HasValue &&
-        IsSelectedForOffset(node, uniformGapIndex);
+        IsImpostConstructionSelected(node, uniformGapIndex) ||
+        (CurrentToolMode == WindowToolMode.OffsetImpostVertical &&
+         !_draggingMullionWorldX.HasValue &&
+         IsSelectedForOffset(node, uniformGapIndex));
 
     public bool IsHorizontalImpostHighlighted(FrameNode node, int uniformGapIndex = 0) =>
-        CurrentToolMode == WindowToolMode.OffsetImpostHorizontal &&
-        !_draggingMullionWorldY.HasValue &&
-        IsSelectedForOffset(node, uniformGapIndex);
+        IsImpostConstructionSelected(node, uniformGapIndex) ||
+        (CurrentToolMode == WindowToolMode.OffsetImpostHorizontal &&
+         !_draggingMullionWorldY.HasValue &&
+         IsSelectedForOffset(node, uniformGapIndex));
+
+    public bool IsTopProfileHovered =>
+        _isTopProfileHovered &&
+        CurrentToolMode == WindowToolMode.RadiusVertex;
+
+    public ProfileSegment? HoveredTopProfile =>
+        IsTopProfileHovered ? FrameRoot?.TopProfile : null;
+
+    public bool HasArcTopProfile =>
+        FrameRoot?.TopProfile?.SegmentType == SegmentType.Arc;
+
+    public bool IsArcVertexDragging => _isArcVertexDragging;
+
+    public bool ShowArcVertexHandles =>
+        HasArcTopProfile && CurrentToolMode == WindowToolMode.RadiusVertex;
+
+    public double TopProfileArcRadius
+    {
+        get => HasArcTopProfile && FrameRoot?.TopProfile is { } profile
+            ? RoundMm(profile.Radius)
+            : 0;
+        set
+        {
+            if (!HasArcTopProfile)
+            {
+                return;
+            }
+
+            if (!RecordPlacement("Изменение радиуса", () => TryApplyTopProfileRadius(value)))
+            {
+                return;
+            }
+
+            NotifyTopProfileUiProperties();
+            RequestSceneRefresh();
+        }
+    }
+
+    public double TopProfileArcHeight
+    {
+        get => HasArcTopProfile && FrameRoot?.TopProfile is { } profile
+            ? RoundMm(profile.ArcHeight)
+            : 0;
+        set
+        {
+            if (!HasArcTopProfile)
+            {
+                return;
+            }
+
+            if (!RecordPlacement("Изменение стрелы прогиба", () => TryApplyTopProfileArcHeight(value)))
+            {
+                return;
+            }
+
+            NotifyTopProfileUiProperties();
+            RequestSceneRefresh();
+        }
+    }
+
+    partial void OnFrameRootChanged(FrameNode? value)
+    {
+        AttachTopProfileWatcher();
+    }
 
     public double GridSnapStep => Viewport.ChooseGridStep();
 
@@ -527,8 +671,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
+        var snapshot = elements.ToList();
         CanvasElements.Clear();
-        foreach (var element in elements)
+        foreach (var element in snapshot)
         {
             CanvasElements.Add(element);
         }
@@ -892,6 +1037,15 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private bool MoveHorizontalImpost(VerticalImpostTarget target, double axisWorldY)
     {
         var node = target.SplitNode;
+        var extent = FrameNode.ResolveHorizontalSplitExtentLocal(node, FrameRoot ?? node.GetRoot());
+        TraceHorizontalImpost(
+            "move-enter",
+            ghostAxisY: _draggingMullionWorldY,
+            moveInputAxisY: axisWorldY,
+            modelAxisY: HorizontalImpostDragDiagnostics.TryReadModelAxisY(node, target.UniformGapIndex),
+            renderAxisY: HorizontalImpostDragDiagnostics.TryReadRenderAxisY(node, target.UniformGapIndex),
+            detail: $"extent={extent:F1} uniform={node.IsUniformSplit} gap={target.UniformGapIndex?.ToString() ?? "-"} inTree={IsSplitNodeInFrameTree(node)} split#{node.GetHashCode()} root#{FrameRoot?.GetHashCode().ToString() ?? "null"}");
+
         bool moved;
         if (node.IsUniformSplit && target.UniformGapIndex is int gapIndex)
         {
@@ -907,6 +1061,15 @@ public sealed partial class CadEditorViewModel : ObservableObject
             SyncFillingsToFrameLayout();
         }
 
+        TraceHorizontalImpost(
+            "move-exit",
+            ghostAxisY: _draggingMullionWorldY,
+            moveInputAxisY: axisWorldY,
+            modelAxisY: HorizontalImpostDragDiagnostics.TryReadModelAxisY(node, target.UniformGapIndex),
+            renderAxisY: HorizontalImpostDragDiagnostics.TryReadRenderAxisY(node, target.UniformGapIndex),
+            moveSucceeded: moved,
+            detail: moved ? null : "TrySet returned false");
+
         return moved;
     }
 
@@ -920,7 +1083,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
-        foreach (var element in CanvasElements)
+        SyncSashTopology();
+
+        foreach (var element in CanvasElements.ToList())
         {
             if (element.Kind == GeometryElementKind.Sash)
             {
@@ -928,18 +1093,134 @@ public sealed partial class CadEditorViewModel : ObservableObject
             }
         }
 
-        foreach (var element in CanvasElements)
+        SyncGlazingTopology();
+
+        foreach (var element in CanvasElements.ToList())
         {
-            if (element.Kind == GeometryElementKind.Glazing)
+            if (element.Kind == GeometryElementKind.Glazing && element.HostSashId is not null)
             {
                 SyncGlazingElementToLayout(element);
             }
         }
     }
 
+    /// <summary>
+    /// Синхронизирует створки с деревом FrameNode: одна створка на каждый лист проёма.
+    /// </summary>
+    private void SyncSashTopology()
+    {
+        if (FrameRoot is null)
+        {
+            return;
+        }
+
+        foreach (var sash in CanvasElements
+                     .Where(e => e.Kind == GeometryElementKind.Sash)
+                     .ToList())
+        {
+            var leaves = SashGeometry.FindLeavesHostingSash(this, sash);
+            if (leaves.Count <= 1)
+            {
+                continue;
+            }
+
+            var hingeSide = sash.HingeSide ?? SashHingeSide.Left;
+            var openingType = sash.OpeningType ?? SashOpeningType.TiltTurn;
+            var hasHardware = sash.HasHardware;
+            var hasHandle = sash.HasHandle;
+            var hadHostedGlazing = CanvasElements.Any(
+                e => e.Kind == GeometryElementKind.Glazing && e.HostSashId == sash.Id);
+
+            CanvasElements.Remove(sash);
+            if (hadHostedGlazing)
+            {
+                RemoveHostedGlazingForSash(sash.Id);
+            }
+
+            foreach (var leaf in leaves)
+            {
+                if (FindSashInLeaf(leaf) is not null)
+                {
+                    continue;
+                }
+
+                var created = CreateSashElement(leaf, hingeSide);
+                if (created is null)
+                {
+                    continue;
+                }
+
+                created.OpeningType = openingType;
+                created.HasHardware = hasHardware;
+                created.HasHandle = hasHandle;
+                CanvasElements.Add(created);
+
+                if (hadHostedGlazing)
+                {
+                    var glazing = CreateGlazingElementForSash(created, leaf);
+                    if (glazing is not null)
+                    {
+                        CanvasElements.Add(glazing);
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Синхронизирует остекление с деревом FrameNode: один стеклопакет на каждый лист проёма.
+    /// </summary>
+    private void SyncGlazingTopology()
+    {
+        if (FrameRoot is null)
+        {
+            return;
+        }
+
+        foreach (var glazing in CanvasElements
+                     .Where(e => e.Kind == GeometryElementKind.Glazing && e.HostSashId is null)
+                     .ToList())
+        {
+            var leaves = SashGeometry.FindLeavesHostingStandaloneGlazing(this, glazing)
+                .Where(leaf => !LeafBlocksGlazingPlacement(leaf))
+                .ToList();
+
+            if (leaves.Count <= 1)
+            {
+                continue;
+            }
+
+            CanvasElements.Remove(glazing);
+            foreach (var leaf in leaves)
+            {
+                if (FindGlazingInLeaf(leaf) is not null)
+                {
+                    continue;
+                }
+
+                var created = CreateGlazingElement(leaf);
+                if (created is not null)
+                {
+                    CanvasElements.Add(created);
+                }
+            }
+        }
+
+        foreach (var glazing in CanvasElements
+                     .Where(e => e.Kind == GeometryElementKind.Glazing && e.HostSashId is null)
+                     .ToList())
+        {
+            SyncGlazingElementToLayout(glazing);
+        }
+    }
+
+    private bool LeafBlocksGlazingPlacement(FrameNode leaf) =>
+        FindSashInLeaf(leaf) is not null ||
+        CanvasElements.Any(e => e.Kind == GeometryElementKind.Corrugation && ContainsLeaf(e, leaf));
+
     private void SyncSashElementToLeaf(GeometryElement sash)
     {
-        var leaf = FrameRoot!.FindLeafAt((double)sash.X, (double)sash.Y);
+        var leaf = SashGeometry.FindLeafForSash(this, sash);
         if (leaf is not { IsLeaf: true })
         {
             return;
@@ -970,7 +1251,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
                 return;
             }
 
-            var leaf = FrameRoot!.FindLeafAt((double)sash.X, (double)sash.Y);
+            var leaf = SashGeometry.FindLeafForSash(this, sash);
             var updated = CreateGlazingElementForSash(sash, leaf);
             if (updated is null)
             {
@@ -984,7 +1265,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
-        var glazingLeaf = FrameRoot!.FindLeafAt((double)glazing.X, (double)glazing.Y);
+        var glazingLeaf = SashGeometry.FindLeafForGlazing(this, glazing);
         if (glazingLeaf is not { IsLeaf: true })
         {
             return;
@@ -1198,7 +1479,10 @@ public sealed partial class CadEditorViewModel : ObservableObject
         HitTestSelection = HitTestSelectionTarget,
         SelectTarget = SelectConstructionTarget,
         GetFrameRoot = () => FrameRoot,
-        SnapAxis = SnapToGrid
+        SnapAxis = SnapToGrid,
+        HasConstructionElementAtPoint = HasConstructionElementAtPoint,
+        HandleConstructionClickSelection = HandleConstructionClickSelection,
+        HandleConstructionBoxSelection = HandleConstructionBoxSelection
     };
 
     private void ActivateCadTool(string? id)
@@ -1227,6 +1511,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
             ActiveTool = fallback;
             ActiveToolId = fallback.Id;
             fallback.OnActivated(CreateToolContext());
+            UpdateDesignToolSelection(WindowToolMode.SelectElement, "select-elements");
         }
 
         RequestSceneRefresh();
@@ -1320,6 +1605,19 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     private void ApplyConstructionMemento(ConstructionMemento memento)
     {
+        if (CurrentToolMode == WindowToolMode.OffsetImpostHorizontal)
+        {
+            HorizontalImpostDragDiagnostics.Trace(
+                "memento-apply",
+                ghostAxisY: _draggingMullionWorldY,
+                modelAxisY: HorizontalImpostDragDiagnostics.TryReadModelAxisY(
+                    _selectedMullion?.SplitNode,
+                    _selectedMullion?.UniformGapIndex),
+                splitNode: _selectedMullion?.SplitNode,
+                frameRoot: FrameRoot,
+                detail: "ApplyConstructionMemento — дерево будет заменено");
+        }
+
         FrameRoot = memento.FrameRootSnapshot is null
             ? null
             : FrameNode.RestoreTree(memento.FrameRootSnapshot);
@@ -1442,26 +1740,388 @@ public sealed partial class CadEditorViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanUndoPlacement));
         OnPropertyChanged(nameof(CanRedoPlacement));
+        OnPropertyChanged(nameof(CanRedo));
         OnPropertyChanged(nameof(CanUndo));
         UndoLastElementCommand.NotifyCanExecuteChanged();
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
     }
 
+    private void BeginConstructionDrag()
+    {
+        _constructionDragBeforeMemento = _isResettingCanvas ? null : CaptureConstructionMemento();
+    }
+
+    private void CommitConstructionDrag(string description)
+    {
+        if (_constructionDragBeforeMemento is null || _isResettingCanvas)
+        {
+            _constructionDragBeforeMemento = null;
+            return;
+        }
+
+        TraceHorizontalImpost("commit-before-capture", ghostAxisY: _draggingMullionWorldY);
+
+        var after = CaptureConstructionMemento();
+        _placementHistory.Record(_constructionDragBeforeMemento, after, description);
+        _constructionDragBeforeMemento = null;
+        NotifyPlacementHistoryChanged();
+
+        TraceHorizontalImpost("commit-after-record", ghostAxisY: _draggingMullionWorldY);
+
+        RefreshAfterPlacementHistoryChange();
+
+        TraceHorizontalImpost("commit-after-refresh", ghostAxisY: _draggingMullionWorldY);
+    }
+
+    private void CancelConstructionDrag() => _constructionDragBeforeMemento = null;
+
+    private bool HasConstructionElementAtPoint(CadPoint worldPoint) =>
+        HasCommittedConstruction && ConstructionSelectionHelper.HitTest(this, worldPoint) != null;
+
+    private bool HandleConstructionClickSelection(CadPoint worldPoint, bool isCtrlDown)
+    {
+        if (!HasCommittedConstruction)
+        {
+            return false;
+        }
+
+        var hit = ConstructionSelectionHelper.HitTest(this, worldPoint);
+        if (hit is null)
+        {
+            if (!isCtrlDown)
+            {
+                ClearConstructionSelection();
+            }
+
+            RequestSceneRefresh();
+            return true;
+        }
+
+        if (isCtrlDown)
+        {
+            if (_constructionSelection.Contains(hit))
+            {
+                _constructionSelection.Remove(hit);
+            }
+            else
+            {
+                _constructionSelection.Add(hit);
+            }
+        }
+        else
+        {
+            _constructionSelection.Clear();
+            _constructionSelection.Add(hit);
+        }
+
+        SyncLegacySelectionFromConstruction();
+        RequestSceneRefresh();
+        return true;
+    }
+
+    private void HandleConstructionBoxSelection(CadRect bounds, bool isCtrlDown)
+    {
+        if (!HasCommittedConstruction)
+        {
+            return;
+        }
+
+        var hits = ConstructionSelectionHelper.HitTestInRect(this, bounds);
+        if (!isCtrlDown)
+        {
+            _constructionSelection.Clear();
+        }
+
+        foreach (var hit in hits)
+        {
+            _constructionSelection.Add(hit);
+        }
+
+        SyncLegacySelectionFromConstruction();
+        RequestSceneRefresh();
+    }
+
+    private void ClearConstructionSelection()
+    {
+        if (_constructionSelection.Count == 0 && _selectedMullion is null && SelectedElement is null)
+        {
+            return;
+        }
+
+        _constructionSelection.Clear();
+        _selectedMullion = null;
+        SyncGeometryElementSelectedFlags();
+        SelectedElement = null;
+        OnPropertyChanged(nameof(ConstructionSelection));
+        OnPropertyChanged(nameof(SelectedMullion));
+        NotifyFrameSelectionProperties();
+        StatusText = "Выделение снято";
+    }
+
+    private void SyncLegacySelectionFromConstruction()
+    {
+        OnPropertyChanged(nameof(ConstructionSelection));
+        SyncGeometryElementSelectedFlags();
+
+        if (_constructionSelection.Count == 0)
+        {
+            _selectedMullion = null;
+            SelectedElement = null;
+            OnPropertyChanged(nameof(SelectedMullion));
+            NotifyFrameSelectionProperties();
+            StatusText = "Выделение снято";
+            return;
+        }
+
+        var primary = _constructionSelection.Count == 1
+            ? _constructionSelection.First()
+            : _constructionSelection.FirstOrDefault(item =>
+                item.Kind is CadSelectableKind.Sash
+                    or CadSelectableKind.Glazing
+                    or CadSelectableKind.Bead
+                    or CadSelectableKind.Frame
+                    or CadSelectableKind.Impost
+                    or CadSelectableKind.SashHandle
+                    or CadSelectableKind.SashHinge);
+
+        if (primary != null)
+        {
+            ApplyPrimaryConstructionSelection(primary);
+        }
+
+        StatusText = _constructionSelection.Count > 1
+            ? $"Выбрано элементов: {_constructionSelection.Count}"
+            : "Элемент выбран";
+    }
+
+    private void ApplyPrimaryConstructionSelection(CadSelectableItem item)
+    {
+        switch (item.Kind)
+        {
+            case CadSelectableKind.Frame:
+                if (FrameRoot is not null)
+                {
+                    ApplyFrameSelection(FrameRoot);
+                }
+
+                break;
+            case CadSelectableKind.Impost when item.ImpostNode is not null:
+                _selectedMullion = new VerticalImpostTarget
+                {
+                    SplitNode = item.ImpostNode,
+                    UniformGapIndex = item.ImpostNode.IsUniformSplit ? item.ImpostGapIndex : null
+                };
+                if (FrameRoot is not null)
+                {
+                    SelectedElement = FrameRoot;
+                }
+
+                OnPropertyChanged(nameof(SelectedMullion));
+                break;
+            case CadSelectableKind.Sash or CadSelectableKind.Glazing or CadSelectableKind.Bead
+                or CadSelectableKind.SashHandle or CadSelectableKind.SashHinge
+                when item.ElementId is Guid elementId:
+                SyncPanelFromSelectedGeometryElement(elementId);
+                break;
+        }
+    }
+
+    private void SyncPanelFromSelectedGeometryElement(Guid elementId)
+    {
+        var element = CanvasElements.FirstOrDefault(e => e.Id == elementId);
+        if (element is null)
+        {
+            return;
+        }
+
+        if (FrameRoot is not null)
+        {
+            var leaf = FrameRoot.FindLeafAt((double)element.X, (double)element.Y);
+            if (leaf is not null)
+            {
+                SelectedElement = leaf;
+            }
+        }
+
+        if (ConstructionSelectionHelper.TryGetElementBounds(this, element, out var bounds))
+        {
+            _isSyncingSelection = true;
+            try
+            {
+                CoordinateX = RoundMm(bounds.X);
+                CoordinateY = RoundMm(bounds.Y - bounds.Height);
+                Length = RoundMm(bounds.Width);
+                Height = RoundMm(bounds.Height);
+            }
+            finally
+            {
+                _isSyncingSelection = false;
+            }
+
+            OnPropertyChanged(nameof(SelectedElementLength));
+            OnPropertyChanged(nameof(SelectedElementHeight));
+            OnPropertyChanged(nameof(SelectedElementX));
+            OnPropertyChanged(nameof(SelectedElementY));
+        }
+    }
+
+    private bool TryDeleteConstructionSelection()
+    {
+        if (_constructionSelection.Count == 0)
+        {
+            return false;
+        }
+
+        var items = _constructionSelection.ToList();
+        var deletable = items.Where(CanDeleteConstructionItem).ToList();
+        if (deletable.Count == 0)
+        {
+            StatusText = "Выбранные элементы нельзя удалить";
+            return false;
+        }
+
+        var removed = RecordPlacement(
+            deletable.Count == 1 ? "Элемент удалён" : "Элементы удалены",
+            () =>
+            {
+                foreach (var item in deletable)
+                {
+                    if (!TryDeleteConstructionItem(item))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+
+        if (!removed)
+        {
+            StatusText = "Не удалось удалить выбранные элементы";
+            return false;
+        }
+
+        ClearConstructionSelection();
+        SyncFillingsToFrameLayout();
+        RefreshAfterPlacementHistoryChange();
+        RequestSceneRefresh();
+        StatusText = deletable.Count == 1 ? "Элемент удалён" : $"Удалено элементов: {deletable.Count}";
+        return true;
+    }
+
+    private static bool CanDeleteConstructionItem(CadSelectableItem item) =>
+        item.Kind is CadSelectableKind.Sash
+            or CadSelectableKind.Glazing
+            or CadSelectableKind.Bead
+            or CadSelectableKind.Impost
+            or CadSelectableKind.SashHandle
+            or CadSelectableKind.SashHinge;
+
+    private bool TryDeleteConstructionItem(CadSelectableItem item)
+    {
+        switch (item.Kind)
+        {
+            case CadSelectableKind.Sash when item.ElementId is Guid sashId:
+                RemoveHostedGlazingForSash(sashId);
+                return RemoveCanvasElementById(sashId);
+            case CadSelectableKind.Glazing or CadSelectableKind.Bead when item.ElementId is Guid elementId:
+                return RemoveCanvasElementById(elementId);
+            case CadSelectableKind.Impost when item.ImpostNode is { IsUniformSplit: false } impostNode:
+                return impostNode.TryRemoveImpostSplit();
+            case CadSelectableKind.SashHandle when item.ElementId is Guid handleSashId:
+                return TryClearSashHandle(handleSashId);
+            case CadSelectableKind.SashHinge when item.ElementId is Guid hingeSashId:
+                return TryClearSashHardware(hingeSashId);
+            default:
+                return false;
+        }
+    }
+
+    private bool TryClearSashHandle(Guid sashId)
+    {
+        var sash = CanvasElements.FirstOrDefault(e => e.Id == sashId && e.Kind == GeometryElementKind.Sash);
+        if (sash is null || !sash.HasHandle)
+        {
+            return false;
+        }
+
+        sash.HasHandle = false;
+        return true;
+    }
+
+    private bool TryClearSashHardware(Guid sashId)
+    {
+        var sash = CanvasElements.FirstOrDefault(e => e.Id == sashId && e.Kind == GeometryElementKind.Sash);
+        if (sash is null || !sash.HasHardware)
+        {
+            return false;
+        }
+
+        sash.HasHardware = false;
+        return true;
+    }
+
+    private bool RemoveCanvasElementById(Guid elementId)
+    {
+        for (var i = CanvasElements.Count - 1; i >= 0; i--)
+        {
+            if (CanvasElements[i].Id == elementId)
+            {
+                CanvasElements.RemoveAt(i);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void RemoveHostedGlazingForSash(Guid sashId)
+    {
+        for (var i = CanvasElements.Count - 1; i >= 0; i--)
+        {
+            var element = CanvasElements[i];
+            if (element.Kind == GeometryElementKind.Glazing && element.HostSashId == sashId)
+            {
+                CanvasElements.RemoveAt(i);
+            }
+        }
+    }
+
+    private void SyncGeometryElementSelectedFlags()
+    {
+        foreach (var element in CanvasElements)
+        {
+            element.IsSelected = IsGeometryElementSelected(element.Id);
+        }
+    }
+
     private bool TryDeleteSelectionFromTool()
     {
+        if (_constructionSelection.Count > 0 && HasCommittedConstruction)
+        {
+            return TryDeleteConstructionSelection();
+        }
+
         if (SelectedRectangle != null)
         {
-            Document.RemoveRectangle(SelectedRectangle.Value);
-            SelectedRectangle = null;
+            var removed = SelectedRectangle.Value;
+            RecordPlacement("Объект удалён", () =>
+            {
+                Document.RemoveRectangle(removed);
+                SelectedRectangle = null;
+            });
             RefreshSelection();
+            RequestSceneRefresh();
             StatusText = "Выбранный объект удалён";
             return true;
         }
 
         if (SelectedElement is FrameNode)
         {
-            ClearCommittedFrameGeometry();
+            RecordPlacement("Конструкция удалена", () => ClearCommittedFrameGeometry(clearPlacementHistory: false));
+            RefreshAfterPlacementHistoryChange();
+            RequestSceneRefresh();
             StatusText = "Конструкция удалена";
             return true;
         }
@@ -1612,6 +2272,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(RealFramePreview));
         OnPropertyChanged(nameof(IsShapePlacementActive));
         OnPropertyChanged(nameof(IsRealFramePlacementActive));
+        OnPropertyChanged(nameof(ShowStatusBarDimensions));
         RequestSceneRefresh();
     }
 
@@ -1644,6 +2305,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedElementHeight));
         OnPropertyChanged(nameof(SelectedElementX));
         OnPropertyChanged(nameof(SelectedElementY));
+        OnPropertyChanged(nameof(ShowStatusBarDimensions));
+        OnPropertyChanged(nameof(StatusBarLength));
+        OnPropertyChanged(nameof(StatusBarHeight));
         RequestSceneRefresh();
     }
 
@@ -1877,6 +2541,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(RealFramePreview));
         OnPropertyChanged(nameof(IsShapePlacementActive));
         OnPropertyChanged(nameof(IsRealFramePlacementActive));
+        OnPropertyChanged(nameof(ShowStatusBarDimensions));
     }
 
     private void ClearRealFramePlacementFlags() => ClearShapePlacementFlags();
@@ -2034,19 +2699,25 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     public void CancelRealFramePlacement() => CancelShapePlacement();
 
-    private void ClearCommittedFrameGeometry()
+    private void ClearCommittedFrameGeometry(bool clearPlacementHistory = true)
     {
         Document.ClearRectangles();
         CanvasElements.Clear();
         FrameRoot = null;
         SelectedElement = null;
         SelectedRectangle = null;
+        _constructionSelection.Clear();
+        _selectedMullion = null;
+        SyncGeometryElementSelectedFlags();
         RealFramePreview = null;
         SashDragPreview = null;
         HandlePreviewSashId = null;
         _impostSplitHistory.Clear();
-        _placementHistory.Clear();
-        NotifyPlacementHistoryChanged();
+        if (clearPlacementHistory)
+        {
+            _placementHistory.Clear();
+            NotifyPlacementHistoryChanged();
+        }
 
         _isSyncingSelection = true;
         Length = 0;
@@ -2061,6 +2732,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(HasFakeFrameOnCanvas));
         OnPropertyChanged(nameof(HasRealFrameOnCanvas));
         OnPropertyChanged(nameof(RealFramePreview));
+        OnPropertyChanged(nameof(ConstructionSelection));
+        OnPropertyChanged(nameof(SelectedMullion));
         NotifyFrameSelectionProperties();
     }
 
@@ -2143,6 +2816,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
     public void RefreshSelection()
     {
         OnPropertyChanged(nameof(SelectedRectangle));
+        OnPropertyChanged(nameof(ConstructionSelection));
         SyncCoordinatesFromSelection();
     }
 
@@ -2155,6 +2829,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
             CursorY = display.Y;
             OnPropertyChanged(nameof(SelectedElementLength));
             OnPropertyChanged(nameof(SelectedElementHeight));
+            OnPropertyChanged(nameof(ShowStatusBarDimensions));
+            OnPropertyChanged(nameof(StatusBarLength));
+            OnPropertyChanged(nameof(StatusBarHeight));
 
             if (IsPlacementToolActive && !IsDragCreateShapeToolActive && !IsShapePlacementActive &&
                 !_isShapeSizeDialogOpen && !_isSyncingSelection)
@@ -2249,6 +2926,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(IsDragCreateShapeToolActive));
         OnPropertyChanged(nameof(ActiveToolMode));
         OnPropertyChanged(nameof(AreFurnitureOptionsEnabled));
+        OnPropertyChanged(nameof(IsTopProfileHovered));
+        OnPropertyChanged(nameof(HoveredTopProfile));
+        OnPropertyChanged(nameof(ShowArcVertexHandles));
         RefreshFilteredMaterials();
         if (value is not WindowToolMode.OffsetImpostVertical and not WindowToolMode.OffsetImpostHorizontal)
         {
@@ -2266,14 +2946,21 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     partial void OnImpostPanelYChanged(double value)
     {
-        if (CurrentToolMode == WindowToolMode.OffsetImpostHorizontal)
+        if (ShouldBlockImpostPanelSideEffects() || CurrentToolMode != WindowToolMode.OffsetImpostHorizontal)
         {
-            ApplyImpostPanelAxisY(value);
+            return;
         }
+
+        ApplyImpostPanelAxisY(value);
     }
 
     partial void OnImpostPanelLChanged(double value)
     {
+        if (ShouldBlockImpostPanelSideEffects())
+        {
+            return;
+        }
+
         if (CurrentToolMode == WindowToolMode.OffsetImpostHorizontal)
         {
             ApplyImpostPanelBottomOpening(value);
@@ -2286,6 +2973,11 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     partial void OnImpostPanelHChanged(double value)
     {
+        if (ShouldBlockImpostPanelSideEffects())
+        {
+            return;
+        }
+
         if (CurrentToolMode == WindowToolMode.OffsetImpostHorizontal)
         {
             ApplyImpostPanelTopOpening(value);
@@ -2404,18 +3096,27 @@ public sealed partial class CadEditorViewModel : ObservableObject
         TryUndoLastPlacement();
     }
 
-    [RelayCommand(CanExecute = nameof(CanRedoPlacement))]
+    [RelayCommand(CanExecute = nameof(CanRedo))]
     private void Redo()
     {
-        if (!_placementHistory.TryRedo(ApplyConstructionMemento, out var description))
+        if (_placementHistory.TryRedo(ApplyConstructionMemento, out var description))
+        {
+            RefreshAfterPlacementHistoryChange();
+            StatusText = description ?? "Действие возвращено";
+            RequestSceneRefresh();
+            return;
+        }
+
+        if (!Commands.CanRedo)
         {
             StatusText = "Нечего повторять";
             return;
         }
 
-        RefreshAfterPlacementHistoryChange();
-        StatusText = description ?? "Действие возвращено";
+        Commands.Redo();
+        RefreshSelection();
         RequestSceneRefresh();
+        StatusText = "Действие возвращено";
     }
 
     [RelayCommand]
@@ -2614,6 +3315,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
         CanvasElements.Clear();
         FrameRoot = null;
         SelectedRectangle = null;
+        _constructionSelection.Clear();
+        _selectedMullion = null;
+        SyncGeometryElementSelectedFlags();
 
         Length = 0;
         Height = 0;
@@ -2631,146 +3335,145 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     private void InitializeDesignTools()
     {
-        DesignTools.Clear();
-
-        // Группа 1: управление и модификация геометрии
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.SelectElement,
-            "Выделение элементов",
-            DesignToolIcon.Selection));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.OffsetImpostVertical,
-            "Сместить импост вертикально",
-            DesignToolIcon.MoveMullionVertical));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.OffsetImpostHorizontal,
-            "Сместить импост горизонтально",
-            DesignToolIcon.MoveMullionHorizontal));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.Other,
-            "Удалить последний установленный элемент (Ctrl+Alt+Z)",
-            DesignToolIcon.UndoLast,
-            command: UndoLastElementCommand));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.Other,
-            "Отменить действие (Ctrl+Z)",
-            DesignToolIcon.UndoGlobal,
-            command: UndoCommand));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.Other,
-            "Вернуть действие (Ctrl+Y)",
-            DesignToolIcon.RedoGlobal,
-            command: RedoCommand));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Separator, string.Empty, isSeparator: true));
-
-        // Группа 2: выравнивание и навигация
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.AlignImposts,
-            "Выравнивание импостов",
-            DesignToolIcon.AlignMullions));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.AlignGlazingUnits,
-            "Выравнивание стеклопакетов",
-            DesignToolIcon.AlignGlassUnits));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.AlignDeadLights,
-            "Выравнивание просветов в свету",
-            DesignToolIcon.AlignClearOpenings));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.ZoomView,
-            "Увеличить/уменьшить вид",
-            DesignToolIcon.Zoom));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.PanView,
-            "Переместить вид",
-            DesignToolIcon.Hand));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.Other,
-            "Автомасштаб",
-            DesignToolIcon.ZoomFit,
-            command: ZoomToFitCommand));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Separator, string.Empty, isSeparator: true));
-
-        // Группа 3: фиктивные контуры
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.FakeFrame, "Коробка (фиктивная)", DesignToolIcon.FakeFrame));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.FakeFrameCircle, "Коробка фиктивная круглая", DesignToolIcon.FakeCircle));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.FakeFrameTriangle, "Коробка фиктивная треугольная", DesignToolIcon.FakeTriangle));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.FakeFrameArch, "Полукруг (фиктивная)", DesignToolIcon.FakeArch));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.FakeVerticalImpost, "Импост верт.", DesignToolIcon.VerticalImpost));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.FakeHorizontalImpost, "Импост гориз.", DesignToolIcon.HorizontalImpost));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.RackRigelNone, "Стойка/ригель", DesignToolIcon.RackRigel));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Separator, "--- РЕАЛЬНЫЕ ПРОФИЛИ ---", isSeparator: true));
-
-        // Группа 4: реальные конструктивные элементы
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.RealFrame, "Коробка (рама)", DesignToolIcon.RealFrame));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.AdapterProfile, "Переходный профиль", DesignToolIcon.AdapterProfile));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Sash, "Створка", DesignToolIcon.Sash));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Hardware, "Фурнитура", DesignToolIcon.Hardware));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Handle, "Ручка", DesignToolIcon.Handle));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.RealVerticalImpost, "Импост верт.", DesignToolIcon.RealVerticalImpost));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.RealHorizontalImpost, "Импост гориз.", DesignToolIcon.RealHorizontalImpost));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.DoubleVerticalImpost, "Импост двойной верт.", DesignToolIcon.DoubleVerticalImpost));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.DoubleHorizontalImpost, "Импост двойной гориз.", DesignToolIcon.DoubleHorizontalImpost));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.SlantedImpost, "Импост наклонный", DesignToolIcon.SlantedImpost));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Glassing, "Остекление", DesignToolIcon.Glassing));
-        DesignTools.Add(new CadDesignToolButtonViewModel(WindowToolMode.Separator, string.Empty, isSeparator: true));
-
-        // Группа 5: выделение подобъектов и глобальные операции
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.Select,
-            "Выделение объекта",
-            DesignToolIcon.SelectObject));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.SelectProfile,
-            "Выделение профиля",
-            DesignToolIcon.SelectProfile));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.SelectVertex,
-            "Выделение вершины",
-            DesignToolIcon.SelectVertex));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.Other,
-            "Задать высоту арки",
-            DesignToolIcon.ArchHeight,
-            command: SetArchHeightCommand));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.Other,
-            "Изменить габаритные размеры",
-            DesignToolIcon.Resize,
-            command: ChangeDimensionsCommand));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.Other,
-            "Удаление",
-            DesignToolIcon.Trash,
-            command: DeleteSelectedCommand));
-        DesignTools.Add(new CadDesignToolButtonViewModel(
-            WindowToolMode.Other,
-            "Очистить всю конструкцию",
-            DesignToolIcon.ClearAll,
-            command: ClearAllCommand));
+        CadToolbarLayout.Populate(CreationDesignTools, EditingDesignTools, ActivateDesignToolCommand);
     }
 
-    private void SetActiveToolVisual(WindowToolMode mode)
+    private async Task ActivateDesignToolAsync(string? toolKey)
     {
-        UpdateDesignToolSelection(mode);
-        ActiveTool = _toolFactory.Create("select");
-        ActiveToolId = "select";
-        OnPropertyChanged(nameof(ActiveToolDisplayName));
-        StatusText = DesignTools.FirstOrDefault(t => t.Mode == mode)?.Title ?? "Инструмент";
-    }
-
-    private void UpdateDesignToolSelection(WindowToolMode mode)
-    {
-        CurrentToolMode = mode;
-        foreach (var tool in DesignTools)
+        if (string.IsNullOrWhiteSpace(toolKey))
         {
-            tool.IsActive = !tool.IsSeparator && tool.Mode == mode;
+            return;
         }
 
-        var active = DesignTools.FirstOrDefault(t => t.Mode == mode);
+        var tool = AllDesignTools.FirstOrDefault(t => t.ToolKey == toolKey && t.IsTool);
+        if (tool is null || !tool.IsImplemented)
+        {
+            return;
+        }
+
+        if (!tool.IsInstantCommand)
+        {
+            UpdateDesignToolSelection(tool.Mode, toolKey);
+        }
+
+        if (tool.IsInstantCommand)
+        {
+            await ExecuteToolbarInstantCommandAsync(toolKey);
+            return;
+        }
+
+        await SelectToolModeAsync(tool.Mode, toolKey);
+    }
+
+    private async Task ExecuteToolbarInstantCommandAsync(string toolKey)
+    {
+        switch (toolKey)
+        {
+            case "set-arch-height":
+                await SetArchHeight();
+                break;
+            case "zoom-fit":
+                ZoomToFit();
+                break;
+            case "delete-selection":
+                DeleteSelected();
+                break;
+            case "delete-last":
+                UndoLastElement();
+                break;
+            case "clear-construction":
+                ClearAll();
+                break;
+            case "undo":
+                Undo();
+                break;
+            case "change-dimensions":
+                ActivateCadTool(CadToolMetadata.GetId(CadToolKind.ChangeOverallDimensions));
+                break;
+            case "split-profile":
+                ActivateCadTool(CadToolMetadata.GetId(CadToolKind.SplitProfile));
+                break;
+            case "set-vertex-coordinates":
+                ActivateCadTool(CadToolMetadata.GetId(CadToolKind.SetVertexCoordinates));
+                break;
+            case "align-imposts":
+                ActivateCadTool(CadToolMetadata.GetId(CadToolKind.AlignImposts));
+                break;
+            case "align-glazing":
+                ActivateCadTool(CadToolMetadata.GetId(CadToolKind.AlignGlazingUnits));
+                break;
+            case "align-dead-lights":
+                ActivateCadTool(CadToolMetadata.GetId(CadToolKind.AlignDeadLights));
+                break;
+        }
+    }
+
+    private void ResetToSelectionTool()
+    {
+        UpdateDesignToolSelection(WindowToolMode.SelectElement, "select-elements");
+        var fallback = _toolFactory.Create(CadToolMetadata.GetId(CadToolKind.SelectElements));
+        ActiveTool?.OnDeactivated(CreateToolContext());
+        ActiveTool = fallback;
+        ActiveToolId = fallback.Id;
+        fallback.OnActivated(CreateToolContext());
+    }
+
+    [RelayCommand]
+    private Task OpenStandardStructuresAsync()
+    {
+        if (OpenStandardStructuresHandler is not null)
+        {
+            return OpenStandardStructuresHandler();
+        }
+
+        StatusText = "Справочник типовых конструкций недоступен";
+        return Task.CompletedTask;
+    }
+
+    private void SetActiveToolVisual(WindowToolMode mode, string? toolKey = null)
+    {
+        UpdateDesignToolSelection(mode, toolKey ?? _activeToolKey);
+        var previous = ActiveTool;
+        var context = CreateToolContext();
+        previous?.OnDeactivated(context);
+        ActiveTool = _toolFactory.Create(CadToolMetadata.GetId(CadToolKind.SelectElements));
+        ActiveToolId = CadToolMetadata.GetId(CadToolKind.SelectElements);
+        ActiveTool.OnActivated(context);
+        OnPropertyChanged(nameof(ActiveToolDisplayName));
+        StatusText = FindDesignTool(mode, toolKey)?.Title ?? "Инструмент";
+    }
+
+    private void UpdateDesignToolSelection(WindowToolMode mode, string? toolKey = null)
+    {
+        CurrentToolMode = mode;
+        if (!string.IsNullOrWhiteSpace(toolKey))
+        {
+            _activeToolKey = toolKey;
+        }
+
+        foreach (var tool in AllDesignTools)
+        {
+            tool.IsActive = tool.IsTool && tool.ToolKey == _activeToolKey;
+        }
+
+        var active = FindDesignTool(mode, _activeToolKey);
         ActiveDesignToolLabel = active?.Title;
-        ActiveDesignToolId = mode.ToString();
+        ActiveDesignToolId = _activeToolKey;
         OnPropertyChanged(nameof(CanvasHintText));
+    }
+
+    private CadDesignToolButtonViewModel? FindDesignTool(WindowToolMode mode, string? toolKey = null)
+    {
+        if (!string.IsNullOrWhiteSpace(toolKey))
+        {
+            var byKey = AllDesignTools.FirstOrDefault(t => t.ToolKey == toolKey && t.IsTool);
+            if (byKey is not null)
+            {
+                return byKey;
+            }
+        }
+
+        return AllDesignTools.FirstOrDefault(t => t.IsTool && t.Mode == mode);
     }
 
     private static bool TryResolveCadToolId(WindowToolMode mode, out string toolId)
@@ -2786,6 +3489,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
             WindowToolMode.AlignImposts => CadToolMetadata.GetId(CadToolKind.AlignImposts),
             WindowToolMode.AlignGlazingUnits => CadToolMetadata.GetId(CadToolKind.AlignGlazingUnits),
             WindowToolMode.AlignDeadLights => CadToolMetadata.GetId(CadToolKind.AlignDeadLights),
+            WindowToolMode.RadiusVertex => CadToolMetadata.GetId(CadToolKind.RadiusVertex),
             WindowToolMode.ClearConstruction => CadToolMetadata.GetId(CadToolKind.ClearConstruction),
             WindowToolMode.Other => string.Empty,
             _ => string.Empty
@@ -2794,7 +3498,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         return toolId.Length > 0;
     }
 
-    private async Task SelectToolModeAsync(WindowToolMode mode)
+    private async Task SelectToolModeAsync(WindowToolMode mode, string? toolKey = null)
     {
         if (_isRunningFramePipeline)
         {
@@ -2808,9 +3512,13 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         if (mode is WindowToolMode.ZoomView or WindowToolMode.PanView)
         {
-            UpdateDesignToolSelection(mode);
+            UpdateDesignToolSelection(mode, toolKey);
+            var previous = ActiveTool;
+            var context = CreateToolContext();
+            previous?.OnDeactivated(context);
             ActiveTool = _toolFactory.Create(CadToolMetadata.GetId(CadToolKind.SelectElements));
             ActiveToolId = CadToolMetadata.GetId(CadToolKind.SelectElements);
+            ActiveTool.OnActivated(context);
             StatusText = mode switch
             {
                 WindowToolMode.ZoomView => "Лупа: ЛКМ — увеличить, ПКМ — уменьшить",
@@ -2823,9 +3531,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         if (TryResolveCadToolId(mode, out var cadToolId))
         {
-            UpdateDesignToolSelection(mode);
+            UpdateDesignToolSelection(mode, toolKey);
             ActivateCadTool(cadToolId);
-            StatusText = DesignTools.FirstOrDefault(t => t.Mode == mode)?.Title ?? "Инструмент";
+            StatusText = FindDesignTool(mode, toolKey)?.Title ?? "Инструмент";
             await Task.CompletedTask;
             return;
         }
@@ -2835,18 +3543,18 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
-        SetActiveToolVisual(mode);
+        SetActiveToolVisual(mode, toolKey);
 
         if (IsFramePlacementMode(mode))
         {
-            var active = DesignTools.FirstOrDefault(t => t.Mode == mode);
+            var active = FindDesignTool(mode, toolKey);
             StatusText = IsDragCreateShapeMode(mode)
                 ? $"{active?.Title}: ЛКМ — натянуть, ПКМ — ввод размеров"
                 : $"{active?.Title}: кликните по полю чертежа";
         }
         else if (IsImpostSplitMode(mode))
         {
-            var active = DesignTools.FirstOrDefault(t => t.Mode == mode);
+            var active = FindDesignTool(mode, toolKey);
             StatusText = FrameRoot == null
                 ? "Сначала создайте коробку"
                 : mode == WindowToolMode.SlantedImpost
@@ -2860,7 +3568,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
                 WindowToolMode.Sash => "Створка: зажмите ЛКМ и укажите направление открывания",
                 WindowToolMode.Hardware => "Фурнитура: клик по створке — петли справа → слева → снизу → снять",
                 WindowToolMode.Handle => "Ручка: клик по створке — установить / снять",
-                _ => DesignTools.FirstOrDefault(t => t.Mode == mode)?.Title is { Length: > 0 } title
+                _ => FindDesignTool(mode, toolKey)?.Title is { Length: > 0 } title
                     ? $"Выбран инструмент {title}"
                     : "Инструмент"
             };
@@ -2873,7 +3581,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         }
         else
         {
-            var active = DesignTools.FirstOrDefault(t => t.Mode == mode);
+            var active = FindDesignTool(mode, toolKey);
             StatusText = active?.Title is { Length: > 0 } title
                 ? $"Выбран инструмент {title}"
                 : "Инструмент";
@@ -3322,7 +4030,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         var impostWidth = GetImpostProfileWidth(mode);
         var frameInset = ResolveFrameSplitInset(leaf);
         var lineStyle = GetImpostLineStyle(mode);
-        var active = DesignTools.FirstOrDefault(t => t.Mode == mode);
+        var active = FindDesignTool(mode);
         var description = active?.Title ?? "Импост";
 
         if (!RecordPlacement(description, () =>
@@ -3361,14 +4069,16 @@ public sealed partial class CadEditorViewModel : ObservableObject
         mode is WindowToolMode.FakeVerticalImpost or WindowToolMode.FakeHorizontalImpost
             or WindowToolMode.RealVerticalImpost or WindowToolMode.RealHorizontalImpost
             or WindowToolMode.DoubleVerticalImpost or WindowToolMode.DoubleHorizontalImpost
-            or WindowToolMode.SlantedImpost;
+            or WindowToolMode.SlantedImpost
+            or WindowToolMode.MullionVertical or WindowToolMode.MullionHorizontal;
 
     private static bool IsFakeImpostMode(WindowToolMode mode) =>
         mode is WindowToolMode.FakeVerticalImpost or WindowToolMode.FakeHorizontalImpost;
 
     private static bool IsVerticalImpostMode(WindowToolMode mode) =>
         mode is WindowToolMode.FakeVerticalImpost or WindowToolMode.RealVerticalImpost
-            or WindowToolMode.DoubleVerticalImpost or WindowToolMode.SlantedImpost;
+            or WindowToolMode.DoubleVerticalImpost or WindowToolMode.SlantedImpost
+            or WindowToolMode.MullionVertical;
 
     private double GetImpostProfileWidth(WindowToolMode mode)
     {
@@ -3389,19 +4099,21 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         SelectedElement = FrameRoot;
 
-        var active = DesignTools.FirstOrDefault(t => t.Mode == mode);
+        var active = FindDesignTool(mode);
         StatusText = active?.Title ?? "Импост";
 
         OnPropertyChanged(nameof(FrameRoot));
         OnPropertyChanged(nameof(SelectedElement));
         OnPropertyChanged(nameof(SelectedElementLength));
         OnPropertyChanged(nameof(SelectedElementHeight));
+        SyncFillingsToFrameLayout();
         RequestSceneRefresh();
     }
 
     private static ImpostLineStyle GetImpostLineStyle(WindowToolMode mode) => mode switch
     {
-        WindowToolMode.RealVerticalImpost or WindowToolMode.RealHorizontalImpost => ImpostLineStyle.Solid,
+        WindowToolMode.RealVerticalImpost or WindowToolMode.RealHorizontalImpost
+            or WindowToolMode.MullionVertical or WindowToolMode.MullionHorizontal => ImpostLineStyle.Solid,
         WindowToolMode.DoubleVerticalImpost or WindowToolMode.DoubleHorizontalImpost => ImpostLineStyle.Double,
         WindowToolMode.SlantedImpost => ImpostLineStyle.Slanted,
         _ => ImpostLineStyle.Dashed
@@ -3558,6 +4270,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         _selectedMullion = hit;
         _isVerticalImpostDragging = true;
         _draggingMullionWorldX = ResolveSelectedMullionAxisX();
+        BeginConstructionDrag();
         SyncImpostPanelFromGhostAxis(_draggingMullionWorldX ?? worldPoint.X);
         OnPropertyChanged(nameof(SelectedMullion));
         OnPropertyChanged(nameof(DraggingMullionWorldX));
@@ -3600,6 +4313,11 @@ public sealed partial class CadEditorViewModel : ObservableObject
         {
             TryMoveSelectedVerticalImpost(axisX);
             SyncImpostPanelFromSelection();
+            CommitConstructionDrag("Импост перемещён");
+        }
+        else
+        {
+            CancelConstructionDrag();
         }
 
         _isVerticalImpostDragging = false;
@@ -3631,6 +4349,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         _selectedMullion = hit;
         _isHorizontalImpostDragging = true;
         _draggingMullionWorldY = ResolveSelectedMullionAxisY();
+        BeginConstructionDrag();
         SyncImpostPanelFromGhostAxisY(_draggingMullionWorldY ?? worldPoint.Y);
         OnPropertyChanged(nameof(SelectedMullion));
         OnPropertyChanged(nameof(DraggingMullionWorldY));
@@ -3655,7 +4374,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         var axisY = RoundMm(Math.Clamp(worldPoint.Y, minY, maxY));
         _draggingMullionWorldY = axisY;
+        TraceHorizontalImpost("drag-update", ghostAxisY: axisY, moveInputAxisY: axisY);
         TryMoveSelectedHorizontalImpost(axisY);
+        TraceHorizontalImpost("drag-after-move", ghostAxisY: axisY);
         OnPropertyChanged(nameof(DraggingMullionWorldY));
         SyncImpostPanelFromGhostAxisY(axisY);
         StatusText = $"Свет снизу {ImpostPanelL:F1} · сверху {ImpostPanelH:F1} мм";
@@ -3669,16 +4390,81 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
-        if (_selectedMullion is not null && _draggingMullionWorldY is double axisY)
+        _isCommittingHorizontalImpostRelease = true;
+        try
         {
-            TryMoveSelectedHorizontalImpost(axisY);
-            SyncImpostPanelFromSelection();
+            if (_selectedMullion is not null && _draggingMullionWorldY is double axisY)
+            {
+                if (TryResolveHorizontalImpostDragAxisRange(_selectedMullion, out var minY, out var maxY))
+                {
+                    axisY = RoundMm(Math.Clamp(axisY, minY, maxY));
+                }
+
+                TraceHorizontalImpost("release-before-move", ghostAxisY: axisY, moveInputAxisY: axisY);
+
+                if (TryMoveSelectedHorizontalImpost(axisY))
+                {
+                    TraceHorizontalImpost("release-after-move", ghostAxisY: axisY);
+                    _isSyncingImpostPanel = true;
+                    try
+                    {
+                        SyncImpostPanelFromSelection();
+                    }
+                    finally
+                    {
+                        _isSyncingImpostPanel = false;
+                    }
+
+                    CommitConstructionDrag("Импост перемещён");
+                }
+                else
+                {
+                    TraceHorizontalImpost("release-move-failed", ghostAxisY: axisY, moveInputAxisY: axisY);
+                    CancelConstructionDrag();
+                }
+            }
+            else
+            {
+                CancelConstructionDrag();
+            }
+        }
+        finally
+        {
+            _isHorizontalImpostDragging = false;
+            _draggingMullionWorldY = null;
+            OnPropertyChanged(nameof(DraggingMullionWorldY));
+            OnPropertyChanged(nameof(IsHorizontalImpostDragging));
+
+            Dispatcher.UIThread.Post(
+                () =>
+                {
+                    if (_selectedMullion is not null)
+                    {
+                        _isSyncingImpostPanel = true;
+                        try
+                        {
+                            SyncImpostPanelFromSelection();
+                        }
+                        finally
+                        {
+                            _isSyncingImpostPanel = false;
+                        }
+                    }
+
+                    _isCommittingHorizontalImpostRelease = false;
+                    TraceHorizontalImpost(
+                        "release-deferred-check",
+                        modelAxisY: HorizontalImpostDragDiagnostics.TryReadModelAxisY(
+                    _selectedMullion?.SplitNode,
+                    _selectedMullion?.UniformGapIndex),
+                        renderAxisY: HorizontalImpostDragDiagnostics.TryReadRenderAxisY(
+                            _selectedMullion?.SplitNode,
+                            _selectedMullion?.UniformGapIndex));
+                    RequestSceneRefresh();
+                },
+                DispatcherPriority.Background);
         }
 
-        _isHorizontalImpostDragging = false;
-        _draggingMullionWorldY = null;
-        OnPropertyChanged(nameof(DraggingMullionWorldY));
-        OnPropertyChanged(nameof(IsHorizontalImpostDragging));
         if (_selectedMullion is not null)
         {
             StatusText = $"Импост: L={ImpostPanelL:F0} · H={ImpostPanelH:F0} мм";
@@ -3774,10 +4560,10 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         var inner = SashGeometry.ResolveNodeInnerOpeningBounds(node, FrameRoot, FrameThickness);
         var innerMin = inner.Bottom + ImpostDragInnerInsetMm + half;
-        var innerMax = inner.Top - ImpostDragInnerInsetMm - half;
 
         minAxisY = Math.Max(nodeMin, innerMin);
-        maxAxisY = Math.Min(nodeMax, innerMax);
+        maxAxisY = HorizontalImpostGeometry.ResolveMaxCenterAxisY(this, node, half, ImpostDragInnerInsetMm);
+
         return maxAxisY > minAxisY;
     }
 
@@ -3827,15 +4613,17 @@ public sealed partial class CadEditorViewModel : ObservableObject
         if (node.IsUniformSplit && _selectedMullion.UniformGapIndex is int gapIndex)
         {
             var bottomCell = node.UniformCells[gapIndex];
-            var topCell = node.UniformCells[gapIndex + 1];
-            var topEdge = topCell.Y + topCell.Height;
+            var topEdge = gapIndex >= node.UniformCells.Count - 2
+                ? node.Y + FrameNode.ResolveHorizontalSplitExtentLocal(node, node.GetRoot())
+                : node.UniformCells[gapIndex + 1].Y + node.UniformCells[gapIndex + 1].Height;
             ImpostPanelL = RoundMm(axisWorldY - bottomCell.Y - half);
             ImpostPanelH = RoundMm(topEdge - axisWorldY - half);
         }
         else
         {
+            var extentTop = node.Y + FrameNode.ResolveHorizontalSplitExtentLocal(node, node.GetRoot());
             ImpostPanelL = RoundMm((axisWorldY - node.Y) - half);
-            ImpostPanelH = RoundMm((node.Y + node.Height - axisWorldY) - half);
+            ImpostPanelH = RoundMm((extentTop - axisWorldY) - half);
         }
 
         _isSyncingImpostPanel = false;
@@ -3861,6 +4649,53 @@ public sealed partial class CadEditorViewModel : ObservableObject
         return MoveHorizontalImpost(_selectedMullion, axisWorldY);
     }
 
+    private bool ShouldBlockImpostPanelSideEffects() =>
+        _isSyncingImpostPanel || _isHorizontalImpostDragging || _isCommittingHorizontalImpostRelease;
+
+    private void TraceHorizontalImpost(
+        string stage,
+        double? ghostAxisY = null,
+        double? moveInputAxisY = null,
+        double? modelAxisY = null,
+        double? renderAxisY = null,
+        bool? moveSucceeded = null,
+        string? detail = null)
+    {
+        if (CurrentToolMode != WindowToolMode.OffsetImpostHorizontal &&
+            stage is not ("commit-before-capture" or "commit-after-record" or "commit-after-refresh" or "release-deferred-check" or "memento-apply"))
+        {
+            return;
+        }
+
+        var splitNode = _selectedMullion?.SplitNode;
+        var uniformGapIndex = _selectedMullion?.UniformGapIndex;
+        HorizontalImpostDragDiagnostics.Trace(
+            stage,
+            ghostAxisY ?? _draggingMullionWorldY,
+            moveInputAxisY,
+            modelAxisY ?? HorizontalImpostDragDiagnostics.TryReadModelAxisY(splitNode, uniformGapIndex),
+            renderAxisY ?? HorizontalImpostDragDiagnostics.TryReadRenderAxisY(splitNode, uniformGapIndex),
+            splitNode,
+            FrameRoot,
+            moveSucceeded,
+            detail);
+    }
+
+    private bool IsSplitNodeInFrameTree(FrameNode splitNode)
+    {
+        if (FrameRoot is null)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(splitNode, FrameRoot))
+        {
+            return true;
+        }
+
+        return FrameRoot.EnumerateInternalNodes().Any(node => ReferenceEquals(node, splitNode));
+    }
+
     private void ApplyImpostPanelAxisX(double axisX)
     {
         if (_isSyncingImpostPanel || _selectedMullion is null)
@@ -3877,10 +4712,12 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     private void ApplyImpostPanelAxisY(double axisY)
     {
-        if (_isSyncingImpostPanel || _selectedMullion is null)
+        if (ShouldBlockImpostPanelSideEffects() || _selectedMullion is null)
         {
             return;
         }
+
+        TraceHorizontalImpost("panel-apply-axis-y", moveInputAxisY: axisY);
 
         if (TryMoveSelectedHorizontalImpost(axisY))
         {
@@ -3929,10 +4766,15 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     private void ApplyImpostPanelBottomOpening(double bottomHeight)
     {
-        if (_isSyncingImpostPanel || _selectedMullion is null)
+        if (ShouldBlockImpostPanelSideEffects() || _selectedMullion is null)
         {
             return;
         }
+
+        TraceHorizontalImpost(
+            "panel-apply-bottom",
+            ghostAxisY: _draggingMullionWorldY,
+            detail: $"bottomHeight={bottomHeight:F1}");
 
         var node = _selectedMullion.SplitNode;
         var moved = node.IsUniformSplit && _selectedMullion.UniformGapIndex is int gap
@@ -3948,10 +4790,15 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     private void ApplyImpostPanelTopOpening(double topHeight)
     {
-        if (_isSyncingImpostPanel || _selectedMullion is null)
+        if (ShouldBlockImpostPanelSideEffects() || _selectedMullion is null)
         {
             return;
         }
+
+        TraceHorizontalImpost(
+            "panel-apply-top",
+            ghostAxisY: _draggingMullionWorldY,
+            detail: $"topHeight={topHeight:F1}");
 
         var node = _selectedMullion.SplitNode;
         var moved = node.IsUniformSplit && _selectedMullion.UniformGapIndex is int gap
@@ -4043,6 +4890,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         _selectedMullion = null;
         _isVerticalImpostDragging = false;
         _isHorizontalImpostDragging = false;
+        _isCommittingHorizontalImpostRelease = false;
         _draggingMullionWorldX = null;
         _draggingMullionWorldY = null;
         OnPropertyChanged(nameof(SelectedMullion));
@@ -4150,7 +4998,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
                         continue;
                     }
 
-                    if (!IsPointNearHorizontalImpost(node, axisY, worldPoint, tolerance, out var distance))
+                    if (!IsPointNearHorizontalImpost(node, gapIndex, axisY, worldPoint, tolerance, out var distance))
                     {
                         continue;
                     }
@@ -4174,7 +5022,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
                 continue;
             }
 
-            if (!IsPointNearHorizontalImpost(node, binaryAxisY, worldPoint, tolerance, out var binaryDistance))
+            if (!IsPointNearHorizontalImpost(node, 0, binaryAxisY, worldPoint, tolerance, out var binaryDistance))
             {
                 continue;
             }
@@ -4205,8 +5053,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
         return point.Y >= node.Y - tolerance && point.Y <= node.Y + node.Height + tolerance;
     }
 
-    private static bool IsPointNearHorizontalImpost(
+    private bool IsPointNearHorizontalImpost(
         FrameNode node,
+        int gapIndex,
         double axisY,
         CadPoint point,
         double tolerance,
@@ -4218,7 +5067,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return false;
         }
 
-        return point.X >= node.X - tolerance && point.X <= node.X + node.Width + tolerance;
+        return ImpostProfileHitTest.ContainsPoint(this, node, gapIndex, point);
     }
 
     private static bool TryGetUniformVerticalLightOpeningWidths(
@@ -4283,7 +5132,17 @@ public sealed partial class CadEditorViewModel : ObservableObject
         }
 
         bottomHeight = splitNode.UniformCells[gapIndex].Height;
-        topHeight = splitNode.UniformCells[gapIndex + 1].Height;
+        if (gapIndex >= splitNode.UniformCells.Count - 2
+            && splitNode.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, gapIndex, out var axisY))
+        {
+            var extentTop = splitNode.Y + FrameNode.ResolveHorizontalSplitExtentLocal(splitNode, splitNode.GetRoot());
+            var half = splitNode.GetResolvedImpostThicknessMm() / 2.0;
+            topHeight = extentTop - axisY - half;
+        }
+        else
+        {
+            topHeight = splitNode.UniformCells[gapIndex + 1].Height;
+        }
         return bottomHeight > CadMath.Epsilon && topHeight > CadMath.Epsilon;
     }
 
@@ -4590,14 +5449,69 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private GeometryElement? FindSashAt(CadPoint point) =>
         CanvasElements.FirstOrDefault(e => e.Kind == GeometryElementKind.Sash && ContainsElement(e, point));
 
-    private GeometryElement? FindSashInLeaf(FrameNode leaf) =>
-        CanvasElements.FirstOrDefault(e => e.Kind == GeometryElementKind.Sash && ContainsLeaf(e, leaf));
+    private GeometryElement? FindSashInLeaf(FrameNode leaf)
+    {
+        GeometryElement? best = null;
+        var bestOverlap = 0.0;
 
-    private GeometryElement? FindGlazingInLeaf(FrameNode leaf) =>
-        CanvasElements.FirstOrDefault(e =>
-            e.Kind == GeometryElementKind.Glazing &&
-            (ContainsLeaf(e, leaf) ||
-             (e.HostSashId is Guid sashId && FindSashInLeaf(leaf)?.Id == sashId)));
+        foreach (var element in CanvasElements)
+        {
+            if (element.Kind != GeometryElementKind.Sash)
+            {
+                continue;
+            }
+
+            if (!SashGeometry.TryMeasureLeafSashOverlap(this, leaf, element, out var overlap))
+            {
+                continue;
+            }
+
+            if (overlap > bestOverlap)
+            {
+                bestOverlap = overlap;
+                best = element;
+            }
+        }
+
+        return best;
+    }
+
+    private GeometryElement? FindGlazingInLeaf(FrameNode leaf)
+    {
+        GeometryElement? best = null;
+        var bestOverlap = 0.0;
+
+        foreach (var element in CanvasElements)
+        {
+            if (element.Kind != GeometryElementKind.Glazing)
+            {
+                continue;
+            }
+
+            if (element.HostSashId is Guid sashId)
+            {
+                if (FindSashInLeaf(leaf)?.Id == sashId)
+                {
+                    return element;
+                }
+
+                continue;
+            }
+
+            if (!SashGeometry.TryMeasureLeafGlazingOverlap(this, leaf, element, out var overlap))
+            {
+                continue;
+            }
+
+            if (overlap > bestOverlap)
+            {
+                bestOverlap = overlap;
+                best = element;
+            }
+        }
+
+        return best;
+    }
 
     private bool CanApplyGlazingInLeaf(FrameNode leaf)
     {
@@ -4652,6 +5566,25 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return CreateGlazingElementForSash(sash, leaf);
         }
 
+        if (SashGeometry.TryResolveFixedFrameGlassOpeningBounds(this, leaf, out var glass))
+        {
+            if (glass.Width < 20 || glass.Height < 20)
+            {
+                return null;
+            }
+
+            return new GeometryElement
+            {
+                Kind = GeometryElementKind.Glazing,
+                Label = "Остекление",
+                X = (decimal)((glass.Left + glass.Right) / 2.0),
+                Y = (decimal)((glass.Bottom + glass.Top) / 2.0),
+                WidthMm = (decimal)glass.Width,
+                HeightMm = (decimal)glass.Height,
+                SourceToolId = "glazing"
+            };
+        }
+
         var (innerX, innerY, innerW, innerH) = SashGeometry.ResolveLeafInnerOpening(
             leaf,
             FrameRoot,
@@ -4686,13 +5619,14 @@ public sealed partial class CadEditorViewModel : ObservableObject
                 ? SashGeometry.ResolveLeafInnerOpeningBounds(leaf, FrameRoot, FrameThickness)
                 : SashGeometry.InnerOpeningBoundsFromElement(sash);
         var outer = SashGeometry.ExpandInnerBoundsToOuter(inner, this);
-        var (glassLeft, glassBottom, glassRight, glassTop) = SashGeometry.ResolveInnerGlassFromOuter(
-            outer.Left,
-            outer.Bottom,
-            outer.Width,
-            outer.Height);
-        var width = glassRight - glassLeft;
-        var height = glassTop - glassBottom;
+        SashGeometry.TryResolveGlassOpeningBounds(
+            this,
+            inner,
+            outer,
+            SashGeometry.SashDrawProfileThicknessMm,
+            out var glass);
+        var width = glass.Width;
+        var height = glass.Height;
         if (width < 20 || height < 20)
         {
             return null;
@@ -4703,8 +5637,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
             Kind = GeometryElementKind.Glazing,
             Label = "Остекление",
             HostSashId = sash.Id,
-            X = (decimal)((glassLeft + glassRight) / 2.0),
-            Y = (decimal)((glassBottom + glassTop) / 2.0),
+            X = (decimal)((glass.Left + glass.Right) / 2.0),
+            Y = (decimal)((glass.Bottom + glass.Top) / 2.0),
             WidthMm = (decimal)width,
             HeightMm = (decimal)height,
             SourceToolId = "glazing"
@@ -4801,6 +5735,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
         public FrameNodeSnapshot? ChildA { get; init; }
 
         public FrameNodeSnapshot? ChildB { get; init; }
+
+        public ProfileSegmentSnapshot? TopProfile { get; init; }
     }
 
     public CadEditorSnapshot CaptureSnapshot() => new()
@@ -4836,6 +5772,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
             SetDesignElements(elements);
 
+            AttachTopProfileWatcher();
             Commands.Clear();
             _placementHistory.Clear();
             NotifyPlacementHistoryChanged();
@@ -4882,7 +5819,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
         UniformImpostCount = node.UniformImpostCount,
         UniformCells = node.UniformCells.Select(CaptureFrameNode).ToList(),
         ChildA = node.ChildA is null ? null : CaptureFrameNode(node.ChildA),
-        ChildB = node.ChildB is null ? null : CaptureFrameNode(node.ChildB)
+        ChildB = node.ChildB is null ? null : CaptureFrameNode(node.ChildB),
+        TopProfile = node.TopProfile?.CaptureSnapshot()
     };
 
     private static FrameNode? RestoreFrameNode(FrameNodeSnapshot snapshot) =>
@@ -4902,7 +5840,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
         UniformImpostCount = snapshot.UniformImpostCount,
         UniformCells = snapshot.UniformCells.Select(ToTreeSnapshot).ToList(),
         ChildA = snapshot.ChildA is null ? null : ToTreeSnapshot(snapshot.ChildA),
-        ChildB = snapshot.ChildB is null ? null : ToTreeSnapshot(snapshot.ChildB)
+        ChildB = snapshot.ChildB is null ? null : ToTreeSnapshot(snapshot.ChildB),
+        TopProfile = snapshot.TopProfile
     };
 
     private static SplitOrientation ParseSplitOrientation(string value) =>
@@ -4931,4 +5870,321 @@ public sealed partial class CadEditorViewModel : ObservableObject
             width,
             height);
     }
+
+    public void UpdateRadiusVertexHover(CadPoint worldPoint)
+    {
+        if (CurrentToolMode != WindowToolMode.RadiusVertex)
+        {
+            if (_isTopProfileHovered)
+            {
+                _isTopProfileHovered = false;
+                OnPropertyChanged(nameof(IsTopProfileHovered));
+                OnPropertyChanged(nameof(HoveredTopProfile));
+            }
+
+            return;
+        }
+
+        var hit = HitTestTopProfileSegment(worldPoint);
+        if (hit == _isTopProfileHovered)
+        {
+            return;
+        }
+
+        _isTopProfileHovered = hit;
+        OnPropertyChanged(nameof(IsTopProfileHovered));
+        OnPropertyChanged(nameof(HoveredTopProfile));
+    }
+
+    public bool TryPressRadiusVertex(CadPoint worldPoint)
+    {
+        if (CurrentToolMode != WindowToolMode.RadiusVertex || FrameRoot is null || !HasRealFrameOnCanvas)
+        {
+            return false;
+        }
+
+        if (TryPressArcVertexDrag(worldPoint))
+        {
+            return true;
+        }
+
+        if (!HitTestTopProfileSegment(worldPoint))
+        {
+            StatusText = "Кликните по верхнему профилю коробки";
+            return false;
+        }
+
+        FrameRoot.EnsureTopProfile();
+        AttachTopProfileWatcher();
+        var segment = FrameRoot.TopProfile;
+        if (segment is null || segment.SegmentType != SegmentType.Line)
+        {
+            StatusText = segment?.SegmentType == SegmentType.Arc
+                ? "Перетащите маркер вершины или измените R / H"
+                : "Не удалось определить сегмент профиля";
+            return false;
+        }
+
+        if (!RecordPlacement("Преобразование в арку", TryConvertTopProfileToArc))
+        {
+            return false;
+        }
+
+        segment = FrameRoot.TopProfile!;
+        StatusText = $"Верхний профиль преобразован в дугу: R={segment.Radius:F0} мм, H={segment.ArcHeight:F0} мм";
+        RequestSceneRefresh();
+        return true;
+    }
+
+    private bool TryConvertTopProfileToArc()
+    {
+        if (FrameRoot is null)
+        {
+            return false;
+        }
+
+        FrameRoot.EnsureTopProfile();
+        var segment = FrameRoot.TopProfile;
+        if (segment is null || segment.SegmentType != SegmentType.Line)
+        {
+            return false;
+        }
+
+        segment.ConvertToArc();
+        NotifyTopProfileUiProperties();
+        return true;
+    }
+
+    public bool TryPressArcVertexDrag(CadPoint worldPoint)
+    {
+        if (CurrentToolMode != WindowToolMode.RadiusVertex || !HasArcTopProfile || FrameRoot is null)
+        {
+            return false;
+        }
+
+        FrameRoot.EnsureTopProfile();
+        var profile = FrameRoot.TopProfile;
+        if (profile is null || profile.SegmentType != SegmentType.Arc)
+        {
+            return false;
+        }
+
+        AttachTopProfileWatcher();
+        var tolerance = Math.Max(ArcVertexHandleScreenPx * MillimetersPerPixel, 8.0);
+        var handlePoint = profile.GetArcSpringingHandleWorld();
+
+        if (Distance(worldPoint, handlePoint) <= tolerance)
+        {
+            BeginConstructionDrag();
+            _isArcVertexDragging = true;
+            _arcVertexDragTarget = ArcVertexDragTarget.Springing;
+            _arcHeightDragStartWorldY = worldPoint.Y;
+            _arcHeightDragStartHeight = profile.ArcHeight;
+            OnPropertyChanged(nameof(IsArcVertexDragging));
+            StatusText = "Перетаскивание стрелы прогиба (H) с линии начала арки";
+            return true;
+        }
+
+        return false;
+    }
+
+    public void UpdateArcVertexDrag(CadPoint worldPoint)
+    {
+        if (!_isArcVertexDragging || FrameRoot?.TopProfile is not { SegmentType: SegmentType.Arc } profile)
+        {
+            return;
+        }
+
+        _isSyncingTopProfileUi = true;
+        try
+        {
+            if (_arcVertexDragTarget != ArcVertexDragTarget.Springing)
+            {
+                return;
+            }
+
+            var deltaY = worldPoint.Y - _arcHeightDragStartWorldY;
+            var newHeight = profile.ClampArcHeight(_arcHeightDragStartHeight - deltaY);
+            profile.ArcHeight = newHeight;
+            StatusText = $"H={profile.ArcHeight:F0} мм, R={profile.Radius:F0} мм";
+        }
+        finally
+        {
+            _isSyncingTopProfileUi = false;
+        }
+
+        NotifyTopProfileUiProperties();
+        RequestSceneRefresh();
+    }
+
+    public void ReleaseArcVertexDrag()
+    {
+        if (!_isArcVertexDragging)
+        {
+            return;
+        }
+
+        CommitConstructionDrag("Изменение стрелы прогиба");
+
+        _isArcVertexDragging = false;
+        _arcVertexDragTarget = ArcVertexDragTarget.None;
+        OnPropertyChanged(nameof(IsArcVertexDragging));
+    }
+
+    private void AttachTopProfileWatcher()
+    {
+        if (_watchedTopProfile is not null)
+        {
+            _watchedTopProfile.PropertyChanged -= OnTopProfilePropertyChanged;
+            _watchedTopProfile = null;
+        }
+
+        _watchedTopProfile = FrameRoot?.TopProfile;
+        if (_watchedTopProfile is not null)
+        {
+            _watchedTopProfile.PropertyChanged += OnTopProfilePropertyChanged;
+        }
+
+        NotifyTopProfileUiProperties();
+    }
+
+    private void OnTopProfilePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_isSyncingTopProfileUi)
+        {
+            return;
+        }
+
+        if (e.PropertyName is nameof(ProfileSegment.Radius)
+            or nameof(ProfileSegment.ArcHeight)
+            or nameof(ProfileSegment.SegmentType))
+        {
+            NotifyTopProfileUiProperties();
+            RequestSceneRefresh();
+        }
+    }
+
+    private void NotifyTopProfileUiProperties()
+    {
+        OnPropertyChanged(nameof(HasArcTopProfile));
+        OnPropertyChanged(nameof(ShowArcVertexHandles));
+        OnPropertyChanged(nameof(TopProfileArcRadius));
+        OnPropertyChanged(nameof(TopProfileArcHeight));
+    }
+
+    private bool TryApplyTopProfileRadius(double radiusMm)
+    {
+        if (FrameRoot is null)
+        {
+            return false;
+        }
+
+        FrameRoot.EnsureTopProfile();
+        var profile = FrameRoot.TopProfile;
+        if (profile is null || profile.SegmentType != SegmentType.Arc)
+        {
+            return false;
+        }
+
+        _isSyncingTopProfileUi = true;
+        try
+        {
+            profile.Radius = radiusMm;
+        }
+        finally
+        {
+            _isSyncingTopProfileUi = false;
+        }
+
+        return true;
+    }
+
+    private bool TryApplyTopProfileArcHeight(double arcHeightMm)
+    {
+        if (FrameRoot is null)
+        {
+            return false;
+        }
+
+        FrameRoot.EnsureTopProfile();
+        var profile = FrameRoot.TopProfile;
+        if (profile is null || profile.SegmentType != SegmentType.Arc)
+        {
+            return false;
+        }
+
+        _isSyncingTopProfileUi = true;
+        try
+        {
+            if (arcHeightMm <= ProfileSegment.MinFlatArcHeightMm)
+            {
+                profile.ConvertToLine();
+            }
+            else
+            {
+                profile.ArcHeight = arcHeightMm;
+            }
+        }
+        finally
+        {
+            _isSyncingTopProfileUi = false;
+        }
+
+        return true;
+    }
+
+    private bool HitTestTopProfileSegment(CadPoint worldPoint)
+    {
+        if (FrameRoot is null || !HasRealFrameOnCanvas)
+        {
+            return false;
+        }
+
+        FrameRoot.EnsureTopProfile();
+        var segment = FrameRoot.TopProfile;
+        if (segment is null || segment.ChordWidth <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var tolerance = Math.Max(TopProfileHitScreenPx * MillimetersPerPixel, 5.0);
+        var distance = DistancePointToSegment(worldPoint, segment.Start, segment.End);
+        var minX = Math.Min(segment.StartX, segment.EndX) - tolerance;
+        var maxX = Math.Max(segment.StartX, segment.EndX) + tolerance;
+        return distance <= tolerance &&
+               worldPoint.X >= minX &&
+               worldPoint.X <= maxX;
+    }
+
+    private static double Distance(CadPoint a, CadPoint b)
+    {
+        var dx = a.X - b.X;
+        var dy = a.Y - b.Y;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
+
+    private static double DistancePointToSegment(CadPoint point, CadPoint start, CadPoint end)
+    {
+        var dx = end.X - start.X;
+        var dy = end.Y - start.Y;
+        var lengthSquared = dx * dx + dy * dy;
+        if (lengthSquared <= CadMath.Epsilon)
+        {
+            return Math.Sqrt(Math.Pow(point.X - start.X, 2) + Math.Pow(point.Y - start.Y, 2));
+        }
+
+        var t = Math.Clamp(
+            ((point.X - start.X) * dx + (point.Y - start.Y) * dy) / lengthSquared,
+            0.0,
+            1.0);
+        var projectionX = start.X + t * dx;
+        var projectionY = start.Y + t * dy;
+        return Math.Sqrt(Math.Pow(point.X - projectionX, 2) + Math.Pow(point.Y - projectionY, 2));
+    }
+}
+
+internal enum ArcVertexDragTarget
+{
+    None,
+    Springing
 }

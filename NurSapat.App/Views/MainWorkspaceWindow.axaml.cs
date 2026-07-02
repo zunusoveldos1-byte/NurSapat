@@ -24,12 +24,6 @@ public partial class MainWorkspaceWindow : Window
         WindowState = WindowState.Maximized;
         UpdateMaximizeIcon();
 
-        if (DataContext is MainWorkspaceViewModel vm && vm.CurrentContent == null)
-        {
-            var cadVm = new CadEditorViewModel();
-            vm.CurrentContent = cadVm;
-        }
-
         if (DataContext is MainWorkspaceViewModel vm2)
         {
             vm2.SetOwnerWindow(this);

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Microsoft.Extensions.DependencyInjection;
 using NurSapat.App.Services.Documents;
+using NurSapat.App.Services.Users;
 using NurSapat.App.ViewModels;
 using NurSapat.App.Views;
 
@@ -43,6 +44,8 @@ public sealed class WorkspaceWindowService(IServiceProvider serviceProvider) : I
 
         var documentManager = _serviceProvider.GetRequiredService<IDocumentManager>();
         documentManager.StopAutoSave();
+
+        _serviceProvider.GetRequiredService<IUserSessionService>().Clear();
 
         var loginWindow = _serviceProvider.GetRequiredService<MainWindow>();
         var loginVm = _serviceProvider.GetRequiredService<LoginViewModel>();

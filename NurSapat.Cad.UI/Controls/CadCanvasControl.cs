@@ -12,6 +12,7 @@ using NurSapat.Cad.UI.Diagnostics;
 using NurSapat.Cad.UI.Rendering;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Orders;
+using System.Linq;
 using ToolPointerEvent = NurSapat.Cad.Tools.CadPointerEvent;
 
 namespace NurSapat.Cad.UI.Controls;
@@ -29,7 +30,8 @@ public sealed class CadCanvasControl : Control
         mode is WindowToolMode.FakeVerticalImpost or WindowToolMode.FakeHorizontalImpost
             or WindowToolMode.RealVerticalImpost or WindowToolMode.RealHorizontalImpost
             or WindowToolMode.DoubleVerticalImpost or WindowToolMode.DoubleHorizontalImpost
-            or WindowToolMode.SlantedImpost;
+            or WindowToolMode.SlantedImpost
+            or WindowToolMode.MullionVertical or WindowToolMode.MullionHorizontal;
 
     private static readonly IBrush CanvasBrush = Brushes.White;
     private static readonly IBrush CadStrokeBrush = new SolidColorBrush(Color.Parse("#AEAEAE"));
@@ -218,10 +220,13 @@ public sealed class CadCanvasControl : Control
         if (Editor.IsGridEnabled) DrawGrid(context);
 
         var suppressCommittedFrame = Editor.IsShapePlacementActive;
+        var canvasElements = Editor.CanvasElements.ToList();
+        var constructionSelection = Editor.ConstructionSelection.ToList();
+        var documentRectangles = Editor.Document.Rectangles.ToList();
 
-        if (!suppressCommittedFrame && Editor.CanvasElements.Count == 0)
+        if (!suppressCommittedFrame && canvasElements.Count == 0)
         {
-            foreach (var rect in Editor.Document.Rectangles)
+            foreach (var rect in documentRectangles)
             {
                 var originY = rect.Y - rect.Height;
                 FrameVolumeRenderer.Draw(
@@ -240,9 +245,9 @@ public sealed class CadCanvasControl : Control
             }
         }
 
-        if (!suppressCommittedFrame && Editor.CanvasElements.Count > 0)
+        if (!suppressCommittedFrame && canvasElements.Count > 0)
         {
-            GeometryElementRenderer.DrawAll(context, Editor, Editor.DesignElements);
+            GeometryElementRenderer.DrawAll(context, Editor, canvasElements);
         }
 
         if (!suppressCommittedFrame && Editor.FrameRoot != null && Editor.HasFrameOnCanvas)
@@ -250,12 +255,17 @@ public sealed class CadCanvasControl : Control
             FrameNodeRenderer.DrawImposts(context, Editor, Editor.FrameRoot);
         }
 
-        if (!suppressCommittedFrame && Editor.CanvasElements.Count > 0)
+        if (!suppressCommittedFrame && canvasElements.Count > 0)
         {
-            SashElementRenderer.DrawAll(context, Editor, Editor.CanvasElements);
-            GeometryElementRenderer.DrawGlazingLayer(context, Editor, Editor.CanvasElements);
-            SashElementRenderer.DrawOpeningIndicators(context, Editor, Editor.CanvasElements);
-            SashElementRenderer.DrawHardwareOverlays(context, Editor, Editor.CanvasElements);
+            SashElementRenderer.DrawAll(context, Editor, canvasElements);
+            GeometryElementRenderer.DrawGlazingLayer(context, Editor, canvasElements);
+            SashElementRenderer.DrawOpeningIndicators(context, Editor, canvasElements);
+            SashElementRenderer.DrawHardwareOverlays(context, Editor, canvasElements);
+        }
+
+        if (!suppressCommittedFrame && constructionSelection.Count > 0)
+        {
+            ConstructionSelectionRenderer.DrawHighlights(context, Editor, constructionSelection);
         }
 
         if (Editor.SashDragPreview is { } sashPreview)
@@ -291,6 +301,16 @@ public sealed class CadCanvasControl : Control
 
         DrawHandlePreview(context);
 
+        if (Editor.IsTopProfileHovered && Editor.HoveredTopProfile is { } hoveredTopProfile)
+        {
+            FrameVolumeRenderer.DrawTopProfileHighlight(context, Editor, hoveredTopProfile);
+        }
+
+        if (Editor.ShowArcVertexHandles && Editor.FrameRoot?.TopProfile is { } arcTopProfile)
+        {
+            FrameVolumeRenderer.DrawArcVertexHandles(context, Editor, arcTopProfile);
+        }
+
         // RectangleTool: призрак + размеры
         if (Editor.ActiveTool is RectangleTool rectTool && rectTool.PreviewRect is CadRect preview)
         {
@@ -319,7 +339,8 @@ public sealed class CadCanvasControl : Control
         {
             if (selectionTool.SelectionRect is CadRect selectionRect)
             {
-                DrawRect(context, selectionRect, null, SelectedFramePen);
+                var fill = new SolidColorBrush(Color.FromArgb(48, 255, 4, 4));
+                DrawRect(context, selectionRect, fill, SelectedFramePen);
             }
         }
 
@@ -602,6 +623,20 @@ public sealed class CadCanvasControl : Control
             return;
         }
 
+        if (Editor != null
+            && Editor.CurrentToolMode == WindowToolMode.RadiusVertex
+            && properties.IsLeftButtonPressed)
+        {
+            e.Handled = true;
+            if (Editor.TryPressRadiusVertex(cadEvent.WorldPoint))
+            {
+                e.Pointer.Capture(this);
+            }
+
+            InvalidateVisual();
+            return;
+        }
+
         if (Editor?.TryBeginPointerInteraction(cadEvent.WorldPoint) == true)
         {
             e.Pointer.Capture(this);
@@ -633,26 +668,6 @@ public sealed class CadCanvasControl : Control
         Editor?.ActiveTool?.OnMouseDown(Editor.CreateToolContext(), cadEvent);
         e.Pointer.Capture(this);
 
-        if (Editor?.ActiveTool?.Id == "select")
-        {
-            var worldPoint = Editor.Viewport.ScreenToWorld(new ScreenPoint(point.X, point.Y));
-            var found = false;
-            foreach (var rect in Editor.Document.Rectangles)
-            {
-                if (rect.Contains(worldPoint))
-                {
-                    Editor.SelectedRectangle = rect;
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found)
-            {
-                Editor.SelectedRectangle = null;
-            }
-        }
-
         InvalidateVisual();
     }
 
@@ -673,6 +688,7 @@ public sealed class CadCanvasControl : Control
         }
 
         Editor.UpdatePointerInteraction(worldPoint);
+        Editor.UpdateRadiusVertexHover(worldPoint);
 
         if (Editor.IsVerticalImpostDragging)
         {
@@ -684,6 +700,13 @@ public sealed class CadCanvasControl : Control
         if (Editor.IsHorizontalImpostDragging)
         {
             Editor.UpdateHorizontalImpostOffsetDrag(worldPoint);
+            InvalidateVisual();
+            return;
+        }
+
+        if (Editor.IsArcVertexDragging)
+        {
+            Editor.UpdateArcVertexDrag(worldPoint);
             InvalidateVisual();
             return;
         }
@@ -764,6 +787,15 @@ public sealed class CadCanvasControl : Control
             {
                 Editor.UpdateHorizontalImpostOffsetDrag(worldPoint);
                 Editor.ReleaseHorizontalImpostOffset();
+                e.Pointer.Capture(null);
+                InvalidateVisual();
+                return;
+            }
+
+            if (Editor.IsArcVertexDragging)
+            {
+                Editor.UpdateArcVertexDrag(worldPoint);
+                Editor.ReleaseArcVertexDrag();
                 e.Pointer.Capture(null);
                 InvalidateVisual();
                 return;

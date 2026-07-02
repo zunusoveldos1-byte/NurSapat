@@ -31,5 +31,6 @@ public enum CadToolKind
 
   ChangeOverallDimensions = 14,
   DeleteSelection = 15,
-  ClearConstruction = 16
+  ClearConstruction = 16,
+  RadiusVertex = 17
 }

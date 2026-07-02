@@ -55,16 +55,3 @@ public sealed partial class MaterialsViewModel : ObservableObject
         await LoadMaterials();
     }
 }
-
-// enum MaterialCategory оставляем без изменений
-public enum MaterialCategory
-{
-    Profile,
-    Glazing,
-    Hardware,
-    Sealant,
-    Reinforcement,
-    Component,
-    Installation,
-    Additional
-}

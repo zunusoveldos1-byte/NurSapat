@@ -35,7 +35,57 @@ public sealed class FrameNode
     public FrameNode? ChildB { get; private set; }
     public FrameNode? Parent { get; set; }
 
+    /// <summary>Верхний профиль коробки (только у корневого узла).</summary>
+    public ProfileSegment? TopProfile { get; set; }
+
     private readonly List<FrameNode> _uniformCells = [];
+
+    /// <summary>Корневой узел дерева рамы (узел без родителя).</summary>
+    public FrameNode GetRoot()
+    {
+        var node = this;
+        while (node.Parent is not null)
+        {
+            node = node.Parent;
+        }
+
+        return node;
+    }
+
+    /// <summary>
+    /// Локальная вертикальная протяжённость горизонтального разбиения: прямоугольная высота узла
+    /// плюс стрела арки, если верх узла совпадает с хордой коробки.
+    /// </summary>
+    public static double ResolveHorizontalSplitExtentLocal(FrameNode splitNode, FrameNode? frameRoot)
+    {
+        var extent = splitNode.Height;
+        if (frameRoot is null)
+        {
+            return extent;
+        }
+
+        var profile = frameRoot.TopProfile;
+        if (profile?.SegmentType != SegmentType.Arc ||
+            profile.ArcHeight <= ProfileSegment.MinFlatArcHeightMm + CadMath.Epsilon)
+        {
+            return extent;
+        }
+
+        var frameTop = frameRoot.Y + frameRoot.Height;
+        if (!TouchesFrameTopEdge(splitNode, frameTop))
+        {
+            return extent;
+        }
+
+        return extent + profile.ArcHeight;
+    }
+
+    private double GetHorizontalSplitExtentLocal() =>
+        ResolveHorizontalSplitExtentLocal(this, GetRoot());
+
+    private static bool TouchesFrameTopEdge(FrameNode node, double frameTop) =>
+        CadMath.NearlyEqual(node.Y + node.Height, frameTop)
+        || node.Y + node.Height >= frameTop - CadMath.MmPrecision;
 
     public bool Contains(double x, double y) =>
         x >= X && x <= X + Width && y >= Y && y <= Y + Height;
@@ -341,8 +391,8 @@ public sealed class FrameNode
         }
 
         var thickness = ResolveImpostWidth(lineStyle, impostWidthMm);
-        var centerLocal = ClampHorizontalSplitCenter(splitLocalY, thickness);
-        if (!TryComputeBinaryHorizontalChildren(centerLocal, thickness, out var bottomHeight, out var childBStartLocal, out var topHeight))
+        var centerLocal = ClampHorizontalSplitCenter(splitLocalY, thickness, Height);
+        if (!TryComputeBinaryHorizontalChildren(centerLocal, thickness, Height, out var bottomHeight, out var childBStartLocal, out var topHeight))
         {
             return false;
         }
@@ -460,8 +510,9 @@ public sealed class FrameNode
 
         var centerLocal = axisWorldY - Y;
         var thickness = GetResolvedImpostThicknessMm();
-        centerLocal = ClampHorizontalSplitCenter(centerLocal, thickness);
-        if (!TryComputeBinaryHorizontalChildren(centerLocal, thickness, out var bottomHeight, out var childBStartLocal, out var topHeight))
+        var splitExtent = GetHorizontalSplitExtentLocal();
+        centerLocal = ClampHorizontalSplitCenter(centerLocal, thickness, splitExtent);
+        if (!TryComputeBinaryHorizontalChildren(centerLocal, thickness, splitExtent, out var bottomHeight, out var childBStartLocal, out var topHeight))
         {
             return false;
         }
@@ -576,8 +627,9 @@ public sealed class FrameNode
         }
 
         var half = GetResolvedImpostThicknessMm() / 2.0;
+        var splitExtent = GetHorizontalSplitExtentLocal();
         bottomHeight = CadMath.RoundMm((axisWorldY - Y) - half);
-        topHeight = CadMath.RoundMm((Y + Height - axisWorldY) - half);
+        topHeight = CadMath.RoundMm((Y + splitExtent - axisWorldY) - half);
         return bottomHeight > CadMath.Epsilon && topHeight > CadMath.Epsilon;
     }
 
@@ -600,7 +652,7 @@ public sealed class FrameNode
         }
 
         var half = GetResolvedImpostThicknessMm() / 2.0;
-        return TrySetHorizontalImpostAxisWorldY(Y + Height - half - topHeight);
+        return TrySetHorizontalImpostAxisWorldY(Y + GetHorizontalSplitExtentLocal() - half - topHeight);
     }
 
     public bool TrySetUniformHorizontalImpostGapAxisWorldY(int gapIndex, double axisWorldY)
@@ -616,8 +668,10 @@ public sealed class FrameNode
         var bottomCell = _uniformCells[gapIndex];
         var topCell = _uniformCells[gapIndex + 1];
 
+        var splitExtent = GetHorizontalSplitExtentLocal();
+        var extentTopWorld = Y + splitExtent;
         var minAxis = bottomCell.Y + MinSplitSizeMm + half;
-        var maxAxis = topCell.Y + topCell.Height - MinSplitSizeMm - half;
+        var maxAxis = extentTopWorld - MinSplitSizeMm - half;
         if (maxAxis < minAxis)
         {
             return false;
@@ -627,7 +681,9 @@ public sealed class FrameNode
         var newBottomHeight = CadMath.RoundMm(axisWorldY - bottomCell.Y - half);
         bottomCell.Height = newBottomHeight;
 
-        var topEdge = topCell.Y + topCell.Height;
+        var topEdge = gapIndex >= _uniformCells.Count - 2
+            ? extentTopWorld
+            : topCell.Y + topCell.Height;
         topCell.Y = CadMath.RoundMm(bottomCell.Y + newBottomHeight + thickness);
         topCell.Height = CadMath.RoundMm(topEdge - topCell.Y);
         if (topCell.Height < MinSplitSizeMm)
@@ -664,6 +720,7 @@ public sealed class FrameNode
     private bool TryComputeBinaryHorizontalChildren(
         double centerLocal,
         double thickness,
+        double splitExtentLocal,
         out double bottomHeight,
         out double childBStartLocal,
         out double topHeight)
@@ -671,7 +728,7 @@ public sealed class FrameNode
         var half = thickness / 2.0;
         bottomHeight = CadMath.RoundMm(centerLocal - half);
         childBStartLocal = CadMath.RoundMm(centerLocal + half);
-        topHeight = CadMath.RoundMm(Height - childBStartLocal);
+        topHeight = CadMath.RoundMm(splitExtentLocal - childBStartLocal);
 
         return bottomHeight >= MinSplitSizeMm && topHeight >= MinSplitSizeMm;
     }
@@ -721,7 +778,24 @@ public sealed class FrameNode
 
         Width = CadMath.RoundMm(newWidth);
         Height = CadMath.RoundMm(newHeight);
+        if (Parent is null)
+        {
+            EnsureTopProfile();
+        }
+
         return true;
+    }
+
+    /// <summary>Создаёт или синхронизирует верхний профиль коробки с текущими габаритами.</summary>
+    public void EnsureTopProfile()
+    {
+        if (Parent is not null)
+        {
+            return;
+        }
+
+        TopProfile ??= ProfileSegment.CreateTopRail(X, Y, Width, Height);
+        TopProfile.SyncTopRailGeometry(X, Y, Width, Height);
     }
 
     private void ScaleSubtreeFromOrigin(double originX, double originY, double scaleX, double scaleY)
@@ -881,13 +955,13 @@ public sealed class FrameNode
         return Math.Clamp(splitLocalX, minCenter, maxCenter);
     }
 
-    private double ClampHorizontalSplitCenter(double splitLocalY, double thickness)
+    private double ClampHorizontalSplitCenter(double splitLocalY, double thickness, double splitExtentLocal)
     {
         var minCenter = MinSplitSizeMm + thickness / 2;
-        var maxCenter = Height - MinSplitSizeMm - thickness / 2;
+        var maxCenter = splitExtentLocal - MinSplitSizeMm - thickness / 2;
         if (maxCenter < minCenter)
         {
-            return Height / 2;
+            return splitExtentLocal / 2;
         }
 
         return Math.Clamp(splitLocalY, minCenter, maxCenter);
@@ -921,8 +995,12 @@ public sealed class FrameNode
             IsLeaf = true
         };
 
-    public static FrameNode CreateRoot(double x, double y, double width, double height) =>
-        new() { X = x, Y = y, Width = width, Height = height };
+    public static FrameNode CreateRoot(double x, double y, double width, double height)
+    {
+        var root = new FrameNode { X = x, Y = y, Width = width, Height = height };
+        root.EnsureTopProfile();
+        return root;
+    }
 
     /// <summary>Глубокий снимок узла и всех потомков для undo/redo дерева рамы.</summary>
     public TreeSnapshot CaptureTreeSnapshot()
@@ -941,7 +1019,8 @@ public sealed class FrameNode
                 LineStyle = LineStyle,
                 ImpostThicknessMm = ImpostThicknessMm,
                 UniformImpostCount = UniformImpostCount,
-                UniformCells = UniformCells.Select(cell => cell.CaptureTreeSnapshot()).ToList()
+                UniformCells = UniformCells.Select(cell => cell.CaptureTreeSnapshot()).ToList(),
+                TopProfile = Parent is null ? TopProfile?.CaptureSnapshot() : null
             };
         }
 
@@ -960,7 +1039,8 @@ public sealed class FrameNode
                 ImpostThicknessMm = ImpostThicknessMm,
                 UniformImpostCount = UniformImpostCount,
                 ChildA = ChildA.CaptureTreeSnapshot(),
-                ChildB = ChildB.CaptureTreeSnapshot()
+                ChildB = ChildB.CaptureTreeSnapshot(),
+                TopProfile = Parent is null ? TopProfile?.CaptureSnapshot() : null
             };
         }
 
@@ -975,7 +1055,8 @@ public sealed class FrameNode
             SplitOrientation = SplitOrientation,
             LineStyle = LineStyle,
             ImpostThicknessMm = ImpostThicknessMm,
-            UniformImpostCount = UniformImpostCount
+            UniformImpostCount = UniformImpostCount,
+            TopProfile = Parent is null ? TopProfile?.CaptureSnapshot() : null
         };
     }
 
@@ -995,6 +1076,7 @@ public sealed class FrameNode
         public IReadOnlyList<TreeSnapshot> UniformCells { get; init; } = [];
         public TreeSnapshot? ChildA { get; init; }
         public TreeSnapshot? ChildB { get; init; }
+        public ProfileSegmentSnapshot? TopProfile { get; init; }
     }
 
     public static FrameNode? RestoreTree(TreeSnapshot? snapshot)
@@ -1006,6 +1088,12 @@ public sealed class FrameNode
 
         var root = CreateRoot(snapshot.X, snapshot.Y, snapshot.Width, snapshot.Height);
         root.ApplyTreeSnapshot(snapshot);
+        if (snapshot.TopProfile is not null)
+        {
+            root.TopProfile ??= ProfileSegment.CreateTopRail(snapshot.X, snapshot.Y, snapshot.Width, snapshot.Height);
+            root.TopProfile.ApplySnapshot(snapshot.TopProfile);
+        }
+
         return root;
     }
 

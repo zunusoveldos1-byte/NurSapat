@@ -4,6 +4,7 @@ using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.UI.Models;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Orders;
+using System.Linq;
 
 namespace NurSapat.Cad.UI.Rendering;
 
@@ -42,7 +43,7 @@ public static class SashElementRenderer
 
     public static void DrawAll(DrawingContext context, CadEditorViewModel editor, IEnumerable<GeometryElement> elements)
     {
-        foreach (var element in elements)
+        foreach (var element in SnapshotElements(elements))
         {
             if (element.Kind == GeometryElementKind.Sash)
             {
@@ -59,7 +60,7 @@ public static class SashElementRenderer
 
     public static void DrawOpeningIndicators(DrawingContext context, CadEditorViewModel editor, IEnumerable<GeometryElement> elements)
     {
-        foreach (var element in elements)
+        foreach (var element in SnapshotElements(elements))
         {
             if (element.Kind == GeometryElementKind.Sash)
             {
@@ -70,7 +71,7 @@ public static class SashElementRenderer
 
     public static void DrawHardwareOverlays(DrawingContext context, CadEditorViewModel editor, IEnumerable<GeometryElement> elements)
     {
-        foreach (var element in elements)
+        foreach (var element in SnapshotElements(elements))
         {
             if (element.Kind == GeometryElementKind.Sash)
             {
@@ -107,6 +108,53 @@ public static class SashElementRenderer
             return;
         }
 
+        var profileThickness = ResolveSashDrawProfileThickness();
+        DrawSashProfileCore(context, editor, inner, outer, profileThickness, dashed: false, opaqueProfile: true);
+    }
+
+    private static void DrawSashProfileCore(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        SashGeometry.InnerOpeningBounds inner,
+        SashGeometry.OuterBounds outer,
+        double profileThickness,
+        bool dashed,
+        bool opaqueProfile)
+    {
+        if (SashGeometry.TryBuildArchedSashContours(
+                editor,
+                inner,
+                outer,
+                profileThickness,
+                out var outerLoop,
+                out var innerLoop,
+                out var outerBottomLeft,
+                out var innerBottomLeft,
+                out var outerBottomRight,
+                out var innerBottomRight,
+                out var outerSpringingLeft,
+                out var innerSpringingLeft,
+                out var outerSpringingRight,
+                out var innerSpringingRight))
+        {
+            FrameVolumeRenderer.DrawArchedProfileContours(
+                context,
+                editor,
+                outerLoop,
+                innerLoop,
+                dashed,
+                opaqueProfile,
+                outerBottomLeft,
+                innerBottomLeft,
+                outerBottomRight,
+                innerBottomRight,
+                outerSpringingLeft,
+                innerSpringingLeft,
+                outerSpringingRight,
+                innerSpringingRight);
+            return;
+        }
+
         FrameVolumeRenderer.Draw(
             context,
             editor,
@@ -114,9 +162,9 @@ public static class SashElementRenderer
             outer.Bottom,
             outer.Width,
             outer.Height,
-            ResolveSashDrawProfileThickness(),
-            dashed: false,
-            opaqueProfile: true);
+            profileThickness,
+            dashed,
+            opaqueProfile);
     }
 
     private static void DrawOpeningIndicator(DrawingContext context, CadEditorViewModel editor, GeometryElement element)
@@ -172,12 +220,13 @@ public static class SashElementRenderer
             return;
         }
 
-        var (glassLeft, glassBottom, glassRight, glassTop) = SashGeometry.ResolveInnerGlassFromOuter(
-            outer.Left,
-            outer.Bottom,
-            outer.Width,
-            outer.Height);
-        if (glassRight <= glassLeft || glassTop <= glassBottom)
+        SashGeometry.TryResolveGlassOpeningBounds(
+            editor,
+            inner,
+            outer,
+            ResolveSashDrawProfileThickness(),
+            out var glass);
+        if (glass.Width <= CadMath.Epsilon || glass.Height <= CadMath.Epsilon)
         {
             return;
         }
@@ -187,10 +236,8 @@ public static class SashElementRenderer
             DrawHandleOnGlass(
                 context,
                 editor,
-                glassLeft,
-                glassBottom,
-                glassRight,
-                glassTop,
+                inner,
+                glass,
                 outer,
                 hinge,
                 preview: false);
@@ -198,7 +245,7 @@ public static class SashElementRenderer
 
         if (element.HasHardware)
         {
-            DrawSashHinges(context, editor, outer, hinge, opening, preview: false);
+            DrawSashHinges(context, editor, inner, outer, hinge, opening, preview: false);
         }
     }
 
@@ -254,13 +301,25 @@ public static class SashElementRenderer
             return;
         }
 
+        var inner = SashGeometry.TryResolveInnerBounds(editor, sash, out var liveInner)
+            ? liveInner
+            : SashGeometry.InnerOpeningBoundsFromElement(sash);
+        SashGeometry.TryResolveGlassOpeningBounds(
+            editor,
+            inner,
+            outer,
+            ResolveSashDrawProfileThickness(),
+            out var glass);
+        if (glass.Width <= CadMath.Epsilon || glass.Height <= CadMath.Epsilon)
+        {
+            return;
+        }
+
         DrawHandleOnGlass(
             context,
             editor,
-            glassLeft,
-            glassBottom,
-            glassRight,
-            glassTop,
+            inner,
+            glass,
             outer,
             hingeSide,
             preview);
@@ -282,36 +341,38 @@ public static class SashElementRenderer
             return;
         }
 
-        FrameVolumeRenderer.Draw(
+        DrawSashProfileCore(
             context,
             editor,
-            outer.Left,
-            outer.Bottom,
-            outer.Width,
-            outer.Height,
+            inner,
+            outer,
             ResolveSashDrawProfileThickness(),
             dashed: preview,
             opaqueProfile: !preview);
 
-        var (glassLeft, glassBottom, glassRight, glassTop) = SashGeometry.ResolveInnerGlassFromOuter(
-            outer.Left,
-            outer.Bottom,
-            outer.Width,
-            outer.Height);
-        if (glassRight <= glassLeft || glassTop <= glassBottom)
+        SashGeometry.TryResolveGlassOpeningBounds(
+            editor,
+            inner,
+            outer,
+            ResolveSashDrawProfileThickness(),
+            out var glass);
+        if (glass.Width <= CadMath.Epsilon || glass.Height <= CadMath.Epsilon)
         {
             return;
         }
 
-        if (hasHandle && glassRight > glassLeft && glassTop > glassBottom)
+        if (glass.Width <= CadMath.Epsilon || glass.Height <= CadMath.Epsilon)
+        {
+            return;
+        }
+
+        if (hasHandle)
         {
             DrawHandleOnGlass(
                 context,
                 editor,
-                glassLeft,
-                glassBottom,
-                glassRight,
-                glassTop,
+                inner,
+                glass,
                 outer,
                 hingeSide,
                 preview);
@@ -319,25 +380,21 @@ public static class SashElementRenderer
 
         if (hasHardware && !preview)
         {
-            DrawSashHinges(context, editor, outer, hingeSide, openingType, preview);
+            DrawSashHinges(context, editor, inner, outer, hingeSide, openingType, preview);
         }
     }
 
-    private static double ResolveSashDrawProfileThickness() => SashGeometry.ProfileThicknessMm * 2.0;
+    private static double ResolveSashDrawProfileThickness() => SashGeometry.SashDrawProfileThicknessMm;
 
     private static (double Left, double Bottom, double Right, double Top, SashGeometry.OuterBounds Outer)
         ResolveHandleWorldBounds(CadEditorViewModel editor, GeometryElement element)
     {
-        var inner = SashGeometry.TryResolveInnerBounds(editor, element, out var liveInner)
-            ? liveInner
-            : SashGeometry.InnerOpeningBoundsFromElement(element);
-        var outer = SashGeometry.ExpandInnerBoundsToOuter(inner, editor);
-        var (glassLeft, glassBottom, glassRight, glassTop) = SashGeometry.ResolveInnerGlassFromOuter(
-            outer.Left,
-            outer.Bottom,
-            outer.Width,
-            outer.Height);
-        return (glassLeft, glassBottom, glassRight, glassTop, outer);
+        if (!SashGeometry.TryResolveGlassForSash(editor, element, out var glass, out var outer, out _))
+        {
+            return (0, 0, 0, 0, default);
+        }
+
+        return (glass.Left, glass.Bottom, glass.Right, glass.Top, outer);
     }
 
     /// <summary>
@@ -380,9 +437,9 @@ public static class SashElementRenderer
         SashHingeSide hingeSide,
         SashGeometry.InnerOpeningBounds inner)
     {
-        var topLeft = new CadPoint(inner.Left, inner.Top);
+        var topLeft = SashGeometry.ResolveInnerCorner(editor, inner, inner.Left, inner.Top);
         var bottomLeft = new CadPoint(inner.Left, inner.Bottom);
-        var topRight = new CadPoint(inner.Right, inner.Top);
+        var topRight = SashGeometry.ResolveInnerCorner(editor, inner, inner.Right, inner.Top);
         var bottomRight = new CadPoint(inner.Right, inner.Bottom);
         var midLeft = new CadPoint(inner.Left, (inner.Bottom + inner.Top) / 2.0);
         var midRight = new CadPoint(inner.Right, (inner.Bottom + inner.Top) / 2.0);
@@ -408,11 +465,15 @@ public static class SashElementRenderer
         SashHingeSide hingeSide,
         SashGeometry.InnerOpeningBounds inner)
     {
-        var topLeft = new CadPoint(inner.Left, inner.Top);
+        var topLeft = SashGeometry.ResolveInnerCorner(editor, inner, inner.Left, inner.Top);
         var bottomLeft = new CadPoint(inner.Left, inner.Bottom);
-        var topRight = new CadPoint(inner.Right, inner.Top);
+        var topRight = SashGeometry.ResolveInnerCorner(editor, inner, inner.Right, inner.Top);
         var bottomRight = new CadPoint(inner.Right, inner.Bottom);
-        var midTop = new CadPoint((inner.Left + inner.Right) / 2.0, inner.Top);
+        var midTop = new CadPoint(
+            (inner.Left + inner.Right) / 2.0,
+            (SashGeometry.TryResolveInnerArcTopY(editor, inner, (inner.Left + inner.Right) / 2.0, out var arcMidTop)
+                ? arcMidTop
+                : inner.Top));
         var midBottom = new CadPoint((inner.Left + inner.Right) / 2.0, inner.Bottom);
 
         switch (hingeSide)
@@ -442,6 +503,7 @@ public static class SashElementRenderer
     private static void DrawSashHinges(
         DrawingContext context,
         CadEditorViewModel editor,
+        SashGeometry.InnerOpeningBounds inner,
         SashGeometry.OuterBounds outer,
         SashHingeSide hingeSide,
         SashOpeningType openingType,
@@ -454,13 +516,13 @@ public static class SashElementRenderer
         {
             case SashHingeSide.Left:
             case SashHingeSide.Right:
-                DrawVerticalSashHinges(context, editor, outer, effectiveSide, pen);
+                DrawVerticalSashHinges(context, editor, inner, outer, effectiveSide, pen);
                 break;
             case SashHingeSide.Top:
-                DrawHorizontalSashHinges(context, editor, outer, mountOnTop: true, pen);
+                DrawHorizontalSashHinges(context, editor, inner, outer, mountOnTop: true, pen);
                 break;
             case SashHingeSide.Bottom:
-                DrawHorizontalSashHinges(context, editor, outer, mountOnTop: false, pen);
+                DrawHorizontalSashHinges(context, editor, inner, outer, mountOnTop: false, pen);
                 break;
         }
     }
@@ -473,6 +535,7 @@ public static class SashElementRenderer
     private static void DrawVerticalSashHinges(
         DrawingContext context,
         CadEditorViewModel editor,
+        SashGeometry.InnerOpeningBounds inner,
         SashGeometry.OuterBounds outer,
         SashHingeSide hingeSide,
         IPen pen)
@@ -484,10 +547,20 @@ public static class SashElementRenderer
             return;
         }
 
-        var topHingeBottom = outer.Top - offset;
+        var straightTop = SashGeometry.ResolveStraightVerticalZoneTopY(editor, inner, outer);
+        var topHingeBottom = Math.Min(outer.Top - offset, straightTop);
         var topHingeTop = topHingeBottom - hingeHeight;
+        if (topHingeTop < outer.Bottom + offset)
+        {
+            return;
+        }
+
         var bottomHingeBottom = outer.Bottom + offset;
         var bottomHingeTop = bottomHingeBottom + hingeHeight;
+        if (bottomHingeTop >= topHingeTop - CadMath.Epsilon)
+        {
+            return;
+        }
 
         if (hingeSide == SashHingeSide.Right)
         {
@@ -508,6 +581,7 @@ public static class SashElementRenderer
     private static void DrawHorizontalSashHinges(
         DrawingContext context,
         CadEditorViewModel editor,
+        SashGeometry.InnerOpeningBounds inner,
         SashGeometry.OuterBounds outer,
         bool mountOnTop,
         IPen pen)
@@ -528,8 +602,11 @@ public static class SashElementRenderer
 
         if (mountOnTop)
         {
-            var innerY = outer.Top - HingeWidthMm;
-            var outerY = outer.Top + hingeIntoFrame;
+            var mountY = SashGeometry.ShouldDrawArchedSash(editor, inner)
+                ? SashGeometry.ResolveStraightVerticalZoneTopY(editor, inner, outer)
+                : outer.Top;
+            var innerY = mountY - HingeWidthMm;
+            var outerY = mountY + hingeIntoFrame;
             DrawWorldHingeRect(context, editor, leftInner, innerY, leftOuter, outerY, vertical: false, pen);
             DrawWorldHingeRect(context, editor, rightInner, innerY, rightOuter, outerY, vertical: false, pen);
         }
@@ -592,15 +669,13 @@ public static class SashElementRenderer
     private static void DrawHandleOnGlass(
         DrawingContext context,
         CadEditorViewModel editor,
-        double glassLeft,
-        double glassBottom,
-        double glassRight,
-        double glassTop,
+        SashGeometry.InnerOpeningBounds inner,
+        SashGeometry.GlassOpeningBounds glass,
         SashGeometry.OuterBounds outer,
         SashHingeSide hingeSide,
         bool preview)
     {
-        if (glassRight <= glassLeft || glassTop <= glassBottom)
+        if (glass.Width <= CadMath.Epsilon || glass.Height <= CadMath.Epsilon)
         {
             return;
         }
@@ -611,16 +686,16 @@ public static class SashElementRenderer
         switch (hingeSide)
         {
             case SashHingeSide.Right:
-                DrawVerticalSashHandle(context, editor, outer, glassLeft, glassRight, glassBottom, glassTop, handleOnLeft: true, fill, pen);
+                DrawVerticalSashHandle(context, editor, inner, glass, outer, handleOnLeft: true, fill, pen);
                 break;
             case SashHingeSide.Left:
-                DrawVerticalSashHandle(context, editor, outer, glassLeft, glassRight, glassBottom, glassTop, handleOnLeft: false, fill, pen);
+                DrawVerticalSashHandle(context, editor, inner, glass, outer, handleOnLeft: false, fill, pen);
                 break;
             case SashHingeSide.Top:
-                DrawHorizontalSashHandle(context, editor, outer, glassLeft, glassRight, glassBottom, glassTop, handleOnBottom: true, fill, pen);
+                DrawHorizontalSashHandle(context, editor, outer, glass, handleOnBottom: true, fill, pen);
                 break;
             case SashHingeSide.Bottom:
-                DrawHorizontalSashHandle(context, editor, outer, glassLeft, glassRight, glassBottom, glassTop, handleOnBottom: false, fill, pen);
+                DrawHorizontalSashHandle(context, editor, outer, glass, handleOnBottom: false, fill, pen);
                 break;
         }
     }
@@ -628,26 +703,31 @@ public static class SashElementRenderer
     private static void DrawVerticalSashHandle(
         DrawingContext context,
         CadEditorViewModel editor,
+        SashGeometry.InnerOpeningBounds inner,
+        SashGeometry.GlassOpeningBounds glass,
         SashGeometry.OuterBounds outer,
-        double glassLeft,
-        double glassRight,
-        double glassBottom,
-        double glassTop,
         bool handleOnLeft,
         IBrush fill,
         IPen pen)
     {
-        var profileLeft = handleOnLeft ? outer.Left : glassRight;
-        var profileRight = handleOnLeft ? glassLeft : outer.Right;
+        var profileLeft = handleOnLeft ? outer.Left : glass.Right;
+        var profileRight = handleOnLeft ? glass.Left : outer.Right;
         if (profileRight - profileLeft <= CadMath.Epsilon)
         {
             return;
         }
 
         var axisX = (profileLeft + profileRight) / 2.0;
-        var centerY = (glassBottom + glassTop) / 2.0;
+        var baseHalfH = Math.Min(HandleBaseHeightMm / 2.0, glass.Height * 0.45);
+        var centerY = SashGeometry.ClampHandleCenterY(
+            editor,
+            inner,
+            outer,
+            glass,
+            axisX,
+            (glass.Bottom + glass.Top) / 2.0,
+            baseHalfH);
         var baseHalfW = HandleBaseWidthMm / 2.0;
-        var baseHalfH = Math.Min(HandleBaseHeightMm / 2.0, (glassTop - glassBottom) * 0.45);
 
         DrawWorldHandleRect(
             context,
@@ -664,7 +744,7 @@ public static class SashElementRenderer
         {
             var leverLength = Math.Min(
                 HandleLeverLengthMm,
-                Math.Max(0, glassRight - axisX - HandleGlassInsetMm));
+                Math.Max(0, glass.Right - axisX - HandleGlassInsetMm));
             DrawWorldHandleRect(
                 context,
                 editor,
@@ -679,7 +759,7 @@ public static class SashElementRenderer
         {
             var leverLength = Math.Min(
                 HandleLeverLengthMm,
-                Math.Max(0, axisX - glassLeft - HandleGlassInsetMm));
+                Math.Max(0, axisX - glass.Left - HandleGlassInsetMm));
             DrawWorldHandleRect(
                 context,
                 editor,
@@ -696,25 +776,22 @@ public static class SashElementRenderer
         DrawingContext context,
         CadEditorViewModel editor,
         SashGeometry.OuterBounds outer,
-        double glassLeft,
-        double glassRight,
-        double glassBottom,
-        double glassTop,
+        SashGeometry.GlassOpeningBounds glass,
         bool handleOnBottom,
         IBrush fill,
         IPen pen)
     {
-        var profileBottom = handleOnBottom ? outer.Bottom : glassTop;
-        var profileTop = handleOnBottom ? glassBottom : outer.Top;
+        var profileBottom = handleOnBottom ? outer.Bottom : glass.Top;
+        var profileTop = handleOnBottom ? glass.Bottom : outer.Top;
         if (profileTop - profileBottom <= CadMath.Epsilon)
         {
             return;
         }
 
         var axisY = (profileBottom + profileTop) / 2.0;
-        var centerX = (glassLeft + glassRight) / 2.0;
+        var centerX = (glass.Left + glass.Right) / 2.0;
         var baseHalfDepth = HandleBaseWidthMm / 2.0;
-        var baseHalfSpan = Math.Min(HandleBaseHeightMm / 2.0, (glassRight - glassLeft) * 0.45);
+        var baseHalfSpan = Math.Min(HandleBaseHeightMm / 2.0, glass.Width * 0.45);
 
         DrawWorldHandleRect(
             context,
@@ -731,7 +808,7 @@ public static class SashElementRenderer
         {
             var leverLength = Math.Min(
                 HandleLeverLengthMm,
-                Math.Max(0, glassTop - axisY - HandleGlassInsetMm));
+                Math.Max(0, glass.ResolveTopAtX(centerX) - axisY - HandleGlassInsetMm));
             DrawWorldHandleRect(
                 context,
                 editor,
@@ -746,7 +823,7 @@ public static class SashElementRenderer
         {
             var leverLength = Math.Min(
                 HandleLeverLengthMm,
-                Math.Max(0, axisY - glassBottom - HandleGlassInsetMm));
+                Math.Max(0, axisY - glass.Bottom - HandleGlassInsetMm));
             DrawWorldHandleRect(
                 context,
                 editor,
@@ -783,4 +860,7 @@ public static class SashElementRenderer
         var p = editor.Viewport!.WorldToScreen(point);
         return new Point(p.X, p.Y);
     }
+
+    private static List<GeometryElement> SnapshotElements(IEnumerable<GeometryElement> elements) =>
+        elements as List<GeometryElement> ?? elements.ToList();
 }

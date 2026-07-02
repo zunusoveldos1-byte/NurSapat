@@ -1,4 +1,5 @@
 using System.Reflection;
+using NurSapat.App.Services.Settings;
 using NurSapat.App.ViewModels;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Project;
@@ -16,6 +17,7 @@ public sealed class DocumentManager : IDocumentManager
     private readonly IAutoSaveService _autoSaveService;
     private readonly IPrintSettingsService _printSettingsService;
     private readonly IWorkspaceWindowService _workspaceWindowService;
+    private readonly IEnvironmentSettingsService _environmentSettingsService;
 
     private bool _isModified;
     private bool _suppressModification;
@@ -30,7 +32,8 @@ public sealed class DocumentManager : IDocumentManager
         IRecentFilesService recentFilesService,
         IAutoSaveService autoSaveService,
         IPrintSettingsService printSettingsService,
-        IWorkspaceWindowService workspaceWindowService)
+        IWorkspaceWindowService workspaceWindowService,
+        IEnvironmentSettingsService environmentSettingsService)
     {
         _workspace = workspace;
         _cadEditor = cadEditor;
@@ -40,6 +43,7 @@ public sealed class DocumentManager : IDocumentManager
         _autoSaveService = autoSaveService;
         _printSettingsService = printSettingsService;
         _workspaceWindowService = workspaceWindowService;
+        _environmentSettingsService = environmentSettingsService;
 
         _workspace.ProjectModified += OnProjectModified;
         _cadEditor.Commands.CommandExecuted += (_, _) => MarkModifiedIfAllowed();
@@ -105,6 +109,8 @@ public sealed class DocumentManager : IDocumentManager
         }
 
         ResetWorkspaceState();
+        _environmentSettingsService.ApplyToNewOrderHeader(_workspace.Order.Header);
+        _workspace.Sheet.ReloadFromOrder(null);
         return true;
     }
 
@@ -218,6 +224,8 @@ public sealed class DocumentManager : IDocumentManager
         }
 
         ResetWorkspaceState();
+        _environmentSettingsService.ApplyToNewOrderHeader(_workspace.Order.Header);
+        _workspace.Sheet.ReloadFromOrder(null);
     }
 
     public void MarkModified()

@@ -55,7 +55,7 @@ public static class CadToolbarRegistry
         Add(0, "SpeedButton52", "Изменить габаритные размеры", WindowToolMode.Other, "\uE8B8", "change-dimensions", CadToolKind.ChangeOverallDimensions, instant: true);
         Add(0, "SpeedButton26", "Удаление", WindowToolMode.Other, "\uE74D", "delete-selection", CadToolKind.DeleteSelection, instant: true);
         Add(0, "SpeedButton21", "Очистить конструкцию", WindowToolMode.ClearConstruction, "\uE894", "clear-construction", CadToolKind.ClearConstruction, instant: true);
-        Add(0, "SpeedButton61", "Выделение радиусных вершин", WindowToolMode.Other, "\uE8B6", "select");
+        Add(0, "SpeedButton61", "Выделение радиусных вершин", WindowToolMode.RadiusVertex, "\uE8B6", "radius-vertex", CadToolKind.RadiusVertex);
         Add(0, "SpeedButton59", "Выделение дуговых вершин", WindowToolMode.Other, "\uE8B6", "select");
         Add(0, "SpeedButton9", "Увеличить/уменьшить вид", WindowToolMode.ZoomView, "\uE8A3", "select");
         Add(0, "SpeedButton13", "Переместить вид", WindowToolMode.PanView, "\uE8C0", "select");

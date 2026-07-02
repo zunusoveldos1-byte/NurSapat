@@ -1,0 +1,71 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Stock"
+        x:Class="NurSapat.App.Views.Stock.GlassCutEditWindow"
+        x:DataType="vm:GlassCutEditViewModel"
+        Width="660"
+        Height="500"
+        MinWidth="580"
+        MinHeight="440"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="40,*,Auto">
+            <Border Grid.Row="0" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="mat-titlebar-text" Text="{Binding WindowTitle}" Margin="16,0,0,0"/>
+                    <Button Grid.Column="1" Classes="mat-chrome-btn close" Click="OnCloseClick" Content="✕"
+                            Margin="0,0,8,0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="1" Margin="12" Classes="mat-card">
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+                    <TextBlock Classes="mat-section-title" Text="Материал"/>
+                    <Grid Grid.Row="1" RowDefinitions="Auto,Auto" ColumnDefinitions="120,*,36" RowSpacing="10" ColumnSpacing="8">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Артикул" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Article}" IsReadOnly="True"/>
+                        <Button Grid.Row="0" Grid.Column="2" Classes="mat-toolbar" Content="..."
+                                Command="{Binding PickMaterialCommand}"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Наименование" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Name}" IsReadOnly="True"/>
+                    </Grid>
+                    <Grid Grid.Row="2" ColumnDefinitions="120,*" ColumnSpacing="8">
+                        <TextBlock Text="Цвет" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableColors}"
+                                  SelectedItem="{Binding SelectedColor}" MinHeight="36" VerticalContentAlignment="Center"/>
+                    </Grid>
+                    <Grid Grid.Row="3" ColumnDefinitions="120,*" ColumnSpacing="8">
+                        <TextBlock Text="Ширина, мм" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Column="1" Minimum="1" Increment="1" FormatString="N0" Value="{Binding WidthMm}"/>
+                    </Grid>
+                    <Grid Grid.Row="4" ColumnDefinitions="120,*" ColumnSpacing="8">
+                        <TextBlock Text="Высота, мм" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Column="1" Minimum="1" Increment="1" FormatString="N0" Value="{Binding HeightMm}"/>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                    <Button Grid.Column="1" Classes="mat-toolbar" Margin="0,0,8,0" Content="Отмена"
+                            Command="{Binding CancelCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="2" Classes="mat-primary" Content="ОК"
+                            Command="{Binding SaveCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

@@ -12,6 +12,7 @@ public sealed partial class ConstructionModel : ObservableObject
 {
     private readonly OrderConstruction _construction;
     private CadEditorViewModel? _previewEditor;
+    private CadEditorViewModel? _subscribedPreviewEditor;
 
     public ConstructionModel(OrderConstruction construction, CadEditorViewModel? previewEditor = null)
     {
@@ -89,6 +90,41 @@ public sealed partial class ConstructionModel : ObservableObject
             _construction.Geometry.OuterHeightMm = height;
             OnPropertyChanged();
             NotifyAreaChanged();
+        }
+    }
+
+    public bool HasArcTopProfile => _previewEditor?.HasArcTopProfile ?? false;
+
+    public double ArcRadius
+    {
+        get => _previewEditor?.TopProfileArcRadius ?? 0;
+        set
+        {
+            if (_previewEditor is null)
+            {
+                return;
+            }
+
+            _previewEditor.TopProfileArcRadius = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ArcHeight));
+        }
+    }
+
+    public double ArcHeight
+    {
+        get => _previewEditor?.TopProfileArcHeight ?? 0;
+        set
+        {
+            if (_previewEditor is null)
+            {
+                return;
+            }
+
+            _previewEditor.TopProfileArcHeight = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ArcRadius));
+            OnPropertyChanged(nameof(HasArcTopProfile));
         }
     }
 
@@ -171,6 +207,13 @@ public sealed partial class ConstructionModel : ObservableObject
 
     public string AreaDisplay => $"{Area:F2} м²";
 
+    public void RefreshArcBindings()
+    {
+        OnPropertyChanged(nameof(HasArcTopProfile));
+        OnPropertyChanged(nameof(ArcRadius));
+        OnPropertyChanged(nameof(ArcHeight));
+    }
+
     public object? PreviewCanvas => _previewEditor;
 
     public void SetPreviewEditor(CadEditorViewModel? previewEditor)
@@ -180,13 +223,53 @@ public sealed partial class ConstructionModel : ObservableObject
             return;
         }
 
+        DetachPreviewEditorSubscription();
         _previewEditor = previewEditor;
+        AttachPreviewEditorSubscription();
         OnPropertyChanged(nameof(PreviewCanvas));
+        OnPropertyChanged(nameof(HasArcTopProfile));
+        OnPropertyChanged(nameof(ArcRadius));
+        OnPropertyChanged(nameof(ArcHeight));
     }
 
     public void Detach()
     {
+        DetachPreviewEditorSubscription();
         _construction.Cost.PropertyChanged -= OnUnderlyingCostChanged;
+    }
+
+    private void AttachPreviewEditorSubscription()
+    {
+        if (_previewEditor is null || ReferenceEquals(_subscribedPreviewEditor, _previewEditor))
+        {
+            return;
+        }
+
+        _previewEditor.PropertyChanged += OnPreviewEditorPropertyChanged;
+        _subscribedPreviewEditor = _previewEditor;
+    }
+
+    private void DetachPreviewEditorSubscription()
+    {
+        if (_subscribedPreviewEditor is null)
+        {
+            return;
+        }
+
+        _subscribedPreviewEditor.PropertyChanged -= OnPreviewEditorPropertyChanged;
+        _subscribedPreviewEditor = null;
+    }
+
+    private void OnPreviewEditorPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(CadEditorViewModel.HasArcTopProfile)
+            or nameof(CadEditorViewModel.TopProfileArcRadius)
+            or nameof(CadEditorViewModel.TopProfileArcHeight))
+        {
+            OnPropertyChanged(nameof(HasArcTopProfile));
+            OnPropertyChanged(nameof(ArcRadius));
+            OnPropertyChanged(nameof(ArcHeight));
+        }
     }
 
     private void OnUnderlyingCostChanged(object? sender, PropertyChangedEventArgs e)

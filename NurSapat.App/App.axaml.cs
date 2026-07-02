@@ -12,13 +12,13 @@ public partial class App : Application
 {
     private readonly IServiceProvider? _serviceProvider;
 
-    // ДОБАВЛЕНО: Статическое свойство для доступа к DI из MainWorkspaceViewModel
+    // Р”РћР‘РђР’Р›Р•РќРћ: РЎС‚Р°С‚РёС‡РµСЃРєРѕРµ СЃРІРѕР№СЃС‚РІРѕ РґР»СЏ РґРѕСЃС‚СѓРїР° Рє DI РёР· MainWorkspaceViewModel
     public static IServiceProvider? ServiceProvider { get; private set; }
 
     public App(IServiceProvider serviceProvider)
     {
         _serviceProvider = serviceProvider;
-        ServiceProvider = serviceProvider; // Инициализируем статическое свойство
+        ServiceProvider = serviceProvider; // РРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј СЃС‚Р°С‚РёС‡РµСЃРєРѕРµ СЃРІРѕР№СЃС‚РІРѕ
     }
 
     public App()

@@ -34,4 +34,15 @@ public interface IDialogService
     Task<bool> ShowPrintDialogAsync(ViewModels.PrintDialogViewModel viewModel, CancellationToken cancellationToken = default);
 
     Task<bool> ShowPrintSettingsDialogAsync(ViewModels.PrintSettingsViewModel viewModel, CancellationToken cancellationToken = default);
+
+    Task<bool> ShowCopyDrawingDialogAsync(ViewModels.Dialogs.Edit.CopyDrawingDialogViewModel viewModel, CancellationToken cancellationToken = default);
+
+    Task<bool> ShowConstructionColorDialogAsync(ViewModels.Dialogs.Edit.ConstructionColorDialogViewModel viewModel, CancellationToken cancellationToken = default);
+
+    Task<bool> ShowOrderColorDialogAsync(ViewModels.Dialogs.Edit.OrderColorDialogViewModel viewModel, CancellationToken cancellationToken = default);
+
+    Task<string?> ShowListPickerAsync(
+        string title,
+        IReadOnlyList<string> items,
+        CancellationToken cancellationToken = default);
 }

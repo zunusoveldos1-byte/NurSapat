@@ -1,0 +1,112 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dictionaries"
+        x:Class="NurSapat.App.Views.Dictionaries.ManufacturerEditWindow"
+        x:DataType="vm:ManufacturerEditViewModel"
+        Width="640"
+        Height="520"
+        MinWidth="560"
+        MinHeight="460"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="40,*,Auto">
+            <Border Grid.Row="0"
+                    Classes="mat-titlebar"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="mat-titlebar-text"
+                               Text="{Binding WindowTitle}"
+                               Margin="16,0,0,0"
+                               VerticalAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Classes="mat-chrome-btn close"
+                            Click="OnCloseClick"
+                            Content="✕"
+                            Margin="0,0,8,0"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Row="1" Margin="12,12,12,0">
+                <Border Classes="mat-card">
+                    <Grid ColumnDefinitions="200,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+                        <TextBlock Text="Производитель" VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding Name}"
+                                 IsReadOnly="True"
+                                 Background="#F1F5F9"/>
+
+                        <CheckBox Grid.Row="1"
+                                  Grid.ColumnSpan="2"
+                                  Content="Активный"
+                                  IsChecked="{Binding IsActive}"/>
+
+                        <TextBlock Grid.Row="2" Text="Коррекция фальца, мм" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Row="2"
+                                       Grid.Column="1"
+                                       Minimum="0"
+                                       Increment="0.1"
+                                       FormatString="N2"
+                                       Value="{Binding FalsCorrectionMm}"/>
+
+                        <TextBlock Grid.Row="3" Text="Торцевание, мм" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Row="3"
+                                       Grid.Column="1"
+                                       Minimum="0"
+                                       Increment="0.1"
+                                       FormatString="N2"
+                                       Value="{Binding EndCuttingMm}"/>
+
+                        <TextBlock Grid.Row="4" Text="Ширина реза пилы, мм" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Row="4"
+                                       Grid.Column="1"
+                                       Minimum="0"
+                                       Increment="0.1"
+                                       FormatString="N2"
+                                       Value="{Binding BladeWidthMm}"/>
+
+                        <TextBlock Grid.Row="5" Text="Уварка, мм" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Row="5"
+                                       Grid.Column="1"
+                                       Minimum="0"
+                                       Increment="0.1"
+                                       FormatString="N2"
+                                       Value="{Binding WeldingShrinkageMm}"/>
+
+                        <TextBlock Grid.Row="6"
+                                   Grid.ColumnSpan="2"
+                                   Text="{Binding ValidationMessage}"
+                                   Foreground="#DC2626"
+                                   TextWrapping="Wrap"/>
+                    </Grid>
+                </Border>
+            </ScrollViewer>
+
+            <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Classes="mat-toolbar"
+                            Content="Отмена"
+                            Command="{Binding CancelCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Classes="mat-primary"
+                            Content="ОК"
+                            Command="{Binding SaveCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

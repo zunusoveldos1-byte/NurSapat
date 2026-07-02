@@ -1,0 +1,146 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Stock"
+        xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+        x:Class="NurSapat.App.Views.Stock.StockFinishedGoodsWindow"
+        x:DataType="vm:StockFinishedGoodsViewModel"
+        Width="1100"
+        Height="700"
+        MinWidth="940"
+        MinHeight="560"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="40,Auto,*,Auto">
+            <Border Grid.Row="0"
+                    Classes="mat-titlebar"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="8"
+                                VerticalAlignment="Center"
+                                Margin="16,0,0,0">
+                        <Image Source="/Assets/logo.ico" Width="16" Height="16" VerticalAlignment="Center"/>
+                        <TextBlock Classes="mat-titlebar-text" Text="{Binding Title}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="0,0,8,0">
+                        <Button Classes="mat-chrome-btn"
+                                Click="OnMinimizeClick"
+                                Content="—"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"/>
+                        <Button Classes="mat-chrome-btn"
+                                Click="OnMaximizeClick"
+                                Content="▢"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"/>
+                        <Button Classes="mat-chrome-btn close"
+                                Click="OnCloseClick"
+                                Content="✕"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="1"
+                    Margin="12,12,12,0"
+                    Padding="0,0,0,10"
+                    Background="White">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10">
+                    <TextBox Grid.Column="0"
+                             PlaceholderText="Поиск по заказу, коду, ячейке или пользователю..."
+                             Text="{Binding SearchText}"
+                             MinHeight="36"
+                             VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Classes="mat-primary"
+                            Content="Принять на склад"
+                            Command="{Binding ReceiveOnStockCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="2"
+                            Classes="mat-toolbar"
+                            Content="Редактировать ячейку/статус"
+                            Command="{Binding EditRecordCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="3"
+                            Classes="mat-toolbar"
+                            Content="Удалить запись"
+                            Command="{Binding DeleteRecordCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="4"
+                            Classes="mat-toolbar"
+                            Content="Отгрузить"
+                            Command="{Binding ShipCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="5"
+                            Classes="mat-toolbar"
+                            Content="Закрыть"
+                            Command="{Binding CloseWindowCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <dg:DataGrid Grid.Row="2"
+                         Margin="12,0,12,0"
+                         ItemsSource="{Binding FilteredItems}"
+                         SelectedItem="{Binding SelectedItem}"
+                         AutoGenerateColumns="False"
+                         CanUserSortColumns="True"
+                         GridLinesVisibility="Horizontal"
+                         BorderBrush="#E2E8F0"
+                         BorderThickness="1"
+                         IsReadOnly="True"
+                         DoubleTapped="OnGridDoubleTapped">
+                <dg:DataGrid.Columns>
+                    <dg:DataGridTextColumn Header="№ Заказа"
+                                           Binding="{Binding OrderNumber}"
+                                           Width="*"
+                                           SortMemberPath="OrderNumber"/>
+                    <dg:DataGridTextColumn Header="Код продукции"
+                                           Binding="{Binding ProductCode}"
+                                           Width="*"
+                                           SortMemberPath="ProductCode"/>
+                    <dg:DataGridTextColumn Header="Ячейка"
+                                           Binding="{Binding CellAddress}"
+                                           Width="100"
+                                           SortMemberPath="CellAddress"/>
+                    <dg:DataGridTextColumn Header="Состояние"
+                                           Binding="{Binding StateDisplay}"
+                                           Width="140"
+                                           SortMemberPath="State"/>
+                    <dg:DataGridTextColumn Header="Дата"
+                                           Binding="{Binding DateIncomingDisplay}"
+                                           Width="110"
+                                           SortMemberPath="DateIncoming"/>
+                    <dg:DataGridTextColumn Header="Пользователь"
+                                           Binding="{Binding UserName}"
+                                           Width="120"
+                                           SortMemberPath="UserName"/>
+                </dg:DataGrid.Columns>
+            </dg:DataGrid>
+
+            <Border Grid.Row="3" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <TextBlock Foreground="#64748B"
+                           Text="{Binding FilteredItems.Count, StringFormat=Записей на складе: {0}}"/>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

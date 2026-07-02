@@ -3,196 +3,389 @@
              xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
              xmlns:cadVm="clr-namespace:NurSapat.Cad.UI.ViewModels;assembly=NurSapat.Cad.UI"
              x:Class="NurSapat.App.Views.AdditionalDashboardView"
+             x:Name="Root"
              x:DataType="vm:AdditionalDashboardViewModel">
     <UserControl.Styles>
-        <Style Selector="Border.card">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#E1E7F0"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="8"/>
-        </Style>
-        <Style Selector="TextBlock.h">
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="16"/>
-            <Setter Property="Foreground" Value="#0B1736"/>
-        </Style>
-        <Style Selector="TextBlock.icon">
-            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
-            <Setter Property="Foreground" Value="#1A73E8"/>
-            <Setter Property="FontSize" Value="18"/>
-        </Style>
-        <Style Selector="Button.primary">
-            <Setter Property="Background" Value="#1A73E8"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Height" Value="38"/>
-            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-        </Style>
+        <StyleInclude Source="/Styles/AdditionalDashboardStyles.axaml"/>
     </UserControl.Styles>
 
-    <Grid Background="#F6F9FD" ColumnDefinitions="330,*,280" ColumnSpacing="14" Margin="14">
-        <StackPanel Grid.Column="0" Spacing="14">
-            <Border Classes="card" Padding="18">
-                <StackPanel Spacing="14">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBlock Classes="icon" Text="&#xE8EE;"/>
-                        <TextBlock Classes="h" Text="Шаблон заказа"/>
-                    </StackPanel>
-                    <ComboBox ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate}">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate DataType="vm:OrderTemplateOption">
-                                <TextBlock Text="{Binding Title}"/>
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-                    <Button Classes="primary" Content="Применить шаблон" Command="{Binding ApplyTemplateCommand}"/>
-                    <Button Content="Обновить заказ" Height="38" Command="{Binding RefreshOrderCommand}"/>
-                </StackPanel>
-            </Border>
+    <Grid Background="#F7F9FC"
+          ColumnDefinitions="320,16,*,16,340"
+          Margin="16">
+        <!-- Левая колонка -->
+        <ScrollViewer Grid.Column="0"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="16">
+                <!-- Шаблон заказа -->
+                <Border Classes="ad-card">
+                    <StackPanel Spacing="16">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Classes="ad-icon" Text="&#xE8A5;"/>
+                            <TextBlock Classes="ad-title" Text="Шаблон заказа"/>
+                        </StackPanel>
 
-            <Border Classes="card" Padding="18">
-                <StackPanel Spacing="12">
-                    <TextBlock Classes="h" Text="Протокол работы с заказом"/>
-                    <ScrollViewer MaxHeight="360">
-                        <ItemsControl ItemsSource="{Binding OrderState.ActivityLog}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="ad-label" Text="Шаблон"/>
+                            <ComboBox Classes="ad-field"
+                                      ItemsSource="{Binding Templates}"
+                                      SelectedItem="{Binding SelectedTemplate}"
+                                      HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate DataType="vm:OrderTemplateOption">
+                                        <TextBlock Text="{Binding Title}" FontSize="13"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <Button Classes="ad-primary"
+                                Content="Обновить заказ в соответствии с шаблоном"
+                                Command="{Binding SyncOrderWithTemplateCommand}"
+                                HorizontalAlignment="Stretch"/>
+
+                        <StackPanel Spacing="8">
+                            <ToggleSwitch Classes="ad-switch"
+                                          Content="Автоматически обновлять заказ в соответствии с шаблоном"
+                                          IsChecked="{Binding AutoSyncTemplate}"/>
+                            <TextBlock Classes="ad-muted"
+                                       Text="При изменении шаблона заказ будет автоматически синхронизироваться."
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Примечание -->
+                <Border Classes="ad-card">
+                    <StackPanel Spacing="12">
+                        <TextBlock Classes="ad-title" Text="Профиль неизвестного происхождения"/>
+                        <TextBlock Classes="ad-label" Text="Примечание"/>
+                        <TextBox Classes="ad-note"
+                                 Text="{Binding Note}"
+                                 MaxLength="500"/>
+                        <TextBlock Classes="ad-muted"
+                                   HorizontalAlignment="Right"
+                                   Text="{Binding NoteLength, StringFormat='{}{0} / 500'}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Протокол -->
+                <Border Classes="ad-card">
+                    <StackPanel Spacing="16">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Classes="ad-icon" Text="&#xE81C;"/>
+                            <TextBlock Classes="ad-title" Text="Протокол работы с заказом"/>
+                        </StackPanel>
+
+                        <ItemsControl ItemsSource="{Binding VisibleActivityLog}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="cadVm:OrderActivityEvent">
-                                    <Grid ColumnDefinitions="72,*" Margin="0,5">
-                                        <TextBlock Text="{Binding Time}" Foreground="#64748B" FontSize="12"/>
+                                    <Grid ColumnDefinitions="16,56,*" Margin="0,0,0,16">
+                                        <Border Grid.Column="0"
+                                                Width="8"
+                                                Height="8"
+                                                CornerRadius="4"
+                                                Background="#2F80ED"
+                                                VerticalAlignment="Top"
+                                                Margin="0,6,0,0"/>
                                         <StackPanel Grid.Column="1" Spacing="2">
-                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="12"/>
-                                            <TextBlock Text="{Binding Details}" Foreground="#64748B" FontSize="12" TextWrapping="Wrap"/>
+                                            <TextBlock Text="{Binding Time}"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#0F172A"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Spacing="4">
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#0F172A"/>
+                                            <TextBlock Text="{Binding User}"
+                                                       FontSize="12"
+                                                       Foreground="#64748B"/>
+                                            <TextBlock Text="{Binding Details}"
+                                                       FontSize="12"
+                                                       Foreground="#94A3B8"
+                                                       TextWrapping="Wrap"/>
                                         </StackPanel>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                    </ScrollViewer>
-                </StackPanel>
-            </Border>
-        </StackPanel>
 
-        <StackPanel Grid.Column="1" Spacing="14">
-            <Border Classes="card" Padding="18">
-                <StackPanel Spacing="14">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="Этапы выполнения заказа" FontWeight="SemiBold" FontSize="18"/>
-                        <ToggleSwitch Grid.Column="1" Content="Заблокировать изменения" IsChecked="{Binding IsOrderLocked}"/>
-                    </Grid>
-                    <ItemsControl ItemsSource="{Binding Stages}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel ItemWidth="220" ItemHeight="150"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="vm:OrderStageCard">
-                                <Border Classes="card" Padding="14" Margin="6">
-                                    <StackPanel Spacing="8">
-                                        <Grid ColumnDefinitions="Auto,*">
-                                            <CheckBox IsChecked="{Binding IsCompleted}"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding Number, StringFormat='Этап {0}'}" FontWeight="Bold"/>
-                                        </Grid>
-                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                        <TextBlock Text="{Binding Status}" Foreground="#1A73E8" FontSize="12"/>
-                                        <TextBlock Text="{Binding PlannedAtText}" Foreground="#64748B" FontSize="12"/>
-                                        <Button Content="Завершить этап"
-                                                Command="{Binding $parent[UserControl].DataContext.CompleteStageCommand}"
-                                                CommandParameter="{Binding}"
-                                                HorizontalContentAlignment="Center"/>
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
+                        <Button Classes="ad-secondary"
+                                HorizontalAlignment="Stretch"
+                                Content="{Binding ActivityLogToggleText}"
+                                Command="{Binding ToggleActivityLogCommand}"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
 
-            <Border Classes="card" Padding="18">
-                <StackPanel Spacing="14">
-                    <TextBlock Text="Сводная информация" FontWeight="SemiBold" FontSize="16"/>
-                    <UniformGrid Columns="5" Rows="1">
-                        <Border Classes="card" Padding="12" Margin="6">
-                            <StackPanel>
-                                <TextBlock Text="{Binding TotalStages}" FontSize="24" FontWeight="Bold"/>
-                                <TextBlock Text="Всего этапов" FontSize="12"/>
-                            </StackPanel>
-                        </Border>
-                        <Border Classes="card" Padding="12" Margin="6">
-                            <StackPanel>
-                                <TextBlock Text="{Binding CompletedStages}" FontSize="24" FontWeight="Bold"/>
-                                <TextBlock Text="Выполнено" FontSize="12" Foreground="#188038"/>
-                            </StackPanel>
-                        </Border>
-                        <Border Classes="card" Padding="12" Margin="6">
-                            <StackPanel>
-                                <TextBlock Text="{Binding InProgressStages}" FontSize="24" FontWeight="Bold"/>
-                                <TextBlock Text="В работе" FontSize="12" Foreground="#1A73E8"/>
-                            </StackPanel>
-                        </Border>
-                        <Border Classes="card" Padding="12" Margin="6">
-                            <StackPanel>
-                                <TextBlock Text="{Binding WaitingStages}" FontSize="24" FontWeight="Bold"/>
-                                <TextBlock Text="Ожидание" FontSize="12" Foreground="#F29900"/>
-                            </StackPanel>
-                        </Border>
-                        <Border Classes="card" Padding="12" Margin="6">
-                            <StackPanel>
-                                <TextBlock Text="{Binding OverdueStages}" FontSize="24" FontWeight="Bold"/>
-                                <TextBlock Text="Просрочено" FontSize="12" Foreground="#D93025"/>
-                            </StackPanel>
-                        </Border>
-                    </UniformGrid>
-                </StackPanel>
-            </Border>
-        </StackPanel>
+        <!-- Центральная колонка -->
+        <Border Grid.Column="2"
+                Classes="ad-card"
+                Padding="20">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
+                <!-- Заголовок -->
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Classes="ad-icon" Text="&#xE9D5;"/>
+                        <TextBlock Classes="ad-title" Text="Этапы выполнения заказа"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  Classes="ad-switch"
+                                  Content="Заблокировать изменения заказа"
+                                  IsChecked="{Binding IsOrderLocked}"/>
+                </Grid>
 
-        <StackPanel Grid.Column="2" Spacing="14">
-            <Border Classes="card" Padding="18">
-                <StackPanel Spacing="12">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Classes="h" Text="Курсы валют"/>
-                        <TextBlock Grid.Column="1" Classes="icon" Text="&#xE72C;"/>
-                    </Grid>
-                    <ItemsControl ItemsSource="{Binding OrderState.ExchangeRates}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="cadVm:ExchangeRateLine">
-                                <Grid ColumnDefinitions="*,Auto" Margin="0,5">
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding Code}" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{Binding Source}" Foreground="#64748B" FontSize="12"/>
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="1" Text="{Binding RateText}" FontWeight="Bold"/>
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <Border Background="#EEF4FF" CornerRadius="8" Padding="12">
-                        <TextBlock Text="{Binding OrderState.CurrencyStatus}" Foreground="#17315F" TextWrapping="Wrap"/>
+                <!-- Таблица этапов -->
+                <Grid Grid.Row="2" RowDefinitions="Auto,*">
+                    <Border Grid.Row="0" Classes="ad-table-header">
+                        <Grid ColumnDefinitions="40,*,120,104,104,*,40"
+                              Margin="8,0">
+                            <TextBlock Grid.Column="0" Classes="ad-th" Text="№"/>
+                            <TextBlock Grid.Column="1" Classes="ad-th" Text="Этап"/>
+                            <TextBlock Grid.Column="2" Classes="ad-th" Text="Состояние"/>
+                            <TextBlock Grid.Column="3" Classes="ad-th" Text="Дата начала"/>
+                            <TextBlock Grid.Column="4" Classes="ad-th" Text="Дата окончания"/>
+                            <TextBlock Grid.Column="5" Classes="ad-th" Text="Примечание"/>
+                            <TextBlock Grid.Column="6" Classes="ad-th" Text=""/>
+                        </Grid>
                     </Border>
-                </StackPanel>
-            </Border>
 
-            <Border Classes="card" Padding="18">
-                <StackPanel Spacing="10">
-                    <TextBlock Classes="h" Text="Данные заказа"/>
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="Площадь"/>
-                        <TextBlock Grid.Column="1" Text="{Binding OrderState.ItemArea, StringFormat='{}{0:0.###} м²'}"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="Периметр"/>
-                        <TextBlock Grid.Column="1" Text="{Binding OrderState.Perimeter, StringFormat='{}{0:0.##} м'}"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="Стоимость"/>
-                        <TextBlock Grid.Column="1" Text="{Binding OrderState.TotalCost, StringFormat='{}{0:0.##}'}"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="Оплата"/>
-                        <TextBlock Grid.Column="1" Text="{Binding OrderState.PaymentStatus}"/>
-                    </Grid>
-                </StackPanel>
-            </Border>
-        </StackPanel>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Stages}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:OrderStageCard">
+                                    <Border Classes="ad-table-row">
+                                        <Grid ColumnDefinitions="40,*,120,104,104,*,40"
+                                              Margin="8,0">
+                                            <TextBlock Grid.Column="0"
+                                                       Classes="ad-body"
+                                                       VerticalAlignment="Center"
+                                                       Text="{Binding Number}"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Classes="ad-body"
+                                                       VerticalAlignment="Center"
+                                                       Text="{Binding Title}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <Border Grid.Column="2"
+                                                    Classes="ad-badge"
+                                                    Background="{Binding StatusBackground}"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Status}"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{Binding StatusForeground}"/>
+                                            </Border>
+                                            <TextBlock Grid.Column="3"
+                                                       Classes="ad-body"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="12"
+                                                       Text="{Binding StartDateText}"/>
+                                            <TextBlock Grid.Column="4"
+                                                       Classes="ad-body"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="12"
+                                                       Text="{Binding EndDateText}"/>
+                                            <TextBlock Grid.Column="5"
+                                                       Classes="ad-muted"
+                                                       VerticalAlignment="Center"
+                                                       Text="{Binding Note}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <Button Grid.Column="6"
+                                                    Classes="ad-ghost"
+                                                    Command="{Binding #Root.((vm:AdditionalDashboardViewModel)DataContext).EditStageCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip.Tip="Изменить этап"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Classes="ad-icon" Text="&#xE70F;" FontSize="14"/>
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- Информационная панель -->
+                <UniformGrid Grid.Row="3"
+                             Columns="3"
+                             Margin="0,16,0,0">
+                    <Border Classes="ad-info-tile" Margin="0,0,8,0">
+                        <StackPanel Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Classes="ad-icon" Text="&#xE7F4;" FontSize="14"/>
+                                <TextBlock Classes="ad-muted" Text="Программа"/>
+                            </StackPanel>
+                            <TextBlock Classes="ad-body" Text="{Binding ProgramName}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="ad-info-tile" Margin="4,0">
+                        <StackPanel Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Classes="ad-icon" Text="&#xE821;" FontSize="14"/>
+                                <TextBlock Classes="ad-muted" Text="Подразделение"/>
+                            </StackPanel>
+                            <TextBlock Classes="ad-body" Text="{Binding DepartmentName}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="ad-info-tile" Margin="8,0,0,0">
+                        <StackPanel Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Classes="ad-icon" Text="&#xE77B;" FontSize="14"/>
+                                <TextBlock Classes="ad-muted" Text="Пользователь"/>
+                            </StackPanel>
+                            <TextBlock Classes="ad-body" Text="{Binding CurrentUserDisplay}"/>
+                        </StackPanel>
+                    </Border>
+                </UniformGrid>
+            </Grid>
+        </Border>
+
+        <!-- Правая колонка -->
+        <ScrollViewer Grid.Column="4"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="16">
+                <!-- Курсы валют -->
+                <Border Classes="ad-card">
+                    <StackPanel Spacing="16">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Classes="ad-icon" Text="&#xEB51;"/>
+                                <TextBlock Classes="ad-title" Text="Курсы валют для заказа"/>
+                            </StackPanel>
+                            <Border Grid.Column="1"
+                                    Classes="ad-status-pill"
+                                    Background="{Binding CurrencyStatusBackground}">
+                                <TextBlock FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{Binding CurrencyStatusForeground}"
+                                           Text="{Binding CurrencyStatusText}"/>
+                            </Border>
+                        </Grid>
+
+                        <Grid RowDefinitions="Auto,*">
+                            <Border Grid.Row="0" Classes="ad-table-header">
+                                <Grid ColumnDefinitions="56,*,80,88,88"
+                                      Margin="8,0">
+                                    <TextBlock Grid.Column="0" Classes="ad-th" Text="Валюта"/>
+                                    <TextBlock Grid.Column="1" Classes="ad-th" Text="Курс"/>
+                                    <TextBlock Grid.Column="2" Classes="ad-th" Text="Действие"/>
+                                    <TextBlock Grid.Column="3" Classes="ad-th" Text="Начало"/>
+                                    <TextBlock Grid.Column="4" Classes="ad-th" Text="Окончание"/>
+                                </Grid>
+                            </Border>
+                            <ItemsControl Grid.Row="1" ItemsSource="{Binding OrderState.ExchangeRates}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="cadVm:ExchangeRateLine">
+                                        <Border Classes="ad-table-row">
+                                            <Grid ColumnDefinitions="56,*,80,88,88"
+                                                  Margin="8,0">
+                                                <TextBlock Grid.Column="0"
+                                                           Classes="ad-body"
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"
+                                                           Text="{Binding Code}"/>
+                                                <TextBlock Grid.Column="1"
+                                                           Classes="ad-body"
+                                                           VerticalAlignment="Center"
+                                                           Text="{Binding RateText}"/>
+                                                <TextBlock Grid.Column="2"
+                                                           Classes="ad-muted"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="11"
+                                                           Text="{Binding ActionText}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Grid.Column="3"
+                                                           Classes="ad-body"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="12"
+                                                           Text="{Binding PeriodStartText}"/>
+                                                <TextBlock Grid.Column="4"
+                                                           Classes="ad-body"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="12"
+                                                           Text="{Binding PeriodEndText}"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+
+                        <Button Classes="ad-secondary"
+                                Content="Добавить валюту"
+                                Command="{Binding AddCurrencyCommand}"
+                                HorizontalAlignment="Stretch"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Информация о заказе -->
+                <Border Classes="ad-card">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Classes="ad-icon" Text="&#xE946;"/>
+                            <TextBlock Classes="ad-title" Text="Информация о заказе"/>
+                        </StackPanel>
+
+                        <Border BorderBrush="#EEF2F7" BorderThickness="0,1,0,0" Padding="0,4,0,0">
+                            <StackPanel Spacing="0">
+                                <Grid ColumnDefinitions="*,Auto" Height="36" Margin="0,4">
+                                    <TextBlock Classes="ad-muted" VerticalAlignment="Center" Text="Программа"/>
+                                    <TextBlock Grid.Column="1" Classes="ad-body" VerticalAlignment="Center" Text="{Binding ProgramName}"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="*,Auto" Height="36" Margin="0,4">
+                                    <TextBlock Classes="ad-muted" VerticalAlignment="Center" Text="Подразделение"/>
+                                    <TextBlock Grid.Column="1" Classes="ad-body" VerticalAlignment="Center" Text="{Binding DepartmentShort}"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="*,Auto" Height="36" Margin="0,4">
+                                    <TextBlock Classes="ad-muted" VerticalAlignment="Center" Text="Пользователь"/>
+                                    <TextBlock Grid.Column="1" Classes="ad-body" VerticalAlignment="Center" Text="{Binding CurrentUserDisplay}"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="*,Auto" Height="36" Margin="0,4">
+                                    <TextBlock Classes="ad-muted" VerticalAlignment="Center" Text="Дата создания"/>
+                                    <TextBlock Grid.Column="1" Classes="ad-body" VerticalAlignment="Center" Text="{Binding CreatedDateText}"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="*,Auto" Height="36" Margin="0,4">
+                                    <TextBlock Classes="ad-muted" VerticalAlignment="Center" Text="Дата изменения"/>
+                                    <TextBlock Grid.Column="1" Classes="ad-body" VerticalAlignment="Center" Text="{Binding ModifiedDateText}"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="*,Auto" Height="36" Margin="0,4">
+                                    <TextBlock Classes="ad-muted" VerticalAlignment="Center" Text="Статус заказа"/>
+                                    <Border Grid.Column="1"
+                                            Classes="ad-badge"
+                                            Background="#EAF2FD"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding OrderStatus}"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#2F80ED"/>
+                                    </Border>
+                                </Grid>
+                                <Grid ColumnDefinitions="*,Auto" Height="36" Margin="0,4">
+                                    <TextBlock Classes="ad-muted" VerticalAlignment="Center" Text="Стоимость"/>
+                                    <TextBlock Grid.Column="1" Classes="ad-body" FontWeight="SemiBold" VerticalAlignment="Center" Text="{Binding TotalCostText}"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="*,Auto" Height="36" Margin="0,4">
+                                    <TextBlock Classes="ad-muted" VerticalAlignment="Center" Text="Оплата"/>
+                                    <TextBlock Grid.Column="1" Classes="ad-body" VerticalAlignment="Center" Text="{Binding OrderState.PaymentStatus}"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="*,Auto" Height="36" Margin="0,4">
+                                    <TextBlock Classes="ad-muted" VerticalAlignment="Center" Text="Площадь"/>
+                                    <TextBlock Grid.Column="1" Classes="ad-body" VerticalAlignment="Center" Text="{Binding OrderState.ItemArea, StringFormat='{}{0:0.#} м²'}"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="*,Auto" Height="36" Margin="0,4">
+                                    <TextBlock Classes="ad-muted" VerticalAlignment="Center" Text="Периметр"/>
+                                    <TextBlock Grid.Column="1" Classes="ad-body" VerticalAlignment="Center" Text="{Binding OrderState.Perimeter, StringFormat='{}{0:0.#} м'}"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </UserControl>

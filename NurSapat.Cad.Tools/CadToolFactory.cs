@@ -33,6 +33,7 @@ public sealed class CadToolFactory
             (CadToolKind.ChangeOverallDimensions, () => new ChangeOverallDimensionsTool()),
             (CadToolKind.DeleteSelection, () => new DeleteSelectionTool()),
             (CadToolKind.ClearConstruction, () => new ClearConstructionTool()),
+            (CadToolKind.RadiusVertex, () => new RadiusVertexTool()),
         };
 
         _creatorsByKind = entries.ToDictionary(e => e.Kind, e => e.Create);

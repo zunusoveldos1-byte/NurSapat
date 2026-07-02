@@ -20,6 +20,8 @@ public sealed class OrderConstruction
 
     public string ProfileSystemName { get; set; } = "";
 
+    public ConstructionAppearance Appearance { get; set; } = new();
+
     public DateTimeOffset? ManufactureDate { get; set; }
 
     public DateTimeOffset? DeliveryDate { get; set; }

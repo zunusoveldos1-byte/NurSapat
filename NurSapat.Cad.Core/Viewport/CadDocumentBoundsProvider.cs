@@ -11,13 +11,13 @@ public sealed class CadDocumentBoundsProvider
     {
         var accumulator = new BoundsAccumulator();
 
-        // Добавляем все прямоугольники из документа
+        // Р”РѕР±Р°РІР»СЏРµРј РІСЃРµ РїСЂСЏРјРѕСѓРіРѕР»СЊРЅРёРєРё РёР· РґРѕРєСѓРјРµРЅС‚Р°
         foreach (var rect in document.Rectangles)
         {
             accumulator.Add(rect);
         }
 
-        // Если прямоугольников нет, возвращаем дефолтную область
+        // Р•СЃР»Рё РїСЂСЏРјРѕСѓРіРѕР»СЊРЅРёРєРѕРІ РЅРµС‚, РІРѕР·РІСЂР°С‰Р°РµРј РґРµС„РѕР»С‚РЅСѓСЋ РѕР±Р»Р°СЃС‚СЊ
         if (!accumulator.HasValue)
         {
             return new CadRect(-200, 200, 400, 400);
@@ -65,7 +65,7 @@ public sealed class CadDocumentBoundsProvider
                 return new CadRect(0, 0, 1, 1);
             }
 
-            // Добавляем отступы, чтобы объекты не прилипали к краям
+            // Р”РѕР±Р°РІР»СЏРµРј РѕС‚СЃС‚СѓРїС‹, С‡С‚РѕР±С‹ РѕР±СЉРµРєС‚С‹ РЅРµ РїСЂРёР»РёРїР°Р»Рё Рє РєСЂР°СЏРј
             var padding = 100;
             return new CadRect(
                 _left - padding,

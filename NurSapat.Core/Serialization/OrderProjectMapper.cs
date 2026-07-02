@@ -115,6 +115,7 @@ public static class OrderProjectMapper
         Manager = construction.Manager,
         Supervisor = construction.Supervisor,
         Notes = construction.Notes,
+        Appearance = ToAppearanceData(construction.Appearance),
         Geometry = ToGeometryData(construction.Geometry),
         Cost = ToCostData(construction.Cost),
         Metrics = ToMetricsData(construction.Metrics)
@@ -134,12 +135,43 @@ public static class OrderProjectMapper
             Manager = data.Manager,
             Supervisor = data.Supervisor,
             Notes = data.Notes,
+            Appearance = FromAppearanceData(data.Appearance),
             Metrics = FromMetricsData(data.Metrics)
         };
 
         ApplyGeometryData(construction.Geometry, data.Geometry);
         ApplyCostData(construction.Cost, data.Cost);
         return construction;
+    }
+
+    private static ConstructionAppearanceData ToAppearanceData(ConstructionAppearance appearance) => new()
+    {
+        ColorName = appearance.ColorName,
+        ColorHex = appearance.ColorHex,
+        ChangeProfile = appearance.ChangeProfile,
+        ChangeImposts = appearance.ChangeImposts,
+        ChangeSashes = appearance.ChangeSashes,
+        ChangeLayout = appearance.ChangeLayout,
+        ChangeDecorativeElements = appearance.ChangeDecorativeElements
+    };
+
+    private static ConstructionAppearance FromAppearanceData(ConstructionAppearanceData? data)
+    {
+        if (data is null)
+        {
+            return new ConstructionAppearance();
+        }
+
+        return new ConstructionAppearance
+        {
+            ColorName = data.ColorName,
+            ColorHex = data.ColorHex,
+            ChangeProfile = data.ChangeProfile,
+            ChangeImposts = data.ChangeImposts,
+            ChangeSashes = data.ChangeSashes,
+            ChangeLayout = data.ChangeLayout,
+            ChangeDecorativeElements = data.ChangeDecorativeElements
+        };
     }
 
     private static GeometryProjectData ToGeometryData(ConstructionGeometry geometry) => new()

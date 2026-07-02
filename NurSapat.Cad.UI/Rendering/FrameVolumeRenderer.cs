@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Media;
 using NurSapat.Cad.Core.Geometry;
+using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.UI.ViewModels;
 
 namespace NurSapat.Cad.UI.Rendering;
@@ -13,20 +14,25 @@ public static class FrameVolumeRenderer
 {
     public static readonly Color MiterColor = Color.Parse("#919191");
     public static readonly Color ProfileStrokeColor = Color.Parse("#919191");
+    public static readonly Color SelectionHighlightColor = Color.Parse("#FF0404");
 
-    /// <summary>Толщина контура профиля коробки и импоста (px).</summary>
     public const double ProfileStrokeThickness = 1.5;
 
     private static readonly IBrush InnerOpeningFill = Brushes.White;
     private static readonly IBrush ProfileFill = new SolidColorBrush(Color.FromArgb(48, 0xE5, 0xE5, 0xE5));
     private static readonly IBrush ProfileStrokeBrush = new SolidColorBrush(ProfileStrokeColor);
     private static readonly IBrush MiterBrush = new SolidColorBrush(MiterColor);
+    public static readonly IBrush SelectionHighlightBrush = new SolidColorBrush(SelectionHighlightColor);
     public static readonly IPen ProfilePen = new Pen(ProfileStrokeBrush, ProfileStrokeThickness);
     private static readonly IPen MiterPen = new Pen(MiterBrush, 1.2);
     public static readonly IPen DashedProfilePen = new Pen(
         ProfileStrokeBrush,
         ProfileStrokeThickness,
         new DashStyle(new double[] { 4, 3 }, 0));
+    public static readonly IPen TopProfileHighlightPen = new Pen(
+        SelectionHighlightBrush,
+        3.0);
+    public static readonly IPen SelectionDimensionPen = new Pen(SelectionHighlightBrush, 1.2);
 
     public static IPen ResolveProfileOutlinePen(bool dashed) =>
         dashed ? DashedProfilePen : ProfilePen;
@@ -40,7 +46,8 @@ public static class FrameVolumeRenderer
         double height,
         double profileThickness,
         bool dashed = false,
-        bool opaqueProfile = false)
+        bool opaqueProfile = false,
+        ProfileSegment? topProfile = null)
     {
         if (editor.Viewport == null || width <= 0 || height <= 0)
         {
@@ -58,9 +65,8 @@ public static class FrameVolumeRenderer
             }
         }
 
-        var t = ResolveProfileThickness(width, height, profileThickness);
-        t = t / 2.0;
-        if (t <= CadMath.Epsilon)
+        var halfThickness = FrameProfileGeometry.ResolveProfileThickness(width, height, profileThickness) / 2.0;
+        if (halfThickness <= CadMath.Epsilon)
         {
             DrawFallbackOutline(context, editor, originX, originY, width, height, dashed);
             return;
@@ -70,36 +76,148 @@ public static class FrameVolumeRenderer
         var y0 = originY;
         var x1 = originX + width;
         var y1 = originY + height;
+        var xi0 = x0 + halfThickness;
+        var xi1 = x1 - halfThickness;
+        var yi0 = y0 + halfThickness;
+        var yi1 = y1 - halfThickness;
 
-        var xi0 = x0 + t;
-        var yi0 = y0 + t;
-        var xi1 = x1 - t;
-        var yi1 = y1 - t;
-
-        FillInnerOpening(context, editor, xi0, yi0, xi1, yi1);
-
+        var hasArcTop = topProfile?.SegmentType == SegmentType.Arc &&
+                        topProfile.Radius > CadMath.Epsilon &&
+                        topProfile.ArcHeight > ProfileSegment.MinFlatArcHeightMm + CadMath.Epsilon;
         var outlinePen = dashed ? DashedProfilePen : ProfilePen;
 
-        DrawRail(context, editor, outlinePen, profileFill,
-            new CadPoint(x0, y0), new CadPoint(x1, y0),
-            new CadPoint(xi1, yi0), new CadPoint(xi0, yi0));
+        if (hasArcTop)
+        {
+            var contours = FrameProfileGeometry.BuildArchedFrameContours(
+                originX,
+                originY,
+                width,
+                height,
+                topProfile!,
+                profileThickness);
 
-        DrawRail(context, editor, outlinePen, profileFill,
-            new CadPoint(x0, y1), new CadPoint(x1, y1),
-            new CadPoint(xi1, yi1), new CadPoint(xi0, yi1));
+            FillContourLoop(context, editor, contours.OpeningLoop, InnerOpeningFill, null);
+            DrawProfileBand(context, editor, contours.OuterLoop, contours.InnerLoop, profileFill, null);
+            StrokeContourLoop(context, editor, contours.OuterLoop, outlinePen);
+            StrokeContourLoop(context, editor, contours.InnerLoop, outlinePen);
+            DrawCornerMiter(context, editor, contours.OuterSpringingLeft, contours.InnerSpringingLeft);
+            DrawCornerMiter(context, editor, contours.OuterSpringingRight, contours.InnerSpringingRight);
+        }
+        else
+        {
+            FillInnerOpening(context, editor, xi0, yi0, xi1, yi1);
 
-        DrawRail(context, editor, outlinePen, profileFill,
-            new CadPoint(x0, y0), new CadPoint(x0, y1),
-            new CadPoint(xi0, yi1), new CadPoint(xi0, yi0));
+            DrawRail(context, editor, outlinePen, profileFill,
+                new CadPoint(x0, y0), new CadPoint(x1, y0),
+                new CadPoint(xi1, yi0), new CadPoint(xi0, yi0));
 
-        DrawRail(context, editor, outlinePen, profileFill,
-            new CadPoint(x1, y0), new CadPoint(x1, y1),
-            new CadPoint(xi1, yi1), new CadPoint(xi1, yi0));
+            DrawRail(context, editor, outlinePen, profileFill,
+                new CadPoint(x0, y1), new CadPoint(x1, y1),
+                new CadPoint(xi1, yi1), new CadPoint(xi0, yi1));
+
+            DrawRail(context, editor, outlinePen, profileFill,
+                new CadPoint(x0, y0), new CadPoint(x0, y1),
+                new CadPoint(xi0, yi1), new CadPoint(xi0, yi0));
+
+            DrawRail(context, editor, outlinePen, profileFill,
+                new CadPoint(x1, y0), new CadPoint(x1, y1),
+                new CadPoint(xi1, yi1), new CadPoint(xi1, yi0));
+        }
 
         DrawCornerMiter(context, editor, new CadPoint(x0, y0), new CadPoint(xi0, yi0));
         DrawCornerMiter(context, editor, new CadPoint(x1, y0), new CadPoint(xi1, yi0));
-        DrawCornerMiter(context, editor, new CadPoint(x0, y1), new CadPoint(xi0, yi1));
-        DrawCornerMiter(context, editor, new CadPoint(x1, y1), new CadPoint(xi1, yi1));
+        if (!hasArcTop)
+        {
+            DrawCornerMiter(context, editor, new CadPoint(x0, y1), new CadPoint(xi0, yi1));
+            DrawCornerMiter(context, editor, new CadPoint(x1, y1), new CadPoint(xi1, yi1));
+        }
+    }
+
+    public static void DrawArchedProfileContours(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        ProfileContourLoop outerLoop,
+        ProfileContourLoop innerLoop,
+        bool dashed,
+        bool opaqueProfile,
+        CadPoint outerBottomLeft,
+        CadPoint innerBottomLeft,
+        CadPoint outerBottomRight,
+        CadPoint innerBottomRight,
+        CadPoint outerSpringingLeft,
+        CadPoint innerSpringingLeft,
+        CadPoint outerSpringingRight,
+        CadPoint innerSpringingRight)
+    {
+        if (editor.Viewport == null)
+        {
+            return;
+        }
+
+        var profileFill = opaqueProfile ? InnerOpeningFill : ProfileFill;
+        var outlinePen = dashed ? DashedProfilePen : ProfilePen;
+
+        FillContourLoop(context, editor, innerLoop, InnerOpeningFill, null);
+        DrawProfileBand(context, editor, outerLoop, innerLoop, profileFill, null);
+        StrokeContourLoop(context, editor, outerLoop, outlinePen);
+        StrokeContourLoop(context, editor, innerLoop, outlinePen);
+        DrawProfileMiter(context, editor, outerBottomLeft, innerBottomLeft);
+        DrawProfileMiter(context, editor, outerBottomRight, innerBottomRight);
+        DrawProfileMiter(context, editor, outerSpringingLeft, innerSpringingLeft);
+        DrawProfileMiter(context, editor, outerSpringingRight, innerSpringingRight);
+    }
+
+    public static void DrawTopProfileHighlight(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        ProfileSegment segment)
+    {
+        if (editor.Viewport == null || segment.ChordWidth <= CadMath.Epsilon)
+        {
+            return;
+        }
+
+        if (segment.SegmentType == SegmentType.Arc && segment.Radius > CadMath.Epsilon)
+        {
+            var center = segment.GetArcCenterWorld();
+            var outerRadius = ProfileSegment.ComputeRadiusFromSagitta(segment.ChordWidth, segment.ArcHeight);
+            var (startAngle, endAngle) = segment.GetOuterArcAnglesRad();
+            var edge = ProfileEdge.Arc(center, outerRadius, startAngle, endAngle);
+            StrokeProfileEdge(context, editor, edge, TopProfileHighlightPen);
+            return;
+        }
+
+        context.DrawLine(
+            TopProfileHighlightPen,
+            WorldToScreen(editor, segment.Start),
+            WorldToScreen(editor, segment.End));
+    }
+
+    public static void DrawArcVertexHandles(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        ProfileSegment segment)
+    {
+        if (editor.Viewport == null || segment.SegmentType != SegmentType.Arc || segment.Radius <= CadMath.Epsilon)
+        {
+            return;
+        }
+
+        var springingHandle = segment.GetArcSpringingHandleWorld();
+        var handleBrush = SelectionHighlightBrush;
+
+        DrawArcHandleEllipse(context, editor, springingHandle, handleBrush);
+    }
+
+    private static void DrawArcHandleEllipse(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        CadPoint worldPoint,
+        IBrush fill)
+    {
+        var screen = WorldToScreen(editor, worldPoint);
+        const double radiusPx = 5.5;
+        context.DrawEllipse(fill, TopProfileHighlightPen, screen, radiusPx, radiusPx);
     }
 
     public static (double X, double Y, double Width, double Height) GetInnerOpeningWorldBounds(
@@ -114,7 +232,7 @@ public static class FrameVolumeRenderer
     }
 
     public static double ResolveProfileInset(double width, double height, double profileThickness) =>
-        ResolveProfileThickness(width, height, profileThickness) / 2.0;
+        FrameProfileGeometry.ResolveInnerInset(width, height, profileThickness);
 
     public static Rect ToInnerOpeningScreenRect(
         CadEditorViewModel editor,
@@ -126,24 +244,6 @@ public static class FrameVolumeRenderer
     {
         var (xi0, yi0, wi, hi) = GetInnerOpeningWorldBounds(originX, originY, width, height, profileThickness);
         return WorldBoundsToScreenRect(editor, xi0, yi0, wi, hi);
-    }
-
-    private static double ResolveProfileThickness(double width, double height, double profileThickness)
-    {
-        if (profileThickness <= CadMath.Epsilon)
-        {
-            return 0;
-        }
-
-        var maxT = Math.Min(width, height) * 0.45;
-
-        // Защита от ArgumentException в Math.Clamp
-        if (maxT <= 2)
-        {
-            return maxT;
-        }
-
-        return Math.Clamp(profileThickness, 2, maxT);
     }
 
     private static void FillInnerOpening(
@@ -164,6 +264,120 @@ public static class FrameVolumeRenderer
         {
             context.FillRectangle(InnerOpeningFill, inner);
         }
+    }
+
+    private static void DrawProfileBand(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        ProfileContourLoop outerLoop,
+        ProfileContourLoop innerLoop,
+        IBrush fill,
+        IPen? pen)
+    {
+        var outerPoints = outerLoop.Tessellate();
+        var innerPoints = innerLoop.Tessellate();
+        if (outerPoints.Count < 3 || innerPoints.Count < 3)
+        {
+            return;
+        }
+
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(WorldToScreen(editor, outerPoints[0]), isFilled: true);
+            for (var i = 1; i < outerPoints.Count; i++)
+            {
+                ctx.LineTo(WorldToScreen(editor, outerPoints[i]));
+            }
+
+            for (var i = innerPoints.Count - 1; i >= 0; i--)
+            {
+                ctx.LineTo(WorldToScreen(editor, innerPoints[i]));
+            }
+
+            ctx.EndFigure(true);
+        }
+
+        context.DrawGeometry(fill, pen, geometry);
+    }
+
+    private static void FillContourLoop(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        ProfileContourLoop loop,
+        IBrush fill,
+        IPen? pen)
+    {
+        var points = loop.Tessellate();
+        if (points.Count < 3)
+        {
+            return;
+        }
+
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            AppendLoop(ctx, editor, points, isFilled: true);
+        }
+
+        context.DrawGeometry(fill, pen, geometry);
+    }
+
+    private static void StrokeContourLoop(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        ProfileContourLoop loop,
+        IPen pen)
+    {
+        foreach (var edge in loop.Edges)
+        {
+            StrokeProfileEdge(context, editor, edge, pen);
+        }
+    }
+
+    private static void StrokeProfileEdge(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        ProfileEdge edge,
+        IPen pen)
+    {
+        if (edge.Kind == ProfileEdgeKind.Line)
+        {
+            context.DrawLine(pen, WorldToScreen(editor, edge.Start), WorldToScreen(editor, edge.End));
+            return;
+        }
+
+        var previous = WorldToScreen(editor, edge.Start);
+        foreach (var worldPoint in CircularArc.TessellateSpringingArc(
+                     edge.ArcCenter,
+                     edge.ArcRadius,
+                     edge.ArcStartAngleRad,
+                     edge.ArcEndAngleRad))
+        {
+            var current = WorldToScreen(editor, worldPoint);
+            context.DrawLine(pen, previous, current);
+            previous = current;
+        }
+    }
+
+    private static void AppendLoop(
+        StreamGeometryContext ctx,
+        CadEditorViewModel editor,
+        IReadOnlyList<CadPoint> worldPoints,
+        bool isFilled)
+    {
+        if (worldPoints.Count == 0)
+        {
+            return;
+        }
+
+        ctx.BeginFigure(WorldToScreen(editor, worldPoints[0]), isFilled);
+        for (var i = 1; i < worldPoints.Count; i++)
+        {
+            ctx.LineTo(WorldToScreen(editor, worldPoints[i]));
+        }
+
+        ctx.EndFigure(isFilled);
     }
 
     private static void DrawRail(
@@ -194,7 +408,29 @@ public static class FrameVolumeRenderer
         context.DrawGeometry(fill, pen, geometry);
     }
 
+    public static (bool IsLargeArc, SweepDirection Sweep) ResolveUpwardScreenArc(
+        Point arcFrom,
+        Point arcTo,
+        ProfileSegment segment)
+    {
+        _ = arcFrom;
+        _ = arcTo;
+        var center = segment.GetArcCenterWorld();
+        var (isLargeArc, ccwInWorld) = ProfileSegment.ResolveUpperBranchArcSweep(
+            center,
+            segment.Radius,
+            segment.End,
+            segment.Start);
+        var sweep = ccwInWorld ? SweepDirection.Clockwise : SweepDirection.CounterClockwise;
+        return (isLargeArc, sweep);
+    }
+
     private static void DrawCornerMiter(DrawingContext context, CadEditorViewModel editor, CadPoint a, CadPoint b)
+    {
+        DrawProfileMiter(context, editor, a, b);
+    }
+
+    public static void DrawProfileMiter(DrawingContext context, CadEditorViewModel editor, CadPoint a, CadPoint b)
     {
         DrawWorldLine(context, editor, MiterPen, a, b);
     }
@@ -226,9 +462,7 @@ public static class FrameVolumeRenderer
         CadPoint start,
         CadPoint end)
     {
-        var p1 = WorldToScreen(editor, start);
-        var p2 = WorldToScreen(editor, end);
-        context.DrawLine(pen, p1, p2);
+        context.DrawLine(pen, WorldToScreen(editor, start), WorldToScreen(editor, end));
     }
 
     private static Rect WorldBoundsToScreenRect(

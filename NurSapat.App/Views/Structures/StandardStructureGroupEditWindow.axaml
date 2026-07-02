@@ -1,0 +1,41 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Structures"
+        x:Class="NurSapat.App.Views.Structures.StandardStructureGroupEditWindow"
+        x:DataType="vm:StandardStructureGroupEditViewModel"
+        Width="480"
+        Height="280"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="40,*,Auto">
+            <Border Grid.Row="0" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
+                <TextBlock Classes="mat-titlebar-text" Text="{Binding WindowTitle}" Margin="16,0,0,0"/>
+            </Border>
+            <Border Grid.Row="1" Margin="12" Classes="mat-card">
+                <Grid ColumnDefinitions="100,*" ColumnSpacing="10">
+                    <TextBlock Text="Название" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" Text="{Binding Name}"/>
+                </Grid>
+            </Border>
+            <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                    <Button Grid.Column="1" Classes="mat-toolbar" Margin="0,0,8,0" Content="Отмена"
+                            Command="{Binding CancelCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="2" Classes="mat-primary" Content="ОК"
+                            Command="{Binding SaveCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

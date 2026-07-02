@@ -6,6 +6,7 @@ using NurSapat.Cad.UI.Diagnostics;
 using NurSapat.Cad.UI.Models;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Orders;
+using System.Linq;
 
 namespace NurSapat.Cad.UI.Rendering;
 
@@ -42,6 +43,8 @@ public static class GeometryElementRenderer
     private const double DimensionExtensionOffset = 21;
     private const double DimensionOverallOffset = 42;
     private const double DimensionTickSize = 1.5;
+    private const double RadiusDimensionLabelOffsetPx = 10;
+    private const double RadiusDimensionArcOffsetFactor = 0.65;
     public const double DimensionLabelFontSize = 11;
     private const double DimensionHitPadding = 6;
 
@@ -52,7 +55,8 @@ public static class GeometryElementRenderer
             return;
         }
 
-        foreach (var element in elements)
+        var snapshot = elements.Count == 0 ? [] : elements.ToList();
+        foreach (var element in snapshot)
         {
             try
             {
@@ -76,7 +80,8 @@ public static class GeometryElementRenderer
             return;
         }
 
-        foreach (var element in elements)
+        var elementList = elements as IReadOnlyList<GeometryElement> ?? elements.ToList();
+        foreach (var element in elementList)
         {
             if (element.Kind != GeometryElementKind.Glazing)
             {
@@ -85,7 +90,7 @@ public static class GeometryElementRenderer
 
             try
             {
-                DrawGlazing(context, editor, element);
+                DrawGlazing(context, editor, element, elementList);
             }
             catch (Exception ex)
             {
@@ -178,6 +183,15 @@ public static class GeometryElementRenderer
             case GeometryElementKind.TransitionFrame:
                 {
                     var (originX, originY, width, height) = GetWorldOriginBounds(element);
+                    ProfileSegment? topProfile = null;
+                    if (element.Kind == GeometryElementKind.Frame &&
+                        editor.FrameRoot != null &&
+                        FrameMatchesElement(editor.FrameRoot, element))
+                    {
+                        editor.FrameRoot.EnsureTopProfile();
+                        topProfile = editor.FrameRoot.TopProfile;
+                    }
+
                     FrameVolumeRenderer.Draw(
                         context,
                         editor,
@@ -186,7 +200,8 @@ public static class GeometryElementRenderer
                         width,
                         height,
                         editor.FrameThickness,
-                        dashed: false);
+                        dashed: false,
+                        topProfile: topProfile);
                     if (editor.ShowDimensions)
                     {
                         DrawFrameDimensions(context, editor, element);
@@ -315,6 +330,14 @@ public static class GeometryElementRenderer
 
     private static void DrawFrameDimensions(DrawingContext context, CadEditorViewModel editor, GeometryElement element)
     {
+        if (editor.FrameRoot != null &&
+            FrameMatchesElement(editor.FrameRoot, element) &&
+            editor.FrameRoot.TopProfile?.SegmentType == SegmentType.Arc)
+        {
+            DrawArchedTopFrameDimensions(context, editor, element, editor.FrameRoot.TopProfile);
+            return;
+        }
+
         var rect = ToScreenRect(editor, element);
         if (rect.Width <= 0 || rect.Height <= 0)
         {
@@ -362,15 +385,117 @@ public static class GeometryElementRenderer
 
         var width = (double)element.WidthMm;
         var height = (double)element.HeightMm;
-        var radius = width / 2;
-        DrawScreenDimensions(context, rect, $"{width:0}", $"{height:0}", editor, registerHits: true);
+        var segment = ProfileSegment.CreateTopRail(0, 0, width, height);
+        segment.SegmentType = SegmentType.Arc;
+        segment.ArcHeight = height;
+        DrawArchedTopFrameDimensions(context, editor, element, segment, width, height);
+    }
 
-        var (originX, originY, _, _) = GetWorldOriginBounds(element);
-        var baseCenter = ToScreenPoint(editor, originX + width / 2, originY);
-        var radialEnd = ToScreenPoint(editor, originX + width / 2 + radius * Math.Cos(Math.PI / 3), originY + radius * Math.Sin(Math.PI / 3));
-        context.DrawLine(DimensionPen, baseCenter, radialEnd);
-        var labelPoint = new Point((baseCenter.X + radialEnd.X) / 2, (baseCenter.Y + radialEnd.Y) / 2);
-        DrawCenteredText(context, $"R={radius:0}", labelPoint, DimensionTextBrush);
+    private static void DrawArchedTopFrameDimensions(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        GeometryElement element,
+        ProfileSegment topProfile,
+        double? boxWidthOverride = null,
+        double? boxHeightOverride = null)
+    {
+        if (editor?.Viewport == null)
+        {
+            return;
+        }
+
+        var (originX, originY, width, boxHeight) = GetWorldOriginBounds(element);
+        width = boxWidthOverride ?? width;
+        boxHeight = boxHeightOverride ?? boxHeight;
+
+        var archHeight = topProfile.ArcHeight;
+        var totalHeight = boxHeight + archHeight;
+        var chordWidth = topProfile.ChordWidth;
+        var outerRadius = ProfileSegment.ComputeRadiusFromSagitta(chordWidth, archHeight);
+        var springingY = originY + boxHeight;
+        var apexY = springingY + archHeight;
+        var center = topProfile.GetArcCenterWorld();
+
+        const double frameGap = DimensionFrameGap;
+        const double dimOffset = DimensionExtensionOffset;
+        const double parallelGap = 24;
+        const double tick = DimensionTickSize;
+
+        var screenBottomLeft = ToScreenPoint(editor, originX, originY);
+        var screenSpringingLeft = ToScreenPoint(editor, originX, springingY);
+        var screenApexCenter = ToScreenPoint(editor, originX + width / 2.0, apexY);
+        var screenBottomRight = ToScreenPoint(editor, originX + width, originY);
+
+        var xDimInner = screenBottomLeft.X - dimOffset;
+        var xDimOuter = xDimInner - parallelGap;
+
+        context.DrawLine(DimensionPen, new Point(screenBottomLeft.X, screenBottomLeft.Y), new Point(xDimInner, screenBottomLeft.Y));
+        context.DrawLine(DimensionPen, new Point(screenBottomLeft.X, screenSpringingLeft.Y), new Point(xDimInner, screenSpringingLeft.Y));
+        context.DrawLine(DimensionPen, new Point(xDimInner, screenBottomLeft.Y), new Point(xDimInner, screenSpringingLeft.Y));
+        context.DrawLine(DimensionPen, new Point(xDimInner - tick, screenBottomLeft.Y), new Point(xDimInner + tick, screenBottomLeft.Y));
+        context.DrawLine(DimensionPen, new Point(xDimInner - tick, screenSpringingLeft.Y), new Point(xDimInner + tick, screenSpringingLeft.Y));
+
+        var rectHeightCenter = new Point(xDimInner - 3, (screenBottomLeft.Y + screenSpringingLeft.Y) / 2);
+        var rectHeightLabel = $"{boxHeight:0}";
+        if (!IsDimensionLabelHidden(editor, DimensionHitKind.OverallHeight))
+        {
+            DrawVerticalTextAlongSide(context, rectHeightLabel, rectHeightCenter, DimensionTextBrush);
+        }
+
+        context.DrawLine(DimensionPen, new Point(screenBottomLeft.X, screenBottomLeft.Y), new Point(xDimOuter, screenBottomLeft.Y));
+        context.DrawLine(DimensionPen, screenApexCenter, new Point(xDimOuter, screenApexCenter.Y));
+        context.DrawLine(DimensionPen, new Point(xDimOuter, screenBottomLeft.Y), new Point(xDimOuter, screenApexCenter.Y));
+        context.DrawLine(DimensionPen, new Point(xDimOuter - tick, screenBottomLeft.Y), new Point(xDimOuter + tick, screenBottomLeft.Y));
+        context.DrawLine(DimensionPen, new Point(xDimOuter - tick, screenApexCenter.Y), new Point(xDimOuter + tick, screenApexCenter.Y));
+
+        var totalHeightCenter = new Point(xDimOuter - 3, (screenBottomLeft.Y + screenApexCenter.Y) / 2);
+        var totalHeightLabel = $"{totalHeight:0}";
+        DrawVerticalTextAlongSide(context, totalHeightLabel, totalHeightCenter, DimensionTextBrush);
+
+        var yExtStart = screenBottomLeft.Y + frameGap;
+        var yDim = screenBottomLeft.Y + dimOffset;
+        context.DrawLine(DimensionPen, new Point(screenBottomLeft.X, yExtStart), new Point(screenBottomLeft.X, yDim));
+        context.DrawLine(DimensionPen, new Point(screenBottomRight.X, yExtStart), new Point(screenBottomRight.X, yDim));
+        context.DrawLine(DimensionPen, new Point(screenBottomLeft.X, yDim), new Point(screenBottomRight.X, yDim));
+        context.DrawLine(DimensionPen, new Point(screenBottomLeft.X, yDim - tick), new Point(screenBottomLeft.X, yDim + tick));
+        context.DrawLine(DimensionPen, new Point(screenBottomRight.X, yDim - tick), new Point(screenBottomRight.X, yDim + tick));
+        DrawCenteredText(context, $"{width:0}", new Point((screenBottomLeft.X + screenBottomRight.X) / 2, yDim + 4), DimensionTextBrush);
+
+        var radialEndWorld = ResolveOffsetRadiusDimensionEndPoint(topProfile, outerRadius);
+        var centerScreen = ToScreenPoint(editor, center.X, center.Y);
+        var radialEndScreen = ToScreenPoint(editor, radialEndWorld.X, radialEndWorld.Y);
+        var radiusPen = editor.CurrentToolMode == WindowToolMode.RadiusVertex
+            ? FrameVolumeRenderer.SelectionDimensionPen
+            : DimensionPen;
+        var radiusLabelBrush = editor.CurrentToolMode == WindowToolMode.RadiusVertex
+            ? FrameVolumeRenderer.SelectionHighlightBrush
+            : DimensionTextBrush;
+        context.DrawLine(radiusPen, centerScreen, radialEndScreen);
+        var radiusLabelPoint = new Point(
+            (centerScreen.X + radialEndScreen.X) / 2,
+            (centerScreen.Y + radialEndScreen.Y) / 2);
+        DrawTextAlongLine(
+            context,
+            $"R {outerRadius:0}",
+            radiusLabelPoint,
+            centerScreen,
+            radialEndScreen,
+            radiusLabelBrush,
+            RadiusDimensionLabelOffsetPx);
+    }
+
+    /// <summary>
+    /// Конец размерной линии радиуса: ~65% от вершины дуги к правому краю, чтобы не накладываться на центральный импост.
+    /// </summary>
+    private static CadPoint ResolveOffsetRadiusDimensionEndPoint(ProfileSegment topProfile, double outerRadius)
+    {
+        var center = topProfile.GetArcCenterWorld();
+        var (startAngle, endAngle) = topProfile.GetOuterArcAnglesRad();
+        var midAngle = FrameProfileGeometry.ComputeArcMidAngleRad(startAngle, endAngle);
+        var halfSpan = ProfileSegment.PositiveAngleDelta(endAngle, startAngle) / 2.0;
+        var dimAngle = FrameProfileGeometry.NormalizeAngleRad(
+            midAngle - RadiusDimensionArcOffsetFactor * halfSpan);
+        return CircularArc.PointAtAngle(center, outerRadius, dimAngle);
     }
 
     private static void DrawTriangleDimensions(DrawingContext context, CadEditorViewModel editor, GeometryElement element)
@@ -825,6 +950,39 @@ public static class GeometryElementRenderer
         }
     }
 
+    private static void DrawTextAlongLine(
+        DrawingContext context,
+        string text,
+        Point center,
+        Point lineStart,
+        Point lineEnd,
+        IBrush brush,
+        double perpendicularOffsetPx = 0)
+    {
+        var dx = lineEnd.X - lineStart.X;
+        var dy = lineEnd.Y - lineStart.Y;
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        if (length > 1e-6 && Math.Abs(perpendicularOffsetPx) > 1e-6)
+        {
+            var offsetX = dy / length * perpendicularOffsetPx;
+            var offsetY = -dx / length * perpendicularOffsetPx;
+            center = new Point(center.X + offsetX, center.Y + offsetY);
+        }
+
+        var angle = Math.Atan2(dy, dx);
+        var formatted = CreateDimensionFormattedText(text, brush: brush);
+
+        using (context.PushTransform(Matrix.CreateTranslation(center.X, center.Y)))
+        {
+            using (context.PushTransform(Matrix.CreateRotation(angle)))
+            {
+                context.DrawText(
+                    formatted,
+                    new Point(-formatted.Width / 2, -formatted.Height / 2));
+            }
+        }
+    }
+
     private static void DrawCenteredText(DrawingContext context, string text, Point center, IBrush brush)
     {
         var formatted = new FormattedText(
@@ -979,11 +1137,13 @@ public static class GeometryElementRenderer
 
         var start = ToScreenPoint(editor, originX, originY);
         var end = ToScreenPoint(editor, originX + width, originY);
-        var radius = Math.Abs(end.X - start.X) / 2;
-        if (radius <= 0)
-        {
-            return;
-        }
+        var segment = ProfileSegment.CreateTopRail(originX, originY, width, height);
+        segment.SegmentType = SegmentType.Arc;
+        segment.ArcHeight = height;
+        var radius = segment.Radius;
+        var zoom = editor.Viewport.ZoomFactor;
+        var radiusPx = radius * zoom;
+        var (isLargeArc, sweep) = FrameVolumeRenderer.ResolveUpwardScreenArc(end, start, segment);
 
         var geometry = new StreamGeometry();
         using (var ctx = geometry.Open())
@@ -992,10 +1152,10 @@ public static class GeometryElementRenderer
             ctx.LineTo(end);
             ctx.ArcTo(
                 start,
-                new Size(radius, radius),
+                new Size(radiusPx, radiusPx),
                 rotationAngle: 0,
-                isLargeArc: false,
-                SweepDirection.CounterClockwise);
+                isLargeArc: isLargeArc,
+                sweepDirection: sweep);
             ctx.EndFigure(true);
         }
 
@@ -1076,14 +1236,39 @@ public static class GeometryElementRenderer
         DrawArrowHead(context, AccentPen, start, end);
     }
 
-    private static void DrawGlazing(DrawingContext context, CadEditorViewModel editor, GeometryElement element)
+    private static void DrawGlazing(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        GeometryElement element,
+        IReadOnlyList<GeometryElement> elements)
     {
+        if (!SashGeometry.TryResolveGlassForGlazingElement(editor, element, elements, out var glass))
+        {
+            return;
+        }
+
+        if (glass.Width <= 2 || glass.Height <= 2)
+        {
+            return;
+        }
+
+        if (glass.IsArched)
+        {
+            DrawArchedGlazing(context, editor, glass);
+            return;
+        }
+
         var rect = ToScreenRect(editor, element);
         if (rect.Width <= 2 || rect.Height <= 2)
         {
             return;
         }
 
+        DrawRectangularGlazing(context, rect);
+    }
+
+    private static void DrawRectangularGlazing(DrawingContext context, Rect rect)
+    {
         context.DrawRectangle(GlazingFill, null, rect);
 
         var inset = Math.Min(GlazingInnerInsetPx, Math.Min(rect.Width, rect.Height) / 4.0);
@@ -1100,6 +1285,193 @@ public static class GeometryElementRenderer
         context.DrawRectangle(null, GlazingBeadPen, inner);
         DrawGlazingBeadCornerMiters(context, rect, inner);
         DrawGlazingReflections(context, inner);
+    }
+
+    private static void DrawArchedGlazing(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        SashGeometry.GlassOpeningBounds glass)
+    {
+        var outerLoop = glass.BuildOuterContourLoop();
+        FillGlazingContour(context, editor, outerLoop, GlazingFill, null);
+
+        var beadInsetMm = SashGeometry.BeadProfileDrawThicknessMm;
+        if (!glass.TryBuildInnerContourLoop(beadInsetMm, out var innerLoop))
+        {
+            StrokeGlazingContourLoop(context, editor, outerLoop, GlazingBeadPen);
+            return;
+        }
+
+        StrokeArchedGlazingBeadSegments(context, editor, glass, outerLoop, innerLoop);
+        DrawArchedGlazingBeadMiters(context, editor, glass, beadInsetMm);
+        DrawArchedGlazingReflections(context, editor, glass, beadInsetMm);
+    }
+
+    private static void StrokeArchedGlazingBeadSegments(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        SashGeometry.GlassOpeningBounds glass,
+        ProfileContourLoop outerLoop,
+        ProfileContourLoop innerLoop)
+    {
+        if (!glass.IsArched)
+        {
+            StrokeGlazingContourLoop(context, editor, outerLoop, GlazingBeadPen);
+            StrokeGlazingContourLoop(context, editor, innerLoop, GlazingBeadPen);
+            return;
+        }
+
+        var outerEdges = outerLoop.Edges;
+        var innerEdges = innerLoop.Edges;
+        for (var i = 0; i < outerEdges.Count && i < innerEdges.Count; i++)
+        {
+            var outerEdge = outerEdges[i];
+            var innerEdge = innerEdges[i];
+            if (outerEdge.Kind == ProfileEdgeKind.Line)
+            {
+                context.DrawLine(
+                    GlazingBeadPen,
+                    WorldToScreen(editor, outerEdge.Start),
+                    WorldToScreen(editor, outerEdge.End));
+            }
+            else
+            {
+                var previous = WorldToScreen(editor, outerEdge.Start);
+                foreach (var worldPoint in CircularArc.TessellateSpringingArc(
+                             outerEdge.ArcCenter,
+                             outerEdge.ArcRadius,
+                             outerEdge.ArcStartAngleRad,
+                             outerEdge.ArcEndAngleRad))
+                {
+                    var current = WorldToScreen(editor, worldPoint);
+                    context.DrawLine(GlazingBeadPen, previous, current);
+                    previous = current;
+                }
+            }
+
+            if (innerEdge.Kind == ProfileEdgeKind.Line)
+            {
+                context.DrawLine(
+                    GlazingBeadPen,
+                    WorldToScreen(editor, innerEdge.Start),
+                    WorldToScreen(editor, innerEdge.End));
+            }
+            else
+            {
+                var previous = WorldToScreen(editor, innerEdge.Start);
+                foreach (var worldPoint in CircularArc.TessellateSpringingArc(
+                             innerEdge.ArcCenter,
+                             innerEdge.ArcRadius,
+                             innerEdge.ArcStartAngleRad,
+                             innerEdge.ArcEndAngleRad))
+                {
+                    var current = WorldToScreen(editor, worldPoint);
+                    context.DrawLine(GlazingBeadPen, previous, current);
+                    previous = current;
+                }
+            }
+        }
+    }
+
+    private static void FillGlazingContour(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        ProfileContourLoop loop,
+        IBrush fill,
+        IPen? pen)
+    {
+        var points = loop.Tessellate();
+        if (points.Count < 3)
+        {
+            return;
+        }
+
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(WorldToScreen(editor, points[0]), isFilled: true);
+            for (var i = 1; i < points.Count; i++)
+            {
+                ctx.LineTo(WorldToScreen(editor, points[i]));
+            }
+
+            ctx.EndFigure(true);
+        }
+
+        context.DrawGeometry(fill, pen, geometry);
+    }
+
+    private static void StrokeGlazingContourLoop(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        ProfileContourLoop loop,
+        IPen pen)
+    {
+        foreach (var edge in loop.Edges)
+        {
+            if (edge.Kind == ProfileEdgeKind.Line)
+            {
+                context.DrawLine(pen, WorldToScreen(editor, edge.Start), WorldToScreen(editor, edge.End));
+                continue;
+            }
+
+            var previous = WorldToScreen(editor, edge.Start);
+            foreach (var worldPoint in CircularArc.TessellateSpringingArc(
+                         edge.ArcCenter,
+                         edge.ArcRadius,
+                         edge.ArcStartAngleRad,
+                         edge.ArcEndAngleRad))
+            {
+                var current = WorldToScreen(editor, worldPoint);
+                context.DrawLine(pen, previous, current);
+                previous = current;
+            }
+        }
+    }
+
+    private static void DrawArchedGlazingBeadMiters(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        SashGeometry.GlassOpeningBounds glass,
+        double beadInsetMm)
+    {
+        if (!glass.TryBuildInnerContourLoop(beadInsetMm, out var innerLoop))
+        {
+            return;
+        }
+
+        var outerLoop = glass.BuildOuterContourLoop();
+        var outerEdges = outerLoop.Edges;
+        var innerEdges = innerLoop.Edges;
+        for (var i = 0; i < outerEdges.Count && i < innerEdges.Count; i++)
+        {
+            context.DrawLine(
+                GlazingBeadPen,
+                WorldToScreen(editor, outerEdges[i].Start),
+                WorldToScreen(editor, innerEdges[i].Start));
+        }
+    }
+
+    private static void DrawArchedGlazingReflections(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        SashGeometry.GlassOpeningBounds glass,
+        double beadInsetMm)
+    {
+        if (!glass.TryBuildInnerContourLoop(beadInsetMm, out _))
+        {
+            return;
+        }
+
+        var topLeft = WorldToScreen(editor, new CadPoint(glass.Left, glass.ResolveTopAtX(glass.Left)));
+        var topRight = WorldToScreen(editor, new CadPoint(glass.Right, glass.ResolveTopAtX(glass.Right)));
+        var bottomLeft = WorldToScreen(editor, glass.BottomLeft);
+        var bottomRight = WorldToScreen(editor, glass.BottomRight);
+        var minX = Math.Min(Math.Min(topLeft.X, topRight.X), Math.Min(bottomLeft.X, bottomRight.X));
+        var maxX = Math.Max(Math.Max(topLeft.X, topRight.X), Math.Max(bottomLeft.X, bottomRight.X));
+        var minY = Math.Min(Math.Min(topLeft.Y, topRight.Y), Math.Min(bottomLeft.Y, bottomRight.Y));
+        var maxY = Math.Max(Math.Max(topLeft.Y, topRight.Y), Math.Max(bottomLeft.Y, bottomRight.Y));
+        DrawGlazingReflections(context, new Rect(minX, minY, maxX - minX, maxY - minY));
     }
 
     /// <summary>Диагональные стыки штапика 45° от угла светового проёма к углу внутреннего контура.</summary>
@@ -1253,6 +1625,12 @@ public static class GeometryElementRenderer
         var topLeft = editor.Viewport.WorldToScreen(new CadPoint(cx - halfW, cy + halfH));
         var bottomRight = editor.Viewport.WorldToScreen(new CadPoint(cx + halfW, cy - halfH));
         return new Rect(new Point(topLeft.X, topLeft.Y), new Point(bottomRight.X, bottomRight.Y));
+    }
+
+    private static Point WorldToScreen(CadEditorViewModel editor, CadPoint worldPoint)
+    {
+        var screen = editor.Viewport!.WorldToScreen(worldPoint);
+        return new Point(screen.X, screen.Y);
     }
 
     private static Point ToScreenPoint(CadEditorViewModel editor, GeometryElement element)

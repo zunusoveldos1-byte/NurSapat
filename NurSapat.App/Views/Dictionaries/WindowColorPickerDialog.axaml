@@ -1,0 +1,31 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NurSapat.App.Views.Dictionaries.WindowColorPickerDialog"
+        Title="Выбор цвета"
+        Width="360"
+        Height="420"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="Inter"
+        Background="#F8FAFC">
+
+    <Border Background="White"
+            BorderBrush="#E2E8F0"
+            BorderThickness="1"
+            CornerRadius="10"
+            Margin="12"
+            Padding="16">
+        <Grid RowDefinitions="*,Auto" RowSpacing="12">
+            <ColorPicker x:Name="ColorPickerControl"/>
+            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="Отмена" Click="OnCancelClick"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Padding="12,6"/>
+                <Button Content="Применить" Click="OnApplyClick"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Padding="12,6"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

@@ -44,6 +44,10 @@ public sealed class CadToolContext
 
     public Func<double, double>? SnapAxis { get; set; }
 
+    public Func<CadPoint, bool>? HasConstructionElementAtPoint { get; set; }
+    public Func<CadPoint, bool, bool>? HandleConstructionClickSelection { get; set; }
+    public Action<CadRect, bool>? HandleConstructionBoxSelection { get; set; }
+
     public CadToolContext(CadDocument document, CadCommandManager commands, CadSnappingEngine snapping)
     {
         Document = document;

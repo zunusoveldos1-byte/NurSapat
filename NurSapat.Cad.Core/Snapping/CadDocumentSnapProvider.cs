@@ -8,7 +8,7 @@ public sealed class CadDocumentSnapProvider : ISnapProvider
 {
     public IEnumerable<CadSnapTick> GetSnapTicks(CadDocument document)
     {
-        // Точки привязки только для прямоугольников (CadRect)
+        // РўРѕС‡РєРё РїСЂРёРІСЏР·РєРё С‚РѕР»СЊРєРѕ РґР»СЏ РїСЂСЏРјРѕСѓРіРѕР»СЊРЅРёРєРѕРІ (CadRect)
         foreach (var rect in document.Rectangles)
         {
             foreach (var tick in GetRectTicks(rect, "Rectangle"))
@@ -20,11 +20,11 @@ public sealed class CadDocumentSnapProvider : ISnapProvider
 
     private static IEnumerable<CadSnapTick> GetRectTicks(CadRect rect, string source)
     {
-        // X-координаты: левый и правый край
+        // X-РєРѕРѕСЂРґРёРЅР°С‚С‹: Р»РµРІС‹Р№ Рё РїСЂР°РІС‹Р№ РєСЂР°Р№
         yield return new CadSnapTick(rect.X, CadSnapTickAxis.X, source);
         yield return new CadSnapTick(rect.X + rect.Width, CadSnapTickAxis.X, source);
 
-        // Y-координаты: верхний и нижний край
+        // Y-РєРѕРѕСЂРґРёРЅР°С‚С‹: РІРµСЂС…РЅРёР№ Рё РЅРёР¶РЅРёР№ РєСЂР°Р№
         yield return new CadSnapTick(rect.Y, CadSnapTickAxis.Y, source);
         yield return new CadSnapTick(rect.Y - rect.Height, CadSnapTickAxis.Y, source);
     }

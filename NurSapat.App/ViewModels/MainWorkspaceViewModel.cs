@@ -1,13 +1,23 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using NurSapat.App.Models.Settings;
+using NurSapat.App.Models.Dictionaries;
 using NurSapat.App.Services;
 using NurSapat.App.Services.Documents;
+using NurSapat.App.Services.Dictionaries;
+using NurSapat.App.Services.EditDialogs;
+using NurSapat.App.Services.Settings;
+using NurSapat.App.Views;
 using NurSapat.Cad.UI.ViewModels;
+using NurSapat.Core.Models.Calculation;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 
 #nullable enable
 
@@ -20,10 +30,16 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     private readonly IDocumentManager _documentManager;
     private readonly IRecentFilesService _recentFilesService;
     private readonly IPrintService _printService;
+    private readonly IEditDialogService _editDialogService;
+    private readonly IDictionaryWindowService _dictionaryWindowService;
+    private readonly IEnvironmentSettingsService _environmentSettingsService;
+    private readonly IDialogService _dialogService;
+    private readonly ICustomersStore _customersStore;
     private bool _isNavigating;
 
     // ДОБАВЛЕНО: Ссылка на главное окно для диалогов
     private Window? _ownerWindow;
+    private MessagesWindow? _messagesWindow;
 
     public IRelayCommand<string> NavigationCommand { get; }
 
@@ -43,6 +59,14 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     public bool IsAdditionalSelected => SelectedWorkspaceTabIndex == 2;
 
     public string DocumentTitle => _documentManager.WindowTitle;
+
+    public string ActiveProfileName { get; private set; } = "Admin";
+
+    public string CompanyDisplayName { get; private set; } = "—";
+
+    public string CurrencyDisplay { get; private set; } = "KGS";
+
+    public string ConfigurationStatusText { get; private set; } = "Admin · — · KGS";
 
     public ObservableCollection<RecentProjectMenuItem> RecentProjects { get; } = new();
 
@@ -86,29 +110,149 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     [RelayCommand]
     private Task Exit() => _documentManager.ExitToLoginAsync();
 
+    [RelayCommand]
+    private async Task SelectOrderCustomerAsync()
+    {
+        var names = _customersStore.GetAll()
+            .Where(c => c.Type is not CustomerType.Dealer)
+            .Select(c => c.FullName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct()
+            .OrderBy(name => name)
+            .ToList();
+
+        var selected = await _dialogService.ShowListPickerAsync("Выбрать заказчика", names);
+        if (selected is null)
+        {
+            return;
+        }
+
+        _orderWorkspace.Sheet.CustomerName = selected;
+    }
+
+    [RelayCommand]
+    private async Task SelectOrderDealerAsync()
+    {
+        var names = _customersStore.GetAll()
+            .Where(c => c.Type == CustomerType.Dealer)
+            .Select(c => c.FullName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct()
+            .OrderBy(name => name)
+            .ToList();
+
+        var selected = await _dialogService.ShowListPickerAsync("Выбрать дилера", names);
+        if (selected is null)
+        {
+            return;
+        }
+
+        _orderWorkspace.Sheet.Header.DealerName = selected;
+        _orderWorkspace.NotifyModified();
+    }
+
+    [RelayCommand]
+    private void TogglePriceMode()
+    {
+        var construction = _orderWorkspace.Order.SelectedConstruction
+            ?? _orderWorkspace.Order.EnsureDefaultConstruction();
+        var next = construction.Cost.ExpensesMode switch
+        {
+            CostInputMode.Fixed => CostInputMode.PerSquareMeter,
+            CostInputMode.PerSquareMeter => CostInputMode.Percent,
+            CostInputMode.Percent => CostInputMode.Fixed,
+            _ => CostInputMode.Fixed
+        };
+
+        construction.Cost.ExpensesMode = next;
+        _orderWorkspace.RecalculateAll();
+        _orderWorkspace.NotifyModified();
+    }
+
+    [RelayCommand]
+    private async Task RemoveCurrentConstructionAsync()
+    {
+        if (ResolveCadEditor() is { } cadEditor)
+        {
+            await cadEditor.RemoveConstructionCommand.ExecuteAsync(null);
+        }
+    }
+
     // ==========================================
     // КОМАНДЫ МЕНЮ "ПРАВКА"
     // ==========================================
-    [RelayCommand]
-    private void CopyDrawing() => System.Diagnostics.Debug.WriteLine("CopyDrawing executed");
+    [RelayCommand(CanExecute = nameof(CanUseEditDialogs))]
+    public Task OpenCopyDrawingWithoutDimensions() =>
+        _editDialogService.ShowCopyDrawingDialogAsync(includeDimensionLines: false);
 
-    [RelayCommand]
-    private void PasteDrawing() => System.Diagnostics.Debug.WriteLine("PasteDrawing executed");
+    [RelayCommand(CanExecute = nameof(CanUseEditDialogs))]
+    public Task OpenCopyDrawingWithDimensions() =>
+        _editDialogService.ShowCopyDrawingDialogAsync(includeDimensionLines: true);
 
-    [RelayCommand]
-    private void ChangeConstructionElements() => System.Diagnostics.Debug.WriteLine("ChangeConstructionElements executed");
+    [RelayCommand(CanExecute = nameof(CanUseEditDialogs))]
+    public Task OpenConstructionColorDialog() =>
+        _editDialogService.ShowConstructionColorDialogAsync();
 
-    [RelayCommand]
-    private void ChangeOrderElements() => System.Diagnostics.Debug.WriteLine("ChangeOrderElements executed");
+    [RelayCommand(CanExecute = nameof(CanUseEditDialogs))]
+    public Task OpenOrderColorDialog() =>
+        _editDialogService.ShowOrderColorDialogAsync();
+
+    private bool CanUseEditDialogs() => ResolveCadEditor() is not null;
 
     // ==========================================
-    // КОМАНДЫ МЕНЮ "ВИД" (ИСПРАВЛЕНЫ)
+    // КОМАНДЫ МЕНЮ "ВИД"
     // ==========================================
     [RelayCommand]
-    private void CostTable() => System.Diagnostics.Debug.WriteLine("CostTable executed");
+    private async Task CostTable()
+    {
+        var provider = App.ServiceProvider;
+        if (provider is null || _ownerWindow is null)
+        {
+            return;
+        }
+
+        var viewModel = provider.GetRequiredService<CostTableViewModel>();
+        viewModel.CalculateFromCurrentConstruction();
+
+        var window = new CostTableWindow
+        {
+            DataContext = viewModel
+        };
+
+        await window.ShowDialog(_ownerWindow);
+    }
 
     [RelayCommand]
-    private void Messages() => System.Diagnostics.Debug.WriteLine("Messages executed");
+    private void Messages()
+    {
+        var provider = App.ServiceProvider;
+        if (provider is null)
+        {
+            return;
+        }
+
+        if (_messagesWindow is { IsVisible: true })
+        {
+            _messagesWindow.Activate();
+            return;
+        }
+
+        var viewModel = provider.GetRequiredService<MessagesViewModel>();
+        _messagesWindow = new MessagesWindow
+        {
+            DataContext = viewModel
+        };
+
+        _messagesWindow.Closed += (_, _) => _messagesWindow = null;
+        if (_ownerWindow is not null)
+        {
+            _messagesWindow.Show(_ownerWindow);
+        }
+        else
+        {
+            _messagesWindow.Show();
+        }
+    }
 
     private CadEditorViewModel? ResolveCadEditor() =>
         CurrentContent switch
@@ -191,79 +335,103 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         _ownerWindow = window;
     }
 
-    [RelayCommand]
-    private void Materials()
+    private Window? ResolveOwnerWindow()
     {
-        var provider = App.ServiceProvider;
-        if (provider == null || _ownerWindow == null) return;
-
-        var vm = provider.GetRequiredService<MaterialsViewModel>();
-
-        var window = new Window
+        if (_ownerWindow is not null)
         {
-            Title = "Материалы",
-            Width = 800,
-            Height = 600,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Content = vm
-        };
+            return _ownerWindow;
+        }
 
-        window.ShowDialog(_ownerWindow);
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            return desktop.MainWindow;
+        }
+
+        return null;
     }
 
     [RelayCommand]
-    private void Customers() => System.Diagnostics.Debug.WriteLine("Customers executed");
+    private async Task Materials() =>
+        await _dictionaryWindowService.ShowMaterialsAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void Orders() => System.Diagnostics.Debug.WriteLine("Orders executed");
+    private async Task Customers() =>
+        await _dictionaryWindowService.ShowCustomersAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void StockMaterials() => System.Diagnostics.Debug.WriteLine("StockMaterials executed");
+    private async Task Orders() =>
+        await _dictionaryWindowService.ShowOrdersAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void StockProfileCuts() => System.Diagnostics.Debug.WriteLine("StockProfileCuts executed");
+    private async Task StockMaterials() =>
+        await _dictionaryWindowService.ShowStockMaterialsAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void StockGlassCuts() => System.Diagnostics.Debug.WriteLine("StockGlassCuts executed");
+    private async Task StockProfileCuts() =>
+        await _dictionaryWindowService.ShowStockProfileCutsAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void StockFinished() => System.Diagnostics.Debug.WriteLine("StockFinished executed");
+    private async Task StockGlassCuts() =>
+        await _dictionaryWindowService.ShowStockGlassCutsAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void StandardStructures() => System.Diagnostics.Debug.WriteLine("StandardStructures executed");
+    private async Task StockFinished() =>
+        await _dictionaryWindowService.ShowStockFinishedGoodsAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void Users() => System.Diagnostics.Debug.WriteLine("Users executed");
+    private async Task StandardStructures() =>
+        await _dictionaryWindowService.ShowStandardStructuresAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void ExchangeRates() => System.Diagnostics.Debug.WriteLine("ExchangeRates executed");
+    private async Task GraphicSymbols() =>
+        await _dictionaryWindowService.ShowGraphicSymbolsAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void Series() => System.Diagnostics.Debug.WriteLine("Series executed");
+    private async Task Users() =>
+        await _dictionaryWindowService.ShowUsersAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void Manufacturers() => System.Diagnostics.Debug.WriteLine("Manufacturers executed");
+    private async Task ExchangeRates() =>
+        await _dictionaryWindowService.ShowExchangeRatesAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void Suppliers() => System.Diagnostics.Debug.WriteLine("Suppliers executed");
+    private async Task Series() =>
+        await _dictionaryWindowService.ShowProfileSeriesAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void OrderTemplates() => System.Diagnostics.Debug.WriteLine("OrderTemplates executed");
+    private async Task Manufacturers() =>
+        await _dictionaryWindowService.ShowManufacturersAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void StructureNames() => System.Diagnostics.Debug.WriteLine("StructureNames executed");
+    private async Task Suppliers() =>
+        await _dictionaryWindowService.ShowSuppliersAsync(ResolveOwnerWindow());
+
+    [RelayCommand]
+    private async Task OrderTemplates() =>
+        await _dictionaryWindowService.ShowOrderTemplatesAsync(ResolveOwnerWindow());
+
+    [RelayCommand]
+    private async Task StructureNames() =>
+        await _dictionaryWindowService.ShowStructureNamesAsync(ResolveOwnerWindow());
+
+    [RelayCommand]
+    private async Task Colors() =>
+        await _dictionaryWindowService.ShowWindowColorsAsync(ResolveOwnerWindow());
 
     // ==========================================
     // КОМАНДЫ МЕНЮ "НАСТРОЙКИ"
     // ==========================================
     [RelayCommand]
-    private void Environment() => System.Diagnostics.Debug.WriteLine("Environment executed");
+    private async Task Environment() =>
+        await _dictionaryWindowService.ShowEnvironmentSettingsAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void ChangeConfiguration() => System.Diagnostics.Debug.WriteLine("ChangeConfiguration executed");
+    private async Task ChangeConfiguration() =>
+        await _dictionaryWindowService.ShowChangeConfigurationAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void ConstructionElements() => System.Diagnostics.Debug.WriteLine("ConstructionElements executed");
+    private async Task ConstructionElements() =>
+        await _dictionaryWindowService.ShowConstructionElementsAsync(ResolveOwnerWindow());
 
     // ==========================================
     // КОМАНДЫ МЕНЮ "СЕРВИС"
@@ -324,7 +492,7 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     // ==========================================
     public MainWorkspaceViewModel(
         ProductionOptionsViewModel productionOptionsViewModel,
-        EnvironmentSettingsViewModel environmentSettingsViewModel,
+        EnvironmentPathsViewModel environmentPathsViewModel,
         DataTransferViewModel dataTransferViewModel,
         SystemLogsViewModel systemLogsViewModel,
         AdditionalDashboardViewModel additionalDashboardViewModel,
@@ -332,17 +500,30 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         OrderSheetViewModel orderSheetViewModel,
         IDocumentManager documentManager,
         IRecentFilesService recentFilesService,
-        IPrintService printService)
+        IPrintService printService,
+        IEditDialogService editDialogService,
+        IDictionaryWindowService dictionaryWindowService,
+        IEnvironmentSettingsService environmentSettingsService,
+        IDialogService dialogService,
+        ICustomersStore customersStore)
     {
         _orderWorkspace = orderWorkspace;
+        _documentManager = documentManager;
+        _recentFilesService = recentFilesService;
+        _printService = printService;
+        _editDialogService = editDialogService;
+        _dictionaryWindowService = dictionaryWindowService;
+        _environmentSettingsService = environmentSettingsService;
+        _dialogService = dialogService;
+        _customersStore = customersStore;
         _orderWorkspace.NavigateToCadTabHandler = () =>
         {
             Navigate("cad");
             return Task.CompletedTask;
         };
-        _documentManager = documentManager;
-        _recentFilesService = recentFilesService;
-        _printService = printService;
+        orderWorkspace.Drawing.CadEditor.OpenStandardStructuresHandler =
+            () => _dictionaryWindowService.ShowStandardStructuresAsync(ResolveOwnerWindow());
+        _environmentSettingsService.ProfileChanged += OnEnvironmentProfileChanged;
         NavigationCommand = new RelayCommand<string>(Navigate);
 
         _screens = new Dictionary<string, object>
@@ -351,7 +532,7 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
             ["orders"] = orderSheetViewModel,
             ["archive"] = systemLogsViewModel,
             ["production-options"] = productionOptionsViewModel,
-            ["environment"] = environmentSettingsViewModel,
+            ["environment"] = environmentPathsViewModel,
             ["data-transfer"] = dataTransferViewModel,
             ["customers"] = Section("Клиенты", "CRUD клиентов будет подключен на следующем этапе.", "Создать клиента", "История заказов"),
             ["materials"] = Section("Материалы и цены", "Складской справочник материалов и прайсов.", "Профили", "Стеклопакеты", "Фурнитура"),
@@ -362,6 +543,24 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         };
 
         Navigate("cad");
+        RefreshConfigurationDisplay();
+    }
+
+    private void OnEnvironmentProfileChanged(object? sender, EventArgs e) =>
+        RefreshConfigurationDisplay();
+
+    private void RefreshConfigurationDisplay()
+    {
+        var settings = _environmentSettingsService.Current;
+        ActiveProfileName = _environmentSettingsService.ActiveProfile?.ProfileName ?? ConfigurationProfile.AdminProfileName;
+        CompanyDisplayName = string.IsNullOrWhiteSpace(settings.CompanyName) ? "—" : settings.CompanyName.Trim();
+        CurrencyDisplay = string.IsNullOrWhiteSpace(settings.NationalCurrency) ? "KGS" : settings.NationalCurrency.Trim();
+        ConfigurationStatusText = $"{ActiveProfileName} · {CompanyDisplayName} · {CurrencyDisplay}";
+
+        OnPropertyChanged(nameof(ActiveProfileName));
+        OnPropertyChanged(nameof(CompanyDisplayName));
+        OnPropertyChanged(nameof(CurrencyDisplay));
+        OnPropertyChanged(nameof(ConfigurationStatusText));
     }
 
     public void InitializeDocumentLifecycle()
@@ -427,7 +626,7 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
             OrderSheetViewModel => "Лист заказа",
             SystemLogsViewModel => "Архив / Сводный журнал",
             ProductionOptionsViewModel => "Технологические допуски",
-            EnvironmentSettingsViewModel => "Настройка окружения",
+            EnvironmentPathsViewModel => "Настройка окружения",
             DataTransferViewModel => "Коммерческий перенос данных",
             WorkspaceSectionViewModel section => section.Title,
             _ => "NurSapat"

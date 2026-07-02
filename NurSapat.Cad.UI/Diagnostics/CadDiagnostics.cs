@@ -9,4 +9,6 @@ internal static class CadDiagnostics
         var text = ex == null ? message : $"{message}: {ex.Message}";
         Debug.WriteLine($"[Cad] {text}");
     }
+
+    public static void LogInfo(string message) => Debug.WriteLine($"[Cad] {message}");
 }

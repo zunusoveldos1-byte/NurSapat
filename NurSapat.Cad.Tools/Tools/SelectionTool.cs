@@ -1,6 +1,6 @@
 ﻿using NurSapat.Cad.Core.Commands;
 using NurSapat.Cad.Core.Geometry;
-using NurSapat.Cad.Core.Viewport;  // Добавить, чтобы использовать CadViewport
+using NurSapat.Cad.Core.Viewport;
 
 namespace NurSapat.Cad.Tools.Tools;
 
@@ -14,11 +14,10 @@ public sealed class SelectionTool : CadToolBase
     private bool _isResizing;
     private ResizeHandle _activeHandle = ResizeHandle.None;
     private bool _hasMoved;
+    private bool _startedOnElement;
 
-    // Публичное свойство для получения выбранного прямоугольника
     public CadRect? SelectionRect => _selectionRect;
 
-    // Публичное свойство для получения активной ручки (нужно Canvas для отрисовки)
     public bool IsResizing => _isResizing;
     public CadRect? ResizingOriginalRect => _originalRect;
     public CadPoint? DragStart => _dragStart;
@@ -28,6 +27,8 @@ public sealed class SelectionTool : CadToolBase
     public override string DisplayName => "Выделение элементов";
     public override CadToolKind Kind => CadToolKind.SelectElements;
     public override bool IsImplemented => true;
+
+    private const double DragThresholdMm = 5.0;
 
     public override void OnActivated(CadToolContext context)
     {
@@ -40,6 +41,8 @@ public sealed class SelectionTool : CadToolBase
         {
             context.ActiveSelectionMode = CadSelectionMode.None;
         }
+
+        ResetDragState();
     }
 
     public override void OnMouseDown(CadToolContext context, CadPointerEvent e)
@@ -47,9 +50,10 @@ public sealed class SelectionTool : CadToolBase
         _dragStart = e.WorldPoint;
         _selectionRect = null;
         _hasMoved = false;
+        _startedOnElement = HasElementAtPoint(context, e.WorldPoint);
 
         var selected = context.Document.SelectedRectangle;
-        if (selected != null)
+        if (selected != null && !_startedOnElement)
         {
             _activeHandle = GetHandleAtPoint(e.WorldPoint, selected.Value);
             if (_activeHandle != ResizeHandle.None)
@@ -71,13 +75,19 @@ public sealed class SelectionTool : CadToolBase
             return;
         }
 
-        if (_dragStart is not CadPoint start) return;
+        if (_dragStart is not CadPoint start)
+        {
+            return;
+        }
 
-        if ((e.WorldPoint - start).Length > 5.0)
+        if ((e.WorldPoint - start).Length > DragThresholdMm)
         {
             _hasMoved = true;
-            _selectionRect = CadRect.FromPoints(start, e.WorldPoint);
-            context.Invalidate?.Invoke();
+            if (!_startedOnElement)
+            {
+                _selectionRect = CadRect.FromPoints(start, e.WorldPoint);
+                context.Invalidate?.Invoke();
+            }
         }
     }
 
@@ -91,51 +101,88 @@ public sealed class SelectionTool : CadToolBase
             var command = new CadActionCommand(
                 name: "Изменить размер",
                 execute: doc => doc.ReplaceRectangle(original, rect),
-                undo: doc => doc.ReplaceRectangle(rect, original)
-            );
+                undo: doc => doc.ReplaceRectangle(rect, original));
             context.CommandManager.Execute(command);
 
-            _isResizing = false;
-            _activeHandle = ResizeHandle.None;
-            _dragStart = null;
-            _originalRect = null;
-            _hasMoved = false;
+            ResetDragState();
             context.Invalidate?.Invoke();
             return;
         }
 
-        if (!_hasMoved && _dragStart != null)
+        if (_hasMoved && _selectionRect is CadRect box && !_startedOnElement)
         {
-            context.HitTest(e.WorldPoint);
+            if (context.HandleConstructionBoxSelection is { } applyBox)
+            {
+                applyBox(box, e.IsCtrlDown);
+            }
+            else
+            {
+                ApplyLegacyBoxSelection(context, box);
+            }
+        }
+        else if (_dragStart != null)
+        {
+            if (context.HandleConstructionClickSelection is { } applyClick)
+            {
+                applyClick(e.WorldPoint, e.IsCtrlDown);
+            }
+            else
+            {
+                context.HitTest(e.WorldPoint);
+            }
         }
 
-        _dragStart = null;
-        _selectionRect = null;
-        _hasMoved = false;
+        ResetDragState();
         context.Invalidate?.Invoke();
     }
 
-    // Вспомогательный метод: возвращает позиции ручек для отрисовки
-    public CadPoint[] GetHandlePositions(CadRect rect)
+    private static bool HasElementAtPoint(CadToolContext context, CadPoint worldPoint)
     {
-        return new[]
+        if (context.HasConstructionElementAtPoint?.Invoke(worldPoint) == true)
         {
-            rect.TopLeft,
-            rect.TopRight,
-            rect.BottomLeft,
-            rect.BottomRight
-        };
+            return true;
+        }
+
+        return context.HitTest(worldPoint) != null;
     }
 
-    // Вспомогательный метод: определяет, находится ли точка в ручке
-    public bool IsPointOnHandle(CadPoint point, CadRect rect, double tolerance)
+    private static void ApplyLegacyBoxSelection(CadToolContext context, CadRect box)
     {
-        return GetHandleAtPoint(point, rect) != ResizeHandle.None;
+        var hits = context.SelectWithin(box);
+        if (hits.Count == 0)
+        {
+            context.Document.SelectedRectangle = null;
+            return;
+        }
+
+        context.Document.SelectedRectangle = hits[0];
     }
 
-    private ResizeHandle GetHandleAtPoint(CadPoint point, CadRect rect)
+    private void ResetDragState()
     {
-        double tol = 10.0;
+        _isResizing = false;
+        _activeHandle = ResizeHandle.None;
+        _dragStart = null;
+        _originalRect = null;
+        _selectionRect = null;
+        _hasMoved = false;
+        _startedOnElement = false;
+    }
+
+    public CadPoint[] GetHandlePositions(CadRect rect) =>
+    [
+        rect.TopLeft,
+        rect.TopRight,
+        rect.BottomLeft,
+        rect.BottomRight
+    ];
+
+    public bool IsPointOnHandle(CadPoint point, CadRect rect, double tolerance) =>
+        GetHandleAtPoint(point, rect) != ResizeHandle.None;
+
+    private static ResizeHandle GetHandleAtPoint(CadPoint point, CadRect rect)
+    {
+        const double tol = 10.0;
         if (point.IsNear(rect.TopLeft, tol)) return ResizeHandle.TopLeft;
         if (point.IsNear(rect.TopRight, tol)) return ResizeHandle.TopRight;
         if (point.IsNear(rect.BottomLeft, tol)) return ResizeHandle.BottomLeft;
@@ -147,11 +194,14 @@ public sealed class SelectionTool : CadToolBase
         return ResizeHandle.None;
     }
 
-    private CadRect ResizeRect(CadRect original, CadPoint dragStart, CadPoint currentPos, ResizeHandle handle)
+    private static CadRect ResizeRect(CadRect original, CadPoint dragStart, CadPoint currentPos, ResizeHandle handle)
     {
-        double dx = currentPos.X - dragStart.X;
-        double dy = currentPos.Y - dragStart.Y;
-        double x = original.X, y = original.Y, w = original.Width, h = original.Height;
+        var dx = currentPos.X - dragStart.X;
+        var dy = currentPos.Y - dragStart.Y;
+        var x = original.X;
+        var y = original.Y;
+        var w = original.Width;
+        var h = original.Height;
 
         switch (handle)
         {
@@ -164,6 +214,7 @@ public sealed class SelectionTool : CadToolBase
             case ResizeHandle.BottomRight: w += dx; h += dy; break;
             case ResizeHandle.BottomLeft: x += dx; w -= dx; h += dy; break;
         }
+
         if (w < 5) w = 5;
         if (h < 5) h = 5;
         return new CadRect(x, y, w, h);

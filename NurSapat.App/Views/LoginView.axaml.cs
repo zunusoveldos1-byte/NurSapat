@@ -17,7 +17,7 @@ public partial class LoginView : UserControl
         base.OnAttachedToVisualTree(e);
         if (DataContext is LoginViewModel vm)
         {
-            // ������������� �� ������� ������� �������� ����
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
             vm.RequestClose += OnRequestClose;
             vm.LoadSavedCredentials();
         }
@@ -25,7 +25,7 @@ public partial class LoginView : UserControl
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        // ������������, ����� �������� ������
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         if (DataContext is LoginViewModel vm)
         {
             vm.RequestClose -= OnRequestClose;
@@ -35,7 +35,7 @@ public partial class LoginView : UserControl
 
     private void OnRequestClose()
     {
-        // ��������� ����, � ������� ��������� ���� UserControl
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ, пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ UserControl
         if (TopLevel.GetTopLevel(this) is Window window)
         {
             window.Close();

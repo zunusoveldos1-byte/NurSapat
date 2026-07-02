@@ -3,7 +3,9 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
 using NurSapat.App.ViewModels;
+using NurSapat.App.ViewModels.Dialogs.Edit;
 using NurSapat.App.Views.Dialogs;
+using NurSapat.App.Views.Dialogs.Edit;
 using NurSapat.Core.Models.Project;
 
 namespace NurSapat.App.Services;
@@ -160,6 +162,99 @@ public sealed class DialogService : IDialogService
         viewModel.CloseRequested += (_, confirmed) => window.Close(confirmed);
 
         return await window.ShowDialog<bool?>(owner) == true;
+    }
+
+    public async Task<bool> ShowCopyDrawingDialogAsync(CopyDrawingDialogViewModel viewModel, CancellationToken cancellationToken = default)
+    {
+        var owner = GetOwnerWindow();
+        if (owner is null)
+        {
+            return false;
+        }
+
+        var window = new CopyDrawingDialogWindow { DataContext = viewModel };
+        viewModel.CloseRequested += (_, confirmed) => window.Close(confirmed);
+
+        return await window.ShowDialog<bool?>(owner) == true;
+    }
+
+    public async Task<bool> ShowConstructionColorDialogAsync(ConstructionColorDialogViewModel viewModel, CancellationToken cancellationToken = default)
+    {
+        var owner = GetOwnerWindow();
+        if (owner is null)
+        {
+            return false;
+        }
+
+        var window = new ConstructionColorDialogWindow { DataContext = viewModel };
+        viewModel.CloseRequested += (_, confirmed) => window.Close(confirmed);
+
+        return await window.ShowDialog<bool?>(owner) == true;
+    }
+
+    public async Task<bool> ShowOrderColorDialogAsync(OrderColorDialogViewModel viewModel, CancellationToken cancellationToken = default)
+    {
+        var owner = GetOwnerWindow();
+        if (owner is null)
+        {
+            return false;
+        }
+
+        var window = new OrderColorDialogWindow { DataContext = viewModel };
+        viewModel.CloseRequested += (_, confirmed) => window.Close(confirmed);
+
+        return await window.ShowDialog<bool?>(owner) == true;
+    }
+
+    public async Task<string?> ShowListPickerAsync(
+        string title,
+        IReadOnlyList<string> items,
+        CancellationToken cancellationToken = default)
+    {
+        var owner = GetOwnerWindow();
+        if (owner is null || items.Count == 0)
+        {
+            return null;
+        }
+
+        string? selected = null;
+        var listBox = new ListBox
+        {
+            ItemsSource = items,
+            Height = 280,
+            Width = 360
+        };
+
+        var window = new Window
+        {
+            Title = title,
+            Width = 400,
+            Height = 380,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+
+        var selectButton = new Button
+        {
+            Content = "Выбрать",
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Margin = new Thickness(0, 8, 0, 0),
+            Width = 100
+        };
+
+        selectButton.Click += (_, _) =>
+        {
+            selected = listBox.SelectedItem as string;
+            window.Close();
+        };
+
+        window.Content = new StackPanel
+        {
+            Margin = new Thickness(12),
+            Children = { listBox, selectButton }
+        };
+
+        await window.ShowDialog(owner);
+        return selected;
     }
 
     private static Window? GetOwnerWindow()

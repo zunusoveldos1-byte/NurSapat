@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace NurSapat.Core.Models.Orders;
 
 public enum GeometryElementKind
@@ -67,4 +69,7 @@ public sealed class GeometryElement
     public decimal? EndX { get; set; }
 
     public decimal? EndY { get; set; }
+
+    [JsonIgnore]
+    public bool IsSelected { get; set; }
 }

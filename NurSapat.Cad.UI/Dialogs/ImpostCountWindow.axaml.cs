@@ -1,5 +1,5 @@
 using Avalonia.Controls;
-using Avalonia.Input; // ОБЯЗАТЕЛЬНО добавьте этот using для PointerPressedEventArgs
+using Avalonia.Input; // РћР‘РЇР—РђРўР•Р›Р¬РќРћ РґРѕР±Р°РІСЊС‚Рµ СЌС‚РѕС‚ using РґР»СЏ PointerPressedEventArgs
 
 namespace NurSapat.Cad.UI.Dialogs;
 
@@ -10,7 +10,7 @@ public partial class ImpostCountWindow : Window
         InitializeComponent();
     }
 
-    // Метод для перетаскивания окна (привязывается к PointerPressed в XAML)
+    // РњРµС‚РѕРґ РґР»СЏ РїРµСЂРµС‚Р°СЃРєРёРІР°РЅРёСЏ РѕРєРЅР° (РїСЂРёРІСЏР·С‹РІР°РµС‚СЃСЏ Рє PointerPressed РІ XAML)
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)

@@ -1,0 +1,130 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Stock"
+        xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+        x:Class="NurSapat.App.Views.Stock.StockDocumentEditWindow"
+        x:DataType="vm:StockDocumentEditViewModel"
+        Width="1080"
+        Height="720"
+        MinWidth="920"
+        MinHeight="600"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="40,Auto,*,Auto">
+            <Border Grid.Row="0" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="16,0,0,0">
+                        <Image Source="/Assets/logo.ico" Width="16" Height="16" VerticalAlignment="Center"/>
+                        <TextBlock Classes="mat-titlebar-text" Text="{Binding WindowTitle}"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="mat-chrome-btn close" Click="OnCloseClick" Content="✕"
+                            Margin="0,0,8,0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="1" Margin="12,12,12,0" Classes="mat-card">
+                <Grid ColumnDefinitions="90,*,110,*,110,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="10">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Номер" VerticalAlignment="Center"/>
+                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Number}"/>
+
+                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Дата" VerticalAlignment="Center"/>
+                    <DatePicker Grid.Row="0" Grid.Column="3" SelectedDate="{Binding Date}"/>
+
+                    <TextBlock Grid.Row="0" Grid.Column="4" Text="Тип" VerticalAlignment="Center"/>
+                    <ComboBox Grid.Row="0" Grid.Column="5"
+                              ItemsSource="{Binding DocumentTypeOptions}"
+                              SelectedItem="{Binding SelectedDocumentTypeOption}"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Примечание" VerticalAlignment="Center"/>
+                    <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="5" Text="{Binding Note}"/>
+
+                    <CheckBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="5"
+                              Content="Использовать свои курсы валют"
+                              IsChecked="{Binding UseCustomExchangeRates}"/>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="2" Margin="12,12,12,0" RowDefinitions="Auto,*,Auto">
+                <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="8" Margin="0,0,0,8">
+                    <Button Classes="mat-primary" Content="Добавить материал"
+                            Command="{Binding AddMaterialCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1" Classes="mat-toolbar" Content="Редактировать материал"
+                            Command="{Binding EditLineCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="2" Classes="mat-toolbar" Content="Удалить материал"
+                            Command="{Binding DeleteLineCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <TextBlock Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right"
+                               Foreground="#64748B"
+                               Text="{Binding DocumentTotalSum, StringFormat=Итого: {0:N2}}"/>
+                </Grid>
+
+                <dg:DataGrid Grid.Row="1"
+                             ItemsSource="{Binding Lines}"
+                             SelectedItem="{Binding SelectedLine}"
+                             AutoGenerateColumns="False"
+                             CanUserReorderColumns="False"
+                             CanUserResizeColumns="True"
+                             CanUserSortColumns="False"
+                             GridLinesVisibility="Horizontal"
+                             BorderBrush="#E2E8F0"
+                             BorderThickness="1"
+                             IsReadOnly="True">
+                    <dg:DataGrid.Columns>
+                        <dg:DataGridTextColumn Header="Артикул" Binding="{Binding Article}" Width="120"/>
+                        <dg:DataGridTextColumn Header="Наименование" Binding="{Binding Name}" Width="2*"/>
+                        <dg:DataGridTextColumn Header="Цвет" Binding="{Binding Color}" Width="110"/>
+                        <dg:DataGridTextColumn Header="Ед." Binding="{Binding Unit}" Width="70"/>
+                        <dg:DataGridTextColumn Header="Кол-во" Binding="{Binding Quantity}" Width="90"/>
+                        <dg:DataGridTextColumn Header="Цена" Binding="{Binding Price}" Width="90"/>
+                        <dg:DataGridTextColumn Header="Валюта" Binding="{Binding Currency}" Width="80"/>
+                        <dg:DataGridTextColumn Header="Сумма" Binding="{Binding TotalSum}" Width="100"/>
+                    </dg:DataGrid.Columns>
+                </dg:DataGrid>
+
+                <Border Grid.Row="2" Classes="mat-card" Margin="0,10,0,0" Padding="12"
+                        IsVisible="{Binding IsLineEditorVisible}">
+                    <Grid ColumnDefinitions="110,*,110,*,110,*,110,*" ColumnSpacing="10">
+                        <TextBlock Text="Количество" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Column="1" Minimum="0" Increment="0.1" Value="{Binding SelectedLine.Quantity}"/>
+
+                        <TextBlock Grid.Column="2" Text="Цена" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Column="3" Minimum="0" Increment="1" Value="{Binding SelectedLine.Price}"/>
+
+                        <TextBlock Grid.Column="4" Text="Цвет" VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="5" Text="{Binding SelectedLine.Color}"/>
+
+                        <TextBlock Grid.Column="6" Text="Валюта" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Column="7"
+                                  ItemsSource="{x:Static vm:StockDocumentEditViewModel.CurrencyCodes}"
+                                  SelectedItem="{Binding SelectedLine.Currency}"/>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Border Grid.Row="3" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                    <TextBlock VerticalAlignment="Center" Foreground="#64748B"
+                               Text="{Binding Lines.Count, StringFormat=Строк в спецификации: {0}}"/>
+                    <Button Grid.Column="1" Classes="mat-toolbar" Margin="0,0,8,0"
+                            Content="Отмена" Command="{Binding CancelCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="2" Classes="mat-primary"
+                            Content="ОК" Command="{Binding SaveCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

@@ -88,6 +88,8 @@ public sealed class ConstructionProjectData
 
     public string ProfileSystemName { get; set; } = "";
 
+    public ConstructionAppearanceData Appearance { get; set; } = new();
+
     public DateTimeOffset? ManufactureDate { get; set; }
 
     public DateTimeOffset? DeliveryDate { get; set; }
@@ -103,6 +105,23 @@ public sealed class ConstructionProjectData
     public ConstructionCostData Cost { get; set; } = new();
 
     public ConstructionMetricsData Metrics { get; set; } = new();
+}
+
+public sealed class ConstructionAppearanceData
+{
+    public string ColorName { get; set; } = "Белый";
+
+    public string ColorHex { get; set; } = "#FFFFFF";
+
+    public bool ChangeProfile { get; set; } = true;
+
+    public bool ChangeImposts { get; set; } = true;
+
+    public bool ChangeSashes { get; set; } = true;
+
+    public bool ChangeLayout { get; set; } = true;
+
+    public bool ChangeDecorativeElements { get; set; } = true;
 }
 
 public sealed class GeometryProjectData
@@ -265,4 +284,23 @@ public sealed class FrameNodeData
     public FrameNodeData? ChildA { get; set; }
 
     public FrameNodeData? ChildB { get; set; }
+
+    public ProfileSegmentData? TopProfile { get; set; }
+}
+
+public sealed class ProfileSegmentData
+{
+    public string SegmentType { get; set; } = "Line";
+
+    public double StartX { get; set; }
+
+    public double StartY { get; set; }
+
+    public double EndX { get; set; }
+
+    public double EndY { get; set; }
+
+    public double Radius { get; set; }
+
+    public double ArcHeight { get; set; }
 }

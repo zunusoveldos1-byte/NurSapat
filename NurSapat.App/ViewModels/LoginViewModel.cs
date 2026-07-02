@@ -1,7 +1,10 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NurSapat.App.Models.Users;
 using NurSapat.App.Services;
+using NurSapat.App.Services.Users;
 using NurSapat.Core.Interfaces;
+using NurSapat.Core.Models;
 using System;
 using System.Threading.Tasks;
 
@@ -10,15 +13,24 @@ namespace NurSapat.App.ViewModels;
 public partial class LoginViewModel : ObservableObject
 {
     private readonly IUserRepository _userRepo;
+    private readonly IUsersStore _usersStore;
+    private readonly IUserSessionService _sessionService;
     private readonly SettingsService _settings;
     private readonly IWorkspaceWindowService _workspaceWindowService;
 
     // Событие для запроса закрытия окна
     public event Action? RequestClose;
 
-    public LoginViewModel(IUserRepository userRepo, SettingsService settings, IWorkspaceWindowService workspaceWindowService)
+    public LoginViewModel(
+        IUserRepository userRepo,
+        IUsersStore usersStore,
+        IUserSessionService sessionService,
+        SettingsService settings,
+        IWorkspaceWindowService workspaceWindowService)
     {
         _userRepo = userRepo;
+        _usersStore = usersStore;
+        _sessionService = sessionService;
         _settings = settings;
         _workspaceWindowService = workspaceWindowService;
     }
@@ -41,6 +53,9 @@ public partial class LoginViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _rememberMe;
+
+    [ObservableProperty]
+    private bool _isContactModalOpen;
 
     // ✅ ДОБАВЛЕНО: свойство для управления видимостью кнопки "Выйти"
     [ObservableProperty]
@@ -77,32 +92,21 @@ public partial class LoginViewModel : ObservableObject
         ErrorMessage = "";
         try
         {
+            var account = _usersStore.GetByUsername(Username);
+            if (account is not null && account.VerifyPassword(Password))
+            {
+                CompleteLogin(account);
+                return;
+            }
+
             var user = await _userRepo.GetByUsernameAsync(Username);
-            if (user != null && user.VerifyPassword(Password))
+            if (user is not null && user.VerifyPassword(Password))
             {
-                if (RememberMe)
-                {
-                    _settings.SetValue("RememberMe", true);
-                    _settings.SetValue("SavedUsername", Username);
-                    _settings.SetValue("SavedPassword", Password);
-                }
-                else
-                {
-                    _settings.SetValue("RememberMe", false);
-                    _settings.SetValue("SavedUsername", "");
-                    _settings.SetValue("SavedPassword", "");
-                }
-
-                _settings.CurrentUserId = user.Id;
-                _workspaceWindowService.OpenWorkspace();
-
-                // ✅ Теперь это свойство существует
-                IsLoggedIn = true;
+                CompleteLogin(MapFromCoreUser(user));
+                return;
             }
-            else
-            {
-                ErrorMessage = "Неверное имя пользователя или пароль";
-            }
+
+            ErrorMessage = "Неверное имя пользователя или пароль";
         }
         catch (Exception ex)
         {
@@ -124,13 +128,49 @@ public partial class LoginViewModel : ObservableObject
     private void Help() => ErrorMessage = "Обратитесь к администратору системы.";
 
     [RelayCommand]
-    private void Contact() => ErrorMessage = "Контактная форма будет подключена позже.";
+    private void OpenContact() => IsContactModalOpen = true;
+
+    [RelayCommand]
+    private void CloseContact() => IsContactModalOpen = false;
 
     // ✅ ДОБАВЛЕНО: команда для кнопки "Выйти"
     [RelayCommand]
     private void Logout()
     {
+        _sessionService.Clear();
         IsLoggedIn = false;
         RequestClose?.Invoke();
     }
+
+    private void CompleteLogin(UserAccountItem account)
+    {
+        if (RememberMe)
+        {
+            _settings.SetValue("RememberMe", true);
+            _settings.SetValue("SavedUsername", Username);
+            _settings.SetValue("SavedPassword", Password);
+        }
+        else
+        {
+            _settings.SetValue("RememberMe", false);
+            _settings.SetValue("SavedUsername", "");
+            _settings.SetValue("SavedPassword", "");
+        }
+
+        _settings.CurrentUserId = account.Id;
+        _sessionService.SetCurrentUser(account);
+        _workspaceWindowService.OpenWorkspace();
+        IsLoggedIn = true;
+    }
+
+    private static UserAccountItem MapFromCoreUser(User user) => new()
+    {
+        Id = user.Id,
+        Username = user.Username,
+        PasswordHash = user.PasswordHash,
+        GroupNumber = 1,
+        Permissions = user.Role == UserRole.Admin
+            ? UserPermissions.CreateAdmin()
+            : UserPermissions.CreateOperator()
+    };
 }

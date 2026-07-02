@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NurSapat.App.Services;
 using NurSapat.App.Services.Documents;
 using NurSapat.App.Views.Dialogs;
 using NurSapat.Cad.Core.Viewport;
@@ -252,7 +253,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
 
     public string TotalPriceDisplay => $"{TotalPrice:N2} {CurrencyCode}";
 
-    public string ActiveProfileColorDisplay => "Белый";
+    public string ActiveProfileColorDisplay => ActiveConstruction.Appearance.ColorName;
 
     public bool ActiveWhiteOrientation => true;
 
@@ -554,12 +555,32 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         SelectedConstruction = card.Construction;
     }
 
-    [RelayCommand]
+    [ObservableProperty]
+    private bool _isAddingConstruction;
+
+    public bool CanAddConstruction => !IsAddingConstruction && !_workspace.IsAddingConstruction;
+
+    [RelayCommand(CanExecute = nameof(CanAddConstruction))]
     private async Task AddConstructionAsync()
     {
-        await _workspace.AddNewConstructionAsync();
-        GoToLastPage();
-        RefreshPagedConstructions();
+        if (!CanAddConstruction)
+        {
+            return;
+        }
+
+        try
+        {
+            IsAddingConstruction = true;
+            AddConstructionCommand.NotifyCanExecuteChanged();
+            await _workspace.AddNewConstructionAsync();
+            GoToLastPage();
+            RefreshPagedConstructions();
+        }
+        finally
+        {
+            IsAddingConstruction = false;
+            AddConstructionCommand.NotifyCanExecuteChanged();
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanDuplicateConstruction))]
@@ -751,7 +772,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
     private void RebuildConstructions()
     {
         Constructions.Clear();
-        foreach (var item in Order.Constructions)
+        foreach (var item in Order.Constructions.ToList())
         {
             Constructions.Add(item);
         }
@@ -774,7 +795,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         DetachConstructionModels();
         ConstructionModels.Clear();
 
-        foreach (var construction in Order.Constructions)
+        foreach (var construction in Order.Constructions.ToList())
         {
             var previewEditor = construction.Id == SelectedConstruction?.Id ? PreviewEditor : null;
             var model = new ConstructionModel(construction, previewEditor);
@@ -788,7 +809,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
 
     private void DetachConstructionModels()
     {
-        foreach (var model in ConstructionModels)
+        foreach (var model in ConstructionModels.ToList())
         {
             model.PropertyChanged -= OnConstructionModelPropertyChanged;
             model.Detach();
@@ -797,7 +818,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
 
     private void SyncSelectedConstructionModel()
     {
-        foreach (var model in ConstructionModels)
+        foreach (var model in ConstructionModels.ToList())
         {
             model.SetPreviewEditor(model.Id == SelectedConstruction?.Id ? PreviewEditor : null);
         }
@@ -827,6 +848,12 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
             OnPropertyChanged(nameof(ProfileColor));
             OnPropertyChanged(nameof(GlassPacket));
             OnPropertyChanged(nameof(Hardware));
+        }
+        else if (e.PropertyName is nameof(ConstructionModel.ArcRadius) or nameof(ConstructionModel.ArcHeight))
+        {
+            PersistPreviewDrawingState();
+            PreviewEditor.RequestSceneRefresh();
+            OnPropertyChanged(nameof(ActiveDimensionsDisplay));
         }
         else if (e.PropertyName is nameof(ConstructionModel.Quantity))
         {
@@ -972,7 +999,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
     {
         _allConstructionCards.Clear();
 
-        foreach (var construction in Order.Constructions.OrderBy(c => c.Number))
+        foreach (var construction in Order.Constructions.OrderBy(c => c.Number).ToList())
         {
             _allConstructionCards.Add(new OrderConstructionLookupItemViewModel(
                 construction,
@@ -1090,9 +1117,20 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         }
 
         PreviewEditor.RequestSceneRefresh();
+        SelectedConstructionModel?.RefreshArcBindings();
         OnPropertyChanged(nameof(PreviewZoomPercent));
         OnPropertyChanged(nameof(HasPreviewGeometry));
         OnPropertyChanged(nameof(ShowPreviewPlaceholder));
+    }
+
+    private void PersistPreviewDrawingState()
+    {
+        if (SelectedConstruction is null)
+        {
+            return;
+        }
+
+        SelectedConstruction.Geometry.DrawingJson = ConstructionDrawingStore.Serialize(PreviewEditor.CaptureSnapshot());
     }
 
     private void RebuildMaterialLines()

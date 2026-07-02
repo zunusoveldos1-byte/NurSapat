@@ -1,4 +1,4 @@
-<Application xmlns="https://github.com/avaloniaui"
+	<Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
              xmlns:views="clr-namespace:NurSapat.App.Views"
@@ -10,14 +10,17 @@
 		<ResourceDictionary>
 			<ResourceDictionary.MergedDictionaries>
 				<ResourceInclude Source="/Styles/Colors.axaml"/>
+				<ResourceInclude Source="/Resources/EditMenuStrings.axaml"/>
 			</ResourceDictionary.MergedDictionaries>
 		</ResourceDictionary>
 	</Application.Resources>
 
 	<Application.Styles>
 		<FluentTheme />
+		<StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml"/>
 		<StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
 		<StyleInclude Source="/Styles/ButtonStyles.axaml"/>
+		<StyleInclude Source="/Styles/EditDialogStyles.axaml"/>
 
 		<!-- Базовое состояние -->
 		<Style Selector="Button">
@@ -76,7 +79,7 @@
 		<DataTemplate DataType="vm:ProductionOptionsViewModel">
 			<views:ProductionOptionsView/>
 		</DataTemplate>
-		<DataTemplate DataType="vm:EnvironmentSettingsViewModel">
+		<DataTemplate DataType="vm:EnvironmentPathsViewModel">
 			<views:EnvironmentSettingsView/>
 		</DataTemplate>
 		<DataTemplate DataType="vm:DataTransferViewModel">
@@ -87,10 +90,6 @@
 		</DataTemplate>
 		<DataTemplate DataType="cadVm:CadEditorViewModel">
 			<cadViews:CadEditorView/>
-		</DataTemplate>
-		<!-- ДОБАВЛЕНО: Шаблон для MaterialsViewModel -->
-		<DataTemplate DataType="vm:MaterialsViewModel">
-			<views:MaterialsView/>
 		</DataTemplate>
 	</Application.DataTemplates>
 </Application>
