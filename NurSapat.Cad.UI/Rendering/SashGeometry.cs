@@ -1,5 +1,6 @@
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
+using NurSapat.Cad.UI.Services;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Orders;
 using System.Linq;
@@ -14,7 +15,39 @@ internal static class SashGeometry
     public const double SashDrawProfileThicknessMm = ProfileThicknessMm * 2.0;
     private const double GlassBeadGapMm = 4.0;
     public const double BeadProfileDrawThicknessMm = 14.0;
+    private const double LeafSashOverlapMinAreaMm2 = 100.0;
     private const double HardwareArcTransitionMarginMm = 12.0;
+
+    /// <summary>
+    /// Технологический отступ остекления от внутреннего контура рамы.
+    /// Без створки (глухое окно) — 0, иначе зазор под штапик/фальц.
+    /// </summary>
+    public static double ResolveGlazingTechnologyGap(bool hasSashInOpening) =>
+        hasSashInOpening ? GlassBeadGapMm : 0.0;
+
+    public static bool HasSashInLeaf(CadEditorViewModel editor, FrameNode leaf)
+    {
+        if (editor.FrameRoot is null || !leaf.IsLeaf)
+        {
+            return false;
+        }
+
+        foreach (var element in editor.CanvasElements)
+        {
+            if (element.Kind != GeometryElementKind.Sash)
+            {
+                continue;
+            }
+
+            if (TryMeasureLeafSashOverlap(editor, leaf, element, out var overlap)
+                && overlap >= LeafSashOverlapMinAreaMm2)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     public struct InnerOpeningBounds
     {
@@ -278,8 +311,9 @@ internal static class SashGeometry
     public static InnerOpeningBounds ResolveLeafInnerOpeningBounds(
         FrameNode leaf,
         FrameNode? frameRoot,
-        double frameThickness) =>
-        ResolveNodeInnerOpeningBounds(leaf, frameRoot, frameThickness);
+        double frameThickness,
+        bool includeExtremeImposts = true) =>
+        ResolveNodeInnerOpeningBounds(leaf, frameRoot, frameThickness, includeExtremeImposts);
 
     /// <summary>
     /// Внутренний световой контур ячейки (листа или узла перед сплитом) с учётом фальца рамы и осей импостов-предков.
@@ -287,7 +321,8 @@ internal static class SashGeometry
     public static InnerOpeningBounds ResolveNodeInnerOpeningBounds(
         FrameNode node,
         FrameNode? frameRoot,
-        double frameThickness)
+        double frameThickness,
+        bool includeExtremeImposts = true)
     {
         var inner = new InnerOpeningBounds
         {
@@ -299,12 +334,56 @@ internal static class SashGeometry
 
         ApplyImpostAxisEdges(node, ref inner);
 
+        if (node.IsLeaf && includeExtremeImposts)
+        {
+            ExtremeImpostGeometry.ApplyExtremeImpostInsets(node, ref inner);
+        }
+
         if (frameRoot is not null)
         {
             PinFrameInnerEdges(node, frameRoot, frameThickness, ref inner);
         }
 
         return RoundBounds(inner);
+    }
+
+    /// <summary>
+    /// Вертикальный пролёт импоста по границам ячейки: низ — внутренняя полка рамы,
+    /// верх — нижняя грань пересекающих горизонтальных импостов (динамически, без кэша).
+    /// </summary>
+    public static (double Bottom, double Top) ResolveVerticalImpostStructuralSpan(
+        FrameNode splitNode,
+        FrameNode? frameRoot,
+        double frameThickness)
+    {
+        var bottom = splitNode.Y;
+        var top = splitNode.Y + splitNode.Height;
+
+        if (frameRoot is not null)
+        {
+            PinVerticalImpostSpanToFrame(splitNode, frameRoot, frameThickness, ref bottom, ref top);
+        }
+
+        ClipVerticalImpostSpanAtHorizontalAncestors(splitNode, ref bottom, ref top);
+
+        return (
+            CadMath.RoundMm(bottom),
+            CadMath.RoundMm(Math.Max(bottom, top)));
+    }
+
+    /// <summary>
+    /// Обрезка вертикального пролёта только по пересечениям с горизонтальными импостами-предками.
+    /// Для круглых коробок: границы рамы задаёт дуга, здесь — только стыковка креста.
+    /// </summary>
+    public static (double Bottom, double Top) ClipVerticalImpostSpanAtHorizontalCrossings(
+        FrameNode splitNode,
+        double bottom,
+        double top)
+    {
+        ClipVerticalImpostSpanAtHorizontalAncestors(splitNode, ref bottom, ref top);
+        return (
+            CadMath.RoundMm(bottom),
+            CadMath.RoundMm(Math.Max(bottom, top)));
     }
 
     public static double ResolveVerticalImpostCenterX(FrameNode splitNode)
@@ -485,7 +564,7 @@ internal static class SashGeometry
             return false;
         }
 
-        var gap = GlassBeadGapMm;
+        var gap = ResolveGlazingTechnologyGap(HasSashInLeaf(editor, leaf));
         var x0 = CadMath.RoundMm(inner.Left + gap);
         var x1 = CadMath.RoundMm(inner.Right - gap);
         var y0 = CadMath.RoundMm(inner.Bottom + gap);
@@ -905,7 +984,8 @@ internal static class SashGeometry
                 return true;
             }
         }
-        else if (editor.FrameRoot is not null)
+
+        if (editor.FrameRoot is not null)
         {
             var leaf = FindLeafForGlazing(editor, glazing);
             if (leaf is not null &&
@@ -1621,6 +1701,153 @@ internal static class SashGeometry
         outer.Right = CadMath.RoundMm(outer.Right);
         outer.Top = CadMath.RoundMm(outer.Top);
         return outer;
+    }
+
+    private static void PinVerticalImpostSpanToFrame(
+        FrameNode splitNode,
+        FrameNode frameRoot,
+        double frameThickness,
+        ref double bottom,
+        ref double top)
+    {
+        var inset = FrameProfileGeometry.ResolveInnerInset(
+            frameRoot.Width,
+            frameRoot.Height,
+            frameThickness);
+
+        var frameBottom = frameRoot.Y;
+        var frameTop = frameRoot.Y + frameRoot.Height;
+        var frameInnerBottom = CadMath.RoundMm(frameBottom + inset);
+        var frameInnerTop = CadMath.RoundMm(frameTop - inset);
+
+        if (CellTouchesFrameBottom(splitNode, frameBottom, frameInnerBottom))
+        {
+            bottom = frameInnerBottom;
+        }
+
+        if (CellTouchesFrameTop(splitNode, frameTop, frameInnerTop))
+        {
+            if (TryResolveArcAwareFrameInnerTop(
+                    frameRoot,
+                    frameThickness,
+                    splitNode.X,
+                    splitNode.X + splitNode.Width,
+                    frameInnerTop,
+                    out var arcAwareTop))
+            {
+                top = arcAwareTop;
+            }
+            else
+            {
+                top = frameInnerTop;
+            }
+        }
+    }
+
+    private static bool CellTouchesFrameBottom(FrameNode splitNode, double frameBottom, double frameInnerBottom)
+    {
+        for (var node = splitNode; ; node = node.Parent!)
+        {
+            if (OccupiesFrameBottomEdge(node, frameBottom, frameInnerBottom))
+            {
+                return true;
+            }
+
+            if (node.Parent is null)
+            {
+                break;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool CellTouchesFrameTop(FrameNode splitNode, double frameTop, double frameInnerTop)
+    {
+        for (var node = splitNode; ; node = node.Parent!)
+        {
+            if (OccupiesFrameTopEdge(node, frameTop, frameInnerTop))
+            {
+                return true;
+            }
+
+            if (node.Parent is null)
+            {
+                break;
+            }
+        }
+
+        return false;
+    }
+
+    private static void ClipVerticalImpostSpanAtHorizontalAncestors(
+        FrameNode splitNode,
+        ref double bottom,
+        ref double top)
+    {
+        for (var current = splitNode.Parent; current is not null; current = current.Parent)
+        {
+            if (current.IsUniformSplit)
+            {
+                ClipVerticalImpostSpanAtUniformParent(current, splitNode, ref bottom, ref top);
+                continue;
+            }
+
+            if (current.IsLeaf || current.ChildA is null || current.ChildB is null
+                || current.SplitOrientation != SplitOrientation.Horizontal)
+            {
+                continue;
+            }
+
+            var half = current.GetResolvedImpostThicknessMm() / 2.0;
+            var centerY = ResolveHorizontalImpostCenterY(current);
+
+            if (IsInSubtree(splitNode, current.ChildA))
+            {
+                top = Math.Min(top, centerY - half);
+            }
+            else if (IsInSubtree(splitNode, current.ChildB))
+            {
+                bottom = Math.Max(bottom, centerY + half);
+            }
+        }
+    }
+
+    private static void ClipVerticalImpostSpanAtUniformParent(
+        FrameNode parent,
+        FrameNode splitNode,
+        ref double bottom,
+        ref double top)
+    {
+        if (parent.SplitOrientation != SplitOrientation.Horizontal)
+        {
+            return;
+        }
+
+        var cells = parent.UniformCells;
+        var half = parent.GetResolvedImpostThicknessMm() / 2.0;
+
+        for (var i = 0; i < cells.Count; i++)
+        {
+            if (!IsInSubtree(splitNode, cells[i]))
+            {
+                continue;
+            }
+
+            if (i > 0
+                && parent.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, i - 1, out var axisBelow))
+            {
+                bottom = Math.Max(bottom, axisBelow + half);
+            }
+
+            if (i < cells.Count - 1
+                && parent.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, i, out var axisAbove))
+            {
+                top = Math.Min(top, axisAbove - half);
+            }
+
+            return;
+        }
     }
 
     private static bool IsInSubtree(FrameNode leaf, FrameNode? ancestor)

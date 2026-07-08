@@ -61,6 +61,12 @@ public static class OrderProjectMapper
     {
         OrderNumber = header.OrderNumber,
         OrderDate = header.OrderDate,
+        Status = header.Status,
+        CustomerId = header.CustomerId,
+        DealerId = header.DealerId,
+        CurrentPriceMode = header.CurrentPriceMode,
+        TotalDiscountPercent = header.TotalDiscountPercent,
+        TotalDiscountSum = header.TotalDiscountSum,
         CustomerName = header.CustomerName,
         CustomerPhone = header.CustomerPhone,
         SiteAddress = header.SiteAddress,
@@ -76,6 +82,7 @@ public static class OrderProjectMapper
         HasDelivery = header.HasDelivery,
         HasInstallation = header.HasInstallation,
         ProfileNote = header.ProfileNote,
+        ProductionNote = header.ProductionNote,
         Note = header.Note,
         CurrencyCode = header.CurrencyCode
     };
@@ -84,6 +91,12 @@ public static class OrderProjectMapper
     {
         OrderNumber = data.OrderNumber,
         OrderDate = data.OrderDate,
+        Status = data.Status,
+        CustomerId = data.CustomerId,
+        DealerId = data.DealerId,
+        CurrentPriceMode = data.CurrentPriceMode,
+        TotalDiscountPercent = data.TotalDiscountPercent,
+        TotalDiscountSum = data.TotalDiscountSum,
         CustomerName = data.CustomerName,
         CustomerPhone = data.CustomerPhone,
         SiteAddress = data.SiteAddress,
@@ -99,6 +112,7 @@ public static class OrderProjectMapper
         HasDelivery = data.HasDelivery,
         HasInstallation = data.HasInstallation,
         ProfileNote = data.ProfileNote,
+        ProductionNote = data.ProductionNote,
         Note = data.Note,
         CurrencyCode = data.CurrencyCode
     };
@@ -208,10 +222,22 @@ public static class OrderProjectMapper
         HasHardware = element.HasHardware,
         HasHandle = element.HasHandle,
         HostSashId = element.HostSashId,
+        ProfileSeriesId = element.ProfileSeriesId,
         MaterialId = element.MaterialId,
         SourceToolId = element.SourceToolId,
         EndX = element.EndX,
-        EndY = element.EndY
+        EndY = element.EndY,
+        ParentGlazingId = element.ParentGlazingId,
+        SpokeType = element.SpokeType?.ToString(),
+        SpokeThicknessMm = element.SpokeThicknessMm,
+        SpokeColor = element.SpokeColor,
+        SpokeRowsCount = element.SpokeRowsCount,
+        SpokeColumnsCount = element.SpokeColumnsCount,
+        SpokeRayCount = element.SpokeRayCount,
+        SpokeIsArched = element.SpokeIsArched,
+        SpokeArcCenterX = element.SpokeArcCenterX,
+        SpokeArcCenterY = element.SpokeArcCenterY,
+        SpokeArcRadius = element.SpokeArcRadius
     };
 
     private static GeometryElement FromElementData(GeometryElementData data)
@@ -231,6 +257,13 @@ public static class OrderProjectMapper
             hinge = parsedHinge;
         }
 
+        DecorativeSpokeType? spokeType = null;
+        if (!string.IsNullOrEmpty(data.SpokeType) &&
+            Enum.TryParse<DecorativeSpokeType>(data.SpokeType, out var parsedSpokeType))
+        {
+            spokeType = parsedSpokeType;
+        }
+
         return new GeometryElement
         {
             Id = data.Id == Guid.Empty ? Guid.NewGuid() : data.Id,
@@ -245,10 +278,22 @@ public static class OrderProjectMapper
             HasHardware = data.HasHardware,
             HasHandle = data.HasHandle,
             HostSashId = data.HostSashId,
+            ProfileSeriesId = data.ProfileSeriesId,
             MaterialId = data.MaterialId,
             SourceToolId = data.SourceToolId,
             EndX = data.EndX,
-            EndY = data.EndY
+            EndY = data.EndY,
+            ParentGlazingId = data.ParentGlazingId,
+            SpokeType = spokeType,
+            SpokeThicknessMm = data.SpokeThicknessMm,
+            SpokeColor = data.SpokeColor,
+            SpokeRowsCount = data.SpokeRowsCount,
+            SpokeColumnsCount = data.SpokeColumnsCount,
+            SpokeRayCount = data.SpokeRayCount,
+            SpokeIsArched = data.SpokeIsArched,
+            SpokeArcCenterX = data.SpokeArcCenterX,
+            SpokeArcCenterY = data.SpokeArcCenterY,
+            SpokeArcRadius = data.SpokeArcRadius
         };
     }
 

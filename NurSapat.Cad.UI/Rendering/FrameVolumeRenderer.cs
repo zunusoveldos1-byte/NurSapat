@@ -15,6 +15,7 @@ public static class FrameVolumeRenderer
     public static readonly Color MiterColor = Color.Parse("#919191");
     public static readonly Color ProfileStrokeColor = Color.Parse("#919191");
     public static readonly Color SelectionHighlightColor = Color.Parse("#FF0404");
+    public static readonly Color DummySelectionHighlightColor = Color.Parse("#0078D7");
 
     public const double ProfileStrokeThickness = 1.5;
 
@@ -23,6 +24,7 @@ public static class FrameVolumeRenderer
     private static readonly IBrush ProfileStrokeBrush = new SolidColorBrush(ProfileStrokeColor);
     private static readonly IBrush MiterBrush = new SolidColorBrush(MiterColor);
     public static readonly IBrush SelectionHighlightBrush = new SolidColorBrush(SelectionHighlightColor);
+    public static readonly IBrush DummySelectionHighlightBrush = new SolidColorBrush(DummySelectionHighlightColor);
     public static readonly IPen ProfilePen = new Pen(ProfileStrokeBrush, ProfileStrokeThickness);
     private static readonly IPen MiterPen = new Pen(MiterBrush, 1.2);
     public static readonly IPen DashedProfilePen = new Pen(
@@ -36,6 +38,75 @@ public static class FrameVolumeRenderer
 
     public static IPen ResolveProfileOutlinePen(bool dashed) =>
         dashed ? DashedProfilePen : ProfilePen;
+
+    public static void DrawFictitiousOutline(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        double originX,
+        double originY,
+        double width,
+        double height,
+        double profileThickness)
+    {
+        if (editor.Viewport is null || width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        var x0 = originX;
+        var y0 = originY;
+        var x1 = originX + width;
+        var y1 = originY + height;
+        var pen = DashedProfilePen;
+
+        DrawWorldLine(context, editor, pen, new CadPoint(x0, y0), new CadPoint(x1, y0));
+        DrawWorldLine(context, editor, pen, new CadPoint(x1, y0), new CadPoint(x1, y1));
+        DrawWorldLine(context, editor, pen, new CadPoint(x1, y1), new CadPoint(x0, y1));
+        DrawWorldLine(context, editor, pen, new CadPoint(x0, y1), new CadPoint(x0, y0));
+    }
+
+    public static void DrawFictitiousArchOutline(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        double originX,
+        double originY,
+        double width,
+        double boxHeight,
+        ProfileSegment topProfile)
+    {
+        if (editor.Viewport is null || width <= 0 || boxHeight <= 0)
+        {
+            return;
+        }
+
+        var pen = new Pen(ProfileStrokeBrush, 1.0);
+        var bottomLeft = new CadPoint(originX, originY);
+        var bottomRight = new CadPoint(originX + width, originY);
+        var springingLeft = new CadPoint(originX, originY + boxHeight);
+        var springingRight = new CadPoint(originX + width, originY + boxHeight);
+
+        DrawWorldLine(context, editor, pen, bottomLeft, bottomRight);
+        DrawWorldLine(context, editor, pen, bottomLeft, springingLeft);
+        DrawWorldLine(context, editor, pen, bottomRight, springingRight);
+
+        if (topProfile.SegmentType == SegmentType.Arc && topProfile.ArcHeight > CadMath.Epsilon)
+        {
+            var center = topProfile.GetArcCenterWorld();
+            var outerRadius = ProfileSegment.ComputeRadiusFromSagitta(topProfile.ChordWidth, topProfile.ArcHeight);
+            var (startAngle, endAngle) = topProfile.GetOuterArcAnglesRad();
+            var previous = WorldToScreen(editor, springingLeft);
+            foreach (var worldPoint in CircularArc.TessellateSpringingArc(center, outerRadius, startAngle, endAngle))
+            {
+                var current = WorldToScreen(editor, worldPoint);
+                context.DrawLine(pen, previous, current);
+                previous = current;
+            }
+        }
+        else
+        {
+            DrawWorldLine(context, editor, pen, springingLeft, springingRight);
+        }
+    }
 
     public static void Draw(
         DrawingContext context,

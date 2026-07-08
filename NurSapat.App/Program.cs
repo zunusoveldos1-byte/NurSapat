@@ -10,20 +10,28 @@ using NurSapat.App.Services.Orders;
 using NurSapat.App.Services.Stock;
 using NurSapat.App.Services.Structures;
 using NurSapat.App.Services.Config;
+using NurSapat.App.Services.Export;
+using NurSapat.App.Services.Help;
 using NurSapat.App.Services.Settings;
 using NurSapat.App.Services.Users;
+using NurSapat.App.Services.Utilities;
 using NurSapat.App.ViewModels.Dictionaries;
 using NurSapat.App.ViewModels.Materials;
 using NurSapat.App.ViewModels.Stock;
 using NurSapat.App.ViewModels.Structures;
 using NurSapat.App.ViewModels;
 using NurSapat.App.ViewModels.Config;
+using NurSapat.App.ViewModels.Account;
+using NurSapat.App.ViewModels.Export;
+using NurSapat.App.ViewModels.Help;
 using NurSapat.App.ViewModels.Settings;
+using NurSapat.App.ViewModels.Utilities;
 using NurSapat.App.Views;
 using NurSapat.Cad.UI.Services;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Settings;
 using NurSapat.Core.Interfaces;
+using NurSapat.Core.Services.Orders;
 using NurSapat.Data;
 using NurSapat.Data.Repositories;
 using System;
@@ -102,11 +110,15 @@ class Program
         services.AddSingleton<IStandardStructureEditorService, StandardStructureEditorService>();
         services.AddSingleton<IUsersStore, UsersStore>();
         services.AddSingleton<IUserSessionService, UserSessionService>();
+        services.AddSingleton<IUserService, UserService>();
+        services.AddSingleton<IUserWindowService, UserWindowService>();
         services.AddSingleton<IUserEditorService, UserEditorService>();
         services.AddSingleton<IProfileSeriesStore, ProfileSeriesStore>();
         services.AddSingleton<ISeriesEditorService, SeriesEditorService>();
         services.AddSingleton<ICustomersStore, CustomersStore>();
         services.AddSingleton<IOrdersStore, OrdersStore>();
+        services.AddSingleton<IDealersCatalog, DealersCatalog>();
+        services.AddSingleton<IOrderErpDialogService, OrderErpDialogService>();
         services.AddSingleton<ICustomerEditorService, CustomerEditorService>();
         services.AddSingleton<IExchangeRatesStore, ExchangeRatesStore>();
         services.AddSingleton<IExchangeRateEditorService, ExchangeRateEditorService>();
@@ -128,6 +140,15 @@ class Program
         services.AddSingleton<IStockReportDialogService, StockReportDialogService>();
         services.AddSingleton<IStockDocumentExportService, StockDocumentExportService>();
         services.AddSingleton<IDictionaryWindowService, DictionaryWindowService>();
+        services.AddSingleton<IExportService, ExportService>();
+        services.AddSingleton<IExportWindowService, ExportWindowService>();
+        services.AddSingleton<IDatabaseUtilitiesService, DatabaseUtilitiesService>();
+        services.AddSingleton<IDatabasePasswordService, DatabasePasswordService>();
+        services.AddSingleton<IDealerBaseService, DealerBaseService>();
+        services.AddSingleton<IProductionBaseService, ProductionBaseService>();
+        services.AddSingleton<IUtilitiesWindowService, UtilitiesWindowService>();
+        services.AddSingleton<IAppUpdateService, AppUpdateService>();
+        services.AddSingleton<IHelpWindowService, HelpWindowService>();
         services.AddSingleton<IConstructionElementsStore, ConstructionElementsStore>();
         services.AddSingleton<IAppMessageService, AppMessageService>();
         services.AddSingleton<IDocumentManager, DocumentManager>();
@@ -150,6 +171,15 @@ class Program
         services.AddTransient<EnvironmentSettingsViewModel>();
         services.AddTransient<ConstructionElementsViewModel>();
         services.AddTransient<ChangeConfigurationViewModel>();
+        services.AddTransient<ExportDbfJsonViewModel>();
+        services.AddTransient<ExportXlsViewModel>();
+        services.AddTransient<ChangePasswordViewModel>();
+        services.AddTransient<UtilitiesViewModel>();
+        services.AddTransient<DealerBaseViewModel>();
+        services.AddTransient<ProductionBaseViewModel>();
+        services.AddTransient<SetDatabasePasswordViewModel>();
+        services.AddTransient<UtilityProgressViewModel>();
+        services.AddTransient<HelpAndAboutViewModel>();
         services.AddTransient<DataTransferViewModel>();
         services.AddSingleton<AdditionalDashboardViewModel>();
         services.AddSingleton<OrderCalculationState>();
@@ -160,7 +190,10 @@ class Program
                 sp.GetRequiredService<ICadDialogService>(),
                 sp.GetRequiredService<CadTemplateStore>(),
                 sp.GetRequiredService<IMaterialRepository>()));
-        services.AddSingleton<OrderWorkspaceViewModel>();
+        services.AddSingleton<OrderWorkspaceViewModel>(sp =>
+            new OrderWorkspaceViewModel(
+                sp.GetRequiredService<CadEditorViewModel>(),
+                sp.GetRequiredService<IOrderErpDialogService>()));
         services.AddSingleton<OrderSheetViewModel>(sp => sp.GetRequiredService<OrderWorkspaceViewModel>().Sheet);
         services.AddSingleton<OrderDrawingViewModel>(sp => sp.GetRequiredService<OrderWorkspaceViewModel>().Drawing);
         services.AddTransient<CostTableViewModel>();

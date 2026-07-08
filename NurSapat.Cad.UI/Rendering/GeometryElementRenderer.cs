@@ -42,6 +42,9 @@ public static class GeometryElementRenderer
     private const double DimensionFrameGap = 2;
     private const double DimensionExtensionOffset = 21;
     private const double DimensionOverallOffset = 42;
+    private const double DimensionBelowSillGap = 4;
+    private const double DimensionSegmentOffsetBelowSill = 22;
+    private const double DimensionOverallOffsetBelowSill = 46;
     private const double DimensionTickSize = 1.5;
     private const double RadiusDimensionLabelOffsetPx = 10;
     private const double RadiusDimensionArcOffsetFactor = 0.65;
@@ -81,9 +84,15 @@ public static class GeometryElementRenderer
         }
 
         var elementList = elements as IReadOnlyList<GeometryElement> ?? elements.ToList();
+
         foreach (var element in elementList)
         {
             if (element.Kind != GeometryElementKind.Glazing)
+            {
+                continue;
+            }
+
+            if (element.FillType is GlazingType.VerticalCorrugation or GlazingType.HorizontalCorrugation)
             {
                 continue;
             }
@@ -95,6 +104,46 @@ public static class GeometryElementRenderer
             catch (Exception ex)
             {
                 CadDiagnostics.LogWarning($"DrawGlazingLayer failed for {element.Id}", ex);
+            }
+        }
+
+        foreach (var element in elementList)
+        {
+            if (element.Kind == GeometryElementKind.Glazing
+                && element.FillType is GlazingType.VerticalCorrugation or GlazingType.HorizontalCorrugation)
+            {
+                try
+                {
+                    DrawGlazing(context, editor, element, elementList);
+                    CorrugationFillRenderer.DrawCorrugationElement(context, editor, element, elementList);
+                }
+                catch (Exception ex)
+                {
+                    CadDiagnostics.LogWarning($"DrawCorrugationGlazingLayer failed for {element.Id}", ex);
+                }
+
+                continue;
+            }
+
+            if (element.Kind == GeometryElementKind.Corrugation)
+            {
+                try
+                {
+                    CorrugationFillRenderer.DrawCorrugationElement(context, editor, element, elementList);
+                }
+                catch (Exception ex)
+                {
+                    CadDiagnostics.LogWarning($"DrawCorrugationLayer failed for {element.Id}", ex);
+                }
+            }
+        }
+
+        foreach (var element in elementList)
+        {
+            if (element.Kind == GeometryElementKind.MosquitoNet
+                || (element.Kind == GeometryElementKind.Sash && element.HasMosquitoNet))
+            {
+                MosquitoNetRenderer.DrawMosquitoNetOverlay(context, editor, element, elementList);
             }
         }
     }
@@ -114,16 +163,20 @@ public static class GeometryElementRenderer
         switch (mode)
         {
             case NurSapat.Cad.Core.Models.WindowToolMode.FakeFrame:
-                context.DrawRectangle(null, DashedPen, ToScreenRect(editor, element));
-                break;
+                {
+                    var (originX, originY, width, height) = GetWorldOriginBounds(element);
+                    FrameVolumeRenderer.DrawFictitiousOutline(
+                        context, editor, originX, originY, width, height, editor.FrameThickness);
+                    break;
+                }
             case NurSapat.Cad.Core.Models.WindowToolMode.FakeFrameTriangle:
-                DrawTriangleFrame(context, editor, element);
+                DrawTriangleFrame(context, editor, CreatePreviewElement(mode, bounds));
                 break;
             case NurSapat.Cad.Core.Models.WindowToolMode.FakeFrameArch:
-                DrawArchFrame(context, editor, element, dashed: true);
+                DrawArchFrame(context, editor, CreatePreviewElement(mode, bounds), dashed: true);
                 break;
             case NurSapat.Cad.Core.Models.WindowToolMode.FakeFrameCircle:
-                DrawRoundDummyFrame(context, editor, element);
+                DrawRoundDummyFrame(context, editor, CreatePreviewElement(mode, bounds));
                 break;
         }
     }
@@ -155,7 +208,13 @@ public static class GeometryElementRenderer
             X = (decimal)(originX + width / 2.0),
             Y = (decimal)(originY + height / 2.0),
             WidthMm = (decimal)width,
-            HeightMm = (decimal)height
+            HeightMm = (decimal)height,
+            Shape = mode switch
+            {
+                NurSapat.Cad.Core.Models.WindowToolMode.FakeFrameCircle => ConstructionShape.Circle,
+                NurSapat.Cad.Core.Models.WindowToolMode.FakeFrameTriangle => ConstructionShape.Triangle,
+                _ => ConstructionShape.Rectangle
+            }
         };
     }
 
@@ -211,19 +270,19 @@ public static class GeometryElementRenderer
             case GeometryElementKind.DummyFrame:
                 {
                     var (originX, originY, width, height) = GetWorldOriginBounds(element);
-                    FrameVolumeRenderer.Draw(
+                    FrameVolumeRenderer.DrawFictitiousOutline(
                         context,
                         editor,
                         originX,
                         originY,
                         width,
                         height,
-                        editor.FrameThickness,
-                        dashed: true);
+                        editor.FrameThickness);
                     if (editor.ShowDimensions)
                     {
                         DrawFrameDimensions(context, editor, element);
                     }
+
                     break;
                 }
             case GeometryElementKind.ArchFrame:
@@ -232,6 +291,7 @@ public static class GeometryElementRenderer
                 {
                     DrawArchDimensions(context, editor, element);
                 }
+
                 break;
             case GeometryElementKind.ArchDummyFrame:
                 DrawArchFrame(context, editor, element, dashed: true);
@@ -239,6 +299,7 @@ public static class GeometryElementRenderer
                 {
                     DrawArchDimensions(context, editor, element);
                 }
+
                 break;
             case GeometryElementKind.TriangleDummyFrame:
                 DrawTriangleFrame(context, editor, element);
@@ -261,11 +322,13 @@ public static class GeometryElementRenderer
                 break;
             case GeometryElementKind.Glazing:
                 break;
+            case GeometryElementKind.DecorativeSpoke:
+                break;
             case GeometryElementKind.Corrugation:
-                DrawCorrugation(context, editor, element);
                 break;
             case GeometryElementKind.MosquitoNet:
-                DrawMosquitoNet(context, editor, element);
+                break;
+            case GeometryElementKind.Sill:
                 break;
             case GeometryElementKind.Handle:
             case GeometryElementKind.Hardware:
@@ -576,12 +639,14 @@ public static class GeometryElementRenderer
         CadEditorViewModel? editor = null,
         bool registerHits = false)
     {
-        const double frameGap = DimensionFrameGap;
-        const double dimOffset = DimensionExtensionOffset;
+        var bottomAnchor = ResolveBottomDimensionAnchorScreenY(editor, rect.Bottom);
+        var frameGap = ResolveBottomDimensionGap(editor);
+        var (_, overallOffset) = ResolveBottomDimensionOffsets(editor);
+        var dimOffset = HasAttachedSill(editor) ? overallOffset : DimensionExtensionOffset;
         const double tick = DimensionTickSize;
 
-        var yExtStart = rect.Bottom + frameGap;
-        var yDim = rect.Bottom + dimOffset;
+        var yExtStart = bottomAnchor + frameGap;
+        var yDim = bottomAnchor + dimOffset;
         context.DrawLine(DimensionPen, new Point(rect.Left, yExtStart), new Point(rect.Left, yDim));
         context.DrawLine(DimensionPen, new Point(rect.Right, yExtStart), new Point(rect.Right, yDim));
         context.DrawLine(DimensionPen, new Point(rect.Left, yDim), new Point(rect.Right, yDim));
@@ -659,9 +724,35 @@ public static class GeometryElementRenderer
             boundaryWorldX,
             segmentWidthsMm,
             totalWidthMm,
-            rect.Bottom,
+            ResolveBottomDimensionAnchorScreenY(editor, rect.Bottom),
             registerHits);
     }
+
+    private static bool HasAttachedSill(CadEditorViewModel? editor) =>
+        editor?.FrameRoot?.GetConstructionRoot()?.HasSill == true;
+
+    private static double ResolveBottomDimensionAnchorScreenY(CadEditorViewModel? editor, double frameBottomScreenY)
+    {
+        if (!HasAttachedSill(editor) || editor?.Viewport is null || editor.FrameRoot is null)
+        {
+            return frameBottomScreenY;
+        }
+
+        var root = editor.FrameRoot.GetConstructionRoot();
+        var thickness = root.AttachedSill?.ThicknessMm > 0
+            ? root.AttachedSill.ThicknessMm
+            : SillElement.StandardThicknessMm;
+        var sillBottomWorldY = root.Y - thickness;
+        return ToScreenPoint(editor, root.X, sillBottomWorldY).Y;
+    }
+
+    private static (double segmentOffset, double overallOffset) ResolveBottomDimensionOffsets(CadEditorViewModel? editor) =>
+        HasAttachedSill(editor)
+            ? (DimensionSegmentOffsetBelowSill, DimensionOverallOffsetBelowSill)
+            : (DimensionExtensionOffset, DimensionOverallOffset);
+
+    private static double ResolveBottomDimensionGap(CadEditorViewModel? editor) =>
+        HasAttachedSill(editor) ? DimensionBelowSillGap : DimensionFrameGap;
 
     private static void DrawLeftHeightDimension(
         DrawingContext context,
@@ -711,9 +802,8 @@ public static class GeometryElementRenderer
         double outerBottomScreenY,
         bool registerHits = false)
     {
-        const double frameGap = DimensionFrameGap;
-        const double segOffset = DimensionExtensionOffset;
-        const double overallOffset = DimensionOverallOffset;
+        var frameGap = ResolveBottomDimensionGap(editor);
+        var (segOffset, overallOffset) = ResolveBottomDimensionOffsets(editor);
         const double tick = DimensionTickSize;
 
         var yExtStart = outerBottomScreenY + frameGap;
@@ -1118,8 +1208,18 @@ public static class GeometryElementRenderer
 
     private static void DrawRoundDummyFrame(DrawingContext context, CadEditorViewModel editor, GeometryElement element)
     {
+        var (originX, originY, width, height) = GetWorldOriginBounds(element);
+        if (element.Shape == ConstructionShape.Circle)
+        {
+            ShapedFrameRenderer.DrawShapedFrame(
+                context, editor, originX, originY, width, height, editor.FrameThickness,
+                ConstructionShape.Circle, dashed: false);
+            return;
+        }
+
         var rect = ToScreenRect(editor, element);
-        context.DrawEllipse(null, DashedPen, rect.Center, rect.Width / 2, rect.Height / 2);
+        var pen = FrameVolumeRenderer.ResolveProfileOutlinePen(dashed: false);
+        context.DrawEllipse(null, pen, rect.Center, rect.Width / 2, rect.Height / 2);
     }
 
     private static void DrawArchFrame(DrawingContext context, CadEditorViewModel editor, GeometryElement element, bool dashed = false)
@@ -1129,37 +1229,41 @@ public static class GeometryElementRenderer
             return;
         }
 
-        var (originX, originY, width, height) = GetWorldOriginBounds(element);
-        if (width <= 0 || height <= 0)
+        if (!ArchFrameDrawingHelper.TryResolveLayout(
+                editor,
+                element,
+                out var originX,
+                out var originY,
+                out var width,
+                out var boxHeight,
+                out var topProfile))
         {
             return;
         }
 
-        var start = ToScreenPoint(editor, originX, originY);
-        var end = ToScreenPoint(editor, originX + width, originY);
-        var segment = ProfileSegment.CreateTopRail(originX, originY, width, height);
-        segment.SegmentType = SegmentType.Arc;
-        segment.ArcHeight = height;
-        var radius = segment.Radius;
-        var zoom = editor.Viewport.ZoomFactor;
-        var radiusPx = radius * zoom;
-        var (isLargeArc, sweep) = FrameVolumeRenderer.ResolveUpwardScreenArc(end, start, segment);
-
-        var geometry = new StreamGeometry();
-        using (var ctx = geometry.Open())
+        if (element.Kind == GeometryElementKind.ArchFrame)
         {
-            ctx.BeginFigure(start, isFilled: false);
-            ctx.LineTo(end);
-            ctx.ArcTo(
-                start,
-                new Size(radiusPx, radiusPx),
-                rotationAngle: 0,
-                isLargeArc: isLargeArc,
-                sweepDirection: sweep);
-            ctx.EndFigure(true);
+            FrameVolumeRenderer.Draw(
+                context,
+                editor,
+                originX,
+                originY,
+                width,
+                boxHeight,
+                editor.FrameThickness,
+                dashed: false,
+                topProfile: topProfile);
+            return;
         }
 
-        context.DrawGeometry(null, dashed ? DashedPen : FramePen, geometry);
+        FrameVolumeRenderer.DrawFictitiousArchOutline(
+            context,
+            editor,
+            originX,
+            originY,
+            width,
+            boxHeight,
+            topProfile);
     }
 
     private static (double X, double Y, double W, double H) GetWorldOriginBounds(GeometryElement element)
@@ -1179,7 +1283,17 @@ public static class GeometryElementRenderer
 
     private static void DrawTriangleFrame(DrawingContext context, CadEditorViewModel editor, GeometryElement element)
     {
+        var (originX, originY, width, height) = GetWorldOriginBounds(element);
+        if (element.Shape == ConstructionShape.Triangle)
+        {
+            ShapedFrameRenderer.DrawShapedFrame(
+                context, editor, originX, originY, width, height, editor.FrameThickness,
+                ConstructionShape.Triangle, dashed: false);
+            return;
+        }
+
         var rect = ToScreenRect(editor, element);
+        var pen = FrameVolumeRenderer.ResolveProfileOutlinePen(dashed: false);
         var geometry = new StreamGeometry();
         using (var ctx = geometry.Open())
         {
@@ -1189,7 +1303,7 @@ public static class GeometryElementRenderer
             ctx.EndFigure(true);
         }
 
-        context.DrawGeometry(null, DashedPen, geometry);
+        context.DrawGeometry(null, pen, geometry);
     }
 
     private static void DrawSash(DrawingContext context, CadEditorViewModel editor, GeometryElement element)
@@ -1258,33 +1372,61 @@ public static class GeometryElementRenderer
             return;
         }
 
-        var rect = ToScreenRect(editor, element);
-        if (rect.Width <= 2 || rect.Height <= 2)
-        {
-            return;
-        }
-
-        DrawRectangularGlazing(context, rect);
+        DrawPlanarGlazingWithBead(context, editor, glass);
     }
 
-    private static void DrawRectangularGlazing(DrawingContext context, Rect rect)
+    private static void DrawPlanarGlazingWithBead(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        SashGeometry.GlassOpeningBounds glass)
     {
-        context.DrawRectangle(GlazingFill, null, rect);
+        var outerLoop = glass.BuildOuterContourLoop();
+        FillGlazingContour(context, editor, outerLoop, GlazingFill, null);
 
-        var inset = Math.Min(GlazingInnerInsetPx, Math.Min(rect.Width, rect.Height) / 4.0);
-        var inner = new Rect(
-            rect.X + inset,
-            rect.Y + inset,
-            Math.Max(0, rect.Width - inset * 2),
-            Math.Max(0, rect.Height - inset * 2));
-        if (inner.Width <= 1 || inner.Height <= 1)
+        var beadInsetMm = SashGeometry.BeadProfileDrawThicknessMm;
+        if (!glass.TryBuildInnerContourLoop(beadInsetMm, out var innerLoop))
         {
+            StrokeGlazingContourLoop(context, editor, outerLoop, GlazingBeadPen);
             return;
         }
 
-        context.DrawRectangle(null, GlazingBeadPen, inner);
-        DrawGlazingBeadCornerMiters(context, rect, inner);
-        DrawGlazingReflections(context, inner);
+        StrokeGlazingContourLoop(context, editor, outerLoop, GlazingBeadPen);
+        StrokeGlazingContourLoop(context, editor, innerLoop, GlazingBeadPen);
+
+        var outerEdges = outerLoop.Edges;
+        var innerEdges = innerLoop.Edges;
+        for (var i = 0; i < outerEdges.Count && i < innerEdges.Count; i++)
+        {
+            context.DrawLine(
+                GlazingBeadPen,
+                WorldToScreen(editor, outerEdges[i].Start),
+                WorldToScreen(editor, innerEdges[i].Start));
+        }
+
+        var innerRect = ToScreenRectFromGlass(editor, glass, beadInsetMm);
+        if (innerRect.Width > 1 && innerRect.Height > 1)
+        {
+            DrawGlazingReflections(context, innerRect);
+        }
+    }
+
+    private static Rect ToScreenRectFromGlass(
+        CadEditorViewModel editor,
+        SashGeometry.GlassOpeningBounds glass,
+        double insetMm)
+    {
+        var left = glass.Left + insetMm;
+        var bottom = glass.Bottom + insetMm;
+        var right = glass.Right - insetMm;
+        var top = glass.Top - insetMm;
+        if (right <= left || top <= bottom)
+        {
+            return default;
+        }
+
+        var topLeft = editor.Viewport.WorldToScreen(new CadPoint(left, top));
+        var bottomRight = editor.Viewport.WorldToScreen(new CadPoint(right, bottom));
+        return new Rect(new Point(topLeft.X, topLeft.Y), new Point(bottomRight.X, bottomRight.Y));
     }
 
     private static void DrawArchedGlazing(

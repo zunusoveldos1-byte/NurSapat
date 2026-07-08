@@ -88,7 +88,7 @@ public sealed class OpeningNode
 
     public bool CanAccept(WindowToolMode tool) => tool switch
     {
-        WindowToolMode.RealFrame or WindowToolMode.FakeFrame => Parent is null,
+            WindowToolMode.RealFrame or WindowToolMode.FakeFrame => Parent is null,
         WindowToolMode.FakeVerticalImpost or WindowToolMode.FakeHorizontalImpost => Width > 0 && Height > 0,
         WindowToolMode.VerticalImpost or WindowToolMode.HorizontalImpost or WindowToolMode.DiagonalImpost => Width > 0 && Height > 0,
         WindowToolMode.Sash or WindowToolMode.Glass or WindowToolMode.GlassWithBead => Width > 0 && Height > 0,

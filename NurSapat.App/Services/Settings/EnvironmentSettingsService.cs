@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using NurSapat.App.Models.Settings;
 using NurSapat.Core.Models.Orders;
+using NurSapat.Core.Services.Orders;
 using CoreEnvironmentSettings = NurSapat.Core.Settings.EnvironmentSettings;
 
 namespace NurSapat.App.Services.Settings;
@@ -193,7 +194,8 @@ public sealed class EnvironmentSettingsService : IEnvironmentSettingsService
     {
         var today = DateTime.Today;
         header.OrderDate = today;
-        header.OrderNumber = $"#{Current.NextOrderNumber}";
+        header.OrderNumber = OrderNumberGenerator.GenerateNext();
+        header.Status = OrderStatus.Draft;
 
         if (Current.DaysToProduction > 0)
         {

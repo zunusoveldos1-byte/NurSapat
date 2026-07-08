@@ -198,14 +198,16 @@
                         </StackPanel>
 
                         <Grid ColumnDefinitions="*,Auto">
-                            <CheckBox Classes="remember-me"
-                                      Content="Запомнить меня"
-                                      IsChecked="{Binding RememberMe}"
-                                      VerticalAlignment="Center"/>
-                            <Button Grid.Column="1"
-                                    Classes="link-btn"
-                                    Command="{Binding HelpCommand}"
-                                    Content="Забыли пароль?"/>
+                        <CheckBox Classes="remember-me"
+                                  Content="Запомнить меня"
+                                  IsChecked="{Binding RememberMe}"
+                                  VerticalAlignment="Center"/>
+                        <Button Grid.Column="1"
+                                Classes="link-btn"
+                                Command="{Binding HelpCommand}"
+                                Content="Забыли пароль?"
+                                VerticalAlignment="Center"
+                                Margin="0,6,0,0"/> 
                         </Grid>
 
                         <StackPanel Spacing="0">
@@ -306,35 +308,53 @@
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                             <TextBlock Grid.Column="0"
                                        Text="Телефон:"
-                                       Classes="contact-modal-label"/>
-                            <TextBlock Grid.Column="1"
-                                       Text="+996(559)34-00-32"
-                                       Classes="contact-modal-value"/>
+                                       Classes="contact-modal-label"
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1"
+                                    Classes="link-btn"
+                                    Content="{Binding SupportPhoneDisplay}"
+                                    Command="{Binding OpenPhoneCommand}"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"/>
                         </Grid>
+    
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                             <TextBlock Grid.Column="0"
                                        Text="Email:"
-                                       Classes="contact-modal-label"/>
-                            <TextBlock Grid.Column="1"
-                                       Text="zunusoveldos1@gmail.com"
-                                       Classes="contact-modal-value"/>
+                                       Classes="contact-modal-label"
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1"
+                                    Classes="link-btn"
+                                    Content="{Binding SupportEmail}"
+                                    Command="{Binding OpenEmailCommand}"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"/>
                         </Grid>
+    
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                             <TextBlock Grid.Column="0"
                                        Text="Telegram:"
-                                       Classes="contact-modal-label"/>
-                            <TextBlock Grid.Column="1"
-                                       Text="@willofeldos"
-                                       Classes="contact-modal-value"/>
+                                       Classes="contact-modal-label"
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1"
+                                    Classes="link-btn"
+                                    Content="{Binding SupportTelegramUrl}"
+                                    Command="{Binding OpenTelegramCommand}"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"/>
                         </Grid>
+    
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                             <TextBlock Grid.Column="0"
                                        Text="График:"
-                                       Classes="contact-modal-label"/>
+                                       Classes="contact-modal-label"
+                                       VerticalAlignment="Top"
+                                       Margin="0,2,0,0"/>
                             <TextBlock Grid.Column="1"
                                        Text="Пн-Пт, 09:00–18:00 (GMT+6)"
                                        Classes="contact-modal-value"
-                                       TextWrapping="Wrap"/>
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"/>
                         </Grid>
                     </StackPanel>
 

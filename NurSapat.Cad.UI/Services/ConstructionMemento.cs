@@ -27,9 +27,21 @@ public sealed class ConstructionMemento
         HasHardware = source.HasHardware,
         HasHandle = source.HasHandle,
         HostSashId = source.HostSashId,
+        ProfileSeriesId = source.ProfileSeriesId,
         MaterialId = source.MaterialId,
         SourceToolId = source.SourceToolId,
         EndX = source.EndX,
-        EndY = source.EndY
+        EndY = source.EndY,
+        ParentGlazingId = source.ParentGlazingId,
+        SpokeType = source.SpokeType,
+        SpokeThicknessMm = source.SpokeThicknessMm,
+        SpokeColor = source.SpokeColor,
+        SpokeRowsCount = source.SpokeRowsCount,
+        SpokeColumnsCount = source.SpokeColumnsCount,
+        SpokeRayCount = source.SpokeRayCount,
+        SpokeIsArched = source.SpokeIsArched,
+        SpokeArcCenterX = source.SpokeArcCenterX,
+        SpokeArcCenterY = source.SpokeArcCenterY,
+        SpokeArcRadius = source.SpokeArcRadius
     };
 }

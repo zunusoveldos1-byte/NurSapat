@@ -6,6 +6,18 @@ public sealed class OrderHeader
 
     public DateTime OrderDate { get; set; } = DateTime.Today;
 
+    public OrderStatus Status { get; set; } = OrderStatus.Draft;
+
+    public Guid? CustomerId { get; set; }
+
+    public Guid? DealerId { get; set; }
+
+    public PriceModeType CurrentPriceMode { get; set; } = PriceModeType.Retail;
+
+    public decimal TotalDiscountPercent { get; set; }
+
+    public decimal TotalDiscountSum { get; set; }
+
     public string CustomerName { get; set; } = "";
 
     public string CustomerPhone { get; set; } = "";
@@ -35,6 +47,9 @@ public sealed class OrderHeader
     public bool HasInstallation { get; set; }
 
     public string ProfileNote { get; set; } = "";
+
+    /// <summary>Заметки к производству.</summary>
+    public string ProductionNote { get; set; } = "";
 
     public string Note { get; set; } = "";
 

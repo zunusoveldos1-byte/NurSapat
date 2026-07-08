@@ -1,6 +1,7 @@
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.UI.ViewModels;
+using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.Cad.UI.Rendering;
 
@@ -35,25 +36,124 @@ internal static class HorizontalImpostGeometry
         FrameNode splitNode,
         double worldY)
     {
+        var container = splitNode.GetRoot();
+        if (CurvedContainerImpostGeometry.IsRoundContainer(editor, container)
+            && CurvedContainerImpostGeometry.TryResolveHorizontalSpan(editor, container, worldY, out var circleLeft, out var circleRight))
+        {
+            return (circleLeft, circleRight);
+        }
+
         var rectangular = ResolveRectangularSpan(editor, splitNode);
-        if (editor.FrameRoot?.TopProfile?.SegmentType != SegmentType.Arc ||
-            !FrameProfileGeometry.TryGetArchedFrameInnerArc(editor.FrameRoot, editor.FrameThickness, out var arc))
+        if (!TryResolveArcSpringingGeometry(editor, out var arc))
         {
             return rectangular;
         }
 
-        if (!FrameProfileGeometry.TryResolveInnerArcHorizontalSpanAtY(
-                arc,
-                worldY,
-                rectangular.Left,
-                rectangular.Right,
-                out var leftX,
-                out var rightX))
+        if (worldY <= arc.ChordY + CadMath.MmPrecision)
         {
             return rectangular;
         }
 
-        return (leftX, rightX);
+        if (TryResolveHorizontalSpanOnInnerArcAtY(arc, worldY, rectangular.Left, rectangular.Right, out var leftX, out var rightX))
+        {
+            return (leftX, rightX);
+        }
+
+        return rectangular;
+    }
+
+    /// <summary>
+    /// Полуширина импоста на внутренней дуге: W_half = sqrt(R² − h²), h = Y − Y_center.
+    /// </summary>
+    public static bool TryResolveHorizontalSpanOnInnerArcAtY(
+        ArcSpringingGeometry arc,
+        double worldY,
+        double clampMinX,
+        double clampMaxX,
+        out double leftX,
+        out double rightX)
+    {
+        leftX = rightX = 0;
+        if (worldY <= arc.ChordY + CadMath.MmPrecision)
+        {
+            return false;
+        }
+
+        var dy = worldY - arc.Center.Y;
+        if (dy < -CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var underRoot = arc.InnerRadius * arc.InnerRadius - dy * dy;
+        if (underRoot < -CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var halfSpan = Math.Sqrt(Math.Max(0, underRoot));
+        leftX = CadMath.RoundMm(Math.Max(clampMinX, arc.Center.X - halfSpan));
+        rightX = CadMath.RoundMm(Math.Min(clampMaxX, arc.Center.X + halfSpan));
+        return rightX - leftX > CadMath.Epsilon;
+    }
+
+    public static bool TryResolveArcSpringingGeometry(
+        CadEditorViewModel editor,
+        out ArcSpringingGeometry arc)
+    {
+        arc = default;
+        if (editor.FrameRoot is null)
+        {
+            return false;
+        }
+
+        if (FrameProfileGeometry.TryGetArchedFrameInnerArc(
+                editor.FrameRoot,
+                editor.FrameThickness,
+                out arc))
+        {
+            return true;
+        }
+
+        if (!IsArchedFrameEditor(editor))
+        {
+            return false;
+        }
+
+        var root = editor.FrameRoot;
+        var arcHeight = ResolveArcSagittaMm(root);
+        if (arcHeight <= ProfileSegment.MinFlatArcHeightMm + CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var profileWall = FrameProfileGeometry.ResolveInnerInset(root.Width, root.Height, editor.FrameThickness);
+        var chordY = root.Y + root.Height;
+        arc = FrameProfileGeometry.ComputeArcSpringingGeometry(root.X, root.Width, chordY, arcHeight, profileWall);
+        return true;
+    }
+
+    public static double ResolveArcSagittaMm(FrameNode frameRoot)
+    {
+        if (frameRoot.TopProfile?.SegmentType == SegmentType.Arc &&
+            frameRoot.TopProfile.ArcHeight > ProfileSegment.MinFlatArcHeightMm + CadMath.Epsilon)
+        {
+            return frameRoot.TopProfile.ArcHeight;
+        }
+
+        return frameRoot.Width / 2.0;
+    }
+
+    public static double ResolveTotalFrameHeight(CadEditorViewModel editor, FrameNode splitNode)
+    {
+        var rectangularTop = splitNode.Y + splitNode.Height;
+        if (!TryResolveArcSpringingGeometry(editor, out var arc))
+        {
+            return rectangularTop;
+        }
+
+        var apexY = ProfileSegment.GetPointOnUpperArc(arc.Center, arc.OuterRadius, arc.Center.X).Y;
+        return Math.Max(rectangularTop, apexY);
     }
 
     public static bool TryResolveArcAdaptedSpans(
@@ -67,6 +167,11 @@ internal static class HorizontalImpostGeometry
         out double rightTop)
     {
         leftBottom = rightBottom = leftTop = rightTop = 0;
+        if (CurvedContainerImpostGeometry.IsRoundContainer(editor, splitNode.GetRoot()))
+        {
+            return false;
+        }
+
         var rectangular = ResolveRectangularSpan(editor, splitNode);
         (leftBottom, rightBottom) = ResolveSpanAtY(editor, splitNode, bottom);
         (leftTop, rightTop) = ResolveSpanAtY(editor, splitNode, top);
@@ -110,17 +215,25 @@ internal static class HorizontalImpostGeometry
     public static double ResolveNodeExtentMaxY(CadEditorViewModel editor, FrameNode splitNode)
     {
         var maxY = splitNode.Y + splitNode.Height;
-        var profile = editor.FrameRoot?.TopProfile;
-        if (profile?.SegmentType == SegmentType.Arc &&
-            profile.ArcHeight > ProfileSegment.MinFlatArcHeightMm + CadMath.Epsilon &&
-            editor.FrameRoot is not null)
+        if (!TryResolveArcSpringingGeometry(editor, out var arc))
         {
-            var chordY = editor.FrameRoot.Y + editor.FrameRoot.Height;
-            maxY = Math.Max(maxY, chordY + profile.ArcHeight);
+            return maxY;
         }
 
-        return maxY;
+        if (!TouchesFrameTopForArchExtent(splitNode, editor.FrameRoot!, arc.ChordY))
+        {
+            return maxY;
+        }
+
+        var apexY = ProfileSegment.GetPointOnUpperArc(arc.Center, arc.OuterRadius, arc.Center.X).Y;
+        return Math.Max(maxY, apexY);
     }
+
+    private static bool TouchesFrameTopForArchExtent(FrameNode splitNode, FrameNode frameRoot, double chordY) =>
+        CadMath.NearlyEqual(splitNode.Y + splitNode.Height, chordY)
+        || splitNode.Y + splitNode.Height >= chordY - CadMath.MmPrecision
+        || CadMath.NearlyEqual(splitNode.Y + splitNode.Height, frameRoot.Y + frameRoot.Height)
+        || splitNode.Y + splitNode.Height >= frameRoot.Y + frameRoot.Height - CadMath.MmPrecision;
 
     public static double ResolveMaxCenterAxisY(
         CadEditorViewModel editor,
@@ -136,34 +249,22 @@ internal static class HorizontalImpostGeometry
             return extentMaxY;
         }
 
-        var rectangular = ResolveRectangularSpan(editor, splitNode);
-        var inner = SashGeometry.ResolveNodeInnerOpeningBounds(
-            splitNode,
-            editor.FrameRoot,
-            editor.FrameThickness);
-
-        var innerTop = inner.Top;
-        if (editor.FrameRoot.TopProfile?.SegmentType == SegmentType.Arc &&
-            SashGeometry.TryResolveArcAwareFrameInnerTopForSpan(
-                editor.FrameRoot,
-                editor.FrameThickness,
-                rectangular.Left,
-                rectangular.Right,
-                innerTop,
-                out var arcAwareTop))
+        if (!TryResolveArcSpringingGeometry(editor, out _))
         {
-            innerTop = arcAwareTop;
+            var inner = SashGeometry.ResolveNodeInnerOpeningBounds(
+                splitNode,
+                editor.FrameRoot,
+                editor.FrameThickness);
+            var innerLimit = inner.Top - dragInsetMm - halfThickness;
+            return Math.Min(extentMaxY, innerLimit);
         }
-
-        var innerLimit = innerTop - dragInsetMm - halfThickness;
-        var maxY = Math.Max(innerLimit, extentMaxY);
 
         if (ResolveMaxDragAxisY(editor, splitNode, halfThickness) is double arcCenterLimit)
         {
-            maxY = Math.Max(maxY, Math.Min(extentMaxY, arcCenterLimit));
+            return Math.Min(extentMaxY, arcCenterLimit);
         }
 
-        return Math.Min(extentMaxY, maxY);
+        return extentMaxY;
     }
 
     public static double? ResolveMaxDragAxisY(
@@ -171,8 +272,7 @@ internal static class HorizontalImpostGeometry
         FrameNode splitNode,
         double halfThickness)
     {
-        if (editor.FrameRoot?.TopProfile?.SegmentType != SegmentType.Arc ||
-            !FrameProfileGeometry.TryGetArchedFrameInnerArc(editor.FrameRoot, editor.FrameThickness, out var arc))
+        if (!TryResolveArcSpringingGeometry(editor, out var arc))
         {
             return null;
         }
@@ -197,4 +297,8 @@ internal static class HorizontalImpostGeometry
 
         return CadMath.RoundMm(maxCenterY);
     }
+
+    private static bool IsArchedFrameEditor(CadEditorViewModel editor) =>
+        editor.CanvasElements.Any(element =>
+            element.Kind is GeometryElementKind.ArchFrame or GeometryElementKind.ArchDummyFrame);
 }

@@ -208,8 +208,11 @@ public sealed partial class ProfileSegment : ObservableObject
     public double ClampRadius(double radius) =>
         Math.Clamp(radius, MinimumRadius, MaximumRadius);
 
-    public double ClampArcHeight(double arcHeight) =>
-        Math.Clamp(arcHeight, MinSafeArcHeightMm, MaximumArcHeight);
+    public double ClampArcHeight(double arcHeight)
+    {
+        var safeMin = Math.Min(MinSafeArcHeightMm, MaximumArcHeight);
+        return Math.Clamp(arcHeight, safeMin, MaximumArcHeight);
+    }
 
     /// <summary>
     /// Единый центр окружности O(X_c, Y_c) для внешней и внутренней дуг.

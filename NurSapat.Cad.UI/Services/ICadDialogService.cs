@@ -14,6 +14,10 @@ public interface ICadDialogService
 
     Task<int?> ShowImpostCountAsync(int initialCount = 1);
 
+    Task<DecorativeSpokeDialogResult?> ShowDecorativeSpokeDialogAsync(bool isArchedGlazing);
+
+    Task<SillDialogResult?> ShowSillDialogAsync(double frameWidthMm, NurSapat.Core.Models.Orders.SillElement? existing = null);
+
     Task<CadDrawingTemplate?> ShowTemplatePickerAsync(CadTemplateStore store, ViewModels.CadEditorViewModel editor);
 
     Task<bool> ShowConfirmationAsync(string title, string message);

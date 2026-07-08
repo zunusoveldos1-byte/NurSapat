@@ -1,13 +1,6 @@
-namespace NurSapat.App.Models.Orders;
+using NurSapat.Core.Models.Orders;
 
-public enum OrderStatus
-{
-    Calculation,
-    Measurement,
-    InProduction,
-    Ready,
-    Shipped
-}
+namespace NurSapat.App.Models.Orders;
 
 public sealed class OrderHeaderItem
 {

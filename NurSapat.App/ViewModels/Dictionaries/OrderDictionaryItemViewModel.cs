@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using NurSapat.App.Models.Orders;
+using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.App.ViewModels.Dictionaries;
 
@@ -27,15 +28,7 @@ public sealed partial class OrderDictionaryItemViewModel : DictionaryItemViewMod
 
     public string TotalSumDisplay => $"{TotalSum:N2}";
 
-    public string StatusDisplay => Status switch
-    {
-        OrderStatus.Calculation => "Расчет",
-        OrderStatus.Measurement => "Замер",
-        OrderStatus.InProduction => "В производстве",
-        OrderStatus.Ready => "Готов",
-        OrderStatus.Shipped => "Отгружен",
-        _ => Status.ToString()
-    };
+    public string StatusDisplay => Status.ToDisplayName();
 
     partial void OnDateCreatedChanged(DateTime value) => OnPropertyChanged(nameof(DateCreatedDisplay));
 

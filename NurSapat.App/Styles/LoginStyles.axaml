@@ -111,20 +111,40 @@
     </Style>
 
     <Style Selector="Button.link-btn">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="0"/>
-        <Setter Property="Foreground" Value="#2563EB"/>
-        <Setter Property="FontSize" Value="14"/>
-        <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
-        <Setter Property="Cursor" Value="Hand"/>
-        <Setter Property="Transitions">
-            <Transitions>
-                <BrushTransition Property="Foreground" Duration="0:0:0.15"/>
-            </Transitions>
-        </Setter>
-    </Style>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="Margin" Value="0"/>
+    <Setter Property="Foreground" Value="#2563EB"/>
+    <Setter Property="FontSize" Value="14"/>
+    <Setter Property="FontWeight" Value="Medium"/>
+    <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Opacity" Value="0.85"/> 
+    <Setter Property="Transitions">
+        <Transitions>
+            <DoubleTransition Property="Opacity" Duration="0:0:0.15"/>
+        </Transitions>
+    </Setter>   
+</Style>
+
+<Style Selector="Button.link-btn:pointerover">
+    <Setter Property="Opacity" Value="1.0"/>
+</Style>
+
+<Style Selector="Button.link-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+    <Setter Property="TextBlock.Foreground" Value="#1E40AF"/> <Setter Property="TextBlock.TextDecorations" Value="Underline"/> 
+</Style>
+
+<Style Selector="Button.link-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+    <Setter Property="TextBlock.Foreground" Value="#1E3A8A"/> 
+    <Setter Property="TextBlock.TextDecorations" Value="Underline"/>
+</Style>
 
     <Style Selector="Button.link-btn:pointerover">
         <Setter Property="Foreground" Value="#1D4ED8"/>
@@ -232,6 +252,24 @@
             </Transitions>
         </Setter>
     </Style>
+
+    <Style Selector="Button.dark-link-btn">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Foreground" Value="#E2E8F0"/> <Setter Property="Padding" Value="0"/>
+    <Setter Property="Margin" Value="0"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="FontSize" Value="14"/>
+    <Setter Property="Template">
+        <ControlTemplate>
+            <TextBlock Text="{TemplateBinding Content}"
+                       Foreground="{TemplateBinding Foreground}"
+                       VerticalAlignment="Center"/>
+        </ControlTemplate>
+    </Setter>
+</Style>
+
+<Style Selector="Button.dark-link-btn:pointerover TextBlock">
+    <Setter Property="Foreground" Value="#FFFFFF"/> <Setter Property="TextDecorations" Value="Underline"/> </Style>
 
     <Style Selector="Button.contact-modal-close:pointerover">
         <Setter Property="Background" Value="#B91C1C"/>

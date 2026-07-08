@@ -1,3 +1,5 @@
+using NurSapat.Core.Models.Orders;
+
 namespace NurSapat.Core.Models.Project;
 
 /// <summary>
@@ -41,6 +43,18 @@ public sealed class OrderHeaderData
 
     public DateTime OrderDate { get; set; } = DateTime.Today;
 
+    public OrderStatus Status { get; set; } = OrderStatus.Draft;
+
+    public Guid? CustomerId { get; set; }
+
+    public Guid? DealerId { get; set; }
+
+    public PriceModeType CurrentPriceMode { get; set; } = PriceModeType.Retail;
+
+    public decimal TotalDiscountPercent { get; set; }
+
+    public decimal TotalDiscountSum { get; set; }
+
     public string CustomerName { get; set; } = "";
 
     public string CustomerPhone { get; set; } = "";
@@ -70,6 +84,8 @@ public sealed class OrderHeaderData
     public bool HasInstallation { get; set; }
 
     public string ProfileNote { get; set; } = "";
+
+    public string ProductionNote { get; set; } = "";
 
     public string Note { get; set; } = "";
 
@@ -161,6 +177,8 @@ public sealed class GeometryElementData
 
     public Guid? HostSashId { get; set; }
 
+    public Guid? ProfileSeriesId { get; set; }
+
     public Guid? MaterialId { get; set; }
 
     public string? SourceToolId { get; set; }
@@ -168,6 +186,28 @@ public sealed class GeometryElementData
     public decimal? EndX { get; set; }
 
     public decimal? EndY { get; set; }
+
+    public Guid? ParentGlazingId { get; set; }
+
+    public string? SpokeType { get; set; }
+
+    public double? SpokeThicknessMm { get; set; }
+
+    public string? SpokeColor { get; set; }
+
+    public int? SpokeRowsCount { get; set; }
+
+    public int? SpokeColumnsCount { get; set; }
+
+    public int? SpokeRayCount { get; set; }
+
+    public bool SpokeIsArched { get; set; }
+
+    public decimal? SpokeArcCenterX { get; set; }
+
+    public decimal? SpokeArcCenterY { get; set; }
+
+    public double? SpokeArcRadius { get; set; }
 }
 
 public sealed class ConstructionCostData
@@ -270,6 +310,8 @@ public sealed class FrameNodeData
     public bool IsLeaf { get; set; } = true;
 
     public bool IsUniformSplit { get; set; }
+
+    public bool IsDummy { get; set; }
 
     public string SplitOrientation { get; set; } = "None";
 

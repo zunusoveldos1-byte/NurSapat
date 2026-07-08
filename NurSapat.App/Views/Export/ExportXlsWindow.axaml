@@ -1,0 +1,100 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Export"
+        x:Class="NurSapat.App.Views.Export.ExportXlsWindow"
+        x:DataType="vm:ExportXlsViewModel"
+        Width="500"
+        Height="280"
+        MinWidth="460"
+        MinHeight="260"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="40,*,Auto">
+            <Border Grid.Row="0"
+                    Classes="mat-titlebar"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,46">
+                    <TextBlock Classes="mat-titlebar-text"
+                               Margin="16,0,0,0"
+                               Text="Экспорт списания материалов в MS Excel"/>
+                    <Button Grid.Column="1"
+                            Classes="mat-chrome-btn close"
+                            Click="OnCloseClick"
+                            Content="✕"
+                            Width="46"
+                            Height="32"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Row="1" Margin="16,12,16,0" Spacing="12">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBox Text="{Binding ExportFolderPath}"
+                             PlaceholderText="Папка назначения"
+                             MinHeight="34"
+                             VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Classes="mat-toolbar"
+                            Content="Обзор..."
+                            Command="{Binding BrowseFolderCommand}"
+                            MinWidth="88"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </Grid>
+
+                <Border Background="#EFF6FF"
+                        BorderBrush="#BFDBFE"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="12">
+                    <TextBlock Text="Будет сформирован один документ Excel с 5 вкладками: Итог (Base1), Списание общее (Base2), Поконструкционно (Base3), Конструкции (Base4) и Стеклопакеты (Base5)."
+                               TextWrapping="Wrap"
+                               Foreground="#1E3A8A"
+                               FontSize="12"/>
+                </Border>
+
+                <ProgressBar Minimum="0"
+                             Maximum="100"
+                             Value="{Binding ProgressValue}"
+                             IsVisible="{Binding IsProgressVisible}"
+                             Height="8"/>
+            </StackPanel>
+
+            <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                    <Button Grid.Column="0"
+                            Classes="mat-primary"
+                            Content="Сформировать XLS"
+                            Command="{Binding ExportXlsCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Classes="mat-toolbar"
+                            Margin="8,0,0,0"
+                            Content="Открыть файл"
+                            Command="{Binding OpenFileCommand}"
+                            IsEnabled="{Binding CanOpenFile}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="3"
+                            Classes="mat-toolbar"
+                            Content="Отмена"
+                            Command="{Binding CancelCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

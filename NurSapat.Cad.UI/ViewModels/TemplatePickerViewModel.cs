@@ -37,7 +37,7 @@ public sealed partial class TemplatePickerViewModel : ObservableObject
             Name = $"Шаблон {nextIndex}",
             WidthMm = _editor.Length > 0 ? _editor.Length : 1000,
             HeightMm = _editor.Height > 0 ? _editor.Height : 1000,
-            IsFakeFrame = frame?.Kind == GeometryElementKind.DummyFrame
+            IsFakeFrame = frame?.Kind is GeometryElementKind.DummyFrame or GeometryElementKind.FictitiousFrame
         };
         _store.Templates.Add(template);
         SelectedTemplate = template;

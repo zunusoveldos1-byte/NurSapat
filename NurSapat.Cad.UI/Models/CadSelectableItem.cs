@@ -6,11 +6,13 @@ public enum CadSelectableKind
 {
     Frame,
     Impost,
+    ExtremeImpost,
     Sash,
     Glazing,
     Bead,
     SashHandle,
-    SashHinge
+    SashHinge,
+    Sill
 }
 
 /// <summary>Ключ выделяемого элемента конструкции на холсте.</summary>
@@ -50,6 +52,17 @@ public sealed class CadSelectableItem : IEquatable<CadSelectableItem>
     public static CadSelectableItem FromImpostTarget(VerticalImpostTarget target) =>
         Impost(target.SplitNode, target.UniformGapIndex ?? 0);
 
+    public static CadSelectableItem ExtremeImpost(FrameNode leaf, Guid slotId) =>
+        new()
+        {
+            Kind = CadSelectableKind.ExtremeImpost,
+            ImpostNode = leaf,
+            ElementId = slotId
+        };
+
+    public static CadSelectableItem Sill(Guid id) =>
+        new() { Kind = CadSelectableKind.Sill, ElementId = id };
+
     public bool Equals(CadSelectableItem? other)
     {
         if (other is null)
@@ -67,6 +80,8 @@ public sealed class CadSelectableItem : IEquatable<CadSelectableItem>
             CadSelectableKind.Frame => true,
             CadSelectableKind.Impost =>
                 ReferenceEquals(ImpostNode, other.ImpostNode) && ImpostGapIndex == other.ImpostGapIndex,
+            CadSelectableKind.ExtremeImpost =>
+                ReferenceEquals(ImpostNode, other.ImpostNode) && ElementId == other.ElementId,
             CadSelectableKind.SashHinge =>
                 ElementId == other.ElementId && HingeSlot == other.HingeSlot,
             _ => ElementId == other.ElementId && Kind == other.Kind
@@ -80,6 +95,7 @@ public sealed class CadSelectableItem : IEquatable<CadSelectableItem>
         {
             CadSelectableKind.Frame => HashCode.Combine(Kind),
             CadSelectableKind.Impost => HashCode.Combine(Kind, ImpostNode, ImpostGapIndex),
+            CadSelectableKind.ExtremeImpost => HashCode.Combine(Kind, ImpostNode, ElementId),
             CadSelectableKind.SashHinge => HashCode.Combine(Kind, ElementId, HingeSlot),
             _ => HashCode.Combine(Kind, ElementId)
         };

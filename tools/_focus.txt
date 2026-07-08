@@ -1,0 +1,88 @@
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:3035-3055 =====
+3037|        OnPropertyChanged(nameof(FrameRoot));
+3043|    private bool ShouldNestRealFrameInFakeContext() =>
+3044|        HasFakeFrameOnCanvas && FrameRoot is not null;
+3046|    private void SyncFrameRootFictitiousFlag()
+3048|        if (FrameRoot is null)
+3053|        FrameRoot.IsFictitiousContainer = HasFakeFrameOnCanvas;
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:3135-3250 =====
+3138|        ArchFrameDrawingHelper.EnsureFrameRootArcProfile(FrameRoot, width);
+3141|    public async Task TryHandleAdapterProfileClickAsync(CadPoint worldPoint)
+3143|        if (CurrentToolMode != WindowToolMode.AdapterProfile || !ShouldNestRealFrameInFakeContext())
+3148|        var leaf = FrameRoot?.FindLeafAt(worldPoint.X, worldPoint.Y);
+3155|        if (!leaf.CanAccept(WindowToolMode.AdapterProfile))
+3161|        if (FindTransitionInLeaf(leaf) is not null)
+3227|    private GeometryElement? FindTransitionInLeaf(FrameNode leaf) =>
+3234|                       && !DummyFrame.IsDummyElement(element));
+3237|        FrameRoot?.IsFictitiousContainer != true || FindFrameInLeaf(leaf) is not null;
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:3385-3415 =====
+3387|    private bool TryCommitNestedRealFrameAt(double worldX, double worldY)
+3389|        if (!ShouldNestRealFrameInFakeContext() || FrameRoot is null)
+3394|        var leaf = FrameRoot.FindLeafAt(worldX, worldY);
+3395|        if (leaf is null || FindTransitionInLeaf(leaf) is null)
+3406|        && ShouldNestRealFrameInFakeContext()
+3407|        && FrameRoot?.FindLeafAt(worldPoint.X, worldPoint.Y) is FrameNode leaf
+3408|        && FindTransitionInLeaf(leaf) is not null;
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:4515-4560 =====
+4531|        else if (mode == WindowToolMode.AdapterProfile)
+4533|            StatusText = ShouldNestRealFrameInFakeContext()
+4539|            StatusText = FrameRoot is null || !HasRealFrameOnCanvas
+4545|            StatusText = FrameRoot is null || !HasRealFrameOnCanvas
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:4655-4720 =====
+4668|        if (mode == WindowToolMode.RealFrame && ShouldNestRealFrameInFakeContext())
+===== NurSapat.Cad.UI/Controls/CadCanvasControl.cs:1-80 =====
+41|    private static readonly Pen SelectedFramePen = new(CadStrokeBrush, 2);
+68|    public static readonly StyledProperty<bool> AutoFitOnResizeProperty =
+69|        AvaloniaProperty.Register<CadCanvasControl, bool>(nameof(AutoFitOnResize), false);
+71|    public bool AutoFitOnResize
+73|        get => GetValue(AutoFitOnResizeProperty);
+74|        set => SetValue(AutoFitOnResizeProperty, value);
+===== NurSapat.Cad.UI/Controls/CadCanvasControl.cs:300-520 =====
+320|                DrawRectangleDimensions(context, framePreview, isTemporary: true);
+331|        if (Editor.ShowArcVertexHandles && Editor.FrameRoot?.TopProfile is { } arcTopProfile)
+339|            DrawRect(context, preview, null, FramePen);
+342|                DrawRectangleDimensions(context, preview, isTemporary: true);
+351|                DrawRect(context, rect, null, FramePen);
+357|            DrawRect(context, designPreview, null, FramePen);
+365|                DrawRect(context, selectionRect, fill, SelectedFramePen);
+375|    private bool _autoFitOnResizeScheduled;
+377|    private void ScheduleAutoFitOnResize()
+379|        if (!AutoFitOnResize || Editor is null)
+384|        if (_autoFitOnResizeScheduled)
+389|        _autoFitOnResizeScheduled = true;
+393|                _autoFitOnResizeScheduled = false;
+394|                TryAutoFitOnResize();
+399|    private void TryAutoFitOnResize()
+401|        if (!AutoFitOnResize || Editor is null || Bounds.Width <= 0 || Bounds.Height <= 0)
+478|    private void DrawRectangleDimensions(DrawingContext context, CadRect rect, bool isTemporary)
+507|            CadDiagnostics.LogWarning("DrawRectangleDimensions failed", ex);
+===== NurSapat.Cad.UI/Rendering/ConstructionSelectionRenderer.cs:1-120 =====
+18|    private static readonly IPen DummySelectionPen = new Pen(
+37|                case CadSelectableKind.Frame:
+40|                case CadSelectableKind.Impost when item.ImpostNode is not null:
+43|                case CadSelectableKind.ExtremeImpost
+47|                case CadSelectableKind.Sash when item.ElementId is Guid sashId:
+50|                case CadSelectableKind.Glazing when item.ElementId is Guid glazingId:
+53|                case CadSelectableKind.Bead when item.ElementId is Guid beadId:
+56|                case CadSelectableKind.SashHandle when item.ElementId is Guid handleSashId:
+57|                    DrawHardwareHighlight(context, editor, handleSashId, CadSelectableKind.SashHandle, 0);
+59|                case CadSelectableKind.SashHinge when item.ElementId is Guid hingeSashId:
+68|        if (editor.FrameRoot is not FrameNode frame)
+73|        if (frame.IsDummy)
+79|                DummySelectionPen);
+112|        DrawRectangularBandHighlight(
+===== NurSapat.App/Services/Export/ExportService.cs:1-50 =====
+===== NurSapat.App/Services/Export/ExportService.cs:180-350 =====
+207|        var materials = BuildMaterialLines(construction);
+229|            Materials = materials
+233|    private static List<MaterialLineExportNode> BuildMaterialLines(OrderConstruction construction)
+235|        var lines = new List<MaterialLineExportNode>();
+238|            .Where(element => !FictitiousFrame.IsFictitiousElement(element))
+249|            lines.Add(new MaterialLineExportNode
+257|                MaterialType = "Profile",
+282|            lines.Add(new MaterialLineExportNode
+290|                MaterialType = "Glass",
+303|            lines.Add(new MaterialLineExportNode
+311|                MaterialType = "Glass",
+318|            lines.Add(new MaterialLineExportNode
+326|                MaterialType = "Other",

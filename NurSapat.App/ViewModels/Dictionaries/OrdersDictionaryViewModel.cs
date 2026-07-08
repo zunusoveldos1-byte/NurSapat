@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using NurSapat.App.Models.Orders;
 using NurSapat.App.Services;
 using NurSapat.App.Services.Orders;
+using NurSapat.Core.Models.Orders;
 using System.Collections.ObjectModel;
 
 namespace NurSapat.App.ViewModels.Dictionaries;
@@ -29,8 +30,8 @@ public sealed partial class OrdersDictionaryViewModel : BaseDictionaryViewModel<
         StatusFilterOptions =
         [
             new OrderStatusFilterOption { Display = "Все", Status = null },
-            new OrderStatusFilterOption { Display = "Расчет", Status = OrderStatus.Calculation },
-            new OrderStatusFilterOption { Display = "Замер", Status = OrderStatus.Measurement },
+            new OrderStatusFilterOption { Display = "Черновик", Status = OrderStatus.Draft },
+            new OrderStatusFilterOption { Display = "Просчёт", Status = OrderStatus.Calculation },
             new OrderStatusFilterOption { Display = "В производстве", Status = OrderStatus.InProduction },
             new OrderStatusFilterOption { Display = "Готов", Status = OrderStatus.Ready },
             new OrderStatusFilterOption { Display = "Отгружен", Status = OrderStatus.Shipped }

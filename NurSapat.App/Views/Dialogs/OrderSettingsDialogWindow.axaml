@@ -1,0 +1,98 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dialogs"
+        xmlns:orders="clr-namespace:NurSapat.Core.Models.Orders;assembly=NurSapat.Core"
+        xmlns:conv="clr-namespace:NurSapat.App.Converters"
+        xmlns:controls="clr-namespace:NurSapat.App.Views.Dialogs.Controls"
+        x:Class="NurSapat.App.Views.Dialogs.OrderSettingsDialogWindow"
+        x:DataType="vm:OrderSettingsDialogViewModel"
+        Width="540"
+        Height="520"
+        MinWidth="500"
+        MinHeight="460"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+        <StyleInclude Source="/Styles/ErpDialogStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="8">
+        <Grid RowDefinitions="32,*,Auto">
+            <controls:ErpDialogTitleBar Grid.Row="0"
+                                        x:Name="TitleBar"
+                                        Title="{Binding Title}"
+                                        CloseRequested="OnTitleBarClose"/>
+
+            <ScrollViewer Grid.Row="1" Margin="16,14,16,8">
+                <StackPanel Spacing="0">
+                    <StackPanel Classes="erp-field">
+                        <TextBlock Classes="erp-label" Text="Номер заказа"/>
+                        <TextBox Classes="erp-input" Text="{Binding OrderNumber}"/>
+                    </StackPanel>
+                    <StackPanel Classes="erp-field">
+                        <TextBlock Classes="erp-label" Text="Дата создания"/>
+                        <DatePicker Classes="erp-input"
+                                    SelectedDate="{Binding SelectedDateOffset, Mode=TwoWay}"
+                                    IsEnabled="{Binding IsDateEditable}"/>
+                    </StackPanel>
+                    <StackPanel Classes="erp-field">
+                        <TextBlock Classes="erp-label" Text="Статус"/>
+                        <ComboBox Classes="erp-input"
+                                  ItemsSource="{Binding StatusOptions}"
+                                  SelectedItem="{Binding Status}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate DataType="orders:OrderStatus">
+                                    <TextBlock Text="{Binding Converter={x:Static conv:OrderStatusDisplayConverter.Instance}}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Classes="erp-field">
+                        <TextBlock Classes="erp-label" Text="Заметки к производству"/>
+                        <TextBox Classes="erp-input"
+                                 Text="{Binding ProductionNote}"
+                                 AcceptsReturn="True"
+                                 Height="88"
+                                 TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Border Classes="erp-warning-card"
+                            Margin="0,0,0,12"
+                            IsVisible="{Binding PriceListNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                        <TextBlock Text="{Binding PriceListNotice}"
+                                   Foreground="#B45309"
+                                   TextWrapping="Wrap"/>
+                    </Border>
+                    <Border Classes="erp-error-card"
+                            IsVisible="{Binding ProductionBlockReason, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                        <TextBlock Text="{Binding ProductionBlockReason}"
+                                   Foreground="#DC2626"
+                                   TextWrapping="Wrap"/>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Border Grid.Row="2" Classes="erp-dialog-footer">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Classes="mat-toolbar" Command="{Binding CancelCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="✕" FontSize="11"/>
+                            <TextBlock Text="Отмена"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="mat-primary" Command="{Binding ConfirmCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="✓" FontSize="11" Foreground="White"/>
+                            <TextBlock Text="Сохранить" Foreground="White"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

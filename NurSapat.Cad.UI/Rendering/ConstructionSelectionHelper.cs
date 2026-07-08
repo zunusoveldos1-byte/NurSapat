@@ -1,6 +1,7 @@
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.UI.Models;
+using NurSapat.Cad.UI.Services;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Orders;
 using System.Linq;
@@ -10,6 +11,21 @@ namespace NurSapat.Cad.UI.Rendering;
 internal static class ConstructionSelectionHelper
 {
     private const double BeadHitToleranceMm = 24;
+
+    public static GeometryElement? FindGlazingAtPoint(CadEditorViewModel editor, CadPoint worldPoint)
+    {
+        foreach (var element in editor.CanvasElements
+                     .Where(e => e.Kind == GeometryElementKind.Glazing)
+                     .Reverse())
+        {
+            if (HitTestGlazing(editor, element, worldPoint))
+            {
+                return element;
+            }
+        }
+
+        return null;
+    }
 
     public static CadSelectableItem? HitTest(CadEditorViewModel editor, CadPoint worldPoint)
     {
@@ -41,6 +57,22 @@ internal static class ConstructionSelectionHelper
             }
         }
 
+        if (editor.FrameRoot is not null)
+        {
+            foreach (var (leaf, slot) in editor.FrameRoot.EnumerateExtremeImposts())
+            {
+                if (ExtremeImpostGeometry.ContainsCommittedImpost(
+                        editor.FrameRoot,
+                        editor.FrameThickness,
+                        leaf,
+                        slot,
+                        worldPoint))
+                {
+                    return CadSelectableItem.ExtremeImpost(leaf, slot.Id);
+                }
+            }
+        }
+
         var impost = HitTestImpost(editor, worldPoint);
         if (impost is not null)
         {
@@ -53,6 +85,14 @@ internal static class ConstructionSelectionHelper
                 SashGeometry.ContainsSashProfileAtPoint(editor, element, worldPoint))
             {
                 return CadSelectableItem.Sash(element.Id);
+            }
+        }
+
+        foreach (var element in canvasElements)
+        {
+            if (element.Kind == GeometryElementKind.Sill && SillRenderer.TryHitSill(editor, worldPoint))
+            {
+                return CadSelectableItem.Sill(element.Id);
             }
         }
 
@@ -94,6 +134,15 @@ internal static class ConstructionSelectionHelper
 
         if (editor.FrameRoot is not null)
         {
+            foreach (var (leaf, slot) in editor.FrameRoot.EnumerateExtremeImposts())
+            {
+                if (TryGetExtremeImpostBounds(editor, leaf, slot) is { } extremeBounds
+                    && selectionBounds.Intersects(extremeBounds))
+                {
+                    results.Add(CadSelectableItem.ExtremeImpost(leaf, slot.Id));
+                }
+            }
+
             foreach (var node in editor.FrameRoot.EnumerateInternalNodes())
             {
                 if (node.IsUniformSplit)
@@ -211,6 +260,33 @@ internal static class ConstructionSelectionHelper
         }
 
         return new CadRect(left, top, right - left, top - yBottom);
+    }
+
+    public static CadRect? TryGetExtremeImpostBounds(
+        CadEditorViewModel editor,
+        FrameNode leaf,
+        ExtremeImpostSlot slot)
+    {
+        if (editor.FrameRoot is null)
+        {
+            return null;
+        }
+
+        var inner = SashGeometry.ResolveLeafInnerOpeningBounds(
+            leaf,
+            editor.FrameRoot,
+            editor.FrameThickness,
+            includeExtremeImposts: false);
+        var axis = ExtremeImpostGeometry.ResolveAxisWorld(inner, slot.EdgeAlignment, slot.ThicknessMm, slot.OffsetMm);
+        ExtremeImpostGeometry.ResolveSpan(inner, slot.EdgeAlignment, out var spanStart, out var spanEnd);
+        var half = slot.ThicknessMm / 2.0;
+
+        if (slot.Orientation == SplitOrientation.Vertical)
+        {
+            return new CadRect(axis - half, spanEnd, slot.ThicknessMm, spanEnd - spanStart);
+        }
+
+        return new CadRect(spanStart, axis + half, spanEnd - spanStart, slot.ThicknessMm);
     }
 
     private static bool HitTestFrame(CadEditorViewModel editor, CadPoint worldPoint)

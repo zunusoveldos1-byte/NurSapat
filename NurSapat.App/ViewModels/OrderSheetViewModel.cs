@@ -2,6 +2,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NurSapat.App.Services;
 using NurSapat.App.Services.Documents;
+using NurSapat.App.Services.Orders;
+using NurSapat.App.Services.Users;
 using NurSapat.App.Views.Dialogs;
 using NurSapat.Cad.Core.Viewport;
 using NurSapat.Cad.UI.Dialogs;
@@ -24,6 +26,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
     private const decimal FallbackAreaPricePerSqM = 5_000m;
 
     private readonly OrderWorkspaceViewModel _workspace;
+    private readonly IOrderErpDialogService _orderErpDialogService;
     private readonly OrderCalculationService _calculationService = new();
     private IDocumentManager? _documentManager;
     private readonly List<OrderConstructionLookupItemViewModel> _allConstructionCards = [];
@@ -432,9 +435,13 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
 
     public event EventHandler? ProjectModified;
 
-    public OrderSheetViewModel(OrderWorkspaceViewModel workspace, CadEditorViewModel previewEditor)
+    public OrderSheetViewModel(
+        OrderWorkspaceViewModel workspace,
+        CadEditorViewModel previewEditor,
+        IOrderErpDialogService orderErpDialogService)
     {
         _workspace = workspace;
+        _orderErpDialogService = orderErpDialogService;
         Order = workspace.Order;
         PreviewEditor = previewEditor;
         Order.Payment.PropertyChanged += OnPaymentPropertyChanged;
@@ -627,6 +634,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
 
         var deletedId = SelectedConstruction.Id;
         await _workspace.RemoveConstructionAsync(deletedId);
+        CalculateConstructionVolume();
 
         if (GetFilteredConstructionCards().Count == 0)
         {
@@ -669,22 +677,13 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
 
     private async Task<bool> ShowDeleteConfirmationAsync()
     {
-        var owner = GetOwnerWindow();
-        if (owner is null)
+        if (SelectedConstruction is null)
         {
             return false;
         }
 
-        var viewModel = new ConfirmDialogViewModel(
-            "Вы уверены, что хотите удалить выбранную конструкцию?");
-        var window = new ConfirmDialogWindow
-        {
-            Title = "Удаление конструкции",
-            DataContext = viewModel
-        };
-
-        viewModel.CloseRequested += (_, confirmed) => window.Close(confirmed);
-        return await window.ShowDialog<bool?>(owner) == true;
+        var message = ConstructionDeleteMessageBuilder.Build(SelectedConstruction);
+        return await _orderErpDialogService.ShowConfirmDeleteAsync(message);
     }
 
     [RelayCommand]
@@ -1087,6 +1086,12 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         GoToNextPageCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>
+    /// Суммарный физический объём активной конструкции (TODO: вывод в спецификацию ERP).
+    /// </summary>
+    public ConstructionVolumeSummary CalculateConstructionVolume() =>
+        PreviewEditor.CalculateConstructionVolume();
+
     public void RecalculateAll()
     {
         _calculationService.Recalculate(Order);
@@ -1144,20 +1149,34 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
 
         var construction = ActiveConstruction;
         var geometry = construction.Geometry;
-        var w = geometry.OuterWidthMm;
-        var h = geometry.OuterHeightMm;
+        var billableElements = geometry.Elements
+            .Where(element => !FictitiousFrame.IsFictitiousElement(element))
+            .ToList();
+        if (billableElements.Count == 0)
+        {
+            return;
+        }
+
+        var (billableWidth, billableHeight) = geometry.ResolveBillableOuterBounds();
+        var w = billableWidth;
+        var h = billableHeight;
         var perimeterM = w > 0 && h > 0 ? (w + h) * 2m / 1000m : 0m;
-        var area = Metrics.ProductAreaSqM;
-        var mullionLength = geometry.Elements
+        var area = construction.Metrics.ProductAreaSqM;
+        var mullionLength = billableElements
             .Where(e => e.Kind == GeometryElementKind.Mullion)
             .Sum(_ => 1.4m);
-        if (mullionLength <= 0)
+        if (mullionLength <= 0 && perimeterM > 0)
         {
             mullionLength = 1.4m;
         }
 
-        var connectors = Math.Max(2, geometry.Elements.Count(e =>
+        var connectors = Math.Max(0, billableElements.Count(e =>
             e.Kind is GeometryElementKind.EdgeMullion or GeometryElementKind.Mullion));
+
+        if (perimeterM <= 0 && area <= 0 && mullionLength <= 0 && connectors <= 0)
+        {
+            return;
+        }
 
         MaterialLines.Add(new MaterialQuantityLine(
             "Профиль",
@@ -1187,10 +1206,13 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
             "Штапик",
             string.Empty,
             $"{perimeterM * 1.07m:N2} м"));
-        MaterialLines.Add(new MaterialQuantityLine(
-            "Соединитель",
-            string.Empty,
-            $"{connectors} шт."));
+        if (connectors > 0)
+        {
+            MaterialLines.Add(new MaterialQuantityLine(
+                "Соединитель",
+                string.Empty,
+                $"{connectors} шт."));
+        }
     }
 
     private static bool HasConstructionContent(OrderConstruction construction) =>

@@ -1,0 +1,111 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Utilities"
+        x:Class="NurSapat.App.Views.Utilities.ProductionBaseWindow"
+        x:DataType="vm:ProductionBaseViewModel"
+        Width="520"
+        Height="300"
+        MinWidth="480"
+        MinHeight="280"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="40,*,Auto">
+            <Border Grid.Row="0"
+                    Classes="mat-titlebar"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,46">
+                    <TextBlock Classes="mat-titlebar-text"
+                               Margin="16,0,0,0"
+                               Text="Обновление производственной базы"/>
+                    <Button Grid.Column="1"
+                            Classes="mat-chrome-btn close"
+                            Click="OnCloseClick"
+                            Content="✕"
+                            Width="46"
+                            Height="32"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Row="1" Margin="16,12,16,0" Spacing="10">
+                <TextBlock Text="Файл обновления (.prod-update)"
+                           FontSize="12"
+                           Foreground="#64748B"/>
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Text="{Binding UpdateFilePath}"
+                             IsReadOnly="True"
+                             Watermark="Выберите файл обновления"
+                             MinHeight="34"
+                             VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Classes="mat-toolbar"
+                            Margin="6,0,0,0"
+                            Content="Обзор..."
+                            Command="{Binding BrowseCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </Grid>
+
+                <TextBlock Text="Пароль пакета (если задан при формировании)"
+                           FontSize="12"
+                           Foreground="#64748B"/>
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Text="{Binding ProtectionPassword}"
+                             PasswordChar="{Binding PasswordChar}"
+                             MinHeight="34"
+                             VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Classes="mat-toolbar"
+                            Margin="6,0,0,0"
+                            Width="34"
+                            Height="34"
+                            Padding="0"
+                            Command="{Binding TogglePasswordVisibilityCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center">
+                        <TextBlock Text="👁" FontSize="14"/>
+                    </Button>
+                </Grid>
+
+                <TextBlock Text="Обновляются только технологические справочники. Таблица заказов цеха не изменяется."
+                           TextWrapping="Wrap"
+                           FontSize="12"
+                           Foreground="#64748B"/>
+
+                <TextBlock Text="{Binding ErrorMessage}"
+                           Foreground="#DC2626"
+                           TextWrapping="Wrap"
+                           FontSize="12"
+                           MinHeight="18"/>
+            </StackPanel>
+
+            <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Spacing="8">
+                    <Button Classes="mat-primary"
+                            Content="Обновить"
+                            Command="{Binding ImportCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Classes="mat-toolbar"
+                            Content="Отмена"
+                            Command="{Binding CancelCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

@@ -29,7 +29,7 @@ public sealed class OrderCalculationService
 
     private static void ApplyStubMaterialCosts(OrderConstruction construction)
     {
-        var area = construction.Geometry.ProductAreaSqM;
+        var area = construction.Geometry.BillableProductAreaSqM;
         var baseCost = decimal.Round(area * AreaPriceCoefficient, 2, MidpointRounding.AwayFromZero);
 
         construction.Cost.ProfileCost = RoundShare(baseCost, 0.42m);

@@ -10,6 +10,7 @@
 		<ResourceDictionary>
 			<ResourceDictionary.MergedDictionaries>
 				<ResourceInclude Source="/Styles/Colors.axaml"/>
+				<ResourceInclude Source="/Styles/CadToolIcons.axaml"/>
 				<ResourceInclude Source="/Resources/EditMenuStrings.axaml"/>
 			</ResourceDictionary.MergedDictionaries>
 		</ResourceDictionary>

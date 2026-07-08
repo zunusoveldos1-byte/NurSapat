@@ -11,7 +11,7 @@
 
     <Style Selector="Border.mat-titlebar">
         <Setter Property="Background" Value="#0F172A"/>
-        <Setter Property="Height" Value="40"/>
+        <Setter Property="Height" Value="32"/>
         <Setter Property="CornerRadius" Value="12,12,0,0"/>
     </Style>
 
@@ -60,7 +60,7 @@
     <Style Selector="Button.mat-primary">
         <Setter Property="Background" Value="#2563EB"/>
         <Setter Property="Foreground" Value="White"/>
-        <Setter Property="BorderBrush" Value="#1D4ED8"/>
+        <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="MinHeight" Value="36"/>
         <Setter Property="CornerRadius" Value="8"/>
         <Setter Property="Padding" Value="12,6"/>
@@ -68,8 +68,9 @@
         <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>
 
-    <Style Selector="Button.mat-primary:pointerover">
+    <Style Selector="Button.mat-primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="#1D4ED8"/>
+        <Setter Property="TextBlock.Foreground" Value="White"/>
     </Style>
 
     <Style Selector="Button.mat-toolbar">
@@ -79,4 +80,41 @@
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>
+
+    <Style Selector="Button.tg-btn /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#33ADE9"/>
+    </Style>
+    <Style Selector="Button.tg-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#299AD2"/>
+        <Setter Property="TextBlock.Foreground" Value="White"/>
+    </Style>
+    <Style Selector="Button.tg-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#2082B2"/>
+        <Setter Property="TextBlock.Foreground" Value="White"/>
+    </Style>
+
+    <Style Selector="Button.wa-btn /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#197948"/>
+    </Style>
+    <Style Selector="Button.wa-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#135F38"/>
+        <Setter Property="TextBlock.Foreground" Value="White"/>
+    </Style>
+    <Style Selector="Button.wa-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#0E4629"/>
+        <Setter Property="TextBlock.Foreground" Value="White"/>
+    </Style>
+
+    <Style Selector="Button.phone-btn /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#0BC770"/>
+    </Style>
+    <Style Selector="Button.phone-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#09A65D"/>
+        <Setter Property="TextBlock.Foreground" Value="White"/>
+    </Style>
+    <Style Selector="Button.phone-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#07854A"/>
+        <Setter Property="TextBlock.Foreground" Value="White"/>
+    </Style>
+
 </Styles>

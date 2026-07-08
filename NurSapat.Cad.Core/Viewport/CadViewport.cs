@@ -92,6 +92,12 @@ public sealed partial class CadViewport : ObservableObject
 
     public double ChooseGridStep() => ChooseRulerStep();
 
+    public (double MajorStep, double MinorStep) ChooseGridSteps()
+    {
+        var major = ChooseGridStep();
+        return (major, major / 5.0);
+    }
+
     public double ChooseRulerStep()
     {
         const double targetPixels = 72.0;

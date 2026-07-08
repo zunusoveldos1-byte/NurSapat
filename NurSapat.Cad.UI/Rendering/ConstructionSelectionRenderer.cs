@@ -1,8 +1,9 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Media;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.UI.Models;
+using NurSapat.Cad.UI.Services;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Orders;
 using System.Linq;
@@ -14,6 +15,10 @@ public static class ConstructionSelectionRenderer
     private static readonly IPen SelectionPen = new Pen(
         FrameVolumeRenderer.SelectionHighlightBrush,
         2.5);
+    private static readonly IPen DummySelectionPen = new Pen(
+        FrameVolumeRenderer.DummySelectionHighlightBrush,
+        2.5,
+        new DashStyle(new double[] { 4, 3 }, 0));
 
     public static void DrawHighlights(
         DrawingContext context,
@@ -34,6 +39,10 @@ public static class ConstructionSelectionRenderer
                     break;
                 case CadSelectableKind.Impost when item.ImpostNode is not null:
                     DrawImpostHighlight(context, editor, item.ImpostNode, item.ImpostGapIndex);
+                    break;
+                case CadSelectableKind.ExtremeImpost
+                    when item.ImpostNode is not null && item.ElementId is Guid slotId:
+                    DrawExtremeImpostHighlight(context, editor, item.ImpostNode, slotId);
                     break;
                 case CadSelectableKind.Sash when item.ElementId is Guid sashId:
                     DrawSashProfileHighlight(context, editor, sashId);
@@ -61,6 +70,18 @@ public static class ConstructionSelectionRenderer
             return;
         }
 
+        if (frame.IsDummy)
+        {
+            var bounds = new CadRect(frame.X, frame.Y + frame.Height, frame.Width, frame.Height);
+            DrawWorldRectOutline(
+                context,
+                editor,
+                bounds,
+                DummySelectionPen);
+            DrawDummyResizeHandles(context, editor, bounds);
+            return;
+        }
+
         if (frame.TopProfile?.SegmentType == SegmentType.Arc &&
             frame.TopProfile.ArcHeight > ProfileSegment.MinFlatArcHeightMm)
         {
@@ -73,7 +94,7 @@ public static class ConstructionSelectionRenderer
                     frame.Height,
                     frame.TopProfile,
                     editor.FrameThickness);
-                StrokeProfileBand(context, editor, contours.OuterLoop, contours.InnerLoop);
+            StrokeProfileBand(context, editor, contours.OuterLoop, contours.InnerLoop, SelectionPen);
                 return;
             }
             catch (InvalidOperationException)
@@ -100,7 +121,8 @@ public static class ConstructionSelectionRenderer
             frame.X + inset,
             frame.Y + inset,
             frame.X + frame.Width - inset,
-            frame.Y + frame.Height - inset);
+            frame.Y + frame.Height - inset,
+            SelectionPen);
     }
 
     private static void DrawImpostHighlight(
@@ -125,20 +147,35 @@ public static class ConstructionSelectionRenderer
         if (arc is ArcSpringingGeometry archedArc)
         {
             var polygon = ImpostProfileHitTest.BuildArcTrimmedPolygon(archedArc, left, right, yBottom);
-            StrokePolygon(context, editor, polygon, close: true);
+            StrokePolygon(context, editor, polygon, close: true, SelectionPen);
             return;
         }
 
         if (ImpostProfileHitTest.TryGetHorizontalFootprintPolygon(editor, node, gapIndex, out var horizontalPolygon))
         {
-            StrokePolygon(context, editor, horizontalPolygon, close: true);
+            StrokePolygon(context, editor, horizontalPolygon, close: true, SelectionPen);
             return;
         }
 
         if (ConstructionSelectionHelper.TryGetImpostBounds(editor, node, gapIndex) is { } bounds)
         {
-            DrawWorldRectOutline(context, editor, bounds);
+            DrawWorldRectOutline(context, editor, bounds, SelectionPen);
         }
+    }
+
+    private static void DrawExtremeImpostHighlight(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameNode leaf,
+        Guid slotId)
+    {
+        var slot = leaf.FindExtremeImpost(slotId);
+        if (slot is null || ConstructionSelectionHelper.TryGetExtremeImpostBounds(editor, leaf, slot) is not { } bounds)
+        {
+            return;
+        }
+
+        DrawWorldRectOutline(context, editor, bounds, SelectionPen);
     }
 
     private static void DrawSashProfileHighlight(DrawingContext context, CadEditorViewModel editor, Guid sashId)
@@ -175,7 +212,7 @@ public static class ConstructionSelectionRenderer
                 out _,
                 out _))
         {
-            StrokeProfileBand(context, editor, outerLoop, innerLoop);
+            StrokeProfileBand(context, editor, outerLoop, innerLoop, SelectionPen);
             return;
         }
 
@@ -190,21 +227,26 @@ public static class ConstructionSelectionRenderer
             outer.Left + halfThickness,
             outer.Bottom + halfThickness,
             outer.Right - halfThickness,
-            outer.Top - halfThickness);
+            outer.Top - halfThickness,
+            SelectionPen);
     }
 
     private static void DrawHardwareHighlight(
-        DrawingContext context,
-        CadEditorViewModel editor,
-        Guid sashId,
-        CadSelectableKind kind,
-        int hingeSlot)
+    DrawingContext context,
+    CadEditorViewModel editor,
+    Guid sashId,
+    CadSelectableKind kind,
+    int hingeSlot)
     {
         var sash = editor.CanvasElements.FirstOrDefault(e => e.Id == sashId && e.Kind == GeometryElementKind.Sash);
         if (sash is null)
         {
             return;
         }
+
+        // Создаем или берем дефолтное перо для подсветки фурнитуры (например, полупрозрачное синее или оранжевое)
+        // Ты можешь настроить цвет (Brushes.Orange) и толщину (1.5) под свой дизайн
+        var highlightPen = new Pen(Brushes.Orange, 1.5);
 
         foreach (var region in SashHardwareHitTest.EnumerateRegions(editor, sash))
         {
@@ -218,7 +260,8 @@ public static class ConstructionSelectionRenderer
                 continue;
             }
 
-            DrawWorldRectOutline(context, editor, region.Bounds);
+            // ИСПРАВЛЕНО: Передаем highlightPen четвертым аргументом
+            DrawWorldRectOutline(context, editor, region.Bounds, highlightPen);
         }
     }
 
@@ -238,7 +281,7 @@ public static class ConstructionSelectionRenderer
             SashGeometry.TryResolveGlassForGlazingElement(editor, element, editor.CanvasElements, out var glass) &&
             glass.IsArched)
         {
-            StrokeContourLoop(context, editor, glass.BuildOuterContourLoop());
+            StrokeContourLoop(context, editor, glass.BuildOuterContourLoop(), SelectionPen);
             return;
         }
 
@@ -247,17 +290,18 @@ public static class ConstructionSelectionRenderer
             return;
         }
 
-        DrawWorldRectOutline(context, editor, bounds);
+        DrawWorldRectOutline(context, editor, bounds, SelectionPen);
     }
 
     private static void StrokeProfileBand(
         DrawingContext context,
         CadEditorViewModel editor,
         ProfileContourLoop outerLoop,
-        ProfileContourLoop innerLoop)
+        ProfileContourLoop innerLoop,
+        IPen pen)
     {
-        StrokeContourLoop(context, editor, outerLoop);
-        StrokeContourLoop(context, editor, innerLoop);
+        StrokeContourLoop(context, editor, outerLoop, pen);
+        StrokeContourLoop(context, editor, innerLoop, pen);
     }
 
     private static void DrawRectangularBandHighlight(
@@ -270,10 +314,11 @@ public static class ConstructionSelectionRenderer
         double innerLeft,
         double innerBottom,
         double innerRight,
-        double innerTop)
+        double innerTop,
+        IPen pen)
     {
-        DrawWorldRectOutline(context, editor, ToCadRect(outerLeft, outerBottom, outerRight, outerTop));
-        DrawWorldRectOutline(context, editor, ToCadRect(innerLeft, innerBottom, innerRight, innerTop));
+        DrawWorldRectOutline(context, editor, ToCadRect(outerLeft, outerBottom, outerRight, outerTop), pen);
+        DrawWorldRectOutline(context, editor, ToCadRect(innerLeft, innerBottom, innerRight, innerTop), pen);
     }
 
     private static CadRect ToCadRect(double left, double bottom, double right, double top) =>
@@ -283,7 +328,8 @@ public static class ConstructionSelectionRenderer
         DrawingContext context,
         CadEditorViewModel editor,
         IReadOnlyList<CadPoint> polygon,
-        bool close)
+        bool close,
+        IPen pen)
     {
         if (polygon.Count < 2)
         {
@@ -294,27 +340,28 @@ public static class ConstructionSelectionRenderer
         for (var i = 1; i < polygon.Count; i++)
         {
             var current = WorldToScreen(editor, polygon[i]);
-            context.DrawLine(SelectionPen, previous, current);
+            context.DrawLine(pen, previous, current);
             previous = current;
         }
 
         if (close)
         {
-            context.DrawLine(SelectionPen, previous, WorldToScreen(editor, polygon[0]));
+            context.DrawLine(pen, previous, WorldToScreen(editor, polygon[0]));
         }
     }
 
     private static void StrokeContourLoop(
         DrawingContext context,
         CadEditorViewModel editor,
-        ProfileContourLoop loop)
+        ProfileContourLoop loop,
+        IPen pen)
     {
         foreach (var edge in loop.Edges)
         {
             if (edge.Kind == ProfileEdgeKind.Line)
             {
                 context.DrawLine(
-                    SelectionPen,
+                    pen,
                     WorldToScreen(editor, edge.Start),
                     WorldToScreen(editor, edge.End));
                 continue;
@@ -328,22 +375,22 @@ public static class ConstructionSelectionRenderer
                          edge.ArcEndAngleRad))
             {
                 var current = WorldToScreen(editor, worldPoint);
-                context.DrawLine(SelectionPen, previous, current);
+                context.DrawLine(pen, previous, current);
                 previous = current;
             }
         }
     }
 
-    private static void DrawWorldRectOutline(DrawingContext context, CadEditorViewModel editor, CadRect bounds)
+    private static void DrawWorldRectOutline(DrawingContext context, CadEditorViewModel editor, CadRect bounds, IPen pen)
     {
         var topLeft = WorldToScreen(editor, new CadPoint(bounds.X, bounds.Y));
         var topRight = WorldToScreen(editor, new CadPoint(bounds.X + bounds.Width, bounds.Y));
         var bottomLeft = WorldToScreen(editor, new CadPoint(bounds.X, bounds.Y - bounds.Height));
         var bottomRight = WorldToScreen(editor, new CadPoint(bounds.X + bounds.Width, bounds.Y - bounds.Height));
-        context.DrawLine(SelectionPen, topLeft, topRight);
-        context.DrawLine(SelectionPen, topRight, bottomRight);
-        context.DrawLine(SelectionPen, bottomRight, bottomLeft);
-        context.DrawLine(SelectionPen, bottomLeft, topLeft);
+        context.DrawLine(pen, topLeft, topRight);
+        context.DrawLine(pen, topRight, bottomRight);
+        context.DrawLine(pen, bottomRight, bottomLeft);
+        context.DrawLine(pen, bottomLeft, topLeft);
     }
 
     private static Point WorldToScreen(CadEditorViewModel editor, CadPoint worldPoint)

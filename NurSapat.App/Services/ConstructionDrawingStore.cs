@@ -77,7 +77,10 @@ internal static class ConstructionDrawingStore
     private static NurSapat.Cad.Core.Models.FrameNode? TryCreateFrameRootFromElements(
         IReadOnlyList<GeometryElement> elements)
     {
-        var frameElement = elements.FirstOrDefault(e => e.Kind == GeometryElementKind.Frame);
+        var frameElement = elements.FirstOrDefault(e =>
+            e.Kind is GeometryElementKind.Frame
+                or GeometryElementKind.FictitiousFrame
+                or GeometryElementKind.DummyFrame);
         if (frameElement is null)
         {
             return null;

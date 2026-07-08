@@ -45,9 +45,29 @@ public static class CadToolMetadata
     }
 
     public static CadToolInfo Get(CadToolKind kind) =>
-        ByKind.TryGetValue(kind, out var info)
-            ? info
-            : throw new ArgumentOutOfRangeException(nameof(kind), kind, "Неизвестный инструмент.");
+        kind == CadToolKind.None
+            ? new CadToolInfo(kind, string.Empty, string.Empty, CadToolGroup.SystemAndEditing, CadToolInteraction.Persistent, true)
+            : ByKind.TryGetValue(kind, out var info)
+                ? info
+                : throw new ArgumentOutOfRangeException(nameof(kind), kind, "Неизвестный инструмент.");
+
+    public static bool TryGet(CadToolKind kind, out CadToolInfo info)
+    {
+        if (kind == CadToolKind.None)
+        {
+            info = new CadToolInfo(kind, string.Empty, string.Empty, CadToolGroup.SystemAndEditing, CadToolInteraction.Persistent, true);
+            return true;
+        }
+
+        if (ByKind.TryGetValue(kind, out var resolved))
+        {
+            info = resolved;
+            return true;
+        }
+
+        info = default!;
+        return false;
+    }
 
     public static CadToolKind? ResolveKind(string id) =>
         ById.TryGetValue(id, out var kind) ? kind : null;

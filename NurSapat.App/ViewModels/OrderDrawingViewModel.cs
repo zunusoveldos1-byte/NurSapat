@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Tools;
@@ -114,9 +114,10 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
 
     private CadDesignTool? MapWindowToolMode(NurSapat.Cad.Core.Models.WindowToolMode mode) => mode switch
     {
-        NurSapat.Cad.Core.Models.WindowToolMode.RealFrame => AllTools.FirstOrDefault(t => t.Id == "frame"),
+        // RealFrame управляется панелью CadEditorView (FrameNode), не legacy RectangleTool.
         NurSapat.Cad.Core.Models.WindowToolMode.FakeFrame => AllTools.FirstOrDefault(t => t.Id == "dummy-frame"),
         NurSapat.Cad.Core.Models.WindowToolMode.FakeFrameCircle => AllTools.FirstOrDefault(t => t.Id == "round-dummy"),
+        NurSapat.Cad.Core.Models.WindowToolMode.ExtremeImpost => AllTools.FirstOrDefault(t => t.Id == "edge-mullion"),
         NurSapat.Cad.Core.Models.WindowToolMode.RackRigelNone => AllTools.FirstOrDefault(t => t.Id == "edge-mullion"),
         _ => null
     };

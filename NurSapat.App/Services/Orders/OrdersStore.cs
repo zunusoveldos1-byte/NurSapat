@@ -1,4 +1,5 @@
 using NurSapat.App.Models.Orders;
+using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.App.Services.Orders;
 
@@ -64,7 +65,7 @@ public sealed class OrdersStore : IOrdersStore
             CustomerName = "Петрова Мария Сергеевна",
             StructuresCount = 2,
             TotalSum = 94_600m,
-            Status = OrderStatus.Measurement
+            Status = OrderStatus.Calculation
         },
         new()
         {

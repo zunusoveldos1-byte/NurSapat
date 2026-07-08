@@ -65,6 +65,80 @@ public sealed class CadDialogService : ICadDialogService
         return viewModel.ResultCount;
     }
 
+    public async Task<DecorativeSpokeDialogResult?> ShowDecorativeSpokeDialogAsync(bool isArchedGlazing)
+    {
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            return null;
+        }
+
+        var owner = desktop.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
+            ?? desktop.MainWindow;
+        if (owner is null)
+        {
+            return null;
+        }
+
+        var viewModel = new DecorativeSpokeDialogViewModel(isArchedGlazing);
+        var window = new DecorativeSpokeDialogWindow
+        {
+            DataContext = viewModel
+        };
+
+        viewModel.CloseRequested += (_, confirmed) => window.Close(confirmed);
+
+        if (await window.ShowDialog<bool?>(owner) != true)
+        {
+            return null;
+        }
+
+        return new DecorativeSpokeDialogResult(
+            viewModel.ResultSpokeType,
+            viewModel.ResultThickness,
+            viewModel.ResultColor,
+            viewModel.ResultRowsCount,
+            viewModel.ResultColumnsCount,
+            viewModel.ResultRayCount);
+    }
+
+    public async Task<SillDialogResult?> ShowSillDialogAsync(
+        double frameWidthMm,
+        NurSapat.Core.Models.Orders.SillElement? existing = null)
+    {
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            return null;
+        }
+
+        var owner = desktop.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
+            ?? desktop.MainWindow;
+        if (owner is null)
+        {
+            return null;
+        }
+
+        var viewModel = new SillDialogViewModel(frameWidthMm, existing);
+        var window = new SillDialogWindow
+        {
+            DataContext = viewModel
+        };
+
+        viewModel.CloseRequested += (_, confirmed) => window.Close(confirmed);
+
+        if (await window.ShowDialog<bool?>(owner) != true)
+        {
+            return null;
+        }
+
+        return new SillDialogResult(
+            viewModel.ResultThicknessMm,
+            viewModel.ResultWidthMm,
+            viewModel.ResultLeftOverhangMm,
+            viewModel.ResultRightOverhangMm,
+            viewModel.ResultMaterialId,
+            viewModel.ResultColor);
+    }
+
     public async Task<CadDrawingTemplate?> ShowTemplatePickerAsync(CadTemplateStore store, CadEditorViewModel editor)
     {
         if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop ||

@@ -11,6 +11,7 @@ public class DatabaseService
 {
     private readonly string _connectionString;
     public NpgsqlDataSource DataSource { get; } // ДОБАВЛЕНО
+    public string ConnectionString => _connectionString;
 
     public DatabaseService(string connectionString)
     {

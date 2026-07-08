@@ -5,91 +5,6 @@ using NurSapat.Cad.Tools;
 
 namespace NurSapat.Cad.UI.ViewModels;
 
-public enum DesignToolIcon
-{
-    FakeFrame,
-    FakeCircle,
-    FakeTriangle,
-    FakeArch,
-    VerticalImpost,
-    HorizontalImpost,
-    RackRigel,
-    RealFrame,
-    AdapterProfile,
-    Sash,
-    Hardware,
-    Handle,
-    RealVerticalImpost,
-    RealHorizontalImpost,
-    DoubleVerticalImpost,
-    DoubleHorizontalImpost,
-    SlantedImpost,
-    Glassing,
-    Selection,
-    UndoLast,
-    UndoGlobal,
-    RedoGlobal,
-    SelectObject,
-    SelectProfile,
-    SelectVertex,
-    Zoom,
-    Hand,
-    ZoomFit,
-    ArchHeight,
-    Resize,
-    Trash,
-    ClearAll,
-    MoveMullionVertical,
-    MoveMullionHorizontal,
-    AlignMullions,
-    AlignGlassUnits,
-    AlignClearOpenings,
-    RadiusVertex,
-    StandardStructures,
-    AddConstruction,
-    ShprossVertical,
-    ShprossHorizontal,
-    Corrugation,
-    AdditionalElement,
-    SlidingSash,
-    GlassWithBead,
-    More,
-    Bead,
-    Lock,
-    Limiter,
-    Closer,
-    Espagnolette,
-    MosquitoNet,
-    SashFixed,
-    SashTurn,
-    SashTilt,
-    SashSuspended,
-    SashTurnVertical,
-    SashTurnHorizontal,
-    SashSliding,
-    SashFolding,
-    Cornice,
-    BlindControl,
-    BlindVertical,
-    BlindHorizontal,
-    CorrugationVertical,
-    CorrugationHorizontal,
-    CorrugationSlanted,
-    ArcVertex,
-    RemoveArcVertex,
-    SplitArc,
-    SetRadius,
-    SetArchHeight,
-    Recalculate,
-    Properties,
-    Copy,
-    Paste,
-    Details,
-    AddToStandard,
-    InsertFromStandard,
-    MullionEdge
-}
-
 public sealed partial class CadDesignToolButtonViewModel : ObservableObject
 {
     public static CadDesignToolButtonViewModel CreateBlockHeader(string title) =>
@@ -108,11 +23,10 @@ public sealed partial class CadDesignToolButtonViewModel : ObservableObject
         string toolKey,
         WindowToolMode mode,
         string title,
-        DesignToolIcon icon = DesignToolIcon.FakeFrame,
+        string? iconResourceKey = null,
         IRelayCommand<string>? activateCommand = null,
         CadToolKind? cadToolKind = null,
         bool isInstantCommand = false,
-        string? mdl2Glyph = null,
         bool isPlaceholder = false,
         bool isSeparator = false,
         bool isBlockHeader = false,
@@ -124,11 +38,10 @@ public sealed partial class CadDesignToolButtonViewModel : ObservableObject
         ToolKey = toolKey;
         Mode = mode;
         Title = title;
-        Icon = icon;
+        IconResourceKey = iconResourceKey;
         ActivateCommand = activateCommand;
         CadToolKind = cadToolKind;
         IsInstantCommand = isInstantCommand;
-        Mdl2Glyph = mdl2Glyph;
         IsPlaceholder = isPlaceholder;
         IsSeparator = isSeparator;
         IsBlockHeader = isBlockHeader;
@@ -144,17 +57,14 @@ public sealed partial class CadDesignToolButtonViewModel : ObservableObject
 
     public string Title { get; }
 
-    public DesignToolIcon Icon { get; }
+    /// <summary>Resource key pointing to a <c>StreamGeometry</c> in CadToolIcons.axaml.</summary>
+    public string? IconResourceKey { get; }
 
     public IRelayCommand<string>? ActivateCommand { get; }
 
     public CadToolKind? CadToolKind { get; }
 
     public bool IsInstantCommand { get; }
-
-    public string? Mdl2Glyph { get; }
-
-    public bool HasMdl2Icon => !string.IsNullOrEmpty(Mdl2Glyph);
 
     public bool IsModeButton => IsTool && !IsInstantCommand;
 

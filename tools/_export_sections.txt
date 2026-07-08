@@ -1,0 +1,225 @@
+
+===== NurSapat.App/Services/Export/ExportService.cs:1-50 =====
+1|using System.Text.Json;
+2|using NurSapat.App.Models.EditDialogs;
+3|using NurSapat.App.Services.EditDialogs;
+4|using NurSapat.App.Services.Settings;
+5|using NurSapat.Cad.UI.ViewModels;
+6|using NurSapat.Core.Models;
+7|using NurSapat.Core.Models.Orders;
+8|
+9|namespace NurSapat.App.Services.Export;
+10|
+11|public interface IExportService
+12|{
+13|    Task<ExportResult> ExportJsonAsync(
+14|        Order order,
+15|        CadEditorViewModel? cadEditor,
+16|        string targetFolder,
+17|        IProgress<int>? progress = null,
+18|        CancellationToken cancellationToken = default);
+19|
+20|    Task<ExportResult> ExportDbfAsync(
+21|        Order order,
+22|        string targetFolder,
+23|        IProgress<int>? progress = null,
+24|        CancellationToken cancellationToken = default);
+25|
+26|    Task<ExportResult> ExportXlsAsync(
+27|        Order order,
+28|        string targetFolder,
+29|        IProgress<int>? progress = null,
+30|        CancellationToken cancellationToken = default);
+31|
+32|    OrderExportSnapshot BuildSnapshot(Order order, CadEditorViewModel? cadEditor);
+33|}
+34|
+35|public sealed class ExportService : IExportService
+36|{
+37|    private readonly IEnvironmentSettingsService _environmentSettingsService;
+38|    private readonly IDrawingExportService _drawingExportService;
+39|    private readonly JsonSerializerOptions _jsonOptions = new()
+40|    {
+41|        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+42|        WriteIndented = true
+43|    };
+44|
+45|    public ExportService(
+46|        IEnvironmentSettingsService environmentSettingsService,
+47|        IDrawingExportService drawingExportService)
+48|    {
+49|        _environmentSettingsService = environmentSettingsService;
+50|        _drawingExportService = drawingExportService;
+
+===== NurSapat.App/Services/Export/ExportService.cs:180-350 =====
+180|            var safeNumber = SanitizeFileToken(order.Header.OrderNumber);
+181|            var filePath = Path.Combine(targetFolder, $"spisanie_{safeNumber}_{DateTime.Now:yyyyMMdd_HHmmss}.xls");
+182|
+183|            progress?.Report(20);
+184|            var worksheets = BuildExcelWorksheets(snapshot);
+185|            progress?.Report(70);
+186|            ExcelSpreadsheetExporter.WriteWorkbook(filePath, worksheets);
+187|            progress?.Report(100);
+188|
+189|            return new ExportResult(true, "\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442 Excel \u0443\u0441\u043f\u0435\u0448\u043d\u043e \u0441\u0444\u043e\u0440\u043c\u0438\u0440\u043e\u0432\u0430\u043d.", filePath, [filePath]);
+190|        }, cancellationToken);
+191|    }
+192|
+193|    private string? ValidateOrderNumber(Order order)
+194|    {
+195|        if (!_environmentSettingsService.Current.PreventDbfExportWithoutOrderNumber)
+196|        {
+197|            return null;
+198|        }
+199|
+200|        return string.IsNullOrWhiteSpace(order.Header.OrderNumber)
+201|            ? "\u042d\u043a\u0441\u043f\u043e\u0440\u0442 \u0437\u0430\u043f\u0440\u0435\u0449\u0451\u043d: \u0443 \u0437\u0430\u043a\u0430\u0437\u0430 \u043d\u0435 \u0437\u0430\u0434\u0430\u043d \u043d\u043e\u043c\u0435\u0440."
+202|            : null;
+203|    }
+204|
+205|    private ConstructionExportNode BuildConstructionNode(OrderConstruction construction)
+206|    {
+207|        var materials = BuildMaterialLines(construction);
+208|        return new ConstructionExportNode
+209|        {
+210|            Id = construction.Id,
+211|            Number = construction.Number,
+212|            Name = construction.Name,
+213|            ProfileSystemName = construction.ProfileSystemName,
+214|            WidthMm = construction.Geometry.OuterWidthMm,
+215|            HeightMm = construction.Geometry.OuterHeightMm,
+216|            Quantity = Math.Max(1, construction.Cost.Quantity),
+217|            Elements = construction.Geometry.Elements
+218|                .Select(element => new ElementExportNode
+219|                {
+220|                    Id = element.Id,
+221|                    Kind = element.Kind.ToString(),
+222|                    Label = element.Label,
+223|                    X = (double)element.X,
+224|                    Y = (double)element.Y,
+225|                    WidthMm = (double)element.WidthMm,
+226|                    HeightMm = (double)element.HeightMm
+227|                })
+228|                .ToList(),
+229|            Materials = materials
+230|        };
+231|    }
+232|
+233|    private static List<MaterialLineExportNode> BuildMaterialLines(OrderConstruction construction)
+234|    {
+235|        var lines = new List<MaterialLineExportNode>();
+236|        var quantity = Math.Max(1, construction.Cost.Quantity);
+237|        var billableElements = construction.Geometry.Elements
+238|            .Where(element => !FictitiousFrame.IsFictitiousElement(element))
+239|            .ToList();
+240|        if (billableElements.Count == 0)
+241|        {
+242|            return lines;
+243|        }
+244|
+245|        var (billableWidth, _) = construction.Geometry.ResolveBillableOuterBounds();
+246|
+247|        if (!string.IsNullOrWhiteSpace(construction.ProfileSystemName) && billableWidth > 0)
+248|        {
+249|            lines.Add(new MaterialLineExportNode
+250|            {
+251|                Article = "PROFILE",
+252|                Name = $"\u041f\u0440\u043e\u0444\u0438\u043b\u044c {construction.ProfileSystemName}",
+253|                Unit = "\u043c.\u043f.",
+254|                Quantity = Math.Round(billableWidth / 1000m * 4m * quantity, 3),
+255|                UnitPrice = 420m,
+256|                TotalCost = Math.Round(billableWidth / 1000m * 4m * quantity * 420m, 2),
+257|                MaterialType = "Profile",
+258|                ConstructionNumber = construction.Number
+259|            });
+260|        }
+261|
+262|        foreach (var element in billableElements)
+263|        {
+264|            if (element.Kind == GeometryElementKind.Glazing)
+265|            {
+266|                continue;
+267|            }
+268|
+269|            if (element.Kind is GeometryElementKind.Frame or GeometryElementKind.ArchFrame
+270|                or GeometryElementKind.TransitionFrame or GeometryElementKind.Mullion
+271|                or GeometryElementKind.EdgeMullion or GeometryElementKind.Sash)
+272|            {
+273|                continue;
+274|            }
+275|
+276|            var area = Math.Round((decimal)(element.WidthMm * element.HeightMm) / 1_000_000m, 3);
+277|            if (area <= 0)
+278|            {
+279|                continue;
+280|            }
+281|
+282|            lines.Add(new MaterialLineExportNode
+283|            {
+284|                Article = "GLASS",
+285|                Name = string.IsNullOrWhiteSpace(element.Label) ? "\u0421\u0442\u0435\u043a\u043b\u043e\u043f\u0430\u043a\u0435\u0442" : element.Label,
+286|                Unit = "\u043c\xb2",
+287|                Quantity = area * quantity,
+288|                UnitPrice = 4800m,
+289|                TotalCost = Math.Round(area * quantity * 4800m, 2),
+290|                MaterialType = "Glass",
+291|                ConstructionNumber = construction.Number
+292|            });
+293|        }
+294|
+295|        foreach (var element in billableElements.Where(e => e.Kind == GeometryElementKind.Glazing))
+296|        {
+297|            var area = Math.Round((decimal)(element.WidthMm * element.HeightMm) / 1_000_000m, 3);
+298|            if (area <= 0)
+299|            {
+300|                continue;
+301|            }
+302|
+303|            lines.Add(new MaterialLineExportNode
+304|            {
+305|                Article = "GLASS",
+306|                Name = string.IsNullOrWhiteSpace(element.Label) ? "\u0421\u0442\u0435\u043a\u043b\u043e\u043f\u0430\u043a\u0435\u0442" : element.Label,
+307|                Unit = "\u043c\xb2",
+308|                Quantity = area * quantity,
+309|                UnitPrice = 4800m,
+310|                TotalCost = Math.Round(area * quantity * 4800m, 2),
+311|                MaterialType = "Glass",
+312|                ConstructionNumber = construction.Number
+313|            });
+314|        }
+315|
+316|        if (lines.Count == 0)
+317|        {
+318|            lines.Add(new MaterialLineExportNode
+319|            {
+320|                Article = "MAT-001",
+321|                Name = construction.Name,
+322|                Unit = "\u0448\u0442.",
+323|                Quantity = quantity,
+324|                UnitPrice = 0m,
+325|                TotalCost = 0m,
+326|                MaterialType = "Other",
+327|                ConstructionNumber = construction.Number
+328|            });
+329|        }
+330|
+331|        return lines;
+332|    }
+333|
+334|    private string? TryCaptureSketchBase64(CadEditorViewModel? cadEditor)
+335|    {
+336|        if (cadEditor is null || !OperatingSystem.IsWindows())
+337|        {
+338|            return null;
+339|        }
+340|
+341|        try
+342|        {
+343|            var bitmap = _drawingExportService.RenderAsync(
+344|                cadEditor,
+345|                new CopyDrawingParameters
+346|                {
+347|                    ScalePercent = 100,
+348|                    ResolutionDpi = 96,
+349|                    IncludeAxes = false,
+350|                    IncludeDimensions = false,

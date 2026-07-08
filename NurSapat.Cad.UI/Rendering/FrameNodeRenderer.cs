@@ -38,6 +38,12 @@ public static class FrameNodeRenderer
 
     private static void DrawSplitLine(DrawingContext context, CadEditorViewModel editor, FrameNode node)
     {
+        if (IsFictitiousFlatImpost(editor, node))
+        {
+            DrawFictitiousFlatImpost(context, editor, node);
+            return;
+        }
+
         if (node.LineStyle == ImpostLineStyle.Slanted)
         {
             DrawWorldLine(
@@ -75,10 +81,11 @@ public static class FrameNodeRenderer
         }
 
         var thickness = ResolveImpostThickness(node);
+        var container = node.GetRoot();
+        var isRoundContainer = CurvedContainerImpostGeometry.IsRoundContainer(editor, container);
 
         if (node.SplitOrientation == SplitOrientation.Vertical)
         {
-            var yBottom = ResolveVerticalImpostBottom(editor, node);
             for (var i = 0; i < cells.Count - 1; i++)
             {
                 if (!TryResolveUniformVerticalImpostBounds(node, i, out var left, out var right))
@@ -86,7 +93,17 @@ public static class FrameNodeRenderer
                     continue;
                 }
 
-                DrawVerticalProfileVolume(context, editor, node, left, right, yBottom, ResolveImpostPen(editor, node, i));
+                var pen = ResolveImpostPen(editor, node, i);
+                if (isRoundContainer
+                    && node.TryGetUniformImpostAxisWorld(SplitOrientation.Vertical, i, out var axisX)
+                    && CurvedContainerImpostGeometry.TryResolveVerticalImpostSpan(editor, container, node, axisX, out var bottomY, out var topY))
+                {
+                    DrawVerticalProfileVolumeRect(context, editor, left, right, bottomY, topY, ImpostFillBrush, pen);
+                    continue;
+                }
+
+                var yBottom = ResolveVerticalImpostBottom(editor, node);
+                DrawVerticalProfileVolume(context, editor, node, left, right, yBottom, pen);
             }
         }
         else
@@ -103,13 +120,22 @@ public static class FrameNodeRenderer
                     continue;
                 }
 
+                var pen = ResolveHorizontalImpostPen(editor, node, i);
+                if (isRoundContainer
+                    && node.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, i, out var axisY)
+                    && CurvedContainerImpostGeometry.TryResolveHorizontalImpostSpan(editor, container, node, axisY, out var leftX, out var rightX))
+                {
+                    DrawHorizontalProfileVolumeRect(context, editor, leftX, rightX, bottom, top, ImpostFillBrush, pen);
+                    continue;
+                }
+
                 DrawHorizontalProfileVolume(
                     context,
                     editor,
                     node,
                     bottom,
                     top,
-                    ResolveHorizontalImpostPen(editor, node, i));
+                    pen);
             }
         }
     }
@@ -122,6 +148,15 @@ public static class FrameNodeRenderer
         }
 
         var pen = ResolveImpostPen(editor, node, uniformGapIndex: 0);
+        var container = node.GetRoot();
+        if (CurvedContainerImpostGeometry.IsRoundContainer(editor, container)
+            && node.TryGetVerticalImpostAxisWorldX(out var axisX)
+            && CurvedContainerImpostGeometry.TryResolveVerticalImpostSpan(editor, container, node, axisX, out var bottomY, out var topY))
+        {
+            DrawVerticalProfileVolumeRect(context, editor, left, right, bottomY, topY, ImpostFillBrush, pen);
+            return;
+        }
+
         var yBottom = ResolveVerticalImpostBottom(editor, node);
         DrawVerticalProfileVolume(context, editor, node, left, right, yBottom, ImpostFillBrush, pen);
     }
@@ -146,6 +181,15 @@ public static class FrameNodeRenderer
         }
 
         var pen = ResolveHorizontalImpostPen(editor, node);
+        var container = node.GetRoot();
+        if (CurvedContainerImpostGeometry.IsRoundContainer(editor, container)
+            && node.TryGetHorizontalImpostAxisWorldY(out var axisY)
+            && CurvedContainerImpostGeometry.TryResolveHorizontalImpostSpan(editor, container, node, axisY, out var leftX, out var rightX))
+        {
+            DrawHorizontalProfileVolumeRect(context, editor, leftX, rightX, bottom, top, ImpostFillBrush, pen);
+            return;
+        }
+
         DrawHorizontalProfileVolume(context, editor, node, bottom, top, pen);
     }
 
@@ -163,6 +207,114 @@ public static class FrameNodeRenderer
 
         renderAxisY = (bottom + top) / 2.0;
         return true;
+    }
+
+    private static bool IsFictitiousFlatImpost(CadEditorViewModel editor, FrameNode node) =>
+        (editor.FrameRoot?.IsFictitiousContainer == true
+         || CurvedContainerImpostGeometry.IsRoundContainer(editor))
+        && node.LineStyle == ImpostLineStyle.Dashed
+        && node.GetResolvedImpostThicknessMm() <= CadMath.Epsilon;
+
+    private static void DrawFictitiousFlatImpost(DrawingContext context, CadEditorViewModel editor, FrameNode node)
+    {
+        var pen = ResolveImpostPen(editor, node);
+        var container = node.GetRoot();
+
+        if (node.IsUniformSplit)
+        {
+            var cells = node.UniformCells;
+            if (cells.Count < 2)
+            {
+                return;
+            }
+
+            if (node.SplitOrientation == SplitOrientation.Vertical)
+            {
+                for (var i = 0; i < cells.Count - 1; i++)
+                {
+                    if (!node.TryGetUniformImpostAxisWorld(SplitOrientation.Vertical, i, out var axisX))
+                    {
+                        axisX = cells[i].X + cells[i].Width;
+                    }
+
+                    DrawCurvedVerticalImpost(context, editor, container, pen, axisX);
+                }
+            }
+            else
+            {
+                for (var i = 0; i < cells.Count - 1; i++)
+                {
+                    if (!node.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, i, out var axisY))
+                    {
+                        axisY = cells[i].Y + cells[i].Height;
+                    }
+
+                    DrawCurvedHorizontalImpost(context, editor, container, pen, axisY);
+                }
+            }
+
+            return;
+        }
+
+        if (node.ChildA is null || node.ChildB is null)
+        {
+            return;
+        }
+
+        if (node.SplitOrientation == SplitOrientation.Vertical)
+        {
+            var axisX = node.ChildA.X + node.ChildA.Width;
+            DrawCurvedVerticalImpost(context, editor, container, pen, axisX);
+        }
+        else if (node.SplitOrientation == SplitOrientation.Horizontal)
+        {
+            if (!node.TryGetHorizontalImpostAxisWorldY(out var axisY))
+            {
+                axisY = node.ChildA.Y + node.ChildA.Height;
+            }
+
+            DrawCurvedHorizontalImpost(context, editor, container, pen, axisY);
+        }
+    }
+
+    private static void DrawCurvedHorizontalImpost(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameNode container,
+        IPen pen,
+        double axisY)
+    {
+        if (!CurvedContainerImpostGeometry.TryResolveHorizontalSpan(editor, container, axisY, out var leftX, out var rightX))
+        {
+            return;
+        }
+
+        DrawWorldLine(
+            context,
+            editor,
+            pen,
+            new CadPoint(leftX, axisY),
+            new CadPoint(rightX, axisY));
+    }
+
+    private static void DrawCurvedVerticalImpost(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameNode container,
+        IPen pen,
+        double axisX)
+    {
+        if (!CurvedContainerImpostGeometry.TryResolveVerticalSpan(editor, container, axisX, out var bottomY, out var topY))
+        {
+            return;
+        }
+
+        DrawWorldLine(
+            context,
+            editor,
+            pen,
+            new CadPoint(axisX, bottomY),
+            new CadPoint(axisX, topY));
     }
 
     private static double ResolveImpostThickness(FrameNode node) =>
@@ -407,25 +559,43 @@ public static class FrameNodeRenderer
 
     private static (double Bottom, double Top) ResolveVerticalImpostSpan(CadEditorViewModel editor, FrameNode splitNode)
     {
+        var container = splitNode.GetRoot();
+        if (CurvedContainerImpostGeometry.IsRoundContainer(editor, container))
+        {
+            var defaultSpan = (splitNode.Y, splitNode.Y + splitNode.Height);
+            if (splitNode.TryGetVerticalImpostAxisWorldX(out var axisX)
+                || (splitNode.IsUniformSplit
+                    && splitNode.SplitOrientation == SplitOrientation.Vertical
+                    && splitNode.TryGetUniformImpostAxisWorld(SplitOrientation.Vertical, 0, out axisX)))
+            {
+                if (CurvedContainerImpostGeometry.TryResolveVerticalImpostSpan(editor, container, splitNode, axisX, out var bottomY, out var topY))
+                {
+                    return (bottomY, topY);
+                }
+            }
+
+            return defaultSpan;
+        }
+
+        if (editor.FrameRoot?.IsFictitiousContainer == true)
+        {
+            return (splitNode.Y, splitNode.Y + splitNode.Height);
+        }
+
         if (editor.FrameRoot is null)
         {
             return (splitNode.Y, splitNode.Y + splitNode.Height);
         }
 
-        var inner = SashGeometry.ResolveNodeInnerOpeningBounds(
+        var (bottom, top) = SashGeometry.ResolveVerticalImpostStructuralSpan(
             splitNode,
             editor.FrameRoot,
             editor.FrameThickness);
 
-        if (inner.Height <= CadMath.Epsilon)
-        {
-            return (splitNode.Y, splitNode.Y + splitNode.Height);
-        }
-
         var maxY = ResolveVerticalImpostExtentMaxY(editor, splitNode);
         return (
-            CadMath.RoundMm(Math.Clamp(inner.Bottom, splitNode.Y, maxY)),
-            CadMath.RoundMm(Math.Clamp(inner.Top, splitNode.Y, maxY)));
+            CadMath.RoundMm(bottom),
+            CadMath.RoundMm(Math.Clamp(top, bottom, maxY)));
     }
 
 
@@ -615,6 +785,14 @@ public static class FrameNodeRenderer
         }
 
         var yBottom = ResolveVerticalImpostBottom(editor, node);
+        var container = node.GetRoot();
+        if (CurvedContainerImpostGeometry.IsRoundContainer(editor, container)
+            && CurvedContainerImpostGeometry.TryResolveVerticalImpostSpan(editor, container, node, axisX, out var bottomY, out var topY))
+        {
+            DrawVerticalProfileVolumeRect(context, editor, left, right, bottomY, topY, GhostImpostFillBrush, GhostImpostPen);
+            return;
+        }
+
         DrawVerticalProfileVolume(context, editor, node, left, right, yBottom, GhostImpostFillBrush, GhostImpostPen);
     }
 
@@ -643,6 +821,14 @@ public static class FrameNodeRenderer
                 frameRoot: editor.FrameRoot);
         }
 
+        var container = node.GetRoot();
+        if (CurvedContainerImpostGeometry.IsRoundContainer(editor, container)
+            && CurvedContainerImpostGeometry.TryResolveHorizontalImpostSpan(editor, container, node, axisY, out var leftX, out var rightX))
+        {
+            DrawHorizontalProfileVolumeRect(context, editor, leftX, rightX, bottom, top, GhostImpostFillBrush, GhostImpostPen);
+            return;
+        }
+
         DrawHorizontalProfileVolume(context, editor, node, bottom, top, GhostImpostFillBrush, GhostImpostPen);
     }
 
@@ -664,6 +850,15 @@ public static class FrameNodeRenderer
         IBrush fill,
         IPen pen)
     {
+        var container = splitNode.GetRoot();
+        var centerAxisY = (bottom + top) / 2.0;
+        if (CurvedContainerImpostGeometry.IsRoundContainer(editor, container)
+            && CurvedContainerImpostGeometry.TryResolveHorizontalImpostSpan(editor, container, splitNode, centerAxisY, out var circleLeft, out var circleRight))
+        {
+            DrawHorizontalProfileVolumeRect(context, editor, circleLeft, circleRight, bottom, top, fill, pen);
+            return;
+        }
+
         if (HorizontalImpostGeometry.TryResolveArcAdaptedSpans(
                 editor,
                 splitNode,

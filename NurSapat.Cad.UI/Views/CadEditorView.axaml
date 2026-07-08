@@ -1,10 +1,11 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:NurSapat.Cad.UI.ViewModels;assembly=NurSapat.Cad.UI"
              xmlns:controls="clr-namespace:NurSapat.Cad.UI.Controls;assembly=NurSapat.Cad.UI"
              xmlns:conv="clr-namespace:NurSapat.Cad.UI.Converters;assembly=NurSapat.Cad.UI"
              xmlns:models="clr-namespace:NurSapat.Cad.UI.Models;assembly=NurSapat.Cad.UI"
              xmlns:core="clr-namespace:NurSapat.Core.Models;assembly=NurSapat.Core"
+             xmlns:construction="clr-namespace:NurSapat.Core.Models.Construction;assembly=NurSapat.Core"
              xmlns:behaviors="clr-namespace:NurSapat.Cad.UI.Behaviors;assembly=NurSapat.Cad.UI"
              x:Class="NurSapat.Cad.UI.Views.CadEditorView"
              x:DataType="vm:CadEditorViewModel"
@@ -18,9 +19,9 @@
     </UserControl.KeyBindings>
 
     <UserControl.Resources>
-        <conv:EnumEqualsConverter x:Key="EnumEq"/>
+        <conv:ResourceKeyToGeometryConverter x:Key="IconKeyToGeometry"/>
         <DataTemplate x:Key="CadToolbarToolTemplate" DataType="vm:CadDesignToolButtonViewModel">
-<Button Classes.cadTool="True"
+            <Button Classes.cadTool="True"
                     Classes.active="{Binding IsActive}"
                     Focusable="False"
                     IsEnabled="{Binding IsImplemented}"
@@ -28,239 +29,13 @@
                     CommandParameter="{Binding ToolKey}"
                     ToolTip.Tip="{Binding TooltipText}"
                     ToolTip.ShowDelay="200">
-                <Panel Width="26" Height="26">
-                    <TextBlock Text="{Binding Mdl2Glyph}"
-                               FontFamily="Segoe MDL2 Assets"
-                               Foreground="#0F172A"
-                               FontSize="18"
-                               VerticalAlignment="Center"
-                               HorizontalAlignment="Center"
-                               IsVisible="{Binding HasMdl2Icon}"/>
-                    <Viewbox Width="26"
-                             Height="26"
-                             IsVisible="{Binding !HasMdl2Icon}">
-                    <Panel Width="24" Height="24">
-                        <Path Stroke="Black" StrokeThickness="1.2" StrokeDashArray="3,2" Fill="Transparent"
-                              Data="M 2,2 H 22 V 22 H 2 Z"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=FakeFrame}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" StrokeDashArray="3,2" Fill="Transparent"
-                              Data="M 12,2 A 10,10 0 1 0 12,22 A 10,10 0 1 0 12,2 Z"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=FakeCircle}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" StrokeDashArray="3,2" Fill="Transparent"
-                              Data="M 12,2 L 22,22 H 2 Z"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=FakeTriangle}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" StrokeDashArray="3,2" Fill="Transparent"
-                              Data="M 3,18 H 21 M 3,18 A 9,9 0 0 1 21,18"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=FakeArch}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" StrokeDashArray="4,2" Fill="Transparent"
-                              Data="M 12,2 V 22"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=VerticalImpost}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" StrokeDashArray="4,2" Fill="Transparent"
-                              Data="M 2,12 H 22"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=HorizontalImpost}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 3,4 L 6,4 L 6,20 L 3,20 Z M 12,9 L 14,7 L 16,9 M 12,15 L 14,17 L 16,15 M 12,10 L 10,12 L 12,14 M 16,10 L 18,12 L 16,14 M 14,7 L 14,17 M 10,12 L 18,12"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=RackRigel}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 3,3 H 21 V 21 H 3 Z"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=RealFrame}"/>
-                        <Panel IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=AdapterProfile}">
-                            <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                                  Data="M 3,3 H 21 V 21 H 3 Z"/>
-                            <Path Stroke="Black" StrokeThickness="1.2" StrokeDashArray="3,2" Fill="Transparent"
-                                  Data="M 7,7 H 17 V 17 H 7 Z"/>
-                        </Panel>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 7,4 L 18,12 L 7,20"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Sash}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 5,3 L 8,3 L 8,7 L 5,7 Z
-                              M 5,17 L 8,17 L 8,21 L 5,21 Z
-                              M 9,4 L 20,12 L 9,20"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Hardware}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 10,6 L 12,6 A 2,2 0 0 1 14,8 L 14,22 A 2,2 0 0 1 12,23 L 10,23 A 2,2 0 0 1 8,22 L 8,8 A 2,2 0 0 1 10,6 Z"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Handle}"/>
-
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="White"
-                              Data="M 12,9 L 20,9 A 1,1 0 0 1 21,10 L 21,11 A 1,1 0 0 1 20,12 L 12,12 A 1,1 0 0 1 11,11 L 11,10 A 1,1 0 0 1 12,9 Z"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Handle}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 12,4 V 20 M 9,4 H 15 M 9,20 H 15"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=RealVerticalImpost}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 4,12 H 20 M 4,9 V 15 M 20,9 V 15"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=RealHorizontalImpost}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 9,2 V 22 M 12,2 V 22 M 15,2 V 22
-                              M 4,2 L 20,2 M 4,22 L 20,22"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=DoubleVerticalImpost}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 2,9 H 22 M 2,12 H 22 M 2,15 H 22
-                              M 2,4 L 2,20 M 22,4 L 22,20"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=DoubleHorizontalImpost}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 4,20 L 20,4
-                              M 2,22 L 6,18
-                              M 18,6 L 22,2"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=SlantedImpost}"/>
-                        <Panel IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Glassing}">
-                            <!-- Внешний квадрат -->
-                            <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                                  Data="M 3,3 H 21 V 21 H 3 Z"/>
-                            <!-- Ваши диагональные линии (стекло) -->
-                            <Path Stroke="Black" StrokeThickness="1.2" StrokeLineCap="Round" Fill="Transparent"
-                                  Data="M 9,15 L 15,9 M 11.5,15.5 L 15.5,11.5 M 8.5,12.5 L 12.5,8.5"/>
-                        </Panel>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 7,4 L 7,18 L 11,14 L 14,21 L 16,20 L 13,13 L 18,13 Z"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Selection}"/>
-                        <Panel IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=SelectObject}">
-                            <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                                  Data="M 4,6 H 20 V 18 H 4 Z M 4,10 H 20"/>
-
-                            <Path Stroke="Black" StrokeThickness="1.2" Fill="White" StrokeJoin="Miter"
-                                  Data="M 12,12 L 18,17.5 L 15.5,18 L 18.5,23 L 16.5,24 L 13.5,19 L 11,21 Z"/>
-                        </Panel>
-                        <Panel IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=SelectProfile}">
-                            <Path Stroke="Black" StrokeThickness="1.2"
-                                  Data="M 3,7 H 21 M 3,11 H 21"/>
-
-                            <Path Stroke="Black" StrokeThickness="1.2" Fill="White" StrokeJoin="Miter"
-                                  Data="M 12,11 L 18,16.5 L 15.5,17 L 18.5,22 L 16.5,23 L 13.5,18 L 11,20 Z"/>
-                        </Panel>
-                        <Panel IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=SelectVertex}">
-                            <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                                  Data="M 8,4 H 12 L 16,8 V 12 L 12,16 H 8 L 4,12 V 8 Z M 10,5 V 7 M 10,13 V 15 M 5,10 H 7 M 13,10 H 15 M 8.5,10 A 1.5,1.5 0 1 0 11.5,10 A 1.5,1.5 0 1 0 8.5,10"/>
-
-                            <Path Stroke="Black" StrokeThickness="1.2" Fill="White" StrokeJoin="Miter"
-                                  Data="M 13,13 L 19,17.5 L 16.5,18 L 19.5,22 L 17.5,23 L 14.5,18.5 L 12,20.5 Z"/>
-                        </Panel>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 3,18 H 21 M 3,18 A 9,9 0 0 1 21,18"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=RadiusVertex}"/>
-                        <TextBlock Text="&#xE8A3;"
-                                   FontFamily="Segoe MDL2 Assets"
-                                   Foreground="Black"
-                                   FontSize="20"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Center"
-                                   IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Zoom}"/>
-                        <TextBlock Text="&#xEBFC;"
-                                   FontFamily="Segoe MDL2 Assets"
-                                   Foreground="Black"
-                                   FontSize="20"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Center"
-                                   IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Hand}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 12,3 V 21 M 5,12 H 9 M 7,10 L 5,12 L 7,14 M 19,12 H 15 M 17,10 L 19,12 L 17,14"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=MoveMullionVertical}"/>
-
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 3,12 H 21 M 12,5 V 9 M 10,7 L 12,5 L 14,7 M 12,19 V 15 M 10,17 L 12,19 L 14,17"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=MoveMullionHorizontal}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 4,6 H 20 M 4,12 H 20 M 4,18 H 20 M 8,4 V 20 M 16,4 V 20"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=AlignMullions}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 3,5 H 14 V 16 H 3 Z M 10,8 H 21 V 19 H 10 Z"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=AlignGlassUnits}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 4,6 H 20 V 18 H 4 Z M 7,12 H 17 M 7,12 L 9,10 M 7,12 L 9,14 M 17,12 L 15,10 M 17,12 L 15,14"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=AlignClearOpenings}"/>
-                        <TextBlock Text="&#xEA48;"
-                                   FontFamily="Segoe MDL2 Assets"
-                                   Foreground="Black"
-                                   FontSize="20"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Center"
-                                   IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=UndoLast}"/>
-                        <TextBlock Text="&#xE7A7;"
-                                   FontFamily="Segoe MDL2 Assets"
-                                   Foreground="Black"
-                                   FontSize="20"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Center"
-                                   IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=UndoGlobal}"/>
-                        <TextBlock Text="&#xF271;"
-                                   FontFamily="Segoe MDL2 Assets"
-                                   Foreground="Black"
-                                   FontSize="20"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Center"
-                                   IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=ZoomFit}"/>
-                        <Panel IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=ArchHeight}">
-                            <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent" StrokeDashArray="2,2"
-                                  Data="M 3,18 H 17"/>
-                            <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                                  Data="M 3,18 A 7,7 0 0 1 15,13"/>
-                            <Path Stroke="Black" StrokeThickness="1.2"
-                                  Data="M 17,4 V 11 M 21,4 V 11 M 17,7.5 H 21"/>
-                            <Path Stroke="Black" StrokeThickness="1.2" Fill="Black" StrokeJoin="Miter"
-                                  Data="M 11,18 L 6.5,13.5 M 6.5,13.5 L 9.5,14 M 6.5,13.5 L 6,16.5"/>
-                        </Panel>
-                        <TextBlock Text="&#xE74D;"
-                                   FontFamily="Segoe MDL2 Assets"
-                                   Foreground="Black"
-                                   FontSize="20"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Center"
-                                   IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Trash}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 12,2 A 10,10 0 1 0 12,22 A 10,10 0 1 0 12,2 Z M 6,10 H 18 V 14 H 6 Z"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=ClearAll}"/>
-                        <TextBlock Text="&#xE8B0;"
-                                   FontFamily="Segoe MDL2 Assets"
-                                   Foreground="Black"
-                                   FontSize="20"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Center"
-                                   IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=StandardStructures}"/>
-                        <TextBlock Text="&#xE710;"
-                                   FontFamily="Segoe MDL2 Assets"
-                                   Foreground="Black"
-                                   FontSize="20"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Center"
-                                   IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=AddConstruction}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 12,4 V 20"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=ShprossVertical}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 4,12 H 20"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=ShprossHorizontal}"/>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 3,16 L 7,12 L 11,16 L 15,12 L 19,16 L 21,14"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Corrugation}"/>
-                        <Panel IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=AdditionalElement}">
-                            <Path Stroke="Black" StrokeThickness="1.2" StrokeDashArray="3,2" Fill="Transparent"
-                                  Data="M 6,6 H 18 V 18 H 6 Z"/>
-                            <Path Stroke="Black" StrokeThickness="1.2"
-                                  Data="M 12,9 V 15 M 9,12 H 15"/>
-                        </Panel>
-                        <Panel IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=SlidingSash}">
-                            <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                                  Data="M 4,6 H 14 V 18 H 4 Z"/>
-                            <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                                  Data="M 10,6 H 20 V 18 H 10 Z"/>
-                            <Path Stroke="Black" StrokeThickness="1.2"
-                                  Data="M 16,12 H 20 M 18,10 L 20,12 L 18,14"/>
-                        </Panel>
-                        <Panel IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=GlassWithBead}">
-                            <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                                  Data="M 3,3 H 21 V 21 H 3 Z"/>
-                            <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                                  Data="M 7,7 H 17 V 17 H 7 Z"/>
-                            <Path Stroke="Black" StrokeThickness="1.2" StrokeLineCap="Round" Fill="Transparent"
-                                  Data="M 9,15 L 15,9 M 11.5,15.5 L 15.5,11.5"/>
-                        </Panel>
-                        <Path Stroke="Black" StrokeThickness="1.2" Fill="Transparent"
-                              Data="M 4,6 H 20 V 18 H 4 Z M 7,12 H 17 M 7,12 L 9,10 M 7,12 L 9,14 M 17,12 L 15,10 M 17,12 L 15,14"
-                              IsVisible="{Binding Icon, Converter={StaticResource EnumEq}, ConverterParameter=Resize}"/>
-                    </Panel>
+                <Viewbox Width="26" Height="26">
+                    <Path Width="24" Height="24"
+                          Stroke="#0F172A"
+                          StrokeThickness="1.2"
+                          Fill="Transparent"
+                          Data="{Binding IconResourceKey, Converter={StaticResource IconKeyToGeometry}}"/>
                 </Viewbox>
-                </Panel>
             </Button>
         </DataTemplate>
     </UserControl.Resources>
@@ -428,8 +203,14 @@
                         <TextBlock Classes="paramLabel" Text="Серия"/>
                         <ComboBox Width="130"
                                   MinWidth="110"
-                                  ItemsSource="{Binding ProfileSeries}"
-                                  SelectedItem="{Binding SelectedProfileSeries}"/>
+                                  ItemsSource="{Binding AvailableProfileSeries}"
+                                  SelectedItem="{Binding SelectedProfileSeriesItem}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate DataType="construction:ProfileSeries">
+                                    <TextBlock Text="{Binding Name}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
                     </StackPanel>
 
                     <StackPanel Grid.Row="0"
@@ -441,11 +222,11 @@
                         <TextBlock Classes="paramLabel" Text="Материалы"/>
                         <ComboBox Width="200"
                                   MinWidth="160"
-                                  ItemsSource="{Binding FilteredMaterials}"
-                                  SelectedItem="{Binding SelectedMaterial}">
+                                  ItemsSource="{Binding FilteredConstructionMaterialOptions}"
+                                  SelectedItem="{Binding SelectedConstructionMaterialOption}">
                             <ComboBox.ItemTemplate>
-                                <DataTemplate DataType="core:Material">
-                                    <TextBlock Text="{Binding Name}"/>
+                                <DataTemplate DataType="models:ConstructionMaterialOption">
+                                    <TextBlock Text="{Binding DisplayName}"/>
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
                         </ComboBox>
@@ -545,23 +326,73 @@
                               VerticalAlignment="Top"
                               Padding="2,4">
                     <StackPanel VerticalAlignment="Top" Spacing="0" Width="204">
-                        <TextBlock Classes="cadToolbarBlockHeader" Text="СОЗДАНИЕ"/>
+                        <Border Background="#F8FAFC"
+                                BorderBrush="#E2E8F0"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Margin="4,0,4,8"
+                                Padding="4">
+                            <UniformGrid Columns="3" Margin="0">
+                                <Button Classes="template"
+                                        Content="Создание"
+                                        Command="{Binding SetWorkspaceModeCommand}"
+                                        CommandParameter="{x:Static models:CadEditorWorkspaceMode.Creation}"
+                                        Margin="2"/>
+                                <Button Classes="template"
+                                        Content="Редакт."
+                                        Command="{Binding SetWorkspaceModeCommand}"
+                                        CommandParameter="{x:Static models:CadEditorWorkspaceMode.Editing}"
+                                        Margin="2"/>
+                                <Button Classes="template"
+                                        Content="Декор"
+                                        Command="{Binding SetWorkspaceModeCommand}"
+                                        CommandParameter="{x:Static models:CadEditorWorkspaceMode.Decoration}"
+                                        Margin="2"/>
+                            </UniformGrid>
+                        </Border>
+
+                        <TextBlock Classes="cadToolbarBlockHeader"
+                                   Text="СОЗДАНИЕ"
+                                   IsVisible="{Binding IsCreationWorkspaceActive}"/>
                         <ItemsControl ItemsSource="{Binding CreationDesignTools}"
-                                      ItemTemplate="{StaticResource CadToolbarToolTemplate}">
+                                      ItemTemplate="{StaticResource CadToolbarToolTemplate}"
+                                      IsVisible="{Binding IsCreationWorkspaceActive}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <UniformGrid Columns="4"/>
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                         </ItemsControl>
-                        <Border Classes="cadToolbarBlockSpacer">
+                        <Border Classes="cadToolbarBlockSpacer"
+                                IsVisible="{Binding IsCreationWorkspaceActive}">
                             <Border Height="1"
                                     Background="#E2E8F0"
                                     VerticalAlignment="Center"/>
                         </Border>
-                        <TextBlock Classes="cadToolbarBlockHeader" Text="РЕДАКТИРОВАНИЕ"/>
+                        <TextBlock Classes="cadToolbarBlockHeader"
+                                   Text="РЕДАКТИРОВАНИЕ"
+                                   IsVisible="{Binding IsEditingWorkspaceActive}"/>
                         <ItemsControl ItemsSource="{Binding EditingDesignTools}"
-                                      ItemTemplate="{StaticResource CadToolbarToolTemplate}">
+                                      ItemTemplate="{StaticResource CadToolbarToolTemplate}"
+                                      IsVisible="{Binding IsEditingWorkspaceActive}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="4"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                        <Border Classes="cadToolbarBlockSpacer"
+                                IsVisible="{Binding IsEditingWorkspaceActive}">
+                            <Border Height="1"
+                                    Background="#E2E8F0"
+                                    VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock Classes="cadToolbarBlockHeader"
+                                   Text="ДЕКОРИРОВАНИЕ"
+                                   IsVisible="{Binding IsDecorationWorkspaceActive}"/>
+                        <ItemsControl ItemsSource="{Binding DecorationDesignTools}"
+                                      ItemTemplate="{StaticResource CadToolbarToolTemplate}"
+                                      IsVisible="{Binding IsDecorationWorkspaceActive}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <UniformGrid Columns="4"/>
@@ -570,6 +401,55 @@
                         </ItemsControl>
 
                         <Separator Background="#AEAEAE" Margin="0,10"/>
+
+                        <StackPanel Margin="4,0,4,8" Spacing="6" IsVisible="{Binding IsExtremeImpostToolActive}">
+                            <TextBlock Classes="paramLabel" Text="Тип импоста"/>
+                            <ComboBox ItemsSource="{Binding ExtremeImpostPlacementOptions}"
+                                      SelectedItem="{Binding SelectedExtremeImpostPlacementOption, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch"
+                                      MinHeight="28">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Label}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Margin="4,0,4,8" Spacing="6" IsVisible="{Binding IsSillPropertiesPanelVisible}">
+                            <TextBlock Classes="paramLabel" Text="Подоконник"/>
+                            <TextBlock Classes="paramLabel" Text="Материал"/>
+                            <ComboBox ItemsSource="{Binding SillMaterialOptions}"
+                                      SelectedItem="{Binding SelectedSillMaterialOption, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch"
+                                      MinHeight="28">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate DataType="models:ConstructionMaterialOption">
+                                        <TextBlock Text="{Binding DisplayName}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Margin="4,0,4,8" Spacing="6" IsVisible="{Binding IsSashMosquitoNetPanelVisible}">
+                            <TextBlock Classes="paramLabel" Text="Москитная сетка"/>
+                            <Button Content="Добавить москитную сетку"
+                                    Command="{Binding ToggleMosquitoNetOnSelectedSashCommand}"
+                                    HorizontalAlignment="Stretch"
+                                    MinHeight="28"/>
+                            <CheckBox Content="Сетка установлена"
+                                      IsChecked="{Binding HasMosquitoNetOnSelectedSash, Mode=TwoWay}"
+                                      IsEnabled="False"/>
+                        </StackPanel>
+
+                        <StackPanel Margin="4,0,4,8" Spacing="6" IsVisible="{Binding IsExtremeImpostEditPanelActive}">
+                            <TextBlock Classes="paramLabel" Text="Отступ от края, мм"/>
+                            <NumericUpDown Minimum="0"
+                                           Increment="1"
+                                           FormatString="F0"
+                                           Value="{Binding ExtremeImpostOffsetMm, Mode=TwoWay}"
+                                           HorizontalAlignment="Stretch"/>
+                        </StackPanel>
 
                         <StackPanel Margin="4,0,4,8" Spacing="6" IsVisible="{Binding IsDragCreateShapeToolActive}">
                             <TextBlock Classes="paramLabel" Text="Привязка"/>
@@ -605,6 +485,7 @@
                                    Editor="{Binding}"
                                    Orientation="Horizontal"
                                    HorizontalTickEdge="Top"
+                                   CanvasScreenOriginX="{x:Static controls:CadSceneControl.VerticalRulerThickness}"
                                    Height="30"
                                    ClipToBounds="True"
                                    HorizontalAlignment="Stretch"

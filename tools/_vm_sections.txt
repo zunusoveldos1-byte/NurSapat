@@ -1,0 +1,499 @@
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:2288-2335 =====
+2288|
+2289|        ClearConstructionSelection();
+2290|        SyncFillingsToFrameLayout();
+2291|        RefreshAfterPlacementHistoryChange();
+2292|        RequestSceneRefresh();
+2293|        StatusText = deletable.Count == 1 ? "\u0420\xad\u0420\xbb\u0420\xb5\u0420\u0458\u0420\xb5\u0420\u0405\u0421\u201a \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0421\u2018\u0420\u0405" : $"\u0420\u0408\u0420\u0491\u0420\xb0\u0420\xbb\u0420\xb5\u0420\u0405\u0420\u0455 \u0421\u040c\u0420\xbb\u0420\xb5\u0420\u0458\u0420\xb5\u0420\u0405\u0421\u201a\u0420\u0455\u0420\u0406: {deletable.Count}";
+2294|        return true;
+2295|    }
+2296|
+2297|    private static bool CanDeleteConstructionItem(CadSelectableItem item) =>
+2298|        item.Kind is CadSelectableKind.Sash
+2299|            or CadSelectableKind.Glazing
+2300|            or CadSelectableKind.Bead
+2301|            or CadSelectableKind.Impost
+2302|            or CadSelectableKind.ExtremeImpost
+2303|            or CadSelectableKind.SashHandle
+2304|            or CadSelectableKind.SashHinge;
+2305|
+2306|    private bool TryDeleteConstructionItem(CadSelectableItem item)
+2307|    {
+2308|        switch (item.Kind)
+2309|        {
+2310|            case CadSelectableKind.Sash when item.ElementId is Guid sashId:
+2311|                OrphanHostedGlazingForSash(sashId);
+2312|                return RemoveCanvasElementById(sashId);
+2313|            case CadSelectableKind.Glazing or CadSelectableKind.Bead when item.ElementId is Guid elementId:
+2314|                RemoveSpokesForGlazing(elementId);
+2315|                return RemoveCanvasElementById(elementId);
+2316|            case CadSelectableKind.Impost when item.ImpostNode is { IsUniformSplit: false } impostNode:
+2317|                return impostNode.TryRemoveImpostSplit();
+2318|            case CadSelectableKind.ExtremeImpost
+2319|                when item.ImpostNode is FrameNode leaf && item.ElementId is Guid slotId:
+2320|                if (!leaf.TryRemoveExtremeImpost(slotId))
+2321|                {
+2322|                    return false;
+2323|                }
+2324|
+2325|                SyncExtremeImpostCanvasElements();
+2326|                SyncFillingsToFrameLayout();
+2327|                return true;
+2328|            case CadSelectableKind.SashHandle when item.ElementId is Guid handleSashId:
+2329|                return TryClearSashHandle(handleSashId);
+2330|            case CadSelectableKind.SashHinge when item.ElementId is Guid hingeSashId:
+2331|                return TryClearSashHardware(hingeSashId);
+2332|            default:
+2333|                return false;
+2334|        }
+2335|    }
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:2405-2480 =====
+2405|            element.IsSelected = IsGeometryElementSelected(element.Id);
+2406|        }
+2407|    }
+2408|
+2409|    private bool TryDeleteSelectionFromTool()
+2410|    {
+2411|        if (_constructionSelection.Count > 0 && HasCommittedConstruction)
+2412|        {
+2413|            return TryDeleteConstructionSelection();
+2414|        }
+2415|
+2416|        if (SelectedRectangle != null)
+2417|        {
+2418|            var removed = SelectedRectangle.Value;
+2419|            RecordPlacement("\u0420\u045b\u0420\xb1\u0421\u0409\u0420\xb5\u0420\u0454\u0421\u201a \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0421\u2018\u0420\u0405", () =>
+2420|            {
+2421|                Document.RemoveRectangle(removed);
+2422|                SelectedRectangle = null;
+2423|            });
+2424|            RefreshSelection();
+2425|            RequestSceneRefresh();
+2426|            StatusText = "\u0420\u2019\u0421\u2039\u0420\xb1\u0421\u0402\u0420\xb0\u0420\u0405\u0420\u0405\u0421\u2039\u0420\u2116 \u0420\u0455\u0420\xb1\u0421\u0409\u0420\xb5\u0420\u0454\u0421\u201a \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0421\u2018\u0420\u0405";
+2427|            return true;
+2428|        }
+2429|
+2430|        if (SelectedElement is FrameNode)
+2431|        {
+2432|            RecordPlacement("\u0420\u0459\u0420\u0455\u0420\u0405\u0421\u0403\u0421\u201a\u0421\u0402\u0421\u0453\u0420\u0454\u0421\u2020\u0420\u0451\u0421\u040f \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0420\xb5\u0420\u0405\u0420\xb0", () => ClearCommittedFrameGeometry(clearPlacementHistory: false));
+2433|            RefreshAfterPlacementHistoryChange();
+2434|            RequestSceneRefresh();
+2435|            StatusText = "\u0420\u0459\u0420\u0455\u0420\u0405\u0421\u0403\u0421\u201a\u0421\u0402\u0421\u0453\u0420\u0454\u0421\u2020\u0420\u0451\u0421\u040f \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0420\xb5\u0420\u0405\u0420\xb0";
+2436|            return true;
+2437|        }
+2438|
+2439|        return false;
+2440|    }
+2441|
+2442|    private bool TryClearConstructionFromTool()
+2443|    {
+2444|        if (FrameRoot == null && Document.Rectangles.Count == 0 && CanvasElements.Count == 0)
+2445|        {
+2446|            return false;
+2447|        }
+2448|
+2449|        ClearCommittedFrameGeometry();
+2450|        StatusText = "\u0420\u0459\u0420\u0455\u0420\u0405\u0421\u0403\u0421\u201a\u0421\u0402\u0421\u0453\u0420\u0454\u0421\u2020\u0420\u0451\u0421\u040f \u0420\u0455\u0421\u2021\u0420\u0451\u0421\u2030\u0420\xb5\u0420\u0405\u0420\xb0";
+2451|        return true;
+2452|    }
+2453|
+2454|    private void TrackImpostSplit(FrameNode splitNode)
+2455|    {
+2456|        if (!splitNode.IsLeaf)
+2457|        {
+2458|            _impostSplitHistory.Add(splitNode);
+2459|        }
+2460|    }
+2461|
+2462|    private double ResolveFrameSplitInset(FrameNode leaf) =>
+2463|        leaf.GetRoot().IsFictitiousContainer
+2464|            ? 0
+2465|            : leaf.Parent == null
+2466|                ? FrameProfileGeometry.ResolveInnerInset(leaf.Width, leaf.Height, FrameThickness)
+2467|                : 0;
+2468|
+2469|    private bool TryApplyMullionLineToFrame(DesignPlacementCommit commit)
+2470|    {
+2471|        if (FrameRoot is null || commit.Kind != DesignPlacementKind.MullionLine || !HasFrameOnCanvas)
+2472|        {
+2473|            return false;
+2474|        }
+2475|
+2476|        var point = commit.Anchor;
+2477|        var leaf = FrameRoot.FindLeafAt(point.X, point.Y);
+2478|        if (leaf is null || !leaf.IsLeaf)
+2479|        {
+2480|            return false;
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:2835-2865 =====
+2835|        OnPropertyChanged(nameof(FrameRoot));
+2836|        SyncFrameRootFictitiousFlag();
+2837|        FitToCanvas(bounds);
+2838|        FrameCreated?.Invoke(this, new FrameCreatedEventArgs(element, replaceExisting: true));
+2839|        return true;
+2840|    }
+2841|
+2842|    private void CompleteFrameCreationAndSelection()
+2843|    {
+2844|        ClearShapePlacementFlags();
+2845|        _isCommittingRealFrame = false;
+2846|
+2847|        if (ShouldNestRealFrameInFakeContext() && SelectedElement is FrameNode nestedLeaf)
+2848|        {
+2849|            ScheduleFrameSelectionUiRefresh(nestedLeaf);
+2850|            return;
+2851|        }
+2852|
+2853|        if (FrameRoot is not FrameNode frame)
+2854|        {
+2855|            return;
+2856|        }
+2857|
+2858|        ApplyFrameSelection(frame);
+2859|        ScheduleFrameSelectionUiRefresh(frame);
+2860|    }
+2861|
+2862|    public void FinalizeRealFramePlacement() => FinalizeShapePlacement();
+2863|
+2864|    public void FinalizeShapePlacement()
+2865|    {
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:2975-3020 =====
+2975|        OnPropertyChanged(nameof(SelectedRectangle));
+2976|        OnPropertyChanged(nameof(IsLeftPanelVisible));
+2977|        OnPropertyChanged(nameof(IsPropertiesPanelVisible));
+2978|    }
+2979|
+2980|    private bool CommitRealFrameAt(double originX, double originY, double width, double height)
+2981|    {
+2982|        originX = RoundMm(originX);
+2983|        originY = RoundMm(originY);
+2984|        width = RoundMm(width);
+2985|        height = RoundMm(height);
+2986|
+2987|        if (width <= 0 || height <= 0)
+2988|        {
+2989|            _isCommittingRealFrame = false;
+2990|            StatusText = "\u0420\u045c\u0420\xb5\u0420\u0454\u0420\u0455\u0421\u0402\u0421\u0402\u0420\xb5\u0420\u0454\u0421\u201a\u0420\u0405\u0421\u2039\u0420\xb5 \u0421\u0402\u0420\xb0\u0420\xb7\u0420\u0458\u0420\xb5\u0421\u0402\u0421\u2039";
+2991|            return false;
+2992|        }
+2993|
+2994|        var centerX = originX + width / 2.0;
+2995|        var centerY = originY + height / 2.0;
+2996|        if (TryCommitNestedRealFrameAt(centerX, centerY))
+2997|        {
+2998|            return true;
+2999|        }
+3000|
+3001|        _isCommittingRealFrame = true;
+3002|        ClearCommittedFrameGeometry();
+3003|
+3004|        var frameKind = ResolveRealFrameKind(width, height);
+3005|        FrameRoot = FrameNode.CreateRoot(originX, originY, width, height, isFictitiousContainer: false);
+3006|        ApplyRootFrameInitialization(FrameRoot, WindowToolMode.RealFrame, frameKind);
+3007|
+3008|        var bounds = new CadRect(originX, originY + height, width, height);
+3009|        Document.AddRectangle(bounds);
+3010|        SelectedRectangle = bounds;
+3011|
+3012|        var frameLabel = frameKind == GeometryElementKind.ArchFrame
+3013|            ? "\u0420\u0459\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0420\xb0 \u0420\xb0\u0421\u0402\u0420\u0455\u0421\u2021\u0420\u0405\u0420\xb0\u0421\u040f (\u0421\u0402\u0420\xb0\u0420\u0458\u0420\xb0)"
+3014|            : "\u0420\u0459\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0420\xb0 (\u0421\u0402\u0420\xb0\u0420\u0458\u0420\xb0)";
+3015|
+3016|        var element = new GeometryElement
+3017|        {
+3018|            Kind = frameKind,
+3019|            Label = frameLabel,
+3020|            X = (decimal)RoundMm(originX + width / 2.0),
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:3035-3055 =====
+3035|        OnPropertyChanged(nameof(HasFrameOnCanvas));
+3036|        OnPropertyChanged(nameof(HasRealFrameOnCanvas));
+3037|        OnPropertyChanged(nameof(FrameRoot));
+3038|        FitToCanvas(bounds);
+3039|        FrameCreated?.Invoke(this, new FrameCreatedEventArgs(element, replaceExisting: true));
+3040|        return true;
+3041|    }
+3042|
+3043|    private bool ShouldNestRealFrameInFakeContext() =>
+3044|        HasFakeFrameOnCanvas && FrameRoot is not null;
+3045|
+3046|    private void SyncFrameRootFictitiousFlag()
+3047|    {
+3048|        if (FrameRoot is null)
+3049|        {
+3050|            return;
+3051|        }
+3052|
+3053|        FrameRoot.IsFictitiousContainer = HasFakeFrameOnCanvas;
+3054|    }
+3055|
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:3135-3250 =====
+3135|            return;
+3136|        }
+3137|
+3138|        ArchFrameDrawingHelper.EnsureFrameRootArcProfile(FrameRoot, width);
+3139|    }
+3140|
+3141|    public async Task TryHandleAdapterProfileClickAsync(CadPoint worldPoint)
+3142|    {
+3143|        if (CurrentToolMode != WindowToolMode.AdapterProfile || !ShouldNestRealFrameInFakeContext())
+3144|        {
+3145|            return;
+3146|        }
+3147|
+3148|        var leaf = FrameRoot?.FindLeafAt(worldPoint.X, worldPoint.Y);
+3149|        if (leaf is null || !leaf.IsLeaf)
+3150|        {
+3151|            StatusText = "\u0420\u0459\u0420\xbb\u0420\u0451\u0420\u0454\u0420\u0405\u0420\u0451\u0421\u201a\u0420\xb5 \u0420\u0406\u0420\u0405\u0421\u0453\u0421\u201a\u0421\u0402\u0420\u0451 \u0421\u0403\u0420\u0406\u0420\u0455\u0420\xb1\u0420\u0455\u0420\u0491\u0420\u0405\u0420\u0455\u0420\u0456\u0420\u0455 \u0420\u0457\u0421\u0402\u0420\u0455\u0421\u2018\u0420\u0458\u0420\xb0";
+3152|            return;
+3153|        }
+3154|
+3155|        if (!leaf.CanAccept(WindowToolMode.AdapterProfile))
+3156|        {
+3157|            StatusText = "\u0420\u045c\u0420\xb5\u0420\xbb\u0421\u040a\u0420\xb7\u0421\u040f \u0421\u0453\u0421\u0403\u0421\u201a\u0420\xb0\u0420\u0405\u0420\u0455\u0420\u0406\u0420\u0451\u0421\u201a\u0421\u040a \u0420\u0457\u0420\xb5\u0421\u0402\u0420\xb5\u0421\u2026\u0420\u0455\u0420\u0491\u0420\u0405\u0420\u0455\u0420\u2116 \u0420\u0457\u0421\u0402\u0420\u0455\u0421\u201e\u0420\u0451\u0420\xbb\u0421\u040a \u0420\u0406 \u0421\u040c\u0421\u201a\u0420\u0455\u0420\u2116 \u0421\u040f\u0421\u2021\u0420\xb5\u0420\u2116\u0420\u0454\u0420\xb5";
+3158|            return;
+3159|        }
+3160|
+3161|        if (FindTransitionInLeaf(leaf) is not null)
+3162|        {
+3163|            StatusText = "\u0420\u045f\u0420\xb5\u0421\u0402\u0420\xb5\u0421\u2026\u0420\u0455\u0420\u0491\u0420\u0405\u0420\u0455\u0420\u2116 \u0420\u0457\u0421\u0402\u0420\u0455\u0421\u201e\u0420\u0451\u0420\xbb\u0421\u040a \u0421\u0453\u0420\xb6\u0420\xb5 \u0421\u0453\u0421\u0403\u0421\u201a\u0420\xb0\u0420\u0405\u0420\u0455\u0420\u0406\u0420\xbb\u0420\xb5\u0420\u0405";
+3164|            return;
+3165|        }
+3166|
+3167|        if (FindFrameInLeaf(leaf) is not null)
+3168|        {
+3169|            StatusText = "\u0420\u045f\u0421\u0402\u0420\u0455\u0421\u2018\u0420\u0458 \u0421\u0453\u0420\xb6\u0420\xb5 \u0421\u0403\u0420\u0455\u0420\u0491\u0420\xb5\u0421\u0402\u0420\xb6\u0420\u0451\u0421\u201a \u0420\u0454\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0421\u0453";
+3170|            return;
+3171|        }
+3172|
+3173|        if (RecordPlacement("\u0420\u045f\u0420\xb5\u0421\u0402\u0420\xb5\u0421\u2026\u0420\u0455\u0420\u0491\u0420\u0405\u0420\u0455\u0420\u2116 \u0420\u0457\u0421\u0402\u0420\u0455\u0421\u201e\u0420\u0451\u0420\xbb\u0421\u040a \u0421\u0453\u0421\u0403\u0421\u201a\u0420\xb0\u0420\u0405\u0420\u0455\u0420\u0406\u0420\xbb\u0420\xb5\u0420\u0405", () => TryCommitTransitionProfileInLeaf(leaf)))
+3174|        {
+3175|            StatusText = "\u0420\u045f\u0420\xb5\u0421\u0402\u0420\xb5\u0421\u2026\u0420\u0455\u0420\u0491\u0420\u0405\u0420\u0455\u0420\u2116 \u0420\u0457\u0421\u0402\u0420\u0455\u0421\u201e\u0420\u0451\u0420\xbb\u0421\u040a \u0421\u0453\u0421\u0403\u0421\u201a\u0420\xb0\u0420\u0405\u0420\u0455\u0420\u0406\u0420\xbb\u0420\xb5\u0420\u0405 \u0432\u0402\u201d \u0420\u0406\u0420\u0405\u0421\u0453\u0421\u201a\u0421\u0402\u0420\u0451 \u0421\u0403\u0420\u0455\u0420\xb7\u0420\u0491\u0420\xb0\u0420\u0405\u0420\xb0 \u0420\u0454\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0420\xb0";
+3176|            RequestSceneRefresh();
+3177|        }
+3178|
+3179|        await Task.CompletedTask;
+3180|    }
+3181|
+3182|    private bool TryCommitTransitionProfileInLeaf(FrameNode leaf)
+3183|    {
+3184|        var originX = RoundMm(leaf.X);
+3185|        var originY = RoundMm(leaf.Y);
+3186|        var width = RoundMm(leaf.Width);
+3187|        var height = RoundMm(leaf.Height);
+3188|
+3189|        var transition = new GeometryElement
+3190|        {
+3191|            Kind = GeometryElementKind.TransitionFrame,
+3192|            Label = "\u0420\u045f\u0420\xb5\u0421\u0402\u0420\xb5\u0421\u2026\u0420\u0455\u0420\u0491\u0420\u0405\u0420\u0455\u0420\u2116 \u0420\u0457\u0421\u0402\u0420\u0455\u0421\u201e\u0420\u0451\u0420\xbb\u0421\u040a",
+3193|            X = (decimal)RoundMm(originX + width / 2.0),
+3194|            Y = (decimal)RoundMm(originY + height / 2.0),
+3195|            WidthMm = (decimal)width,
+3196|            HeightMm = (decimal)height
+3197|        };
+3198|        AddCanvasElement(transition);
+3199|
+3200|        var inset = FrameProfileGeometry.ResolveInnerInset(width, height, FrameThickness);
+3201|        var innerOriginX = RoundMm(originX + inset);
+3202|        var innerOriginY = RoundMm(originY + inset);
+3203|        var innerWidth = RoundMm(Math.Max(width - inset * 2, MinEditableOpeningMm));
+3204|        var innerHeight = RoundMm(Math.Max(height - inset * 2, MinEditableOpeningMm));
+3205|        var frameKind = ResolveRealFrameKind(innerWidth, innerHeight);
+3206|        var frameLabel = frameKind == GeometryElementKind.ArchFrame
+3207|            ? "\u0420\u0459\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0420\xb0 \u0420\xb0\u0421\u0402\u0420\u0455\u0421\u2021\u0420\u0405\u0420\xb0\u0421\u040f (\u0421\u0402\u0420\xb0\u0420\u0458\u0420\xb0)"
+3208|            : "\u0420\u0459\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0420\xb0 (\u0421\u0402\u0420\xb0\u0420\u0458\u0420\xb0)";
+3209|
+3210|        var frame = new GeometryElement
+3211|        {
+3212|            Kind = frameKind,
+3213|            Label = frameLabel,
+3214|            X = (decimal)RoundMm(innerOriginX + innerWidth / 2.0),
+3215|            Y = (decimal)RoundMm(innerOriginY + innerHeight / 2.0),
+3216|            WidthMm = (decimal)innerWidth,
+3217|            HeightMm = (decimal)innerHeight
+3218|        };
+3219|        AddCanvasElement(frame);
+3220|
+3221|        OnPropertyChanged(nameof(HasRealFrameOnCanvas));
+3222|        FrameCreated?.Invoke(this, new FrameCreatedEventArgs(transition, replaceExisting: false));
+3223|        FrameCreated?.Invoke(this, new FrameCreatedEventArgs(frame, replaceExisting: false));
+3224|        return true;
+3225|    }
+3226|
+3227|    private GeometryElement? FindTransitionInLeaf(FrameNode leaf) =>
+3228|        CanvasElements.FirstOrDefault(
+3229|            element => element.Kind == GeometryElementKind.TransitionFrame && ContainsLeaf(element, leaf));
+3230|
+3231|    private bool HasNestedBillableFramesInContainer() =>
+3232|        CanvasElements.Any(
+3233|            element => element.Kind is GeometryElementKind.Frame or GeometryElementKind.ArchFrame
+3234|                       && !DummyFrame.IsDummyElement(element));
+3235|
+3236|    private bool IsBillableConstructionLeaf(FrameNode leaf) =>
+3237|        FrameRoot?.IsFictitiousContainer != true || FindFrameInLeaf(leaf) is not null;
+3238|
+3239|    private GeometryElement? FindFrameInLeaf(FrameNode leaf)
+3240|    {
+3241|        GeometryElement? best = null;
+3242|        var bestArea = 0.0;
+3243|
+3244|        foreach (var element in CanvasElements)
+3245|        {
+3246|            if (element.Kind is not (GeometryElementKind.Frame or GeometryElementKind.ArchFrame))
+3247|            {
+3248|                continue;
+3249|            }
+3250|
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:3385-3415 =====
+3385|    }
+3386|
+3387|    private bool TryCommitNestedRealFrameAt(double worldX, double worldY)
+3388|    {
+3389|        if (!ShouldNestRealFrameInFakeContext() || FrameRoot is null)
+3390|        {
+3391|            return false;
+3392|        }
+3393|
+3394|        var leaf = FrameRoot.FindLeafAt(worldX, worldY);
+3395|        if (leaf is null || FindTransitionInLeaf(leaf) is null)
+3396|        {
+3397|            return false;
+3398|        }
+3399|
+3400|        _isCommittingRealFrame = true;
+3401|        return TryCommitRealFrameInLeaf(leaf);
+3402|    }
+3403|
+3404|    private bool ShouldPreserveFakeContainerForPlacement(CadPoint worldPoint) =>
+3405|        CurrentToolMode == WindowToolMode.RealFrame
+3406|        && ShouldNestRealFrameInFakeContext()
+3407|        && FrameRoot?.FindLeafAt(worldPoint.X, worldPoint.Y) is FrameNode leaf
+3408|        && FindTransitionInLeaf(leaf) is not null;
+3409|
+3410|    private void ClearExistingFrameForReplacement()
+3411|    {
+3412|        ClearCommittedFrameGeometry();
+3413|        Length = 0;
+3414|        Height = 0;
+3415|        OnPropertyChanged(nameof(SelectedElementLength));
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:4515-4560 =====
+4515|                : mode == WindowToolMode.SlantedImpost
+4516|                    ? $"{active?.Title}: \u0420\u203a\u0420\u0459\u0420\u045a \u0432\u0402\u201d \u0420\u0457\u0420\u0455\u0420\xbb\u0420\u0455\u0420\xb6\u0420\xb5\u0420\u0405\u0420\u0451\u0420\xb5 \u0420\u0405\u0420\xb0\u0420\u0454\u0420\xbb\u0420\u0455\u0420\u0405\u0420\u0405\u0420\u0455\u0420\u0456\u0420\u0455 \u0420\u0451\u0420\u0458\u0420\u0457\u0420\u0455\u0421\u0403\u0421\u201a\u0420\xb0"
+4517|                    : $"{active?.Title}: \u0420\u203a\u0420\u0459\u0420\u045a \u0420\u0406\u0420\u0405\u0421\u0453\u0421\u201a\u0421\u0402\u0420\u0451 \u0421\u040f\u0421\u2021\u0420\xb5\u0420\u2116\u0420\u0454\u0420\u0451 \u0432\u0402\u201d \u0420\u0406\u0420\u0406\u0420\xb5\u0420\u0491\u0420\u0451\u0421\u201a\u0420\xb5 \u0420\u0454\u0420\u0455\u0420\xbb\u0420\u0451\u0421\u2021\u0420\xb5\u0421\u0403\u0421\u201a\u0420\u0406\u0420\u0455 \u0420\u0451\u0420\u0458\u0420\u0457\u0420\u0455\u0421\u0403\u0421\u201a\u0420\u0455\u0420\u0406";
+4518|        }
+4519|        else if (IsInteractiveToolMode(mode))
+4520|        {
+4521|            StatusText = mode switch
+4522|            {
+4523|                WindowToolMode.Sash => "\u0420\u040e\u0421\u201a\u0420\u0406\u0420\u0455\u0421\u0402\u0420\u0454\u0420\xb0: \u0420\xb7\u0420\xb0\u0420\xb6\u0420\u0458\u0420\u0451\u0421\u201a\u0420\xb5 \u0420\u203a\u0420\u0459\u0420\u045a \u0420\u0451 \u0421\u0453\u0420\u0454\u0420\xb0\u0420\xb6\u0420\u0451\u0421\u201a\u0420\xb5 \u0420\u0405\u0420\xb0\u0420\u0457\u0421\u0402\u0420\xb0\u0420\u0406\u0420\xbb\u0420\xb5\u0420\u0405\u0420\u0451\u0420\xb5 \u0420\u0455\u0421\u201a\u0420\u0454\u0421\u0402\u0421\u2039\u0420\u0406\u0420\xb0\u0420\u0405\u0420\u0451\u0421\u040f",
+4524|                WindowToolMode.Hardware => "\u0420\xa4\u0421\u0453\u0421\u0402\u0420\u0405\u0420\u0451\u0421\u201a\u0421\u0453\u0421\u0402\u0420\xb0: \u0420\u0454\u0420\xbb\u0420\u0451\u0420\u0454 \u0420\u0457\u0420\u0455 \u0421\u0403\u0421\u201a\u0420\u0406\u0420\u0455\u0421\u0402\u0420\u0454\u0420\xb5 \u0432\u0402\u201d \u0420\u0457\u0420\xb5\u0421\u201a\u0420\xbb\u0420\u0451 \u0421\u0403\u0420\u0457\u0421\u0402\u0420\xb0\u0420\u0406\u0420\xb0 \u0432\u2020\u2019 \u0421\u0403\u0420\xbb\u0420\xb5\u0420\u0406\u0420\xb0 \u0432\u2020\u2019 \u0421\u0403\u0420\u0405\u0420\u0451\u0420\xb7\u0421\u0453 \u0432\u2020\u2019 \u0421\u0403\u0420\u0405\u0421\u040f\u0421\u201a\u0421\u040a",
+4525|                WindowToolMode.Handle => "\u0420\xa0\u0421\u0453\u0421\u2021\u0420\u0454\u0420\xb0: \u0420\u0454\u0420\xbb\u0420\u0451\u0420\u0454 \u0420\u0457\u0420\u0455 \u0421\u0403\u0421\u201a\u0420\u0406\u0420\u0455\u0421\u0402\u0420\u0454\u0420\xb5 \u0432\u0402\u201d \u0421\u0453\u0421\u0403\u0421\u201a\u0420\xb0\u0420\u0405\u0420\u0455\u0420\u0406\u0420\u0451\u0421\u201a\u0421\u040a / \u0421\u0403\u0420\u0405\u0421\u040f\u0421\u201a\u0421\u040a",
+4526|                _ => FindDesignTool(mode, toolKey)?.Title is { Length: > 0 } title
+4527|                    ? $"\u0420\u2019\u0421\u2039\u0420\xb1\u0421\u0402\u0420\xb0\u0420\u0405 \u0420\u0451\u0420\u0405\u0421\u0403\u0421\u201a\u0421\u0402\u0421\u0453\u0420\u0458\u0420\xb5\u0420\u0405\u0421\u201a {title}"
+4528|                    : "\u0420\x98\u0420\u0405\u0421\u0403\u0421\u201a\u0421\u0402\u0421\u0453\u0420\u0458\u0420\xb5\u0420\u0405\u0421\u201a"
+4529|            };
+4530|        }
+4531|        else if (mode == WindowToolMode.AdapterProfile)
+4532|        {
+4533|            StatusText = ShouldNestRealFrameInFakeContext()
+4534|                ? "\u0420\u045f\u0420\xb5\u0421\u0402\u0420\xb5\u0421\u2026\u0420\u0455\u0420\u0491\u0420\u0405\u0420\u0455\u0420\u2116 \u0420\u0457\u0421\u0402\u0420\u0455\u0421\u201e\u0420\u0451\u0420\xbb\u0421\u040a: \u0420\u0454\u0420\xbb\u0420\u0451\u0420\u0454\u0420\u0405\u0420\u0451\u0421\u201a\u0420\xb5 \u0420\u0406\u0420\u0405\u0421\u0453\u0421\u201a\u0421\u0402\u0420\u0451 \u0421\u0403\u0420\u0406\u0420\u0455\u0420\xb1\u0420\u0455\u0420\u0491\u0420\u0405\u0420\u0455\u0420\u0456\u0420\u0455 \u0420\u0457\u0421\u0402\u0420\u0455\u0421\u2018\u0420\u0458\u0420\xb0"
+4535|                : "\u0420\u045f\u0420\xb5\u0421\u0402\u0420\xb5\u0421\u2026\u0420\u0455\u0420\u0491\u0420\u0405\u0420\u0455\u0420\u2116 \u0420\u0457\u0421\u0402\u0420\u0455\u0421\u201e\u0420\u0451\u0420\xbb\u0421\u040a \u0420\u0491\u0420\u0455\u0421\u0403\u0421\u201a\u0421\u0453\u0420\u0457\u0420\xb5\u0420\u0405 \u0421\u201a\u0420\u0455\u0420\xbb\u0421\u040a\u0420\u0454\u0420\u0455 \u0420\u0406\u0420\u0405\u0421\u0453\u0421\u201a\u0421\u0402\u0420\u0451 \u0421\u201e\u0420\u0451\u0420\u0454\u0421\u201a\u0420\u0451\u0420\u0406\u0420\u0405\u0420\u0455\u0420\u2116 \u0420\u0454\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0420\u0451";
+4536|        }
+4537|        else if (mode == WindowToolMode.Glassing)
+4538|        {
+4539|            StatusText = FrameRoot is null || !HasRealFrameOnCanvas
+4540|                ? "\u0420\u040e\u0420\u0405\u0420\xb0\u0421\u2021\u0420\xb0\u0420\xbb\u0420\xb0 \u0421\u0403\u0420\u0455\u0420\xb7\u0420\u0491\u0420\xb0\u0420\u2116\u0421\u201a\u0420\xb5 \u0420\u0454\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0421\u0453 (\u0421\u0402\u0420\xb0\u0420\u0458\u0420\xb0)"
+4541|                : "\u0420\u045b\u0421\u0403\u0421\u201a\u0420\xb5\u0420\u0454\u0420\xbb\u0420\xb5\u0420\u0405\u0420\u0451\u0420\xb5: \u0420\u0454\u0420\xbb\u0420\u0451\u0420\u0454\u0420\u0405\u0420\u0451\u0421\u201a\u0420\xb5 \u0420\u0457\u0420\u0455 \u0420\u0457\u0421\u0453\u0421\u0403\u0421\u201a\u0420\u0455\u0420\u0458\u0421\u0453 \u0420\u0457\u0421\u0402\u0420\u0455\u0421\u2018\u0420\u0458\u0421\u0453 \u0420\u0451\u0420\xbb\u0420\u0451 \u0420\u0457\u0420\u0455 \u0421\u0403\u0421\u201a\u0420\u0406\u0420\u0455\u0421\u0402\u0420\u0454\u0420\xb5";
+4542|        }
+4543|        else if (mode == WindowToolMode.MosquitoNet)
+4544|        {
+4545|            StatusText = FrameRoot is null || !HasRealFrameOnCanvas
+4546|                ? "\u0420\u040e\u0420\u0405\u0420\xb0\u0421\u2021\u0420\xb0\u0420\xbb\u0420\xb0 \u0421\u0403\u0420\u0455\u0420\xb7\u0420\u0491\u0420\xb0\u0420\u2116\u0421\u201a\u0420\xb5 \u0420\u0454\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0421\u0453 (\u0421\u0402\u0420\xb0\u0420\u0458\u0420\xb0) \u0420\u0451 \u0421\u0403\u0421\u201a\u0420\u0406\u0420\u0455\u0421\u0402\u0420\u0454\u0421\u0453"
+4547|                : "\u0420\u045a\u0420\u0455\u0421\u0403\u0420\u0454\u0420\u0451\u0421\u201a\u0420\u0405\u0420\xb0\u0421\u040f \u0421\u0403\u0420\xb5\u0421\u201a\u0420\u0454\u0420\xb0: \u0420\u0454\u0420\xbb\u0420\u0451\u0420\u0454\u0420\u0405\u0420\u0451\u0421\u201a\u0420\xb5 \u0420\u0457\u0420\u0455 \u0421\u0403\u0421\u201a\u0420\u0406\u0420\u0455\u0421\u0402\u0420\u0454\u0420\xb5";
+4548|        }
+4549|        else if (mode == WindowToolMode.Sill)
+4550|        {
+4551|            StatusText = !CanAttachSillToFrame()
+4552|                ? "\u0420\u040e\u0420\u0405\u0420\xb0\u0421\u2021\u0420\xb0\u0420\xbb\u0420\xb0 \u0421\u0403\u0420\u0455\u0420\xb7\u0420\u0491\u0420\xb0\u0420\u2116\u0421\u201a\u0420\xb5 \u0420\u0454\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0421\u0453 (\u0421\u0402\u0420\xb0\u0420\u0458\u0420\xb0)"
+4553|                : "\u0420\u045f\u0420\u0455\u0420\u0491\u0420\u0455\u0420\u0454\u0420\u0455\u0420\u0405\u0420\u0405\u0420\u0451\u0420\u0454: \u0420\u0454\u0420\xbb\u0420\u0451\u0420\u0454\u0420\u0405\u0420\u0451\u0421\u201a\u0420\xb5 \u0420\u0457\u0420\u0455 \u0420\u0405\u0420\u0451\u0420\xb6\u0420\u0405\u0420\xb5\u0420\u0458\u0421\u0453 \u0420\u0457\u0421\u0402\u0420\u0455\u0421\u201e\u0420\u0451\u0420\xbb\u0421\u040b \u0421\u0402\u0420\xb0\u0420\u0458\u0421\u2039 \u0421\u0403\u0420\u0405\u0420\xb0\u0421\u0402\u0421\u0453\u0420\xb6\u0420\u0451";
+4554|        }
+4555|        else if (mode == WindowToolMode.DecorativeSpoke)
+4556|        {
+4557|            StatusText = "\u0420\u201d\u0420\xb5\u0420\u0454\u0420\u0455\u0421\u0402\u0420\xb0\u0421\u201a\u0420\u0451\u0420\u0406\u0420\u0405\u0421\u2039\u0420\u2116 \u0421\u20ac\u0420\u0457\u0421\u0402\u0420\u0455\u0421\u0403: \u0420\u0454\u0420\xbb\u0420\u0451\u0420\u0454\u0420\u0405\u0420\u0451\u0421\u201a\u0420\xb5 \u0420\u0457\u0420\u0455 \u0421\u0403\u0421\u201a\u0420\xb5\u0420\u0454\u0420\xbb\u0420\u0455\u0420\u0457\u0420\xb0\u0420\u0454\u0420\xb5\u0421\u201a\u0421\u0453";
+4558|        }
+4559|        else if (mode == WindowToolMode.ExtremeImpost)
+4560|        {
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:4655-4720 =====
+4655|        CadPoint? clickCenter)
+4656|    {
+4657|        if (mode == WindowToolMode.FakeFrameCircle)
+4658|        {
+4659|            height = width;
+4660|        }
+4661|
+4662|        if (!snapToGrid)
+4663|        {
+4664|            width = RoundMm(width);
+4665|            height = RoundMm(height);
+4666|        }
+4667|
+4668|        if (mode == WindowToolMode.RealFrame && ShouldNestRealFrameInFakeContext())
+4669|        {
+4670|            double lookupX;
+4671|            double lookupY;
+4672|            if (clickCenter is CadPoint center)
+4673|            {
+4674|                lookupX = center.X;
+4675|                lookupY = center.Y;
+4676|            }
+4677|            else if (originBottomLeft is CadPoint placementOrigin)
+4678|            {
+4679|                lookupX = placementOrigin.X + width / 2.0;
+4680|                lookupY = placementOrigin.Y + height / 2.0;
+4681|            }
+4682|            else
+4683|            {
+4684|                var viewportCenter = GetViewportCenterWorld();
+4685|                lookupX = viewportCenter.X;
+4686|                lookupY = viewportCenter.Y;
+4687|            }
+4688|
+4689|            if (TryCommitNestedRealFrameAt(lookupX, lookupY))
+4690|            {
+4691|                if (clickCenter is CadPoint nestedClick)
+4692|                {
+4693|                    CursorX = nestedClick.X;
+4694|                    CursorY = nestedClick.Y;
+4695|                    OnPropertyChanged(nameof(CursorX));
+4696|                    OnPropertyChanged(nameof(CursorY));
+4697|                }
+4698|
+4699|                return;
+4700|            }
+4701|        }
+4702|
+4703|        ClearCommittedFrameGeometry(clearPlacementHistory: false);
+4704|
+4705|        GeometryElementKind kind;
+4706|        string label;
+4707|        if (mode == WindowToolMode.RealFrame)
+4708|        {
+4709|            kind = ResolveRealFrameKind(width, height);
+4710|            label = kind == GeometryElementKind.ArchFrame
+4711|                ? "\u0420\u0459\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0420\xb0 \u0420\xb0\u0421\u0402\u0420\u0455\u0421\u2021\u0420\u0405\u0420\xb0\u0421\u040f (\u0421\u0402\u0420\xb0\u0420\u0458\u0420\xb0)"
+4712|                : "\u0420\u0459\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0420\xb0 (\u0421\u0402\u0420\xb0\u0420\u0458\u0420\xb0)";
+4713|        }
+4714|        else
+4715|        {
+4716|            (kind, label) = mode switch
+4717|            {
+4718|                WindowToolMode.FakeFrame => (GeometryElementKind.DummyFrame, "\u0420\u0459\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0420\xb0 (\u0421\u201e\u0420\u0451\u0420\u0454\u0421\u201a\u0420\u0451\u0420\u0406\u0420\u0405\u0420\xb0\u0421\u040f)"),
+4719|                WindowToolMode.FakeFrameCircle => (GeometryElementKind.RoundDummyFrame, "\u0420\u0459\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0420\xb0 \u0421\u201e\u0420\u0451\u0420\u0454\u0421\u201a\u0420\u0451\u0420\u0406\u0420\u0405\u0420\xb0\u0421\u040f \u0420\u0454\u0421\u0402\u0421\u0453\u0420\u0456\u0420\xbb\u0420\xb0\u0421\u040f"),
+4720|                WindowToolMode.FakeFrameTriangle => (GeometryElementKind.TriangleDummyFrame, "\u0420\u0459\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0420\xb0 \u0421\u201e\u0420\u0451\u0420\u0454\u0421\u201a\u0420\u0451\u0420\u0406\u0420\u0405\u0420\xb0\u0421\u040f \u0421\u201a\u0421\u0402\u0420\xb5\u0421\u0453\u0420\u0456\u0420\u0455\u0420\xbb\u0421\u040a\u0420\u0405\u0420\xb0\u0421\u040f"),

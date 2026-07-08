@@ -1,11 +1,13 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
 using NurSapat.App.Services;
+using NurSapat.App.Services.Orders;
 using NurSapat.App.Views.Dialogs;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models;
 using NurSapat.Core.Models.Orders;
 using NurSapat.Core.Models.Project;
+using NurSapat.Core.Services.Orders;
 using System.Linq;
 
 namespace NurSapat.App.ViewModels;
@@ -16,6 +18,7 @@ namespace NurSapat.App.ViewModels;
 public sealed class OrderWorkspaceViewModel
 {
     private readonly CadEditorViewModel _cadEditor;
+    private readonly IOrderErpDialogService _orderErpDialogService;
     private bool _isResettingCanvas;
     private bool _isAddingConstruction;
     private Guid? _loadedConstructionId;
@@ -28,12 +31,13 @@ public sealed class OrderWorkspaceViewModel
 
     public event EventHandler? ProjectModified;
 
-    public OrderWorkspaceViewModel(CadEditorViewModel cadEditor)
+    public OrderWorkspaceViewModel(CadEditorViewModel cadEditor, IOrderErpDialogService orderErpDialogService)
     {
         _cadEditor = cadEditor;
+        _orderErpDialogService = orderErpDialogService;
         _isResettingCanvas = true;
 
-        Sheet = new OrderSheetViewModel(this, cadEditor);
+        Sheet = new OrderSheetViewModel(this, cadEditor, orderErpDialogService);
         Drawing = new OrderDrawingViewModel(this, cadEditor);
         Sheet.ProjectModified += (_, _) => ProjectModified?.Invoke(this, EventArgs.Empty);
         Drawing.ProjectModified += (_, _) => ProjectModified?.Invoke(this, EventArgs.Empty);
@@ -43,6 +47,11 @@ public sealed class OrderWorkspaceViewModel
         WireConstructionHandlers();
         InitializeCadConstructions();
         _isResettingCanvas = false;
+    }
+
+    public void ApplyCadReadOnlyStatus()
+    {
+        _cadEditor.IsViewOnlyMode = OrderBusinessRules.IsCadReadOnly(Order.Header.Status);
     }
 
     public void RecalculateAll()
@@ -268,6 +277,7 @@ public sealed class OrderWorkspaceViewModel
         else if (elements.Count > 0)
         {
             _cadEditor.SetDesignElements(elements);
+            _cadEditor.ScheduleInitialViewportFocus();
         }
         else
         {
@@ -316,6 +326,7 @@ public sealed class OrderWorkspaceViewModel
         LoadConstructionToCanvas(construction);
         SyncConstructionListToCadEditor(construction.Id);
         Drawing.ReloadFromOrder();
+        ApplyCadReadOnlyStatus();
     }
 
     public void ResetWorkspace()
@@ -325,6 +336,7 @@ public sealed class OrderWorkspaceViewModel
         LoadConstructionToCanvas(construction);
         SyncConstructionListToCadEditor(construction.Id);
         Drawing.ReloadFromOrder();
+        ApplyCadReadOnlyStatus();
     }
 
     private void WireConstructionHandlers()
@@ -332,6 +344,8 @@ public sealed class OrderWorkspaceViewModel
         _cadEditor.AddConstructionHandler = AddNewConstructionAsync;
         _cadEditor.SelectConstructionHandler = SwitchToConstructionAsync;
         _cadEditor.RemoveConstructionHandler = RemoveConstructionAsync;
+        _cadEditor.ConfirmRemoveConstructionHandler = message =>
+            _orderErpDialogService.ShowConfirmDeleteAsync(message);
         _cadEditor.OpenConstructionsLookupHandler = OpenConstructionsLookupAsync;
     }
 
@@ -370,6 +384,7 @@ public sealed class OrderWorkspaceViewModel
         var construction = Order.EnsureDefaultConstruction();
         LoadConstructionToCanvas(construction);
         SyncConstructionListToCadEditor(construction.Id);
+        ApplyCadReadOnlyStatus();
     }
 
     private void ScheduleSyncConstructionListToCadEditor(Guid? activeConstructionId = null)
@@ -463,9 +478,21 @@ public sealed class OrderWorkspaceViewModel
         HasHardware = source.HasHardware,
         HasHandle = source.HasHandle,
         HostSashId = source.HostSashId,
+        ProfileSeriesId = source.ProfileSeriesId,
         MaterialId = source.MaterialId,
         SourceToolId = source.SourceToolId,
         EndX = source.EndX,
-        EndY = source.EndY
+        EndY = source.EndY,
+        ParentGlazingId = source.ParentGlazingId,
+        SpokeType = source.SpokeType,
+        SpokeThicknessMm = source.SpokeThicknessMm,
+        SpokeColor = source.SpokeColor,
+        SpokeRowsCount = source.SpokeRowsCount,
+        SpokeColumnsCount = source.SpokeColumnsCount,
+        SpokeRayCount = source.SpokeRayCount,
+        SpokeIsArched = source.SpokeIsArched,
+        SpokeArcCenterX = source.SpokeArcCenterX,
+        SpokeArcCenterY = source.SpokeArcCenterY,
+        SpokeArcRadius = source.SpokeArcRadius
     };
 }

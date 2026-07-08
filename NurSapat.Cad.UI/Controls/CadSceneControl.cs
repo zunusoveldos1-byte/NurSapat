@@ -19,6 +19,8 @@ public enum HorizontalTickEdge
 
 public sealed class CadSceneControl : Grid
 {
+    public const double VerticalRulerThickness = 30;
+
     private readonly Grid _canvasHost = new();
     private readonly CadCanvasControl _canvas = new();
     private readonly DimensionEditorOverlay _dimensionOverlay = new();
@@ -108,7 +110,7 @@ public sealed class CadSceneControl : Grid
         RowDefinitions.Clear();
         ColumnDefinitions.Clear();
 
-        ColumnDefinitions.Add(new ColumnDefinition(GridLength.Parse("30")));
+        ColumnDefinitions.Add(new ColumnDefinition(GridLength.Parse($"{VerticalRulerThickness}")));
         ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
         if (!ShowHorizontalRuler)
@@ -124,7 +126,7 @@ public sealed class CadSceneControl : Grid
             return;
         }
 
-        RowDefinitions.Add(new RowDefinition(GridLength.Parse("30")));
+        RowDefinitions.Add(new RowDefinition(GridLength.Parse($"{VerticalRulerThickness}")));
         RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
         SetRow(_verticalRuler, 0);
@@ -160,7 +162,7 @@ public sealed class CadSceneControl : Grid
 
         var width = Math.Max(1, _canvas.Bounds.Width);
         var height = Math.Max(1, _canvas.Bounds.Height);
-        Editor.SetViewportSize(width, height);
+        Editor.NotifyDrawingCanvasSized(width, height);
     }
 
     private void OnSceneInvalidated(object? sender, EventArgs e) => InvalidateCadScene();

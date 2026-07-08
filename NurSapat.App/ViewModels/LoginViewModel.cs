@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NurSapat.App.Models.Users;
 using NurSapat.App.Services;
@@ -17,6 +17,33 @@ public partial class LoginViewModel : ObservableObject
     private readonly IUserSessionService _sessionService;
     private readonly SettingsService _settings;
     private readonly IWorkspaceWindowService _workspaceWindowService;
+
+    // Константные данные для контактов
+    public string SupportPhoneDisplay => "+996 (559) 34-00-32";
+    public string SupportPhoneTelUri => "tel:+996559340032";
+    public string SupportEmail => "zunusoveldos1@gmail.com";
+    public string SupportEmailMailtoUri => "mailto:zunusoveldos1@gmail.com";
+    public string SupportTelegramUrl => "https://t.me/willofeldos";
+
+    public IRelayCommand OpenTelegramCommand => new RelayCommand(() => OpenUrl(SupportTelegramUrl));
+    public IRelayCommand OpenPhoneCommand => new RelayCommand(() => OpenUrl(SupportPhoneTelUri));
+    public IRelayCommand OpenEmailCommand => new RelayCommand(() => OpenUrl(SupportEmailMailtoUri));
+    
+    private void OpenUrl(string url)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Не удалось открыть ссылку: {ex.Message}";
+        }
+    }
 
     // Событие для запроса закрытия окна
     public event Action? RequestClose;

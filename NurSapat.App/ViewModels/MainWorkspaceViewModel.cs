@@ -10,7 +10,12 @@ using NurSapat.App.Services;
 using NurSapat.App.Services.Documents;
 using NurSapat.App.Services.Dictionaries;
 using NurSapat.App.Services.EditDialogs;
+using NurSapat.App.Services.Export;
+using NurSapat.App.Services.Help;
+using NurSapat.App.Services.Orders;
+using NurSapat.App.Services.Users;
 using NurSapat.App.Services.Settings;
+using NurSapat.App.ViewModels.Utilities;
 using NurSapat.App.Views;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Calculation;
@@ -32,16 +37,23 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     private readonly IPrintService _printService;
     private readonly IEditDialogService _editDialogService;
     private readonly IDictionaryWindowService _dictionaryWindowService;
+    private readonly IExportWindowService _exportWindowService;
+    private readonly IUserWindowService _userWindowService;
+    private readonly IHelpWindowService _helpWindowService;
     private readonly IEnvironmentSettingsService _environmentSettingsService;
     private readonly IDialogService _dialogService;
     private readonly ICustomersStore _customersStore;
+    private readonly IOrderErpDialogService _orderErpDialogService;
+    private readonly IUserSessionService _userSessionService;
     private bool _isNavigating;
 
     // ДОБАВЛЕНО: Ссылка на главное окно для диалогов
     private Window? _ownerWindow;
     private MessagesWindow? _messagesWindow;
 
-    public IRelayCommand<string> NavigationCommand { get; }
+    public UtilitiesViewModel Utilities { get; }
+
+    public IRelayCommand<string> NavigationCommand { get; private set; } = null!;
 
     [ObservableProperty]
     private object? _currentContent;
@@ -111,60 +123,59 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     private Task Exit() => _documentManager.ExitToLoginAsync();
 
     [RelayCommand]
-    private async Task SelectOrderCustomerAsync()
+    private async Task OpenOrderSettingsAsync()
     {
-        var names = _customersStore.GetAll()
-            .Where(c => c.Type is not CustomerType.Dealer)
-            .Select(c => c.FullName)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Distinct()
-            .OrderBy(name => name)
-            .ToList();
-
-        var selected = await _dialogService.ShowListPickerAsync("Выбрать заказчика", names);
-        if (selected is null)
+        var order = _orderWorkspace.Order;
+        var confirmed = await _orderErpDialogService.ShowOrderSettingsAsync(
+            order,
+            _userSessionService.IsAdministrator);
+        if (!confirmed)
         {
             return;
         }
 
-        _orderWorkspace.Sheet.CustomerName = selected;
+        _orderWorkspace.ApplyCadReadOnlyStatus();
+        _orderWorkspace.RecalculateAll();
+        _orderWorkspace.NotifyModified();
+    }
+
+    [RelayCommand]
+    private async Task SelectOrderCustomerAsync()
+    {
+        var customer = await _orderErpDialogService.ShowCustomerSelectAsync();
+        if (customer is null)
+        {
+            return;
+        }
+
+        var header = _orderWorkspace.Order.Header;
+        header.CustomerId = customer.Id;
+        header.CustomerName = customer.FullName;
+        header.CustomerPhone = customer.Phone;
+        _orderWorkspace.Sheet.CustomerName = customer.FullName;
+        _orderWorkspace.NotifyModified();
     }
 
     [RelayCommand]
     private async Task SelectOrderDealerAsync()
     {
-        var names = _customersStore.GetAll()
-            .Where(c => c.Type == CustomerType.Dealer)
-            .Select(c => c.FullName)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Distinct()
-            .OrderBy(name => name)
-            .ToList();
-
-        var selected = await _dialogService.ShowListPickerAsync("Выбрать дилера", names);
-        if (selected is null)
+        if (!await _orderErpDialogService.ShowDealerSelectAsync(_orderWorkspace.Order))
         {
             return;
         }
 
-        _orderWorkspace.Sheet.Header.DealerName = selected;
+        _orderWorkspace.RecalculateAll();
         _orderWorkspace.NotifyModified();
     }
 
     [RelayCommand]
-    private void TogglePriceMode()
+    private async Task OpenPriceModeAsync()
     {
-        var construction = _orderWorkspace.Order.SelectedConstruction
-            ?? _orderWorkspace.Order.EnsureDefaultConstruction();
-        var next = construction.Cost.ExpensesMode switch
+        if (!await _orderErpDialogService.ShowPriceModeAsync(_orderWorkspace.Order))
         {
-            CostInputMode.Fixed => CostInputMode.PerSquareMeter,
-            CostInputMode.PerSquareMeter => CostInputMode.Percent,
-            CostInputMode.Percent => CostInputMode.Fixed,
-            _ => CostInputMode.Fixed
-        };
+            return;
+        }
 
-        construction.Cost.ExpensesMode = next;
         _orderWorkspace.RecalculateAll();
         _orderWorkspace.NotifyModified();
     }
@@ -437,55 +448,23 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     // КОМАНДЫ МЕНЮ "СЕРВИС"
     // ==========================================
     [RelayCommand]
-    private void ExportWriteOffDBF() => System.Diagnostics.Debug.WriteLine("ExportWriteOffDBF executed");
+    private async Task ExportDbfJson() =>
+        await _exportWindowService.ShowDbfJsonExportAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void ExportWriteOffXLS() => System.Diagnostics.Debug.WriteLine("ExportWriteOffXLS executed");
+    private async Task ExportXls() =>
+        await _exportWindowService.ShowXlsExportAsync(ResolveOwnerWindow());
 
     [RelayCommand]
-    private void ImportMosquitoNet() => System.Diagnostics.Debug.WriteLine("ImportMosquitoNet executed");
-
-    [RelayCommand]
-    private void ImportAccessories() => System.Diagnostics.Debug.WriteLine("ImportAccessories executed");
-
-    // ==========================================
-    // КОМАНДЫ МЕНЮ "УТИЛИТЫ"
-    // ==========================================
-    [RelayCommand]
-    private void CompressDatabase() => System.Diagnostics.Debug.WriteLine("CompressDatabase executed");
-
-    [RelayCommand]
-    private void GenerateDealerDatabase() => System.Diagnostics.Debug.WriteLine("GenerateDealerDatabase executed");
-
-    [RelayCommand]
-    private void SetDatabasePassword() => System.Diagnostics.Debug.WriteLine("SetDatabasePassword executed");
-
-    [RelayCommand]
-    private void CorporateNode() => System.Diagnostics.Debug.WriteLine("CorporateNode executed");
-
-    [RelayCommand]
-    private void GenerateProductionDatabase() => System.Diagnostics.Debug.WriteLine("GenerateProductionDatabase executed");
-
-    [RelayCommand]
-    private void UpdateProductionDatabase() => System.Diagnostics.Debug.WriteLine("UpdateProductionDatabase executed");
+    private async Task ChangePassword() =>
+        await _userWindowService.ShowChangePasswordAsync(ResolveOwnerWindow());
 
     // ==========================================
-    // КОМАНДЫ МЕНЮ "ПОМОЩЬ"
+    // КОМАНДЫ МЕНЮ "СПРАВКА"
     // ==========================================
     [RelayCommand]
-    private void Help() => System.Diagnostics.Debug.WriteLine("Help executed");
-
-    [RelayCommand]
-    private void WhatIsNew() => System.Diagnostics.Debug.WriteLine("WhatIsNew executed");
-
-    [RelayCommand]
-    private void UpdateProgram() => System.Diagnostics.Debug.WriteLine("UpdateProgram executed");
-
-    [RelayCommand]
-    private void Consultation() => System.Diagnostics.Debug.WriteLine("Consultation executed");
-
-    [RelayCommand]
-    private void About() => System.Diagnostics.Debug.WriteLine("About executed");
+    private async Task OpenHelpWindow(string? tabKey) =>
+        await _helpWindowService.ShowAsync(ResolveOwnerWindow(), tabKey);
 
     // ==========================================
     // КОНСТРУКТОР И СУЩЕСТВУЮЩАЯ ЛОГИКА НАВИГАЦИИ
@@ -503,9 +482,15 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         IPrintService printService,
         IEditDialogService editDialogService,
         IDictionaryWindowService dictionaryWindowService,
+        IExportWindowService exportWindowService,
+        IUserWindowService userWindowService,
+        IHelpWindowService helpWindowService,
+        UtilitiesViewModel utilitiesViewModel,
         IEnvironmentSettingsService environmentSettingsService,
         IDialogService dialogService,
-        ICustomersStore customersStore)
+        ICustomersStore customersStore,
+        IOrderErpDialogService orderErpDialogService,
+        IUserSessionService userSessionService)
     {
         _orderWorkspace = orderWorkspace;
         _documentManager = documentManager;
@@ -513,9 +498,16 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         _printService = printService;
         _editDialogService = editDialogService;
         _dictionaryWindowService = dictionaryWindowService;
+        _exportWindowService = exportWindowService;
+        _userWindowService = userWindowService;
+        _helpWindowService = helpWindowService;
+        Utilities = utilitiesViewModel;
+        Utilities.ConfigureOwnerResolver(ResolveOwnerWindow);
         _environmentSettingsService = environmentSettingsService;
         _dialogService = dialogService;
         _customersStore = customersStore;
+        _orderErpDialogService = orderErpDialogService;
+        _userSessionService = userSessionService;
         _orderWorkspace.NavigateToCadTabHandler = () =>
         {
             Navigate("cad");
@@ -595,15 +587,6 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     {
         if (_isNavigating) return;
 
-        if (value == 1)
-        {
-            _orderWorkspace.Sheet.EnterViewMode();
-        }
-        else
-        {
-            _orderWorkspace.Sheet.ExitViewMode();
-        }
-
         Navigate(value switch
         {
             0 => "cad",
@@ -612,11 +595,27 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         });
     }
 
+    private string? _activeScreenKey = "cad";
+
     private void Navigate(string? key)
     {
         if (key == null || !_screens.TryGetValue(key, out var screen))
         {
             return;
+        }
+
+        if (_activeScreenKey == "cad" && key != "cad")
+        {
+            _orderWorkspace.Drawing.CadEditor.OnDrawingTabDeactivated();
+        }
+
+        if (key == "orders")
+        {
+            _orderWorkspace.Sheet.EnterViewMode();
+        }
+        else if (_activeScreenKey == "orders")
+        {
+            _orderWorkspace.Sheet.ExitViewMode();
         }
 
         CurrentContent = screen;
@@ -644,6 +643,13 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(IsOrdersSelected));
         OnPropertyChanged(nameof(IsAdditionalSelected));
         _isNavigating = false;
+
+        if (key == "cad")
+        {
+            _orderWorkspace.Drawing.CadEditor.OnDrawingTabActivated();
+        }
+
+        _activeScreenKey = key;
     }
 
     private static WorkspaceSectionViewModel Section(string title, string description, params string[] items) =>

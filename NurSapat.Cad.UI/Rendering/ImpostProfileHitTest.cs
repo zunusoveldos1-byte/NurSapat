@@ -184,8 +184,15 @@ internal static class ImpostProfileHitTest
             return false;
         }
 
+        if (CurvedContainerImpostGeometry.IsRoundContainer(editor, node.GetRoot())
+            && CurvedContainerImpostGeometry.TryResolveVerticalImpostSpan(editor, node.GetRoot(), node, centerX, out var roundBottom, out var roundTop))
+        {
+            footprint = new ImpostFootprint(left, right, roundBottom, roundTop, null, null);
+            return true;
+        }
+
         var yBottom = ResolveVerticalImpostBottom(editor, node);
-        var rectangularTop = ResolveVerticalImpostSpan(editor, node).Top;
+        var rectangularTop = ResolveVerticalImpostSpan(editor, node, gapIndex).Top;
         ArcSpringingGeometry? arc = null;
         if (TryResolveVerticalImpostArcTrim(editor, node, centerX, left, right, rectangularTop, out var resolvedArc))
         {
@@ -220,6 +227,13 @@ internal static class ImpostProfileHitTest
         }
 
         var span = HorizontalImpostGeometry.ResolveRectangularSpan(editor, node);
+        if (CurvedContainerImpostGeometry.IsRoundContainer(editor, node.GetRoot())
+            && node.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, gapIndex, out var axisY)
+            && CurvedContainerImpostGeometry.TryResolveHorizontalImpostSpan(editor, node.GetRoot(), node, axisY, out var circleLeft, out var circleRight))
+        {
+            span = (circleLeft, circleRight);
+        }
+
         IReadOnlyList<CadPoint>? horizontalPolygon = null;
         if (HorizontalImpostGeometry.TryResolveArcAdaptedSpans(
                 editor,
@@ -261,6 +275,13 @@ internal static class ImpostProfileHitTest
             return false;
         }
 
+        if (CurvedContainerImpostGeometry.IsRoundContainer(editor, node.GetRoot())
+            && CurvedContainerImpostGeometry.TryResolveVerticalImpostSpan(editor, node.GetRoot(), node, centerX, out var roundBottom, out var roundTop))
+        {
+            footprint = new ImpostFootprint(left, right, roundBottom, roundTop, null, null);
+            return true;
+        }
+
         var yBottom = ResolveVerticalImpostBottom(editor, node);
         var rectangularTop = ResolveVerticalImpostSpan(editor, node).Top;
         ArcSpringingGeometry? arc = null;
@@ -290,6 +311,13 @@ internal static class ImpostProfileHitTest
         }
 
         var span = HorizontalImpostGeometry.ResolveRectangularSpan(editor, node);
+        if (CurvedContainerImpostGeometry.IsRoundContainer(editor, node.GetRoot())
+            && node.TryGetHorizontalImpostAxisWorldY(out var axisY)
+            && CurvedContainerImpostGeometry.TryResolveHorizontalImpostSpan(editor, node.GetRoot(), node, axisY, out var circleLeft, out var circleRight))
+        {
+            span = (circleLeft, circleRight);
+        }
+
         IReadOnlyList<CadPoint>? horizontalPolygon = null;
         if (HorizontalImpostGeometry.TryResolveArcAdaptedSpans(
                 editor,
@@ -341,27 +369,46 @@ internal static class ImpostProfileHitTest
         return right - left > CadMath.Epsilon;
     }
 
-    private static (double Bottom, double Top) ResolveVerticalImpostSpan(CadEditorViewModel editor, FrameNode splitNode)
+    private static (double Bottom, double Top) ResolveVerticalImpostSpan(
+        CadEditorViewModel editor,
+        FrameNode splitNode,
+        int uniformGapIndex = 0)
     {
+        var container = splitNode.GetRoot();
+        double? axisX = null;
+        if (splitNode.IsUniformSplit && splitNode.SplitOrientation == SplitOrientation.Vertical)
+        {
+            if (splitNode.TryGetUniformImpostAxisWorld(SplitOrientation.Vertical, uniformGapIndex, out var uniformAxis))
+            {
+                axisX = uniformAxis;
+            }
+        }
+        else if (splitNode.TryGetVerticalImpostAxisWorldX(out var binaryAxis))
+        {
+            axisX = binaryAxis;
+        }
+
+        if (axisX is double axis
+            && CurvedContainerImpostGeometry.IsRoundContainer(editor, container)
+            && CurvedContainerImpostGeometry.TryResolveVerticalImpostSpan(editor, container, splitNode, axis, out var roundBottom, out var roundTop))
+        {
+            return (roundBottom, roundTop);
+        }
+
         if (editor.FrameRoot is null)
         {
             return (splitNode.Y, splitNode.Y + splitNode.Height);
         }
 
-        var inner = SashGeometry.ResolveNodeInnerOpeningBounds(
+        var (bottom, top) = SashGeometry.ResolveVerticalImpostStructuralSpan(
             splitNode,
             editor.FrameRoot,
             editor.FrameThickness);
 
-        if (inner.Height <= CadMath.Epsilon)
-        {
-            return (splitNode.Y, splitNode.Y + splitNode.Height);
-        }
-
         var maxY = ResolveVerticalImpostExtentMaxY(editor, splitNode);
         return (
-            CadMath.RoundMm(Math.Clamp(inner.Bottom, splitNode.Y, maxY)),
-            CadMath.RoundMm(Math.Clamp(inner.Top, splitNode.Y, maxY)));
+            CadMath.RoundMm(bottom),
+            CadMath.RoundMm(Math.Clamp(top, bottom, maxY)));
     }
 
     private static double ResolveVerticalImpostExtentMaxY(CadEditorViewModel editor, FrameNode splitNode)

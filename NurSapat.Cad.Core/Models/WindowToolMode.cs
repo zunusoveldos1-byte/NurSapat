@@ -27,6 +27,10 @@ public enum WindowToolMode
     BeadSystem,
     AdditionalElement,
     Corrugation,
+    /// <summary>Гофра вертикальная (заполнение проёма).</summary>
+    CorrugationVertical,
+    /// <summary>Гофра горизонтальная (заполнение проёма).</summary>
+    CorrugationHorizontal,
     Hardware,
     SlidingSash,
     RoundDummyFrame,
@@ -38,6 +42,9 @@ public enum WindowToolMode
     KonDel,
 
     // А) Коробки
+    /// <summary>Габаритная фиктивная коробка (bounding frame) для составных конструкций.</summary>
+    FictitiousFrame,
+
     /// <summary>Коробка фиктивная — автоматический ввод размеров.</summary>
     FakeFrame,
 
@@ -80,12 +87,24 @@ public enum WindowToolMode
     /// <summary>Остекление светового проёма.</summary>
     Glassing,
 
+    /// <summary>Москитная сетка на створке.</summary>
+    MosquitoNet,
+
+    /// <summary>Подоконник у нижнего профиля рамы.</summary>
+    Sill,
+
+    /// <summary>Декоративные шпросы на стеклопакете.</summary>
+    DecorativeSpoke,
+
     // Д) Элементы
     /// <summary>Переходной профиль.</summary>
     AdapterProfile,
 
     /// <summary>Ручка.</summary>
     Handle,
+
+    /// <summary>Стойка/ригель в крайнем положении (у внутреннего края проёма).</summary>
+    ExtremeImpost,
 
     // CAD-редактирование (панель инструментов)
     /// <summary>Сместить импост вертикально.</summary>

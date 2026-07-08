@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NurSapat.Cad.Foundation\NurSapat.Cad.Foundation.csproj" />
+    <ProjectReference Include="..\NurSapat.Core\NurSapat.Core.csproj" />
   </ItemGroup>
 
 </Project>

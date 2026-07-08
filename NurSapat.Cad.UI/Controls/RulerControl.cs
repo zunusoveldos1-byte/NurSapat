@@ -31,6 +31,13 @@ public sealed class RulerControl : Control
             nameof(HorizontalTickEdge),
             HorizontalTickEdge.Top);
 
+    /// <summary>
+    /// Screen X offset where the canvas begins inside this ruler (e.g. vertical ruler column width).
+    /// World-to-screen conversions use canvas coordinates; ticks are shifted by this value.
+    /// </summary>
+    public static readonly StyledProperty<double> CanvasScreenOriginXProperty =
+        AvaloniaProperty.Register<RulerControl, double>(nameof(CanvasScreenOriginX));
+
     public IBrush? Background
     {
         get => GetValue(BackgroundProperty);
@@ -53,6 +60,12 @@ public sealed class RulerControl : Control
     {
         get => GetValue(HorizontalTickEdgeProperty);
         set => SetValue(HorizontalTickEdgeProperty, value);
+    }
+
+    public double CanvasScreenOriginX
+    {
+        get => GetValue(CanvasScreenOriginXProperty);
+        set => SetValue(CanvasScreenOriginXProperty, value);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -88,8 +101,7 @@ public sealed class RulerControl : Control
             return;
         }
 
-        var majorStep = viewport.ChooseRulerStep();
-        var minorStep = viewport.ChooseMinorRulerStep(majorStep);
+        var (majorStep, minorStep) = viewport.ChooseGridSteps();
 
         if (Orientation == RulerOrientation.Horizontal)
         {
@@ -121,22 +133,25 @@ public sealed class RulerControl : Control
 
     private void RenderHorizontal(DrawingContext context, CadViewport viewport, double majorStep, double minorStep)
     {
-        var left = viewport.ScreenToWorld(new ScreenPoint(0, 0)).X;
-        var right = viewport.ScreenToWorld(new ScreenPoint(Bounds.Width, 0)).X;
+        var originX = Math.Max(0, CanvasScreenOriginX);
+        var canvasWidth = Math.Max(0, Bounds.Width - originX);
+        var left = viewport.ScreenToWorld(new ScreenPoint(originX, 0)).X;
+        var right = viewport.ScreenToWorld(new ScreenPoint(originX + canvasWidth, 0)).X;
         var ticksFromTop = HorizontalTickEdge == HorizontalTickEdge.Top;
 
-        if (minorStep * viewport.ZoomFactor >= 6)
+        if (minorStep * viewport.ZoomFactor >= 8)
         {
             for (var x = Math.Floor(left / minorStep) * minorStep; x <= right; x += minorStep)
             {
                 var screen = viewport.WorldToScreen(new CadPoint(x, 0));
+                var drawX = screen.X + originX;
                 if (ticksFromTop)
                 {
-                    context.DrawLine(MinorTickPen, new Point(screen.X, 0), new Point(screen.X, 5));
+                    context.DrawLine(MinorTickPen, new Point(drawX, 0), new Point(drawX, 5));
                 }
                 else
                 {
-                    context.DrawLine(MinorTickPen, new Point(screen.X, Bounds.Height), new Point(screen.X, Bounds.Height - 5));
+                    context.DrawLine(MinorTickPen, new Point(drawX, Bounds.Height), new Point(drawX, Bounds.Height - 5));
                 }
             }
         }
@@ -144,20 +159,21 @@ public sealed class RulerControl : Control
         for (var x = Math.Floor(left / majorStep) * majorStep; x <= right; x += majorStep)
         {
             var screen = viewport.WorldToScreen(new CadPoint(x, 0));
+            var drawX = screen.X + originX;
             if (ticksFromTop)
             {
-                context.DrawLine(MajorTickPen, new Point(screen.X, 0), new Point(screen.X, 10));
-                DrawCenteredText(context, FormatRulerLabel(x, majorStep), new Point(screen.X, 20));
+                context.DrawLine(MajorTickPen, new Point(drawX, 0), new Point(drawX, 10));
+                DrawCenteredText(context, FormatRulerLabel(x, majorStep), new Point(drawX, 20));
             }
             else
             {
-                context.DrawLine(MajorTickPen, new Point(screen.X, Bounds.Height), new Point(screen.X, Bounds.Height - 10));
-                DrawCenteredText(context, FormatRulerLabel(x, majorStep), new Point(screen.X, Bounds.Height - 18));
+                context.DrawLine(MajorTickPen, new Point(drawX, Bounds.Height), new Point(drawX, Bounds.Height - 10));
+                DrawCenteredText(context, FormatRulerLabel(x, majorStep), new Point(drawX, Bounds.Height - 18));
             }
         }
 
         var borderY = ticksFromTop ? 0.5 : Bounds.Height - 0.5;
-        context.DrawLine(BorderPen, new Point(0, borderY), new Point(Bounds.Width, borderY));
+        context.DrawLine(BorderPen, new Point(originX, borderY), new Point(Bounds.Width, borderY));
     }
 
     private void RenderVertical(DrawingContext context, CadViewport viewport, double majorStep, double minorStep)
@@ -167,7 +183,7 @@ public sealed class RulerControl : Control
         var min = Math.Min(bottom, top);
         var max = Math.Max(bottom, top);
 
-        if (minorStep * viewport.ZoomFactor >= 6)
+        if (minorStep * viewport.ZoomFactor >= 8)
         {
             for (var y = Math.Floor(min / minorStep) * minorStep; y <= max; y += minorStep)
             {
