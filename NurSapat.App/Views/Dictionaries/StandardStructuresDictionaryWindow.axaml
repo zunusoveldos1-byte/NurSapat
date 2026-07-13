@@ -20,7 +20,7 @@
     </Window.Styles>
 
     <Border Classes="mat-shell" Margin="12">
-        <Grid RowDefinitions="40,Auto,*,Auto">
+        <Grid RowDefinitions="32,Auto,*,Auto">
             <Border Grid.Row="0" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="16,0,0,0">
@@ -38,7 +38,7 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="1" Margin="12,12,12,0" Padding="0,0,0,10" Background="White">
+            <Border Grid.Row="1" Margin="12,0,12,0" Padding="0,0,0,10" Background="White">
                 <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                     <Button Classes="mat-primary" Content="Добавить группу" Command="{Binding AddGroupCommand}"
                             HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>

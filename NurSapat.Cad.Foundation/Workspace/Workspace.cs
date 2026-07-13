@@ -1,6 +1,7 @@
 using NurSapat.Cad.Foundation.Commands;
 using NurSapat.Cad.Foundation.Events;
 using NurSapat.Cad.Foundation.Layers;
+using NurSapat.Cad.Foundation.Primitives;
 using NurSapat.Cad.Foundation.Scene;
 using NurSapat.Cad.Foundation.Selection;
 using NurSapat.Cad.Foundation.Snapping;
@@ -67,6 +68,39 @@ public sealed class Workspace : IWorkspace
 
         // Snap — скелетный менеджер
         Snap = new SnapManager();
+
+        if (Viewport is Camera2D camera)
+        {
+            camera.SelectionBoundsResolver = ResolveSelectionBounds;
+        }
+    }
+
+    /// <summary>Масштабирует вид по текущему выделению сцены.</summary>
+    public void ZoomToSelection()
+    {
+        if (!Selection.HasSelection)
+        {
+            return;
+        }
+
+        Viewport.ZoomToSelection(Selection.SelectedIds);
+    }
+
+    private Bounds2D? ResolveSelectionBounds(IEnumerable<Guid> objectIds)
+    {
+        Bounds2D? bounds = null;
+        foreach (var objectId in objectIds)
+        {
+            var obj = Scene.Find(objectId);
+            if (obj is null || obj.Bounds.IsEmpty)
+            {
+                continue;
+            }
+
+            bounds = bounds is null ? obj.Bounds : bounds.Value.Union(obj.Bounds);
+        }
+
+        return bounds;
     }
 
     public void Dispose()

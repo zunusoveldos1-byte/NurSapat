@@ -4,6 +4,8 @@ using Avalonia.Controls.ApplicationLifetimes;
 using NurSapat.Cad.UI.Dialogs;
 using NurSapat.Cad.UI.Models;
 using NurSapat.Cad.UI.ViewModels;
+using NurSapat.Core.Calculations;
+using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.Cad.UI.Services;
 
@@ -15,8 +17,7 @@ public sealed class CadDialogService : ICadDialogService
         double initialX = 0,
         double initialY = 0)
     {
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop ||
-            desktop.MainWindow is not Window owner)
+        if (!TryGetOwner(out var owner))
         {
             return null;
         }
@@ -41,10 +42,38 @@ public sealed class CadDialogService : ICadDialogService
             viewModel.ResultY);
     }
 
+    public async Task<NewConstructionSizeInputResult?> ShowNewConstructionSizeInputAsync(NewConstructionOptions options)
+    {
+        if (!TryGetOwner(out var owner))
+        {
+            return null;
+        }
+
+        var viewModel = new SizeInputViewModel(options);
+        var window = new SizeInputWindow
+        {
+            DataContext = viewModel,
+            Title = "Новая коробка"
+        };
+
+        viewModel.CloseRequested += (_, confirmed) => window.Close(confirmed);
+
+        if (await window.ShowDialog<bool?>(owner) != true)
+        {
+            return null;
+        }
+
+        return new NewConstructionSizeInputResult(
+            viewModel.ResultWidth,
+            viewModel.ResultHeight,
+            viewModel.ResultX,
+            viewModel.ResultY,
+            viewModel.ResultAnchor);
+    }
+
     public async Task<int?> ShowImpostCountAsync(int initialCount = 1)
     {
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop ||
-            desktop.MainWindow is not Window owner)
+        if (!TryGetOwner(out var owner))
         {
             return null;
         }
@@ -67,14 +96,7 @@ public sealed class CadDialogService : ICadDialogService
 
     public async Task<DecorativeSpokeDialogResult?> ShowDecorativeSpokeDialogAsync(bool isArchedGlazing)
     {
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
-        {
-            return null;
-        }
-
-        var owner = desktop.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
-            ?? desktop.MainWindow;
-        if (owner is null)
+        if (!TryGetOwner(out var owner))
         {
             return null;
         }
@@ -103,16 +125,9 @@ public sealed class CadDialogService : ICadDialogService
 
     public async Task<SillDialogResult?> ShowSillDialogAsync(
         double frameWidthMm,
-        NurSapat.Core.Models.Orders.SillElement? existing = null)
+        SillElement? existing = null)
     {
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
-        {
-            return null;
-        }
-
-        var owner = desktop.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
-            ?? desktop.MainWindow;
-        if (owner is null)
+        if (!TryGetOwner(out var owner))
         {
             return null;
         }
@@ -141,8 +156,7 @@ public sealed class CadDialogService : ICadDialogService
 
     public async Task<CadDrawingTemplate?> ShowTemplatePickerAsync(CadTemplateStore store, CadEditorViewModel editor)
     {
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop ||
-            desktop.MainWindow is not Window owner)
+        if (!TryGetOwner(out var owner))
         {
             return null;
         }
@@ -165,8 +179,7 @@ public sealed class CadDialogService : ICadDialogService
 
     public async Task<bool> ShowConfirmationAsync(string title, string message)
     {
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop ||
-            desktop.MainWindow is not Window owner)
+        if (!TryGetOwner(out var owner))
         {
             return false;
         }
@@ -181,5 +194,122 @@ public sealed class CadDialogService : ICadDialogService
         viewModel.CloseRequested += (_, confirmed) => window.Close(confirmed);
 
         return await window.ShowDialog<bool?>(owner) == true;
+    }
+
+    public async Task<VertexCoordinateDialogResult?> ShowVertexCoordinateDialogAsync(
+        double initialX,
+        double initialY,
+        string? title = null)
+    {
+        if (!TryGetOwner(out var owner))
+        {
+            return null;
+        }
+
+        var viewModel = new VertexCoordinateDialogViewModel(initialX, initialY, title);
+        var window = new VertexCoordinateDialogWindow
+        {
+            DataContext = viewModel
+        };
+
+        viewModel.CloseRequested += (_, confirmed) => window.Close(confirmed);
+
+        if (await window.ShowDialog<bool?>(owner) != true)
+        {
+            return null;
+        }
+
+        return new VertexCoordinateDialogResult(viewModel.ResultX, viewModel.ResultY);
+    }
+
+    public async Task<ObjectPropertiesDialogResult?> ShowObjectPropertiesDialogAsync(ObjectPropertiesDialogModel model)
+    {
+        if (!TryGetOwner(out var owner))
+        {
+            return null;
+        }
+
+        var viewModel = new ObjectPropertiesDialogViewModel(model);
+        var window = new ObjectPropertiesDialogWindow
+        {
+            DataContext = viewModel
+        };
+
+        viewModel.CloseRequested += (_, confirmed) => window.Close(confirmed);
+
+        if (await window.ShowDialog<bool?>(owner) != true)
+        {
+            return null;
+        }
+
+        return viewModel.Result;
+    }
+
+    public async Task ShowConstructionDetailsDialogAsync(
+        ConstructionVolumeSummary summary,
+        IEnumerable<GeometryElement> elements)
+    {
+        if (!TryGetOwner(out var owner))
+        {
+            return;
+        }
+
+        var viewModel = new ConstructionDetailsDialogViewModel(summary, elements);
+        var window = new ConstructionDetailsDialogWindow
+        {
+            DataContext = viewModel
+        };
+
+        viewModel.CloseRequested += (_, _) => window.Close(true);
+        await window.ShowDialog<bool?>(owner);
+    }
+
+    public async Task<double?> ShowRadiusInputAsync(double initialRadius)
+    {
+        if (!TryGetOwner(out var owner))
+        {
+            return null;
+        }
+
+        var viewModel = new RadiusInputViewModel(initialRadius);
+        var window = new RadiusInputWindow { DataContext = viewModel };
+        viewModel.CloseRequested += (_, confirmed) => window.Close(confirmed);
+        if (await window.ShowDialog<bool?>(owner) != true)
+        {
+            return null;
+        }
+
+        return viewModel.ResultRadius;
+    }
+
+    public async Task<string?> ShowTemplateNameInputAsync(string initialName)
+    {
+        if (!TryGetOwner(out var owner))
+        {
+            return null;
+        }
+
+        var viewModel = new TemplateNameViewModel(initialName);
+        var window = new TemplateNameWindow { DataContext = viewModel };
+        viewModel.CloseRequested += (_, confirmed) => window.Close(confirmed);
+        if (await window.ShowDialog<bool?>(owner) != true)
+        {
+            return null;
+        }
+
+        return viewModel.ResultName;
+    }
+
+    private static bool TryGetOwner(out Window owner)
+    {
+        owner = null!;
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            return false;
+        }
+
+        owner = desktop.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
+            ?? desktop.MainWindow!;
+        return owner is not null;
     }
 }

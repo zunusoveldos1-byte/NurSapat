@@ -66,6 +66,33 @@ public static class ShapedFrameRenderer
         context.DrawEllipse(null, pen, innerRect.Center, innerRect.Width / 2, innerRect.Height / 2);
     }
 
+    public static void DrawTriangularOutline(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        double originX,
+        double originY,
+        double width,
+        double height,
+        IPen pen)
+    {
+        if (editor.Viewport is null || width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        var outer = FrameTriangleGeometry.BuildOuterTriangle(originX, originY, width, height);
+        void Stroke(CadPoint a, CadPoint b)
+        {
+            var p1 = ToScreen(editor, a);
+            var p2 = ToScreen(editor, b);
+            context.DrawLine(pen, new Point(p1.X, p1.Y), new Point(p2.X, p2.Y));
+        }
+
+        Stroke(outer.Bl, outer.Br);
+        Stroke(outer.Br, outer.Top);
+        Stroke(outer.Top, outer.Bl);
+    }
+
     private static void DrawTriangularFrame(
         DrawingContext context,
         CadEditorViewModel editor,

@@ -8,9 +8,13 @@ namespace NurSapat.App.Views.Export;
 
 public partial class ExportDbfJsonWindow : Window
 {
-    public ExportDbfJsonWindow(ExportDbfJsonViewModel viewModel)
+    public ExportDbfJsonWindow()
     {
         InitializeComponent();
+    }
+
+    public ExportDbfJsonWindow(ExportDbfJsonViewModel viewModel) : this()
+    {
         DataContext = viewModel;
         viewModel.OwnerWindow = this;
         viewModel.RequestClose += OnRequestClose;

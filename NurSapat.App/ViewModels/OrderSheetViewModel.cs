@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NurSapat.App.Services;
+using NurSapat.App.Services.Dictionaries;
 using NurSapat.App.Services.Documents;
 using NurSapat.App.Services.Orders;
 using NurSapat.App.Services.Users;
@@ -9,6 +10,7 @@ using NurSapat.Cad.Core.Viewport;
 using NurSapat.Cad.UI.Dialogs;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Calculations;
+using NurSapat.Core.Models.Construction;
 using NurSapat.Core.Models;
 using NurSapat.Core.Models.Calculation;
 using NurSapat.Core.Models.Orders;
@@ -22,15 +24,18 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
 {
     public const int PageSize = 3;
 
-    private const double WeightKgPerSqM = 25.0;
-    private const decimal FallbackAreaPricePerSqM = 5_000m;
 
     private readonly OrderWorkspaceViewModel _workspace;
     private readonly IOrderErpDialogService _orderErpDialogService;
-    private readonly OrderCalculationService _calculationService = new();
+    private readonly OrderCalculationService _calculationService;
+    private readonly ICustomersStore _customersStore;
+    private readonly IManagersStore _managersStore;
+    private readonly IOrderNumberService _orderNumberService;
+    private readonly IDictionaryWindowService _dictionaryWindowService;
     private IDocumentManager? _documentManager;
     private readonly List<OrderConstructionLookupItemViewModel> _allConstructionCards = [];
     private bool _suppressPageChangedRefresh;
+    private bool _suppressLookupSync;
 
     public CadEditorViewModel PreviewEditor { get; }
 
@@ -74,19 +79,12 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
     [ObservableProperty]
     private decimal _totalPrice;
 
-    public ObservableCollection<string> Managers { get; } =
-    [
-        "Иванов И.И.",
-        "Петров П.П.",
-        "Сидоров А.А."
-    ];
+    public ObservableCollection<CustomerLookupItem> AvailableCustomers { get; } = [];
 
-    public ObservableCollection<string> Supervisors { get; } =
-    [
-        "Петров П.П.",
-        "Козлов В.В.",
-        "Нурбеков Э.Э."
-    ];
+    public ObservableCollection<ManagerLookupItem> AvailableManagers { get; } = [];
+
+    /// <summary>Имена менеджеров для ComboBox в параметрах конструкции.</summary>
+    public ObservableCollection<string> ManagerNames { get; } = [];
 
     public ObservableCollection<string> Currencies { get; } =
     [
@@ -95,6 +93,18 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         "RUB",
         "EUR"
     ];
+
+    [ObservableProperty]
+    private CustomerLookupItem? _selectedCustomer;
+
+    [ObservableProperty]
+    private ManagerLookupItem? _selectedManager;
+
+    [ObservableProperty]
+    private string _customerComboFilter = string.Empty;
+
+    [ObservableProperty]
+    private string _managerComboFilter = string.Empty;
 
     private DateTimeOffset? _lastAutosaveAt;
 
@@ -248,11 +258,24 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         }
     }
 
+    public string OrderNumberDisplay =>
+        string.IsNullOrWhiteSpace(Header.OrderNumber) ? "—" : Header.OrderNumber;
+
     public string TotalCountDisplay => $"{TotalCount} шт.";
 
     public string TotalAreaDisplay => $"{TotalArea:F2} м²";
 
     public string TotalWeightDisplay => $"{TotalWeight:F1} кг";
+
+    public string AdditionalMaterialsDisplay => $"{Totals.AdditionalMaterialsCost:N2} {CurrencyCode}";
+
+    public string DeliveryCostDisplay => $"{Totals.DeliveryCost:N2} {CurrencyCode}";
+
+    public string SubtotalWithoutVatDisplay => $"{Math.Max(0, Totals.GrandTotal - Totals.VatAmount):N2} {CurrencyCode}";
+
+    public string VatAmountDisplay => $"{Totals.VatAmount:N2} {CurrencyCode}";
+
+    public string DiscountDisplay => $"{Header.TotalDiscountSum:N2} {CurrencyCode}";
 
     public string TotalPriceDisplay => $"{TotalPrice:N2} {CurrencyCode}";
 
@@ -438,14 +461,31 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
     public OrderSheetViewModel(
         OrderWorkspaceViewModel workspace,
         CadEditorViewModel previewEditor,
-        IOrderErpDialogService orderErpDialogService)
+        IOrderErpDialogService orderErpDialogService,
+        OrderCalculationService calculationService,
+        ICustomersStore customersStore,
+        IManagersStore managersStore,
+        IOrderNumberService orderNumberService,
+        IDictionaryWindowService dictionaryWindowService)
     {
         _workspace = workspace;
         _orderErpDialogService = orderErpDialogService;
+        _calculationService = calculationService;
+        _customersStore = customersStore;
+        _managersStore = managersStore;
+        _orderNumberService = orderNumberService;
+        _dictionaryWindowService = dictionaryWindowService;
         Order = workspace.Order;
         PreviewEditor = previewEditor;
         Order.Payment.PropertyChanged += OnPaymentPropertyChanged;
         Order.Totals.PropertyChanged += OnTotalsPropertyChanged;
+
+        _customersStore.Changed += (_, _) => ReloadCustomerLookups();
+        _managersStore.Changed += (_, _) => ReloadManagerLookups();
+
+        EnsureOrderNumber();
+        ReloadCustomerLookups();
+        ReloadManagerLookups();
 
         RebuildConstructions();
         RebuildConstructionCards();
@@ -460,6 +500,148 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
             Payment.CurrencyCode = "KGS";
             Header.CurrencyCode = "KGS";
         }
+    }
+
+    public void EnsureOrderNumber()
+    {
+        if (!string.IsNullOrWhiteSpace(Header.OrderNumber))
+        {
+            if (int.TryParse(Header.OrderNumber, out var existing)
+                && _orderNumberService is OrderNumberService numbered)
+            {
+                numbered.EnsureAtLeast(existing);
+            }
+
+            OnPropertyChanged(nameof(OrderNumberDisplay));
+            return;
+        }
+
+        Header.OrderNumber = _orderNumberService.AllocateNext();
+        OnPropertyChanged(nameof(OrderNumberDisplay));
+    }
+
+    public void ReloadCustomerLookups()
+    {
+        var previousId = SelectedCustomer?.Id ?? Header.CustomerId;
+        AvailableCustomers.Clear();
+        foreach (var item in _customersStore.GetSelectable())
+        {
+            AvailableCustomers.Add(CustomerLookupItem.FromItem(item));
+        }
+
+        _suppressLookupSync = true;
+        SelectedCustomer = previousId is Guid id
+            ? AvailableCustomers.FirstOrDefault(c => c.Id == id)
+            : AvailableCustomers.FirstOrDefault(c =>
+                string.Equals(c.FullName, Header.CustomerName, StringComparison.OrdinalIgnoreCase));
+        _suppressLookupSync = false;
+    }
+
+    public void ReloadManagerLookups()
+    {
+        var previousId = SelectedManager?.Id ?? Header.ManagerId;
+        var previousName = Header.OrderManagerName;
+        AvailableManagers.Clear();
+        ManagerNames.Clear();
+        foreach (var item in _managersStore.GetSelectable())
+        {
+            AvailableManagers.Add(ManagerLookupItem.FromItem(item));
+            ManagerNames.Add(item.FullName);
+        }
+
+        _suppressLookupSync = true;
+        SelectedManager = previousId is Guid id
+            ? AvailableManagers.FirstOrDefault(m => m.Id == id)
+            : AvailableManagers.FirstOrDefault(m =>
+                string.Equals(m.FullName, previousName, StringComparison.OrdinalIgnoreCase));
+        _suppressLookupSync = false;
+    }
+
+    partial void OnSelectedCustomerChanged(CustomerLookupItem? value)
+    {
+        if (_suppressLookupSync)
+        {
+            return;
+        }
+
+        if (value is null)
+        {
+            Header.CustomerId = null;
+            CustomerName = string.Empty;
+            CustomerPhone = string.Empty;
+            return;
+        }
+
+        Header.CustomerId = value.Id;
+        CustomerName = value.FullName;
+        CustomerPhone = value.Phone;
+        Header.CustomerCity = value.City;
+        ProjectModified?.Invoke(this, EventArgs.Empty);
+    }
+
+    partial void OnSelectedManagerChanged(ManagerLookupItem? value)
+    {
+        if (_suppressLookupSync)
+        {
+            return;
+        }
+
+        if (value is null)
+        {
+            Header.ManagerId = null;
+            OrderManagerName = string.Empty;
+            return;
+        }
+
+        Header.ManagerId = value.Id;
+        OrderManagerName = value.FullName;
+        if (SelectedConstructionModel is not null
+            && string.IsNullOrWhiteSpace(SelectedConstructionModel.Manager))
+        {
+            SelectedConstructionModel.Manager = value.FullName;
+        }
+
+        ProjectModified?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private async Task BrowseCustomerAsync()
+    {
+        var customer = await _orderErpDialogService.ShowCustomerSelectAsync();
+        if (customer is null)
+        {
+            return;
+        }
+
+        if (customer.IsBlocked || customer.IsDeleted)
+        {
+            return;
+        }
+
+        ReloadCustomerLookups();
+        SelectedCustomer = AvailableCustomers.FirstOrDefault(c => c.Id == customer.Id)
+            ?? CustomerLookupItem.FromItem(
+                _customersStore.GetById(customer.Id)
+                ?? new Models.Dictionaries.CustomerItem
+                {
+                    Id = customer.Id,
+                    FullName = customer.FullName,
+                    Phone = customer.Phone,
+                    City = customer.City,
+                    Type = customer.Type
+                });
+
+        if (SelectedCustomer is not null && AvailableCustomers.All(c => c.Id != SelectedCustomer.Id))
+        {
+            AvailableCustomers.Add(SelectedCustomer);
+        }
+    }
+
+    [RelayCommand]
+    private async Task BrowseManagerAsync()
+    {
+        await _dictionaryWindowService.ShowManagersAsync(null);
+        ReloadManagerLookups();
     }
 
     public void AttachDocumentManager(IDocumentManager documentManager)
@@ -488,6 +670,9 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
 
     public void ReloadFromOrder(Guid? activeConstructionId)
     {
+        EnsureOrderNumber();
+        ReloadCustomerLookups();
+        ReloadManagerLookups();
         RebuildConstructions();
         SelectedConstruction = activeConstructionId is Guid id
             ? Constructions.FirstOrDefault(c => c.Id == id) ?? Order.EnsureDefaultConstruction()
@@ -499,6 +684,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         OnPropertyChanged(nameof(ObjectAddress));
         OnPropertyChanged(nameof(ContractNumber));
         OnPropertyChanged(nameof(OrderManagerName));
+        OnPropertyChanged(nameof(OrderNumberDisplay));
         RecalculateAll();
     }
 
@@ -870,11 +1056,10 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
     {
         TotalCount = ConstructionModels.Sum(model => model.Quantity);
         TotalArea = ConstructionModels.Sum(model => model.Area);
-        TotalWeight = TotalArea * WeightKgPerSqM;
+        TotalWeight = Order.Constructions.Sum(construction => (double)construction.Metrics.WeightKg);
 
-        TotalPrice = Totals.GrandTotal > 0
-            ? Totals.GrandTotal
-            : decimal.Round((decimal)TotalArea * FallbackAreaPricePerSqM, 2, MidpointRounding.AwayFromZero);
+        TotalPrice = Totals.GrandTotal;
+        Header.TotalDiscountSum = Math.Max(0, Totals.ConstructionsSubtotal - Totals.AfterDiscount2);
 
         if (Payment.AgreedAmount != TotalPrice)
         {
@@ -991,7 +1176,13 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         OnPropertyChanged(nameof(TotalCountDisplay));
         OnPropertyChanged(nameof(TotalAreaDisplay));
         OnPropertyChanged(nameof(TotalWeightDisplay));
+        OnPropertyChanged(nameof(AdditionalMaterialsDisplay));
+        OnPropertyChanged(nameof(DeliveryCostDisplay));
+        OnPropertyChanged(nameof(SubtotalWithoutVatDisplay));
+        OnPropertyChanged(nameof(VatAmountDisplay));
+        OnPropertyChanged(nameof(DiscountDisplay));
         OnPropertyChanged(nameof(TotalPriceDisplay));
+        OnPropertyChanged(nameof(OrderNumberDisplay));
     }
 
     private void RebuildConstructionCards()
@@ -1086,9 +1277,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         GoToNextPageCommand.NotifyCanExecuteChanged();
     }
 
-    /// <summary>
-    /// Суммарный физический объём активной конструкции (TODO: вывод в спецификацию ERP).
-    /// </summary>
+    /// <summary>Суммарный физический объём активной конструкции (учитывается в спецификации ERP).</summary>
     public ConstructionVolumeSummary CalculateConstructionVolume() =>
         PreviewEditor.CalculateConstructionVolume();
 
@@ -1148,70 +1337,33 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         }
 
         var construction = ActiveConstruction;
-        var geometry = construction.Geometry;
-        var billableElements = geometry.Elements
-            .Where(element => !FictitiousFrame.IsFictitiousElement(element))
-            .ToList();
-        if (billableElements.Count == 0)
+        if (construction.SpecificationLines.Count == 0)
         {
             return;
         }
 
-        var (billableWidth, billableHeight) = geometry.ResolveBillableOuterBounds();
-        var w = billableWidth;
-        var h = billableHeight;
-        var perimeterM = w > 0 && h > 0 ? (w + h) * 2m / 1000m : 0m;
-        var area = construction.Metrics.ProductAreaSqM;
-        var mullionLength = billableElements
-            .Where(e => e.Kind == GeometryElementKind.Mullion)
-            .Sum(_ => 1.4m);
-        if (mullionLength <= 0 && perimeterM > 0)
+        foreach (var line in construction.SpecificationLines)
         {
-            mullionLength = 1.4m;
+            var quantityText = $"{line.Quantity:N3} {line.Unit}";
+            var detail = line.UnitPrice > 0
+                ? $"{line.Article} · {line.UnitPrice:N2} сом/{line.Unit}"
+                : line.Article;
+            MaterialLines.Add(new MaterialQuantityLine(
+                line.MaterialName,
+                detail,
+                quantityText));
         }
 
-        var connectors = Math.Max(0, billableElements.Count(e =>
-            e.Kind is GeometryElementKind.EdgeMullion or GeometryElementKind.Mullion));
-
-        if (perimeterM <= 0 && area <= 0 && mullionLength <= 0 && connectors <= 0)
-        {
-            return;
-        }
-
-        MaterialLines.Add(new MaterialQuantityLine(
-            "Профиль",
-            construction.ProfileDisplay,
-            $"{perimeterM * 0.73m:N2} м"));
-        MaterialLines.Add(new MaterialQuantityLine(
-            "Армирование",
-            string.Empty,
-            $"{perimeterM * 0.73m:N2} м"));
-        MaterialLines.Add(new MaterialQuantityLine(
-            "Импост",
-            string.Empty,
-            $"{mullionLength:N2} м"));
-        MaterialLines.Add(new MaterialQuantityLine(
-            "Стеклопакет",
-            construction.GlazingDisplay,
-            $"{area:N2} м²"));
-        MaterialLines.Add(new MaterialQuantityLine(
-            "Уплотнитель",
-            string.Empty,
-            $"{perimeterM * 1.05m:N2} м"));
-        MaterialLines.Add(new MaterialQuantityLine(
-            "Фурнитура",
-            construction.HardwareDisplay,
-            "1 комплект"));
-        MaterialLines.Add(new MaterialQuantityLine(
-            "Штапик",
-            string.Empty,
-            $"{perimeterM * 1.07m:N2} м"));
-        if (connectors > 0)
+        var volumeSummary = ConstructionVolumeCalculator.Calculate(
+            construction.Geometry.Elements.Where(element => element.IsBillable),
+            ProfileSeriesCatalog.All,
+            ConstructionMaterialCatalog.All);
+        if (volumeSummary.TotalVolumeLiters > 0)
         {
             MaterialLines.Add(new MaterialQuantityLine(
-                "Соединитель",
-                string.Empty,
-                $"{connectors} шт."));
+                "Объём профиля",
+                construction.ProfileDisplay,
+                $"{volumeSummary.TotalVolumeLiters:0.###} л"));
         }
     }
 

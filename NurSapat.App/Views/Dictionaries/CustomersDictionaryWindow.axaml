@@ -4,9 +4,9 @@
         xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
         x:Class="NurSapat.App.Views.Dictionaries.CustomersDictionaryWindow"
         x:DataType="vm:CustomersDictionaryViewModel"
-        Width="1080"
-        Height="700"
-        MinWidth="900"
+        Width="1240"
+        Height="720"
+        MinWidth="960"
         MinHeight="560"
         WindowStartupLocation="CenterOwner"
         WindowDecorations="None"
@@ -20,22 +20,14 @@
     </Window.Styles>
 
     <Border Classes="mat-shell" Margin="12">
-        <Grid RowDefinitions="40,Auto,*,Auto">
-            <Border Grid.Row="0"
-                    Classes="mat-titlebar"
-                    PointerPressed="OnTitleBarPointerPressed">
+        <Grid RowDefinitions="32,Auto,*,Auto">
+            <Border Grid.Row="0" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
                 <Grid ColumnDefinitions="*,Auto">
-                    <StackPanel Orientation="Horizontal"
-                                Spacing="8"
-                                VerticalAlignment="Center"
-                                Margin="16,0,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="16,0,0,0">
                         <Image Source="/Assets/logo.ico" Width="16" Height="16" VerticalAlignment="Center"/>
                         <TextBlock Classes="mat-titlebar-text" Text="{Binding Title}"/>
                     </StackPanel>
-                    <StackPanel Grid.Column="1"
-                                Orientation="Horizontal"
-                                VerticalAlignment="Center"
-                                Margin="0,0,8,0">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
                         <Button Classes="mat-chrome-btn" Click="OnMinimizeClick" Content="—"/>
                         <Button Classes="mat-chrome-btn" Click="OnMaximizeClick" Content="▢"/>
                         <Button Classes="mat-chrome-btn close" Click="OnCloseClick" Content="✕"/>
@@ -43,40 +35,28 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="1"
-                    Margin="12,12,12,0"
-                    Padding="0,0,0,10"
-                    Background="White">
-                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="10">
+            <Border Grid.Row="1" Margin="12,0,12,0" Padding="0,0,0,10" Background="White">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
                     <TextBox Grid.Column="0"
-                             PlaceholderText="Поиск по наименованию или телефону..."
+                             PlaceholderText="Поиск по наименованию, телефону, городу..."
                              Text="{Binding SearchText}"
                              MinHeight="36"
                              VerticalContentAlignment="Center"/>
-                    <Button Grid.Column="1"
-                            Classes="mat-primary"
-                            Content="Добавить заказчика"
-                            Command="{Binding AddCommand}"
-                            HorizontalContentAlignment="Center"
-                            VerticalContentAlignment="Center"/>
-                    <Button Grid.Column="2"
-                            Classes="mat-toolbar"
-                            Content="Редактировать"
-                            Command="{Binding EditCommand}"
-                            HorizontalContentAlignment="Center"
-                            VerticalContentAlignment="Center"/>
-                    <Button Grid.Column="3"
-                            Classes="mat-toolbar"
-                            Content="Удалить"
-                            Command="{Binding DeleteCommand}"
-                            HorizontalContentAlignment="Center"
-                            VerticalContentAlignment="Center"/>
-                    <Button Grid.Column="4"
-                            Classes="mat-toolbar"
-                            Content="Закрыть"
-                            Command="{Binding CloseWindowCommand}"
-                            HorizontalContentAlignment="Center"
-                            VerticalContentAlignment="Center"/>
+                    <ComboBox Grid.Column="1"
+                              Width="130"
+                              ItemsSource="{Binding TypeFilters}"
+                              SelectedItem="{Binding TypeFilter}"
+                              MinHeight="36"/>
+                    <ComboBox Grid.Column="2"
+                              Width="150"
+                              ItemsSource="{Binding BlockedFilters}"
+                              SelectedItem="{Binding BlockedFilter}"
+                              MinHeight="36"/>
+                    <Button Grid.Column="3" Classes="mat-primary" Content="Добавить" Command="{Binding AddCommand}"/>
+                    <Button Grid.Column="4" Classes="mat-toolbar" Content="Изменить" Command="{Binding EditCommand}"/>
+                    <Button Grid.Column="5" Classes="mat-toolbar" Content="Просмотр" Command="{Binding ViewSelectedCommand}"/>
+                    <Button Grid.Column="6" Classes="mat-toolbar" Content="Удалить" Command="{Binding DeleteCommand}"/>
+                    <Button Grid.Column="7" Classes="mat-toolbar" Content="Закрыть" Command="{Binding CloseWindowCommand}"/>
                 </Grid>
             </Border>
 
@@ -94,13 +74,15 @@
                          IsReadOnly="True"
                          DoubleTapped="OnGridDoubleTapped">
                 <dg:DataGrid.Columns>
+                    <dg:DataGridTextColumn Header="№" Binding="{Binding RowNumber}" Width="50"/>
                     <dg:DataGridTextColumn Header="Заказчик" Binding="{Binding FullName}" Width="2*"/>
-                    <dg:DataGridTextColumn Header="Телефон" Binding="{Binding Phone}" Width="150"/>
-                    <dg:DataGridTextColumn Header="Тип" Binding="{Binding TypeDisplay}" Width="110"/>
-                    <dg:DataGridTextColumn Header="Оборот" Binding="{Binding TurnoverDisplay}" Width="130"/>
-                    <dg:DataGridTextColumn Header="Долг" Binding="{Binding DebtDisplay}" Width="130"/>
-                    <dg:DataGridTextColumn Header="ЗКПО" Binding="{Binding OkpoCode}" Width="150"/>
-                    <dg:DataGridTextColumn Header="Банк" Binding="{Binding BankName}" Width="180"/>
+                    <dg:DataGridTextColumn Header="Город" Binding="{Binding City}" Width="110"/>
+                    <dg:DataGridTextColumn Header="Телефон" Binding="{Binding Phone}" Width="140"/>
+                    <dg:DataGridTextColumn Header="Тип" Binding="{Binding TypeDisplay}" Width="100"/>
+                    <dg:DataGridTextColumn Header="Заблокирован" Binding="{Binding BlockedDisplay}" Width="110"/>
+                    <dg:DataGridTextColumn Header="Код дилера" Binding="{Binding DealerCode}" Width="100"/>
+                    <dg:DataGridTextColumn Header="Адрес" Binding="{Binding ActualAddress}" Width="2*"/>
+                    <dg:DataGridTextColumn Header="Примечание" Binding="{Binding Note}" Width="*"/>
                 </dg:DataGrid.Columns>
             </dg:DataGrid>
 

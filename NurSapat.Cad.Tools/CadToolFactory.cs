@@ -34,6 +34,17 @@ public sealed class CadToolFactory
             (CadToolKind.DeleteSelection, () => new DeleteSelectionTool()),
             (CadToolKind.ClearConstruction, () => new ClearConstructionTool()),
             (CadToolKind.RadiusVertex, () => new RadiusVertexTool()),
+            (CadToolKind.Recalculate, () => new RecalculateTool()),
+            (CadToolKind.Properties, () => new PropertiesTool()),
+            (CadToolKind.Details, () => new DetailsTool()),
+            (CadToolKind.ArcVertex, () => new ArcVertexTool()),
+            (CadToolKind.RemoveArcVertex, () => new RemoveArcVertexTool()),
+            (CadToolKind.SplitArc, () => new SplitArcTool()),
+            (CadToolKind.SetRadius, () => new SetRadiusTool()),
+            (CadToolKind.CopyConstruction, () => new CopyConstructionTool()),
+            (CadToolKind.PasteConstruction, () => new PasteConstructionTool()),
+            (CadToolKind.AddToStandard, () => new AddToStandardTool()),
+            (CadToolKind.InsertFromStandard, () => new InsertFromStandardTool()),
         };
 
         _creatorsByKind = entries.ToDictionary(e => e.Kind, e => e.Create);

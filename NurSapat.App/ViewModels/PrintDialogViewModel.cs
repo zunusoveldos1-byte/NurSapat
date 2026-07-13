@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NurSapat.App.Services.Documents;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Project;
 using System.Collections.ObjectModel;
@@ -81,10 +82,15 @@ public sealed partial class PrintDialogViewModel : ObservableObject
         PrintCoordinates = PrintCoordinates
     };
 
-    public Task PrintAsync(CancellationToken cancellationToken = default)
+    public Task PrintAsync(IPrintDocumentRenderer renderer, CancellationToken cancellationToken = default)
     {
-        // Печать делегируется системному API; на данном этапе фиксируем намерение пользователя.
-        return Task.CompletedTask;
+        var settings = ToSettings();
+        return renderer.PrintAsync(
+            _cadEditor,
+            settings,
+            SelectedPrinter,
+            Copies,
+            cancellationToken);
     }
 
     private void LoadPrinters()

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.UI.Services;
@@ -59,9 +60,18 @@ internal static class SashGeometry
         public bool PinsFrameRight;
         public bool PinsFrameBottom;
         public bool PinsFrameTop;
+        public bool IsTriangular;
+        public CadPoint TriangleBl;
+        public CadPoint TriangleBr;
+        public CadPoint TriangleTop;
 
         public double Width => Right - Left;
         public double Height => Top - Bottom;
+
+        public double ResolveTopAtX(double worldX) =>
+            IsTriangular
+                ? FrameTriangleGeometry.InterpolateTopAtX(TriangleBl, TriangleBr, TriangleTop, worldX)
+                : Top;
     }
 
     public struct OuterBounds
@@ -82,12 +92,14 @@ internal static class SashGeometry
         public double Right { get; init; }
         public double Top { get; init; }
         public bool IsArched { get; init; }
+        public bool IsTriangular { get; init; }
         public CadPoint ArcCenter { get; init; }
         public double ArcRadius { get; init; }
         public CadPoint BottomLeft { get; init; }
         public CadPoint BottomRight { get; init; }
         public CadPoint SpringingLeft { get; init; }
         public CadPoint SpringingRight { get; init; }
+        public CadPoint TopApex { get; init; }
 
         public double Width => Right - Left;
         public double Height => Top - Bottom;
@@ -105,9 +117,11 @@ internal static class SashGeometry
             };
 
         public double ResolveTopAtX(double worldX) =>
-            IsArched
-                ? ProfileSegment.GetPointOnUpperArc(ArcCenter, ArcRadius, worldX).Y
-                : Top;
+            IsTriangular
+                ? FrameTriangleGeometry.InterpolateTopAtX(BottomLeft, BottomRight, TopApex, worldX)
+                : IsArched
+                    ? ProfileSegment.GetPointOnUpperArc(ArcCenter, ArcRadius, worldX).Y
+                    : Top;
 
         public void Deconstruct(out double left, out double bottom, out double right, out double top)
         {
@@ -119,6 +133,14 @@ internal static class SashGeometry
 
         public ProfileContourLoop BuildOuterContourLoop()
         {
+            if (IsTriangular)
+            {
+                return ProfileContourLoop.FromEdges(
+                    ProfileEdge.Line(BottomLeft, TopApex),
+                    ProfileEdge.Line(TopApex, BottomRight),
+                    ProfileEdge.Line(BottomRight, BottomLeft));
+            }
+
             if (!IsArched)
             {
                 return ProfileContourLoop.FromEdges(
@@ -140,7 +162,23 @@ internal static class SashGeometry
         public bool TryBuildInnerContourLoop(double insetMm, out ProfileContourLoop innerLoop)
         {
             innerLoop = null!;
-            if (insetMm <= CadMath.Epsilon || Width <= insetMm * 2 || Height <= insetMm * 2)
+            if (insetMm <= CadMath.Epsilon)
+            {
+                return false;
+            }
+
+            if (IsTriangular)
+            {
+                var outer = (BottomLeft, BottomRight, TopApex);
+                var inner = FrameTriangleGeometry.InsetTriangle(outer, insetMm);
+                innerLoop = ProfileContourLoop.FromEdges(
+                    ProfileEdge.Line(inner.Bl, inner.Top),
+                    ProfileEdge.Line(inner.Top, inner.Br),
+                    ProfileEdge.Line(inner.Br, inner.Bl));
+                return true;
+            }
+
+            if (Width <= insetMm * 2 || Height <= insetMm * 2)
             {
                 return false;
             }
@@ -316,8 +354,376 @@ internal static class SashGeometry
         ResolveNodeInnerOpeningBounds(leaf, frameRoot, frameThickness, includeExtremeImposts);
 
     /// <summary>
-    /// Внутренний световой контур ячейки (листа или узла перед сплитом) с учётом фальца рамы и осей импостов-предков.
+    /// Границы ячейки по осям сетки конструкции (без объёма фиктивной коробки).
+    /// Используется для крайних импостов / нащельника: чистые осевые линии импостов
+    /// и внешнего контура, без вычитания толщины профиля рамы.
     /// </summary>
+    public static InnerOpeningBounds ResolveLeafCellAxisBounds(
+        FrameNode leaf,
+        FrameNode? frameRoot,
+        double frameThickness,
+        bool includeExtremeImposts = false)
+    {
+        var inner = new InnerOpeningBounds
+        {
+            Left = leaf.X,
+            Bottom = leaf.Y,
+            Right = leaf.X + leaf.Width,
+            Top = leaf.Y + leaf.Height
+        };
+
+        ApplyCellGridAxisEdges(leaf, ref inner);
+
+        if (frameRoot is not null)
+        {
+            if (frameRoot.IsFictitiousContainer)
+            {
+                PinFictitiousGridAxisEdges(leaf, frameRoot, ref inner);
+            }
+            else
+            {
+                PinFrameInnerEdges(leaf, frameRoot, frameThickness, ref inner);
+            }
+        }
+
+        if (leaf.IsLeaf && includeExtremeImposts)
+        {
+            ExtremeImpostGeometry.ApplyExtremeImpostInsets(leaf, ref inner);
+        }
+
+        return RoundBounds(inner);
+    }
+
+    /// <summary>
+    /// Границы ячейки по осям сетки с учётом сквозных импостов и квадранта под курсором.
+    /// Горизонтальные/вертикальные линии импостов делят всё координатное пространство,
+    /// даже если физический сплит существует только в соседней колонке.
+    /// </summary>
+    public static InnerOpeningBounds ResolveLeafCellAxisBoundsAtPoint(
+        FrameNode leaf,
+        FrameNode? frameRoot,
+        double frameThickness,
+        double worldX,
+        double worldY,
+        bool includeExtremeImposts = false)
+    {
+        var inner = ResolveLeafCellAxisBounds(leaf, frameRoot, frameThickness, includeExtremeImposts);
+        if (frameRoot is null)
+        {
+            return inner;
+        }
+
+        ApplyCrossCuttingGridAxes(leaf, frameRoot, worldX, worldY, ref inner);
+        ApplyTriangularBoundsAtPoint(frameRoot, worldX, ref inner);
+        return RoundBounds(inner);
+    }
+
+    /// <summary>
+    /// Опорный контур для размещения элементов в пунктирной ячейке (квадрант + нащельник).
+    /// </summary>
+    public static (double OriginX, double OriginY, double Width, double Height) ResolvePlacementBoundsAtPoint(
+        FrameNode leaf,
+        FrameNode? frameRoot,
+        double frameThickness,
+        double worldX,
+        double worldY)
+    {
+        if (frameRoot?.IsFictitiousContainer == true)
+        {
+            var cell = ResolveLeafCellAxisBoundsAtPoint(leaf, frameRoot, frameThickness, worldX, worldY);
+            return leaf.ResolvePlacementBoundsForCell(cell.Left, cell.Bottom, cell.Right, cell.Top);
+        }
+
+        if (frameRoot?.Shape == ConstructionShape.Triangle)
+        {
+            var cell = ResolveLeafCellAxisBoundsAtPoint(leaf, frameRoot, frameThickness, worldX, worldY);
+            if (cell.Width <= CadMath.Epsilon || cell.Height <= CadMath.Epsilon)
+            {
+                return (cell.Left, cell.Bottom, 0, 0);
+            }
+
+            return (cell.Left, cell.Bottom, cell.Width, cell.Height);
+        }
+
+        return leaf.ResolveNestedOpeningBounds();
+    }
+
+    /// <summary>
+    /// Опорный контур дверного профиля («65 компланарная Т»): сквозные горизонтальные
+    /// оси разметки игнорируются, вертикальный пролёт — от низа до верха рамы.
+    /// Горизонтальные границы берутся из квадранта под курсором (колонка сохраняется).
+    /// </summary>
+    public static (double OriginX, double OriginY, double Width, double Height) ResolveFullHeightPlacementBoundsAtPoint(
+        FrameNode leaf,
+        FrameNode? frameRoot,
+        double frameThickness,
+        double worldX,
+        double worldY)
+    {
+        if (frameRoot?.IsFictitiousContainer != true)
+        {
+            return ResolvePlacementBoundsAtPoint(leaf, frameRoot, frameThickness, worldX, worldY);
+        }
+
+        var cell = ResolveLeafCellAxisBoundsAtPoint(leaf, frameRoot, frameThickness, worldX, worldY);
+        return leaf.ResolvePlacementBoundsForCell(
+            cell.Left,
+            frameRoot.Y,
+            cell.Right,
+            frameRoot.Y + frameRoot.Height);
+    }
+
+    /// <summary>
+    /// Собирает внутренние грани крайних импостов ячейки для стыковки переходного профиля.
+    /// </summary>
+    public static Dictionary<ImpostEdgeAlignment, double> ResolveExtremeImpostAxisLines(
+        FrameNode leaf,
+        FrameNode? frameRoot,
+        double frameThickness)
+    {
+        var axes = new Dictionary<ImpostEdgeAlignment, double>();
+        if (!leaf.IsLeaf || frameRoot is null)
+        {
+            return axes;
+        }
+
+        var cellAxes = ResolveLeafCellAxisBounds(leaf, frameRoot, frameThickness);
+        foreach (var slot in leaf.ExtremeImposts)
+        {
+            axes[slot.EdgeAlignment] = ResolveExtremeImpostInnerFaceWorld(cellAxes, slot);
+        }
+
+        return axes;
+    }
+
+    /// <summary>
+    /// Внутренняя грань крайнего импоста (нащельник), обращённая к переходному профилю.
+    /// Профиль упирается в эту плоскость и не заходит в объём нащельника.
+    /// </summary>
+    internal static double ResolveExtremeImpostInnerFaceWorld(
+        in SashGeometry.InnerOpeningBounds cellAxes,
+        ExtremeImpostSlot slot)
+    {
+        var axis = ExtremeImpostGeometry.ResolveAxisWorld(
+            cellAxes,
+            slot.EdgeAlignment,
+            slot.ThicknessMm,
+            slot.OffsetMm);
+        var half = slot.ThicknessMm / 2.0;
+        return slot.EdgeAlignment switch
+        {
+            ImpostEdgeAlignment.Left => CadMath.RoundMm(axis + half),
+            ImpostEdgeAlignment.Right => CadMath.RoundMm(axis - half),
+            ImpostEdgeAlignment.Bottom => CadMath.RoundMm(axis + half),
+            ImpostEdgeAlignment.Top => CadMath.RoundMm(axis - half),
+            _ => axis
+        };
+    }
+
+    /// <summary>
+    /// Подрезает внешний контур переходного профиля по внутренним граням крайних импостов.
+    /// Нащельник остаётся разделителем: адаптер заканчивается у его грани, не перекрывая полосу.
+    /// </summary>
+    public static void ApplyExtremeImpostJunctionToTransitionBandOuter(
+        FrameNode leaf,
+        FrameNode? frameRoot,
+        double frameThickness,
+        ref double outerLeft,
+        ref double outerBottom,
+        ref double outerRight,
+        ref double outerTop)
+    {
+        if (!leaf.IsLeaf || frameRoot is null)
+        {
+            return;
+        }
+
+        var cellAxes = ResolveLeafCellAxisBounds(leaf, frameRoot, frameThickness);
+        foreach (var slot in leaf.ExtremeImposts)
+        {
+            var junction = ResolveExtremeImpostInnerFaceWorld(cellAxes, slot);
+            switch (slot.EdgeAlignment)
+            {
+                case ImpostEdgeAlignment.Left:
+                    outerLeft = Math.Max(outerLeft, junction);
+                    break;
+                case ImpostEdgeAlignment.Right:
+                    outerRight = Math.Min(outerRight, junction);
+                    break;
+                case ImpostEdgeAlignment.Bottom:
+                    outerBottom = Math.Max(outerBottom, junction);
+                    break;
+                case ImpostEdgeAlignment.Top:
+                    outerTop = Math.Min(outerTop, junction);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Подрезает внутренний контур переходного профиля до внутренних граней крайних импостов.
+    /// Учитывает пролёт каждого импоста, чтобы горизонтальные ригели стыковались с вертикальными.
+    /// </summary>
+    public static void ApplyExtremeImpostJunctionToTransitionBand(
+        FrameNode leaf,
+        FrameNode? frameRoot,
+        double frameThickness,
+        double bandLeft,
+        double bandBottom,
+        double bandRight,
+        double bandTop,
+        ref double innerLeft,
+        ref double innerRight,
+        ref double innerBottom,
+        ref double innerTop)
+    {
+        if (!leaf.IsLeaf || frameRoot is null)
+        {
+            return;
+        }
+
+        var cellAxes = ResolveLeafCellAxisBounds(leaf, frameRoot, frameThickness);
+        foreach (var slot in leaf.ExtremeImposts)
+        {
+            var junction = ResolveExtremeImpostInnerFaceWorld(cellAxes, slot);
+            ExtremeImpostGeometry.ResolveSpan(
+                leaf,
+                frameRoot,
+                frameThickness,
+                cellAxes,
+                slot.EdgeAlignment,
+                slot.ThicknessMm,
+                out var spanStart,
+                out var spanEnd,
+                slot);
+
+            if (slot.Orientation == SplitOrientation.Vertical)
+            {
+                if (slot.EdgeAlignment == ImpostEdgeAlignment.Left
+                    && ProfileSpanIntersectsVerticalBand(spanStart, spanEnd, bandBottom, bandTop))
+                {
+                    innerLeft = Math.Max(innerLeft, junction);
+                }
+                else if (slot.EdgeAlignment == ImpostEdgeAlignment.Right
+                         && ProfileSpanIntersectsVerticalBand(spanStart, spanEnd, bandBottom, bandTop))
+                {
+                    innerRight = Math.Min(innerRight, junction);
+                }
+
+                continue;
+            }
+
+            if (slot.EdgeAlignment == ImpostEdgeAlignment.Bottom
+                && ProfileSpanIntersectsHorizontalBand(spanStart, spanEnd, bandLeft, bandRight))
+            {
+                innerBottom = Math.Max(innerBottom, junction);
+            }
+            else if (slot.EdgeAlignment == ImpostEdgeAlignment.Top
+                     && ProfileSpanIntersectsHorizontalBand(spanStart, spanEnd, bandLeft, bandRight))
+            {
+                innerTop = Math.Min(innerTop, junction);
+            }
+        }
+    }
+
+    private static bool ProfileSpanIntersectsVerticalBand(
+        double spanStart,
+        double spanEnd,
+        double bandBottom,
+        double bandTop) =>
+        spanEnd > bandBottom + CadMath.MmPrecision && spanStart < bandTop - CadMath.MmPrecision;
+
+    private static bool ProfileSpanIntersectsHorizontalBand(
+        double spanStart,
+        double spanEnd,
+        double bandLeft,
+        double bandRight) =>
+        spanEnd > bandLeft + CadMath.MmPrecision && spanStart < bandRight - CadMath.MmPrecision;
+
+    /// <summary>
+    /// Вычисляет внутренние углы переходного профиля с учётом нащельника и сквозных осей сетки.
+    /// </summary>
+    public static void ResolveTransitionBandInnerCorners(
+        FrameNode leaf,
+        FrameNode? frameRoot,
+        double frameThickness,
+        double outerLeft,
+        double outerBottom,
+        double outerRight,
+        double outerTop,
+        double halfThickness,
+        out double innerLeftBottom,
+        out double innerRightBottom,
+        out double innerLeftTop,
+        out double innerRightTop,
+        out double innerBottomLeft,
+        out double innerTopLeft,
+        out double innerBottomRight,
+        out double innerTopRight)
+    {
+        innerLeftBottom = outerLeft + halfThickness;
+        innerRightBottom = outerRight - halfThickness;
+        innerLeftTop = outerLeft + halfThickness;
+        innerRightTop = outerRight - halfThickness;
+        innerBottomLeft = outerBottom + halfThickness;
+        innerTopLeft = outerTop - halfThickness;
+        innerBottomRight = outerBottom + halfThickness;
+        innerTopRight = outerTop - halfThickness;
+
+        if (frameRoot is null)
+        {
+            return;
+        }
+
+        var probeY = outerBottom + halfThickness;
+        var probeX = outerLeft + halfThickness;
+        var gridAtBottom = ResolveLeafCellAxisBoundsAtPoint(leaf, frameRoot, frameThickness, probeX, probeY);
+        innerLeftBottom = Math.Min(innerLeftBottom, gridAtBottom.Left + halfThickness);
+        innerRightBottom = Math.Max(innerRightBottom, gridAtBottom.Right - halfThickness);
+        innerBottomLeft = Math.Min(innerBottomLeft, gridAtBottom.Bottom + halfThickness);
+
+        probeY = outerTop - halfThickness;
+        var gridAtTop = ResolveLeafCellAxisBoundsAtPoint(leaf, frameRoot, frameThickness, probeX, probeY);
+        innerLeftTop = Math.Min(innerLeftTop, gridAtTop.Left + halfThickness);
+        innerRightTop = Math.Max(innerRightTop, gridAtTop.Right - halfThickness);
+        innerTopLeft = Math.Max(innerTopLeft, gridAtTop.Top - halfThickness);
+
+        probeX = outerRight - halfThickness;
+        var gridAtRight = ResolveLeafCellAxisBoundsAtPoint(leaf, frameRoot, frameThickness, probeX, probeY);
+        innerBottomRight = Math.Min(innerBottomRight, gridAtRight.Bottom + halfThickness);
+        innerTopRight = Math.Max(innerTopRight, gridAtRight.Top - halfThickness);
+
+        ApplyExtremeImpostJunctionToTransitionBand(
+            leaf, frameRoot, frameThickness,
+            outerLeft, outerBottom, outerRight, outerBottom + CadMath.MmPrecision,
+            ref innerLeftBottom, ref innerRightBottom, ref innerBottomLeft, ref innerTopLeft);
+        ApplyExtremeImpostJunctionToTransitionBand(
+            leaf, frameRoot, frameThickness,
+            outerLeft, outerTop - CadMath.MmPrecision, outerRight, outerTop,
+            ref innerLeftTop, ref innerRightTop, ref innerBottomLeft, ref innerTopLeft);
+        ApplyExtremeImpostJunctionToTransitionBand(
+            leaf, frameRoot, frameThickness,
+            outerLeft, outerBottom, outerLeft + CadMath.MmPrecision, outerTop,
+            ref innerLeftBottom, ref innerRightBottom, ref innerBottomLeft, ref innerTopLeft);
+        ApplyExtremeImpostJunctionToTransitionBand(
+            leaf, frameRoot, frameThickness,
+            outerRight - CadMath.MmPrecision, outerBottom, outerRight, outerTop,
+            ref innerLeftBottom, ref innerRightBottom, ref innerBottomRight, ref innerTopRight);
+
+        var minInnerLeft = outerLeft + halfThickness;
+        var minInnerBottom = outerBottom + halfThickness;
+        var maxInnerRight = outerRight - halfThickness;
+        var maxInnerTop = outerTop - halfThickness;
+
+        innerLeftBottom = Math.Max(innerLeftBottom, minInnerLeft);
+        innerLeftTop = Math.Max(innerLeftTop, minInnerLeft);
+        innerRightBottom = Math.Min(innerRightBottom, maxInnerRight);
+        innerRightTop = Math.Min(innerRightTop, maxInnerRight);
+        innerBottomLeft = Math.Max(innerBottomLeft, minInnerBottom);
+        innerBottomRight = Math.Max(innerBottomRight, minInnerBottom);
+        innerTopLeft = Math.Min(innerTopLeft, maxInnerTop);
+        innerTopRight = Math.Min(innerTopRight, maxInnerTop);
+    }
     public static InnerOpeningBounds ResolveNodeInnerOpeningBounds(
         FrameNode node,
         FrameNode? frameRoot,
@@ -579,7 +985,47 @@ internal static class SashGeometry
             return true;
         }
 
+        if (editor.FrameRoot.Shape == ConstructionShape.Triangle &&
+            TryBuildTriangularFixedFrameGlass(inner, gap, out glass))
+        {
+            return true;
+        }
+
         return TryBuildRectangularFixedFrameGlass(inner, gap, x0, x1, y0, out glass);
+    }
+
+    private static bool TryBuildTriangularFixedFrameGlass(
+        in InnerOpeningBounds inner,
+        double gap,
+        out GlassOpeningBounds glass)
+    {
+        glass = default;
+        if (!inner.PinsFrameLeft || !inner.PinsFrameRight || !inner.PinsFrameBottom || !inner.PinsFrameTop)
+        {
+            return false;
+        }
+
+        var outer = inner.IsTriangular
+            ? (inner.TriangleBl, inner.TriangleBr, inner.TriangleTop)
+            : (new CadPoint(inner.Left, inner.Bottom), new CadPoint(inner.Right, inner.Bottom), new CadPoint((inner.Left + inner.Right) / 2.0, inner.Top));
+        var insetTri = FrameTriangleGeometry.InsetTriangle(outer, gap);
+        if (insetTri.Top.Y - insetTri.Bl.Y <= gap)
+        {
+            return false;
+        }
+
+        glass = new GlassOpeningBounds
+        {
+            Left = insetTri.Bl.X,
+            Bottom = insetTri.Bl.Y,
+            Right = insetTri.Br.X,
+            Top = insetTri.Top.Y,
+            IsTriangular = true,
+            BottomLeft = insetTri.Bl,
+            BottomRight = insetTri.Br,
+            TopApex = insetTri.Top
+        };
+        return glass.Width > CadMath.Epsilon && glass.Height > CadMath.Epsilon;
     }
 
     /// <summary>
@@ -976,6 +1422,15 @@ internal static class SashGeometry
             return false;
         }
 
+        if (glazing.ParentBeadId is Guid beadId)
+        {
+            return Services.GlazingBead.GlassBuilder.TryResolveGlassBoundsForBeadGlazing(
+                editor,
+                glazing,
+                elements,
+                out glass);
+        }
+
         if (glazing.HostSashId is Guid sashId)
         {
             var sash = elements.FirstOrDefault(e => e.Id == sashId && e.Kind == GeometryElementKind.Sash);
@@ -1179,6 +1634,12 @@ internal static class SashGeometry
         double frameThickness,
         ref InnerOpeningBounds inner)
     {
+        if (frameRoot.Shape == ConstructionShape.Triangle)
+        {
+            PinTriangleFrameInnerEdges(leaf, frameRoot, frameThickness, ref inner);
+            return;
+        }
+
         var inset = FrameProfileGeometry.ResolveInnerInset(
             frameRoot.Width,
             frameRoot.Height,
@@ -1230,6 +1691,87 @@ internal static class SashGeometry
 
             inner.PinsFrameTop = true;
         }
+    }
+
+    private static void PinTriangleFrameInnerEdges(
+        FrameNode leaf,
+        FrameNode frameRoot,
+        double frameThickness,
+        ref InnerOpeningBounds inner)
+    {
+        var inset = FrameProfileGeometry.ResolveInnerInset(
+            frameRoot.Width,
+            frameRoot.Height,
+            frameThickness);
+        var outer = FrameTriangleGeometry.BuildOuterTriangle(
+            frameRoot.X,
+            frameRoot.Y,
+            frameRoot.Width,
+            frameRoot.Height);
+        var innerTri = FrameTriangleGeometry.InsetTriangle(outer, inset);
+
+        var frameLeft = frameRoot.X;
+        var frameBottom = frameRoot.Y;
+        var frameRight = frameRoot.X + frameRoot.Width;
+        var frameTop = frameRoot.Y + frameRoot.Height;
+
+        if (OccupiesFrameLeftEdge(leaf, frameLeft, innerTri.Bl.X))
+        {
+            inner.Left = innerTri.Bl.X;
+            inner.PinsFrameLeft = true;
+        }
+
+        if (OccupiesFrameRightEdge(leaf, frameRight, innerTri.Br.X))
+        {
+            inner.Right = innerTri.Br.X;
+            inner.PinsFrameRight = true;
+        }
+
+        if (OccupiesFrameBottomEdge(leaf, frameBottom, innerTri.Bl.Y))
+        {
+            inner.Bottom = innerTri.Bl.Y;
+            inner.PinsFrameBottom = true;
+        }
+
+        if (OccupiesFrameTopEdge(leaf, frameTop, innerTri.Top.Y))
+        {
+            inner.Top = innerTri.Top.Y;
+            inner.PinsFrameTop = true;
+            inner.IsTriangular = true;
+            inner.TriangleBl = innerTri.Bl;
+            inner.TriangleBr = innerTri.Br;
+            inner.TriangleTop = innerTri.Top;
+        }
+    }
+
+    private static void ApplyTriangularBoundsAtPoint(FrameNode frameRoot, double worldX, ref InnerOpeningBounds inner)
+    {
+        if (frameRoot.Shape != ConstructionShape.Triangle || !inner.IsTriangular)
+        {
+            return;
+        }
+
+        inner.Top = CadMath.RoundMm(inner.ResolveTopAtX(worldX));
+    }
+
+    public static bool TryResolveTriangleInnerTopForSpan(
+        FrameNode frameRoot,
+        double frameThickness,
+        double spanLeft,
+        double spanRight,
+        out double topY)
+    {
+        topY = 0;
+        if (frameRoot.Shape != ConstructionShape.Triangle)
+        {
+            return false;
+        }
+
+        var innerTri = FrameTriangleGeometry.BuildInnerTriangle(frameRoot, frameThickness);
+        var leftTop = FrameTriangleGeometry.InterpolateTopAtX(innerTri.Bl, innerTri.Br, innerTri.Top, spanLeft);
+        var rightTop = FrameTriangleGeometry.InterpolateTopAtX(innerTri.Bl, innerTri.Br, innerTri.Top, spanRight);
+        topY = CadMath.RoundMm(Math.Min(leftTop, rightTop));
+        return true;
     }
 
     public static bool TryResolveArcAwareFrameInnerTopForSpan(
@@ -1584,6 +2126,304 @@ internal static class SashGeometry
         || CadMath.NearlyEqual(leaf.Y + leaf.Height, frameInnerTop)
         || leaf.Y + leaf.Height >= frameInnerTop - CadMath.MmPrecision;
 
+    private static void PinFictitiousGridAxisEdges(
+        FrameNode leaf,
+        FrameNode frameRoot,
+        ref InnerOpeningBounds inner)
+    {
+        var frameLeft = frameRoot.X;
+        var frameBottom = frameRoot.Y;
+        var frameRight = frameRoot.X + frameRoot.Width;
+        var frameTop = frameRoot.Y + frameRoot.Height;
+
+        if (OccupiesFrameLeftEdge(leaf, frameLeft, frameLeft))
+        {
+            inner.Left = frameLeft;
+            inner.PinsFrameLeft = true;
+        }
+
+        if (OccupiesFrameRightEdge(leaf, frameRight, frameRight))
+        {
+            inner.Right = frameRight;
+            inner.PinsFrameRight = true;
+        }
+
+        if (OccupiesFrameBottomEdge(leaf, frameBottom, frameBottom))
+        {
+            inner.Bottom = frameBottom;
+            inner.PinsFrameBottom = true;
+        }
+
+        if (OccupiesFrameTopEdge(leaf, frameTop, frameTop))
+        {
+            inner.Top = frameTop;
+            inner.PinsFrameTop = true;
+        }
+    }
+
+    private static void ApplyCellGridAxisEdges(FrameNode leaf, ref InnerOpeningBounds inner)
+    {
+        for (var node = leaf; node.Parent is not null; node = node.Parent)
+        {
+            var parent = node.Parent;
+            if (parent.IsUniformSplit)
+            {
+                ApplyUniformCellGridAxisEdges(parent, leaf, ref inner);
+                continue;
+            }
+
+            if (parent.IsLeaf || parent.ChildA is null || parent.ChildB is null)
+            {
+                continue;
+            }
+
+            if (parent.SplitOrientation == SplitOrientation.Vertical)
+            {
+                var centerX = ResolveVerticalImpostCenterX(parent);
+                if (IsInSubtree(leaf, parent.ChildA))
+                {
+                    inner.Right = CadMath.RoundMm(centerX);
+                    inner.PinsFrameRight = false;
+                }
+                else if (IsInSubtree(leaf, parent.ChildB))
+                {
+                    inner.Left = CadMath.RoundMm(centerX);
+                    inner.PinsFrameLeft = false;
+                }
+            }
+            else if (parent.SplitOrientation == SplitOrientation.Horizontal)
+            {
+                var centerY = ResolveHorizontalImpostCenterY(parent);
+                if (IsInSubtree(leaf, parent.ChildA))
+                {
+                    inner.Top = CadMath.RoundMm(centerY);
+                    inner.PinsFrameTop = false;
+                }
+                else if (IsInSubtree(leaf, parent.ChildB))
+                {
+                    inner.Bottom = CadMath.RoundMm(centerY);
+                    inner.PinsFrameBottom = false;
+                }
+            }
+        }
+    }
+
+    private static void ApplyUniformCellGridAxisEdges(
+        FrameNode parent,
+        FrameNode leaf,
+        ref InnerOpeningBounds inner)
+    {
+        var cells = parent.UniformCells;
+
+        for (var i = 0; i < cells.Count; i++)
+        {
+            if (!IsInSubtree(leaf, cells[i]))
+            {
+                continue;
+            }
+
+            if (parent.SplitOrientation == SplitOrientation.Vertical)
+            {
+                if (i > 0
+                    && parent.TryGetUniformImpostAxisWorld(SplitOrientation.Vertical, i - 1, out var leftAxis))
+                {
+                    inner.Left = CadMath.RoundMm(leftAxis);
+                    inner.PinsFrameLeft = false;
+                }
+
+                if (i < cells.Count - 1
+                    && parent.TryGetUniformImpostAxisWorld(SplitOrientation.Vertical, i, out var rightAxis))
+                {
+                    inner.Right = CadMath.RoundMm(rightAxis);
+                    inner.PinsFrameRight = false;
+                }
+            }
+            else if (parent.SplitOrientation == SplitOrientation.Horizontal)
+            {
+                if (i > 0
+                    && parent.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, i - 1, out var bottomAxis))
+                {
+                    inner.Bottom = CadMath.RoundMm(bottomAxis);
+                    inner.PinsFrameBottom = false;
+                }
+
+                if (i < cells.Count - 1
+                    && parent.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, i, out var topAxis))
+                {
+                    inner.Top = CadMath.RoundMm(topAxis);
+                    inner.PinsFrameTop = false;
+                }
+            }
+
+            return;
+        }
+    }
+
+    /// <summary>
+    /// Продлевает оси импостов через всё координатное пространство рамы.
+    /// Ячейка под курсором ограничивается пересечениями сквозных осей.
+    /// </summary>
+    private static void ApplyCrossCuttingGridAxes(
+        FrameNode leaf,
+        FrameNode frameRoot,
+        double worldX,
+        double worldY,
+        ref InnerOpeningBounds inner)
+    {
+        foreach (var impost in EnumerateGridImpostNodes(frameRoot))
+        {
+            if (impost.IsUniformSplit)
+            {
+                ApplyUniformCrossCuttingGridAxes(impost, leaf, worldX, worldY, ref inner);
+                continue;
+            }
+
+            if (impost.ChildA is null || impost.ChildB is null)
+            {
+                continue;
+            }
+
+            if (impost.SplitOrientation == SplitOrientation.Horizontal)
+            {
+                var axisY = ResolveHorizontalImpostCenterY(impost);
+                if (!AxisCrossesVerticalSpan(axisY, leaf.Y, leaf.Y + leaf.Height))
+                {
+                    continue;
+                }
+
+                if (worldY >= axisY)
+                {
+                    inner.Bottom = CadMath.RoundMm(Math.Max(inner.Bottom, axisY));
+                }
+                else
+                {
+                    inner.Top = CadMath.RoundMm(Math.Min(inner.Top, axisY));
+                }
+            }
+            else if (impost.SplitOrientation == SplitOrientation.Vertical)
+            {
+                var axisX = ResolveVerticalImpostCenterX(impost);
+                if (!AxisCrossesVerticalSpan(axisX, leaf.X, leaf.X + leaf.Width))
+                {
+                    continue;
+                }
+
+                if (worldX >= axisX)
+                {
+                    inner.Left = CadMath.RoundMm(Math.Max(inner.Left, axisX));
+                }
+                else
+                {
+                    inner.Right = CadMath.RoundMm(Math.Min(inner.Right, axisX));
+                }
+            }
+        }
+    }
+
+    private static void ApplyUniformCrossCuttingGridAxes(
+        FrameNode uniformParent,
+        FrameNode leaf,
+        double worldX,
+        double worldY,
+        ref InnerOpeningBounds inner)
+    {
+        var gapCount = uniformParent.UniformCells.Count - 1;
+        if (gapCount < 1)
+        {
+            return;
+        }
+
+        if (uniformParent.SplitOrientation == SplitOrientation.Horizontal)
+        {
+            for (var i = 0; i < gapCount; i++)
+            {
+                if (!uniformParent.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, i, out var axisY))
+                {
+                    continue;
+                }
+
+                if (!AxisCrossesVerticalSpan(axisY, leaf.Y, leaf.Y + leaf.Height))
+                {
+                    continue;
+                }
+
+                if (worldY >= axisY)
+                {
+                    inner.Bottom = CadMath.RoundMm(Math.Max(inner.Bottom, axisY));
+                }
+                else
+                {
+                    inner.Top = CadMath.RoundMm(Math.Min(inner.Top, axisY));
+                }
+            }
+
+            return;
+        }
+
+        if (uniformParent.SplitOrientation == SplitOrientation.Vertical)
+        {
+            for (var i = 0; i < gapCount; i++)
+            {
+                if (!uniformParent.TryGetUniformImpostAxisWorld(SplitOrientation.Vertical, i, out var axisX))
+                {
+                    continue;
+                }
+
+                if (!AxisCrossesVerticalSpan(axisX, leaf.X, leaf.X + leaf.Width))
+                {
+                    continue;
+                }
+
+                if (worldX >= axisX)
+                {
+                    inner.Left = CadMath.RoundMm(Math.Max(inner.Left, axisX));
+                }
+                else
+                {
+                    inner.Right = CadMath.RoundMm(Math.Min(inner.Right, axisX));
+                }
+            }
+        }
+    }
+
+    private static bool AxisCrossesVerticalSpan(double axis, double spanStart, double spanEnd) =>
+        axis > spanStart + CadMath.MmPrecision && axis < spanEnd - CadMath.MmPrecision;
+
+    private static IEnumerable<FrameNode> EnumerateGridImpostNodes(FrameNode node)
+    {
+        if (node.IsUniformSplit)
+        {
+            if (node.UniformCells.Count >= 2)
+            {
+                yield return node;
+            }
+
+            foreach (var cell in node.UniformCells)
+            {
+                foreach (var child in EnumerateGridImpostNodes(cell))
+                {
+                    yield return child;
+                }
+            }
+
+            yield break;
+        }
+
+        if (!node.IsLeaf && node.ChildA is not null && node.ChildB is not null)
+        {
+            yield return node;
+            foreach (var child in EnumerateGridImpostNodes(node.ChildA))
+            {
+                yield return child;
+            }
+
+            foreach (var child in EnumerateGridImpostNodes(node.ChildB))
+            {
+                yield return child;
+            }
+        }
+    }
+
     private static void ApplyImpostAxisEdges(FrameNode leaf, ref InnerOpeningBounds inner)
     {
         for (var node = leaf; node.Parent is not null; node = node.Parent)
@@ -1727,7 +2567,14 @@ internal static class SashGeometry
 
         if (CellTouchesFrameTop(splitNode, frameTop, frameInnerTop))
         {
-            if (TryResolveArcAwareFrameInnerTop(
+            if (frameRoot.Shape == ConstructionShape.Triangle)
+            {
+                var innerTri = FrameTriangleGeometry.BuildInnerTriangle(frameRoot, frameThickness);
+                var axisX = splitNode.X + splitNode.Width / 2.0;
+                top = CadMath.RoundMm(
+                    FrameTriangleGeometry.InterpolateTopAtX(innerTri.Bl, innerTri.Br, innerTri.Top, axisX));
+            }
+            else if (TryResolveArcAwareFrameInnerTop(
                     frameRoot,
                     frameThickness,
                     splitNode.X,
@@ -1850,7 +2697,7 @@ internal static class SashGeometry
         }
     }
 
-    private static bool IsInSubtree(FrameNode leaf, FrameNode? ancestor)
+    internal static bool IsInSubtree(FrameNode leaf, FrameNode? ancestor)
     {
         if (ancestor is null)
         {

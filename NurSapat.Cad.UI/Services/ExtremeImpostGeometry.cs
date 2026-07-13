@@ -8,7 +8,13 @@ namespace NurSapat.Cad.UI.Services;
 public enum ExtremeImpostPlacementKind
 {
     Post,
-    Transom
+    Transom,
+
+    /// <summary>
+    /// Автоопределение ориентации магнитным прилипанием к ближайшей оси
+    /// конструкции (используется «умными» накладными профилями — нащельник).
+    /// </summary>
+    Auto
 }
 
 /// <summary>Подсветка края проёма при наведении в режиме крайнего импоста.</summary>
@@ -28,8 +34,6 @@ public sealed class ExtremeImpostHoverPreview
 
 internal static class ExtremeImpostGeometry
 {
-    private const double EdgeHitBandMm = 90;
-
     public static bool TryHitTestHover(
         FrameNode? frameRoot,
         double frameThickness,
@@ -50,53 +54,52 @@ internal static class ExtremeImpostGeometry
             return false;
         }
 
-        var inner = SashGeometry.ResolveLeafInnerOpeningBounds(leaf, frameRoot, frameThickness, includeExtremeImposts: false);
-        if (inner.Width <= CadMath.Epsilon || inner.Height <= CadMath.Epsilon)
+        var cellAxes = SashGeometry.ResolveLeafCellAxisBoundsAtPoint(
+            leaf,
+            frameRoot,
+            frameThickness,
+            worldPoint.X,
+            worldPoint.Y);
+        if (cellAxes.Width <= CadMath.Epsilon || cellAxes.Height <= CadMath.Epsilon)
         {
             return false;
         }
 
-        if (worldPoint.X < inner.Left - CadMath.MmPrecision
-            || worldPoint.X > inner.Right + CadMath.MmPrecision
-            || worldPoint.Y < inner.Bottom - CadMath.MmPrecision
-            || worldPoint.Y > inner.Top + CadMath.MmPrecision)
+        return TryBuildMagneticPreview(
+            frameRoot,
+            frameThickness,
+            leaf,
+            cellAxes,
+            worldPoint,
+            placementKind,
+            thicknessMm,
+            out preview);
+    }
+
+    private static bool TryBuildMagneticPreview(
+        FrameNode frameRoot,
+        double frameThickness,
+        FrameNode leaf,
+        in SashGeometry.InnerOpeningBounds cellAxes,
+        CadPoint worldPoint,
+        ExtremeImpostPlacementKind placementKind,
+        double thicknessMm,
+        out ExtremeImpostHoverPreview preview)
+    {
+        preview = null!;
+
+        if (!TryResolveNearestEdgeInCell(cellAxes, worldPoint, placementKind, out var edge, out var orientation))
         {
             return false;
         }
 
-        if (!TryResolveNearestEdge(
-                worldPoint,
-                inner,
-                placementKind,
-                out var edge,
-                out var distance))
+        var axis = ResolveAxisWorld(cellAxes, edge, thicknessMm, 0);
+        ResolveSpan(leaf, frameRoot, frameThickness, cellAxes, edge, thicknessMm, out var spanStart, out var spanEnd);
+        if (spanEnd - spanStart <= CadMath.Epsilon)
         {
             return false;
         }
 
-        if (distance > EdgeHitBandMm)
-        {
-            return false;
-        }
-
-        var orientation = edge is ImpostEdgeAlignment.Left or ImpostEdgeAlignment.Right
-            ? SplitOrientation.Vertical
-            : SplitOrientation.Horizontal;
-
-        if (placementKind == ExtremeImpostPlacementKind.Post
-            && orientation != SplitOrientation.Vertical)
-        {
-            return false;
-        }
-
-        if (placementKind == ExtremeImpostPlacementKind.Transom
-            && orientation != SplitOrientation.Horizontal)
-        {
-            return false;
-        }
-
-        var axis = ResolveAxisWorld(inner, edge, thicknessMm, 0);
-        ResolveSpan(inner, edge, out var spanStart, out var spanEnd);
         preview = new ExtremeImpostHoverPreview
         {
             Leaf = leaf,
@@ -108,6 +111,52 @@ internal static class ExtremeImpostGeometry
             ThicknessMm = thicknessMm
         };
         return true;
+    }
+
+    private static bool TryResolveNearestEdgeInCell(
+        in SashGeometry.InnerOpeningBounds cellAxes,
+        CadPoint worldPoint,
+        ExtremeImpostPlacementKind placementKind,
+        out ImpostEdgeAlignment edge,
+        out SplitOrientation orientation)
+    {
+        edge = ImpostEdgeAlignment.Left;
+        orientation = SplitOrientation.Vertical;
+
+        var distLeft = Math.Abs(worldPoint.X - cellAxes.Left);
+        var distRight = Math.Abs(cellAxes.Right - worldPoint.X);
+        var distBottom = Math.Abs(worldPoint.Y - cellAxes.Bottom);
+        var distTop = cellAxes.IsTriangular
+            ? Math.Abs(worldPoint.Y - cellAxes.ResolveTopAtX(worldPoint.X))
+            : Math.Abs(cellAxes.Top - worldPoint.Y);
+
+        switch (placementKind)
+        {
+            case ExtremeImpostPlacementKind.Post:
+                orientation = SplitOrientation.Vertical;
+                edge = distLeft <= distRight ? ImpostEdgeAlignment.Left : ImpostEdgeAlignment.Right;
+                return true;
+            case ExtremeImpostPlacementKind.Transom:
+                orientation = SplitOrientation.Horizontal;
+                edge = distBottom <= distTop ? ImpostEdgeAlignment.Bottom : ImpostEdgeAlignment.Top;
+                return true;
+            default:
+            {
+                var verticalEdge = distLeft <= distRight
+                    ? ImpostEdgeAlignment.Left
+                    : ImpostEdgeAlignment.Right;
+                var horizontalEdge = distBottom <= distTop
+                    ? ImpostEdgeAlignment.Bottom
+                    : ImpostEdgeAlignment.Top;
+                var deltaX = distLeft <= distRight ? distLeft : distRight;
+                var deltaY = distBottom <= distTop ? distBottom : distTop;
+                edge = deltaX <= deltaY ? verticalEdge : horizontalEdge;
+                orientation = edge is ImpostEdgeAlignment.Left or ImpostEdgeAlignment.Right
+                    ? SplitOrientation.Vertical
+                    : SplitOrientation.Horizontal;
+                return true;
+            }
+        }
     }
 
     public static double ResolveAxisWorld(
@@ -128,21 +177,235 @@ internal static class ExtremeImpostGeometry
         };
     }
 
+    /// <summary>
+    /// Пролёт крайнего импоста в пределах квадранта сетки под курсором.
+    /// </summary>
     public static void ResolveSpan(
-        in SashGeometry.InnerOpeningBounds inner,
+        FrameNode leaf,
+        FrameNode? frameRoot,
+        double frameThickness,
+        in SashGeometry.InnerOpeningBounds cellAxes,
         ImpostEdgeAlignment edge,
+        double profileThicknessMm,
         out double spanStart,
-        out double spanEnd)
+        out double spanEnd,
+        ExtremeImpostSlot? slot = null)
     {
-        if (edge is ImpostEdgeAlignment.Left or ImpostEdgeAlignment.Right)
+        if (slot is { HasResolvedSpan: true })
         {
-            spanStart = inner.Bottom;
-            spanEnd = inner.Top;
+            spanStart = slot.SpanStartMm;
+            spanEnd = slot.SpanEndMm;
             return;
         }
 
-        spanStart = inner.Left;
-        spanEnd = inner.Right;
+        var useGridAxes = frameRoot?.IsFictitiousContainer == true;
+
+        if (edge is ImpostEdgeAlignment.Left or ImpostEdgeAlignment.Right)
+        {
+            spanStart = cellAxes.Bottom;
+            spanEnd = cellAxes.Top;
+
+            if (!useGridAxes && frameRoot is not null)
+            {
+                SnapVerticalSpanToProfileContacts(leaf, frameRoot, frameThickness, cellAxes, ref spanStart, ref spanEnd);
+            }
+
+            ClipVerticalSpanAtPerpendicularProfiles(leaf, cellAxes, useAxisLines: useGridAxes, ref spanStart, ref spanEnd);
+        }
+        else
+        {
+            spanStart = cellAxes.Left;
+            spanEnd = cellAxes.Right;
+
+            if (!useGridAxes && frameRoot is not null)
+            {
+                SnapHorizontalSpanToProfileContacts(leaf, frameRoot, frameThickness, cellAxes, ref spanStart, ref spanEnd);
+            }
+
+            ClipHorizontalSpanAtPerpendicularProfiles(leaf, cellAxes, useAxisLines: useGridAxes, ref spanStart, ref spanEnd);
+        }
+
+        spanStart = CadMath.RoundMm(spanStart);
+        spanEnd = CadMath.RoundMm(Math.Max(spanStart, spanEnd));
+    }
+
+    private static void SnapVerticalSpanToProfileContacts(
+        FrameNode leaf,
+        FrameNode frameRoot,
+        double frameThickness,
+        in SashGeometry.InnerOpeningBounds inner,
+        ref double spanStart,
+        ref double spanEnd)
+    {
+        if (inner.PinsFrameBottom)
+        {
+            var inset = FrameProfileGeometry.ResolveInnerInset(
+                frameRoot.Width,
+                frameRoot.Height,
+                frameThickness);
+            spanStart = CadMath.RoundMm(frameRoot.Y + inset);
+        }
+
+        if (inner.PinsFrameTop)
+        {
+            if (frameRoot.Shape == ConstructionShape.Triangle
+                && SashGeometry.TryResolveTriangleInnerTopForSpan(
+                    frameRoot,
+                    frameThickness,
+                    inner.Left,
+                    inner.Right,
+                    out var triangleTop))
+            {
+                spanEnd = triangleTop;
+            }
+            else
+            {
+                var inset = FrameProfileGeometry.ResolveInnerInset(
+                    frameRoot.Width,
+                    frameRoot.Height,
+                    frameThickness);
+                var flatTop = CadMath.RoundMm(frameRoot.Y + frameRoot.Height - inset);
+                if (SashGeometry.TryResolveArcAwareFrameInnerTopForSpan(
+                        frameRoot,
+                        frameThickness,
+                        inner.Left,
+                        inner.Right,
+                        flatTop,
+                        out var arcTop))
+                {
+                    spanEnd = arcTop;
+                }
+                else
+                {
+                    spanEnd = flatTop;
+                }
+            }
+        }
+    }
+
+    private static void SnapHorizontalSpanToProfileContacts(
+        FrameNode leaf,
+        FrameNode frameRoot,
+        double frameThickness,
+        in SashGeometry.InnerOpeningBounds inner,
+        ref double spanStart,
+        ref double spanEnd)
+    {
+        if (inner.PinsFrameLeft)
+        {
+            var inset = FrameProfileGeometry.ResolveInnerInset(
+                frameRoot.Width,
+                frameRoot.Height,
+                frameThickness);
+            spanStart = CadMath.RoundMm(frameRoot.X + inset);
+        }
+
+        if (inner.PinsFrameRight)
+        {
+            var inset = FrameProfileGeometry.ResolveInnerInset(
+                frameRoot.Width,
+                frameRoot.Height,
+                frameThickness);
+            spanEnd = CadMath.RoundMm(frameRoot.X + frameRoot.Width - inset);
+        }
+    }
+
+    private static void ClipVerticalSpanAtPerpendicularProfiles(
+        FrameNode leaf,
+        in SashGeometry.InnerOpeningBounds inner,
+        bool useAxisLines,
+        ref double spanStart,
+        ref double spanEnd)
+    {
+        foreach (var slot in leaf.ExtremeImposts)
+        {
+            if (slot.Orientation != SplitOrientation.Horizontal)
+            {
+                continue;
+            }
+
+            var axis = ResolveAxisWorld(inner, slot.EdgeAlignment, slot.ThicknessMm, slot.OffsetMm);
+            if (useAxisLines)
+            {
+                if (slot.EdgeAlignment == ImpostEdgeAlignment.Bottom
+                    && axis > spanStart + CadMath.MmPrecision
+                    && axis < spanEnd - CadMath.MmPrecision)
+                {
+                    spanStart = Math.Max(spanStart, axis);
+                }
+                else if (slot.EdgeAlignment == ImpostEdgeAlignment.Top
+                         && axis > spanStart + CadMath.MmPrecision
+                         && axis < spanEnd - CadMath.MmPrecision)
+                {
+                    spanEnd = Math.Min(spanEnd, axis);
+                }
+
+                continue;
+            }
+
+            var half = slot.ThicknessMm / 2.0;
+            if (slot.EdgeAlignment == ImpostEdgeAlignment.Bottom
+                && axis + half > spanStart + CadMath.MmPrecision
+                && axis - half < spanEnd - CadMath.MmPrecision)
+            {
+                spanStart = Math.Max(spanStart, axis + half);
+            }
+            else if (slot.EdgeAlignment == ImpostEdgeAlignment.Top
+                     && axis + half > spanStart + CadMath.MmPrecision
+                     && axis - half < spanEnd - CadMath.MmPrecision)
+            {
+                spanEnd = Math.Min(spanEnd, axis - half);
+            }
+        }
+    }
+
+    private static void ClipHorizontalSpanAtPerpendicularProfiles(
+        FrameNode leaf,
+        in SashGeometry.InnerOpeningBounds inner,
+        bool useAxisLines,
+        ref double spanStart,
+        ref double spanEnd)
+    {
+        foreach (var slot in leaf.ExtremeImposts)
+        {
+            if (slot.Orientation != SplitOrientation.Vertical)
+            {
+                continue;
+            }
+
+            var axis = ResolveAxisWorld(inner, slot.EdgeAlignment, slot.ThicknessMm, slot.OffsetMm);
+            if (useAxisLines)
+            {
+                if (slot.EdgeAlignment == ImpostEdgeAlignment.Left
+                    && axis > spanStart + CadMath.MmPrecision
+                    && axis < spanEnd - CadMath.MmPrecision)
+                {
+                    spanStart = Math.Max(spanStart, axis);
+                }
+                else if (slot.EdgeAlignment == ImpostEdgeAlignment.Right
+                         && axis > spanStart + CadMath.MmPrecision
+                         && axis < spanEnd - CadMath.MmPrecision)
+                {
+                    spanEnd = Math.Min(spanEnd, axis);
+                }
+
+                continue;
+            }
+
+            var half = slot.ThicknessMm / 2.0;
+            if (slot.EdgeAlignment == ImpostEdgeAlignment.Left
+                && axis + half > spanStart + CadMath.MmPrecision
+                && axis - half < spanEnd - CadMath.MmPrecision)
+            {
+                spanStart = Math.Max(spanStart, axis + half);
+            }
+            else if (slot.EdgeAlignment == ImpostEdgeAlignment.Right
+                     && axis + half > spanStart + CadMath.MmPrecision
+                     && axis - half < spanEnd - CadMath.MmPrecision)
+            {
+                spanEnd = Math.Min(spanEnd, axis - half);
+            }
+        }
     }
 
     public static void ApplyExtremeImpostInsets(
@@ -151,7 +414,10 @@ internal static class ExtremeImpostGeometry
     {
         foreach (var slot in leaf.ExtremeImposts)
         {
-            var inset = slot.ThicknessMm + slot.OffsetMm;
+            var inset = slot.LightOpeningInsetMm > CadMath.Epsilon
+                ? slot.LightOpeningInsetMm
+                : slot.ThicknessMm;
+            inset += slot.OffsetMm;
             switch (slot.EdgeAlignment)
             {
                 case ImpostEdgeAlignment.Left:
@@ -187,65 +453,29 @@ internal static class ExtremeImpostGeometry
             return false;
         }
 
-        var inner = SashGeometry.ResolveLeafInnerOpeningBounds(leaf, frameRoot, frameThickness, includeExtremeImposts: false);
-        var axis = ResolveAxisWorld(inner, slot.EdgeAlignment, slot.ThicknessMm, slot.OffsetMm);
+        var cellAxes = slot.HasResolvedSpan
+            ? SashGeometry.ResolveLeafCellAxisBounds(leaf, frameRoot, frameThickness)
+            : SashGeometry.ResolveLeafCellAxisBoundsAtPoint(
+                leaf,
+                frameRoot,
+                frameThickness,
+                worldPoint.X,
+                worldPoint.Y);
+        var axis = ResolveAxisWorld(cellAxes, slot.EdgeAlignment, slot.ThicknessMm, slot.OffsetMm);
         var half = slot.ThicknessMm / 2.0;
+        ResolveSpan(leaf, frameRoot, frameThickness, cellAxes, slot.EdgeAlignment, slot.ThicknessMm, out var spanStart, out var spanEnd, slot);
 
         if (slot.Orientation == SplitOrientation.Vertical)
         {
             return worldPoint.X >= axis - half - toleranceMm
                    && worldPoint.X <= axis + half + toleranceMm
-                   && worldPoint.Y >= inner.Bottom - toleranceMm
-                   && worldPoint.Y <= inner.Top + toleranceMm;
+                   && worldPoint.Y >= spanStart - toleranceMm
+                   && worldPoint.Y <= spanEnd + toleranceMm;
         }
 
         return worldPoint.Y >= axis - half - toleranceMm
                && worldPoint.Y <= axis + half + toleranceMm
-               && worldPoint.X >= inner.Left - toleranceMm
-               && worldPoint.X <= inner.Right + toleranceMm;
-    }
-
-    private static bool TryResolveNearestEdge(
-        CadPoint worldPoint,
-        in SashGeometry.InnerOpeningBounds inner,
-        ExtremeImpostPlacementKind placementKind,
-        out ImpostEdgeAlignment edge,
-        out double distance)
-    {
-        edge = ImpostEdgeAlignment.Left;
-        distance = double.MaxValue;
-
-        if (placementKind == ExtremeImpostPlacementKind.Post)
-        {
-            var leftDist = worldPoint.X - inner.Left;
-            var rightDist = inner.Right - worldPoint.X;
-            if (leftDist <= rightDist)
-            {
-                edge = ImpostEdgeAlignment.Left;
-                distance = leftDist;
-            }
-            else
-            {
-                edge = ImpostEdgeAlignment.Right;
-                distance = rightDist;
-            }
-
-            return distance >= 0;
-        }
-
-        var bottomDist = worldPoint.Y - inner.Bottom;
-        var topDist = inner.Top - worldPoint.Y;
-        if (bottomDist <= topDist)
-        {
-            edge = ImpostEdgeAlignment.Bottom;
-            distance = bottomDist;
-        }
-        else
-        {
-            edge = ImpostEdgeAlignment.Top;
-            distance = topDist;
-        }
-
-        return distance >= 0;
+               && worldPoint.X >= spanStart - toleranceMm
+               && worldPoint.X <= spanEnd + toleranceMm;
     }
 }

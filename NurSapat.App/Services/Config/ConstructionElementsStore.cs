@@ -1,6 +1,7 @@
 using System.Text.Json;
 using NurSapat.App.Models.Config;
 using NurSapat.App.Services.Dictionaries;
+using NurSapat.Core.Models.Materials;
 using CoreEnvironmentSettings = NurSapat.Core.Settings.EnvironmentSettings;
 
 namespace NurSapat.App.Services.Config;
@@ -70,6 +71,7 @@ public sealed class ConstructionElementsStore : IConstructionElementsStore
     [
             new()
             {
+                MaterialId = CatalogMaterialIds.ProfileRehau70,
                 Name = "Рама Galwin 60",
                 ManufacturerId = DictionarySeedIds.GalwinId,
                 Section = ConstructionSectionType.Frame,
@@ -77,11 +79,12 @@ public sealed class ConstructionElementsStore : IConstructionElementsStore
                 WidthMm = 60,
                 HeightMm = 76,
                 WallThicknessMm = 2.8,
-                Article = "GW-R-60",
+                Article = CatalogMaterialArticles.ProfileRehau70,
                 WeightKg = 1.12
             },
             new()
             {
+                MaterialId = CatalogMaterialIds.ProfileRehau70,
                 Name = "Створка Galwin 60",
                 ManufacturerId = DictionarySeedIds.GalwinId,
                 Section = ConstructionSectionType.Sash,
@@ -89,11 +92,12 @@ public sealed class ConstructionElementsStore : IConstructionElementsStore
                 WidthMm = 60,
                 HeightMm = 68,
                 WallThicknessMm = 2.5,
-                Article = "GW-S-60",
+                Article = CatalogMaterialArticles.ProfileRehau70,
                 WeightKg = 0.98
             },
             new()
             {
+                MaterialId = CatalogMaterialIds.ProfileRehau70,
                 Name = "Импост Galwin 60",
                 ManufacturerId = DictionarySeedIds.GalwinId,
                 Section = ConstructionSectionType.Impost,
@@ -101,23 +105,27 @@ public sealed class ConstructionElementsStore : IConstructionElementsStore
                 WidthMm = 60,
                 HeightMm = 60,
                 WallThicknessMm = 2.5,
-                Article = "GW-I-60",
+                Article = CatalogMaterialArticles.ProfileRehau70,
                 WeightKg = 0.85
             },
             new()
             {
+                MaterialId = CatalogMaterialIds.Glazing4_16_4,
                 Name = "4-16-4",
                 ManufacturerId = DictionarySeedIds.GalwinId,
                 Section = ConstructionSectionType.Glazing,
+                Article = CatalogMaterialArticles.Glazing4_16_4,
                 GlassFormula = "4-16-4",
                 GlassThicknessMm = 24,
                 GlassStructure = "Стекло-аргон-стекло"
             },
             new()
             {
+                MaterialId = CatalogMaterialIds.HardwareMacoEgress,
                 Name = "Комплект Maco",
                 ManufacturerId = DictionarySeedIds.MacoId,
                 Section = ConstructionSectionType.Hardware,
+                Article = CatalogMaterialArticles.HardwareMacoEgress,
                 HardwareRules =
                 [
                     new HardwareAutoPickRule

@@ -26,7 +26,15 @@
     <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="8.0.0" />
+    <PackageReference Include="PDFtoImage" Version="4.1.1" />
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
     <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
   </ItemGroup>
 
@@ -34,10 +42,14 @@
     <ProjectReference Include="..\NurSapat.Core\NurSapat.Core.csproj" />
     <ProjectReference Include="..\NurSapat.Cad.UI\NurSapat.Cad.UI.csproj" />
     <ProjectReference Include="..\NurSapat.Data\NurSapat.Data.csproj" />
+    <ProjectReference Include="..\NurSapat.Infrastructure.Persistence\NurSapat.Infrastructure.Persistence.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\Help\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

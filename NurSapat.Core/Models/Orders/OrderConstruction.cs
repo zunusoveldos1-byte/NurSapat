@@ -18,6 +18,8 @@ public sealed class OrderConstruction
 
     public ConstructionMetrics Metrics { get; set; } = new();
 
+    public List<CostSpecificationLine> SpecificationLines { get; } = [];
+
     public string ProfileSystemName { get; set; } = "";
 
     public ConstructionAppearance Appearance { get; set; } = new();

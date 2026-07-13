@@ -10,7 +10,7 @@
 		<ResourceDictionary>
 			<ResourceDictionary.MergedDictionaries>
 				<ResourceInclude Source="/Styles/Colors.axaml"/>
-				<ResourceInclude Source="/Styles/CadToolIcons.axaml"/>
+				<ResourceInclude Source="avares://NurSapat.Cad.UI/Resources/CadIcons.axaml"/>
 				<ResourceInclude Source="/Resources/EditMenuStrings.axaml"/>
 			</ResourceDictionary.MergedDictionaries>
 		</ResourceDictionary>
@@ -22,6 +22,7 @@
 		<StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
 		<StyleInclude Source="/Styles/ButtonStyles.axaml"/>
 		<StyleInclude Source="/Styles/EditDialogStyles.axaml"/>
+		<StyleInclude Source="/Styles/ServiceWindowStyles.axaml"/>
 
 		<!-- Базовое состояние -->
 		<Style Selector="Button">
@@ -62,7 +63,10 @@
 		<DataTemplate DataType="vm:RegistrationViewModel">
 			<views:RegistrationView/>
 		</DataTemplate>
-		<DataTemplate DataType="vm:DashboardViewModel">
+        <DataTemplate DataType="vm:ErpReferenceHubViewModel">
+            <views:ErpReferenceHubView/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:DashboardViewModel">
 			<views:DashboardView/>
 		</DataTemplate>
 		<DataTemplate DataType="vm:WorkspaceSectionViewModel">

@@ -1,8 +1,14 @@
+using NurSapat.Core.Validation;
+
 namespace NurSapat.App.Models.Config;
 
+/// <summary>Элемент справочника конструкций (профиль, стекло, фурнитура) с привязкой к материалу каталога.</summary>
 public sealed class ConstructionElement
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+
+    /// <summary>Идентификатор материала ERP-каталога (<see cref="NurSapat.Core.Models.Materials.CatalogMaterialIds"/>).</summary>
+    public Guid MaterialId { get; set; }
 
     public string Name { get; set; } = string.Empty;
 
@@ -18,6 +24,7 @@ public sealed class ConstructionElement
 
     public double WallThicknessMm { get; set; }
 
+    /// <summary>Денормализованный артикул для отображения (канон — <see cref="MaterialId"/>).</summary>
     public string Article { get; set; } = string.Empty;
 
     public double WeightKg { get; set; }
@@ -32,9 +39,17 @@ public sealed class ConstructionElement
 
     public string Notes { get; set; } = string.Empty;
 
+    public void Validate()
+    {
+        DomainInvariants.RequireNonEmptyGuid(MaterialId, nameof(MaterialId));
+        DomainInvariants.RequireNonEmpty(Name, nameof(Name));
+        DomainInvariants.RequireNonEmpty(Article, nameof(Article));
+    }
+
     public ConstructionElement Clone() => new()
     {
         Id = Id,
+        MaterialId = MaterialId,
         Name = Name,
         ManufacturerId = ManufacturerId,
         Section = Section,

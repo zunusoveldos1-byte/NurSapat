@@ -9,11 +9,14 @@ public sealed partial class CustomersDictionaryViewModel : BaseDictionaryViewMod
 {
     private readonly ICustomersStore _store;
     private readonly ICustomerEditorService _editorService;
+    private string _typeFilter = "Все";
+    private string _blockedFilter = "Все";
 
     public CustomersDictionaryViewModel(ICustomersStore store, ICustomerEditorService editorService)
     {
         _store = store;
         _editorService = editorService;
+        _store.Changed += (_, _) => _ = RefreshFromStoreAsync();
     }
 
     public override string Title => "Справочник заказчиков";
@@ -22,19 +25,104 @@ public sealed partial class CustomersDictionaryViewModel : BaseDictionaryViewMod
 
     public event Action? RequestClose;
 
+    public IReadOnlyList<string> TypeFilters { get; } = ["Все", "Физ. лицо", "Юр. лицо", "Дилер"];
+
+    public IReadOnlyList<string> BlockedFilters { get; } = ["Все", "Активные", "Заблокированные"];
+
+    public string TypeFilter
+    {
+        get => _typeFilter;
+        set
+        {
+            if (_typeFilter == value)
+            {
+                return;
+            }
+
+            _typeFilter = value;
+            OnPropertyChanged();
+            ApplyFilter();
+        }
+    }
+
+    public string BlockedFilter
+    {
+        get => _blockedFilter;
+        set
+        {
+            if (_blockedFilter == value)
+            {
+                return;
+            }
+
+            _blockedFilter = value;
+            OnPropertyChanged();
+            ApplyFilter();
+        }
+    }
+
     protected override bool MatchesSearch(CustomerDictionaryItemViewModel item, string search) =>
         Contains(item.FullName, search)
-        || Contains(item.Phone, search);
+        || Contains(item.Phone, search)
+        || Contains(item.City, search)
+        || Contains(item.DealerCode, search)
+        || Contains(item.ActualAddress, search)
+        || Contains(item.Note, search)
+        || Contains(item.TypeDisplay, search);
+
+    protected override void ApplyFilter()
+    {
+        var search = SearchText.Trim();
+        IEnumerable<CustomerDictionaryItemViewModel> query = AllItems;
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(item => MatchesSearch(item, search));
+        }
+
+        query = TypeFilter switch
+        {
+            "Физ. лицо" => query.Where(x => x.Type == Core.Models.Orders.CustomerType.Individual),
+            "Юр. лицо" => query.Where(x => x.Type == Core.Models.Orders.CustomerType.LegalEntity),
+            "Дилер" => query.Where(x => x.Type == Core.Models.Orders.CustomerType.Dealer),
+            _ => query
+        };
+
+        query = BlockedFilter switch
+        {
+            "Активные" => query.Where(x => !x.IsBlocked),
+            "Заблокированные" => query.Where(x => x.IsBlocked),
+            _ => query
+        };
+
+        FilteredItems.Clear();
+        var index = 1;
+        foreach (var item in query.OrderBy(x => x.FullName))
+        {
+            item.RowNumber = index++;
+            FilteredItems.Add(item);
+        }
+
+        EditCommand.NotifyCanExecuteChanged();
+        DeleteCommand.NotifyCanExecuteChanged();
+    }
 
     protected override Task LoadItemsAsync()
     {
         AllItems.Clear();
+        var row = 1;
         foreach (var item in _store.GetAll())
         {
-            AllItems.Add(CustomerDictionaryItemViewModel.FromModel(item));
+            AllItems.Add(CustomerDictionaryItemViewModel.FromModel(item, row++));
         }
 
         return Task.CompletedTask;
+    }
+
+    private async Task RefreshFromStoreAsync()
+    {
+        await LoadItemsAsync();
+        ApplyFilter();
     }
 
     protected override async Task AddItemAsync()
@@ -46,7 +134,7 @@ public sealed partial class CustomersDictionaryViewModel : BaseDictionaryViewMod
         }
 
         _store.Add(saved);
-        var item = CustomerDictionaryItemViewModel.FromModel(saved);
+        var item = CustomerDictionaryItemViewModel.FromModel(saved, AllItems.Count + 1);
         AllItems.Add(item);
         SelectedItem = item;
     }
@@ -72,6 +160,20 @@ public sealed partial class CustomersDictionaryViewModel : BaseDictionaryViewMod
 
     [RelayCommand]
     private void CloseWindow() => RequestClose?.Invoke();
+
+    [RelayCommand(CanExecute = nameof(CanViewSelected))]
+    private async Task ViewSelected()
+    {
+        if (SelectedItem is null)
+        {
+            return;
+        }
+
+        await EditItemAsync(SelectedItem);
+        ApplyFilter();
+    }
+
+    private bool CanViewSelected() => SelectedItem is not null;
 
     public async Task OpenEditorForItemAsync(CustomerDictionaryItemViewModel item)
     {

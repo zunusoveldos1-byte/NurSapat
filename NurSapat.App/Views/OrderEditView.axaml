@@ -1,14 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             xmlns:views="clr-namespace:NurSapat.App.Views"
              x:Class="NurSapat.App.Views.OrderEditView"
              x:DataType="vm:OrderEditViewModel">
-
-    <Grid Background="#F6F9FD">
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
-            <TextBlock Text="Лист заказа" FontSize="20" FontWeight="SemiBold" Foreground="#0B1736"/>
-            <TextBlock Text="Функционал в разработке" Foreground="#52688F"/>
-        </StackPanel>
-    </Grid>
-    
+    <views:OrderSheetView DataContext="{Binding Sheet}"/>
 </UserControl>

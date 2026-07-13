@@ -3,6 +3,14 @@ using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.Cad.Core.Models;
 
+public readonly struct EdgeLightOpeningInsets
+{
+    public double Left { get; init; }
+    public double Right { get; init; }
+    public double Bottom { get; init; }
+    public double Top { get; init; }
+}
+
 public enum SplitOrientation
 {
     None,
@@ -129,6 +137,22 @@ public sealed class FrameNode
     public bool Contains(double x, double y) =>
         x >= X && x <= X + Width && y >= Y && y <= Y + Height;
 
+    private bool IsPointInsideTriangleTopology(double x, double y)
+    {
+        var root = GetRoot();
+        if (root.Shape != ConstructionShape.Triangle)
+        {
+            return true;
+        }
+
+        if (Parent is not null)
+        {
+            return true;
+        }
+
+        return FrameTriangleGeometry.ContainsPointInOuterTriangle(root, x, y);
+    }
+
     public FrameNode? FindLeafAt(double x, double y)
     {
         // Используем допуск 25 мм, чтобы поиск был устойчив к смещениям из-за нахлестов
@@ -169,6 +193,11 @@ public sealed class FrameNode
 
         if (IsLeaf)
         {
+            if (!IsPointInsideTriangleTopology(x, y))
+            {
+                return null;
+            }
+
             return this;
         }
 
@@ -210,7 +239,7 @@ public sealed class FrameNode
 
     public bool TrySplitVerticalHalf(ImpostLineStyle lineStyle = ImpostLineStyle.Dashed, double impostWidthMm = 0)
     {
-        if (!TrySplitVerticalAt(Width / 2, lineStyle, impostWidthMm))
+        if (!TrySplitVerticalAt(ResolveInsetAdjustedVerticalSplitCenterLocal(), lineStyle, impostWidthMm))
         {
             return false;
         }
@@ -222,7 +251,7 @@ public sealed class FrameNode
     public bool TrySplitHorizontalHalf(ImpostLineStyle lineStyle = ImpostLineStyle.Dashed, double impostWidthMm = 0)
     {
         var splitExtent = ResolveHorizontalSplitExtentLocal(this, GetRoot());
-        if (!TrySplitHorizontalAt(splitExtent / 2, lineStyle, impostWidthMm))
+        if (!TrySplitHorizontalAt(ResolveInsetAdjustedHorizontalSplitCenterLocal(splitExtent), lineStyle, impostWidthMm))
         {
             return false;
         }
@@ -247,12 +276,14 @@ public sealed class FrameNode
         }
 
         var impostWidth = ResolveUniformImpostWidth(impostWidthMm, lineStyle);
+        var edgeInsets = ResolveEdgeLightOpeningInsets();
 
         if (!TryComputeUniformLayout(
                 orientation,
                 impostCount,
                 impostWidth,
                 frameProfileInset,
+                edgeInsets,
                 out var innerStart,
                 out var singleGlassSize))
         {
@@ -260,7 +291,8 @@ public sealed class FrameNode
         }
 
         _uniformCells.Clear();
-        var trailingInset = Parent == null && frameProfileInset > CadMath.Epsilon ? frameProfileInset : 0;
+        var trailingInset = (Parent == null && frameProfileInset > CadMath.Epsilon ? frameProfileInset : 0)
+            + (orientation == SplitOrientation.Vertical ? edgeInsets.Right : edgeInsets.Top);
         var innerSpan = orientation switch
         {
             SplitOrientation.Vertical => Width - innerStart - trailingInset,
@@ -331,8 +363,51 @@ public sealed class FrameNode
             impostCount,
             impostWidth,
             frameProfileInset,
+            ResolveEdgeLightOpeningInsets(),
             out _,
             out _);
+    }
+
+    private bool TryComputeUniformLayout(
+        SplitOrientation orientation,
+        int impostCount,
+        double impostWidth,
+        double frameProfileInset,
+        EdgeLightOpeningInsets edgeInsets,
+        out double innerStart,
+        out double singleGlassSize)
+    {
+        var leadingFrameInset = Parent == null && frameProfileInset > CadMath.Epsilon ? frameProfileInset : 0;
+        var trailingFrameInset = Parent == null && frameProfileInset > CadMath.Epsilon ? frameProfileInset : 0;
+
+        innerStart = leadingFrameInset
+            + (orientation == SplitOrientation.Vertical ? edgeInsets.Left : edgeInsets.Bottom);
+
+        var trailingInset = trailingFrameInset
+            + (orientation == SplitOrientation.Vertical ? edgeInsets.Right : edgeInsets.Top);
+
+        var innerSpan = orientation switch
+        {
+            SplitOrientation.Vertical => Width - innerStart - trailingInset,
+            SplitOrientation.Horizontal => Height - innerStart - trailingInset,
+            _ => 0
+        };
+
+        if (innerSpan <= CadMath.Epsilon)
+        {
+            singleGlassSize = 0;
+            return false;
+        }
+
+        // Размер ячеек считаем по фактическому световому проёму (innerSpan), а не по внешней коробке.
+        return TryComputeUniformLayout(
+            orientation,
+            orientation == SplitOrientation.Vertical ? innerSpan : Width,
+            orientation == SplitOrientation.Horizontal ? innerSpan : Height,
+            impostCount,
+            impostWidth,
+            0,
+            out singleGlassSize);
     }
 
     public static bool TryComputeUniformLayout(
@@ -392,18 +467,15 @@ public sealed class FrameNode
         double impostWidth,
         double frameProfileInset,
         out double innerStart,
-        out double singleGlassSize)
-    {
-        innerStart = Parent == null && frameProfileInset > CadMath.Epsilon ? frameProfileInset : 0;
-        return TryComputeUniformLayout(
+        out double singleGlassSize) =>
+        TryComputeUniformLayout(
             orientation,
-            Width,
-            Height,
             impostCount,
             impostWidth,
-            Parent == null ? frameProfileInset : 0,
+            frameProfileInset,
+            ResolveEdgeLightOpeningInsets(),
+            out innerStart,
             out singleGlassSize);
-    }
 
     /// <summary>
     /// Двойной вертикальный импост: 1 импост по центру (совместимость).
@@ -478,6 +550,37 @@ public sealed class FrameNode
         LineStyle = lineStyle;
         SplitRelativeCenter = splitExtent > CadMath.Epsilon ? centerLocal / splitExtent : 0.5;
         return true;
+    }
+
+    /// <summary>
+    /// Проверяет возможность вертикального деления в локальной координате X без изменения дерева.
+    /// </summary>
+    public bool CanSplitVerticalAt(double splitLocalX, ImpostLineStyle lineStyle, double impostWidthMm)
+    {
+        if (!IsLeaf)
+        {
+            return false;
+        }
+
+        var thickness = ResolveImpostWidth(lineStyle, impostWidthMm);
+        var centerLocal = ClampVerticalSplitCenter(splitLocalX, thickness);
+        return TryComputeBinaryVerticalChildren(centerLocal, thickness, out _, out _, out _);
+    }
+
+    /// <summary>
+    /// Проверяет возможность горизонтального деления в локальной координате Y без изменения дерева.
+    /// </summary>
+    public bool CanSplitHorizontalAt(double splitLocalY, ImpostLineStyle lineStyle, double impostWidthMm)
+    {
+        if (!IsLeaf)
+        {
+            return false;
+        }
+
+        var thickness = ResolveImpostWidth(lineStyle, impostWidthMm);
+        var splitExtent = ResolveHorizontalSplitExtentLocal(this, GetRoot());
+        var centerLocal = ClampHorizontalSplitCenter(splitLocalY, thickness, splitExtent);
+        return TryComputeBinaryHorizontalChildren(centerLocal, thickness, splitExtent, out _, out _, out _);
     }
 
     /// <summary>
@@ -573,6 +676,8 @@ public sealed class FrameNode
         ChildB.Width = rightWidth;
         ChildB.Height = Height;
         SplitRelativeCenter = Width > CadMath.Epsilon ? centerLocal / Width : 0.5;
+        ChildA.RelayoutSubdivisionTree(0);
+        ChildB.RelayoutSubdivisionTree(0);
         return true;
     }
 
@@ -603,6 +708,8 @@ public sealed class FrameNode
         ChildB.Width = Width;
         ChildB.Height = topHeight;
         SplitRelativeCenter = splitExtent > CadMath.Epsilon ? centerLocal / splitExtent : 0.5;
+        ChildA.RelayoutSubdivisionTree(0);
+        ChildB.RelayoutSubdivisionTree(0);
         return true;
     }
 
@@ -620,8 +727,11 @@ public sealed class FrameNode
         }
 
         var half = GetResolvedImpostThicknessMm() / 2.0;
-        leftWidth = CadMath.RoundMm((axisWorldX - X) - half);
-        rightWidth = CadMath.RoundMm((X + Width - axisWorldX) - half);
+        var edgeInsets = ResolveEdgeLightOpeningInsets();
+        var innerLeft = X + edgeInsets.Left;
+        var innerRight = X + Width - edgeInsets.Right;
+        leftWidth = CadMath.RoundMm((axisWorldX - half) - innerLeft);
+        rightWidth = CadMath.RoundMm(innerRight - (axisWorldX + half));
         return leftWidth > CadMath.Epsilon && rightWidth > CadMath.Epsilon;
     }
 
@@ -633,7 +743,8 @@ public sealed class FrameNode
         }
 
         var half = GetResolvedImpostThicknessMm() / 2.0;
-        return TrySetVerticalImpostAxisWorldX(X + half + leftWidth);
+        var innerLeft = X + ResolveEdgeLightOpeningInsets().Left;
+        return TrySetVerticalImpostAxisWorldX(innerLeft + half + leftWidth);
     }
 
     public bool TrySetVerticalLightOpeningRightWidth(double rightWidth)
@@ -644,7 +755,8 @@ public sealed class FrameNode
         }
 
         var half = GetResolvedImpostThicknessMm() / 2.0;
-        return TrySetVerticalImpostAxisWorldX(X + Width - half - rightWidth);
+        var innerRight = X + Width - ResolveEdgeLightOpeningInsets().Right;
+        return TrySetVerticalImpostAxisWorldX(innerRight - half - rightWidth);
     }
 
     public bool TrySetUniformVerticalImpostGapAxisWorldX(int gapIndex, double axisWorldX)
@@ -687,6 +799,11 @@ public sealed class FrameNode
             cursorX = cell.X + cell.Width + thickness;
         }
 
+        foreach (var cell in _uniformCells)
+        {
+            cell.RelayoutSubdivisionTree(0);
+        }
+
         return true;
     }
 
@@ -705,8 +822,11 @@ public sealed class FrameNode
 
         var half = GetResolvedImpostThicknessMm() / 2.0;
         var splitExtent = GetHorizontalSplitExtentLocal();
-        bottomHeight = CadMath.RoundMm((axisWorldY - Y) - half);
-        topHeight = CadMath.RoundMm((Y + splitExtent - axisWorldY) - half);
+        var edgeInsets = ResolveEdgeLightOpeningInsets();
+        var innerBottom = Y + edgeInsets.Bottom;
+        var innerTop = Y + splitExtent - edgeInsets.Top;
+        bottomHeight = CadMath.RoundMm((axisWorldY - half) - innerBottom);
+        topHeight = CadMath.RoundMm(innerTop - (axisWorldY + half));
         return bottomHeight > CadMath.Epsilon && topHeight > CadMath.Epsilon;
     }
 
@@ -718,7 +838,8 @@ public sealed class FrameNode
         }
 
         var half = GetResolvedImpostThicknessMm() / 2.0;
-        return TrySetHorizontalImpostAxisWorldY(Y + half + bottomHeight);
+        var innerBottom = Y + ResolveEdgeLightOpeningInsets().Bottom;
+        return TrySetHorizontalImpostAxisWorldY(innerBottom + half + bottomHeight);
     }
 
     public bool TrySetHorizontalLightOpeningTopHeight(double topHeight)
@@ -729,7 +850,8 @@ public sealed class FrameNode
         }
 
         var half = GetResolvedImpostThicknessMm() / 2.0;
-        return TrySetHorizontalImpostAxisWorldY(Y + GetHorizontalSplitExtentLocal() - half - topHeight);
+        var innerTop = Y + GetHorizontalSplitExtentLocal() - ResolveEdgeLightOpeningInsets().Top;
+        return TrySetHorizontalImpostAxisWorldY(innerTop - half - topHeight);
     }
 
     public bool TrySetUniformHorizontalImpostGapAxisWorldY(int gapIndex, double axisWorldY)
@@ -774,6 +896,11 @@ public sealed class FrameNode
             var cell = _uniformCells[i];
             cell.Y = CadMath.RoundMm(cursorY);
             cursorY = cell.Y + cell.Height + thickness;
+        }
+
+        foreach (var cell in _uniformCells)
+        {
+            cell.RelayoutSubdivisionTree(0);
         }
 
         return true;
@@ -959,6 +1086,25 @@ public sealed class FrameNode
 
         ChildA?.RelayoutVerticalSubdivisions(0);
         ChildB?.RelayoutVerticalSubdivisions(0);
+    }
+
+    /// <summary>
+    /// Восстанавливает равномерный шаг импостов uniform-разбиения без изменения топологии.
+    /// </summary>
+    public bool TryRealignUniformImposts(double frameProfileInset = 0)
+    {
+        if (!IsUniformSplit || UniformImpostCount < 1 || _uniformCells.Count < 2)
+        {
+            return false;
+        }
+
+        RelayoutUniformCells(frameProfileInset);
+        foreach (var cell in _uniformCells)
+        {
+            cell.RelayoutSubdivisionTree(0);
+        }
+
+        return true;
     }
 
     private void RelayoutUniformCells(double frameProfileInset)
@@ -1230,11 +1376,12 @@ public sealed class FrameNode
 
     private double ClampVerticalSplitCenter(double splitLocalX, double thickness)
     {
-        var minCenter = MinSplitSizeMm + thickness / 2;
-        var maxCenter = Width - MinSplitSizeMm - thickness / 2;
+        var edge = ResolveEdgeLightOpeningInsets();
+        var minCenter = edge.Left + MinSplitSizeMm + thickness / 2;
+        var maxCenter = Width - edge.Right - MinSplitSizeMm - thickness / 2;
         if (maxCenter < minCenter)
         {
-            return Width / 2;
+            return ResolveInsetAdjustedVerticalSplitCenterLocal();
         }
 
         return Math.Clamp(splitLocalX, minCenter, maxCenter);
@@ -1242,11 +1389,12 @@ public sealed class FrameNode
 
     private double ClampHorizontalSplitCenter(double splitLocalY, double thickness, double splitExtentLocal)
     {
-        var minCenter = MinSplitSizeMm + thickness / 2;
-        var maxCenter = splitExtentLocal - MinSplitSizeMm - thickness / 2;
+        var edge = ResolveEdgeLightOpeningInsets();
+        var minCenter = edge.Bottom + MinSplitSizeMm + thickness / 2;
+        var maxCenter = splitExtentLocal - edge.Top - MinSplitSizeMm - thickness / 2;
         if (maxCenter < minCenter)
         {
-            return splitExtentLocal / 2;
+            return ResolveInsetAdjustedHorizontalSplitCenterLocal(splitExtentLocal);
         }
 
         return Math.Clamp(splitLocalY, minCenter, maxCenter);
@@ -1429,7 +1577,10 @@ public sealed class FrameNode
             Orientation = slot.Orientation,
             EdgeAlignment = slot.EdgeAlignment,
             OffsetMm = slot.OffsetMm,
-            ThicknessMm = slot.ThicknessMm
+            ThicknessMm = slot.ThicknessMm,
+            SpanStartMm = slot.SpanStartMm,
+            SpanEndMm = slot.SpanEndMm,
+            LightOpeningInsetMm = slot.LightOpeningInsetMm
         }).ToList();
 
     /// <summary>Снимок узла рамы для восстановления дерева из сериализованного состояния.</summary>
@@ -1476,6 +1627,9 @@ public sealed class FrameNode
         public ImpostEdgeAlignment EdgeAlignment { get; init; }
         public double OffsetMm { get; init; }
         public double ThicknessMm { get; init; }
+        public double SpanStartMm { get; init; }
+        public double SpanEndMm { get; init; }
+        public double LightOpeningInsetMm { get; init; }
     }
 
     public static FrameNode? RestoreTree(TreeSnapshot? snapshot)
@@ -1575,7 +1729,10 @@ public sealed class FrameNode
                 Orientation = snapshot.Orientation,
                 EdgeAlignment = snapshot.EdgeAlignment,
                 OffsetMm = snapshot.OffsetMm,
-                ThicknessMm = snapshot.ThicknessMm
+                ThicknessMm = snapshot.ThicknessMm,
+                SpanStartMm = snapshot.SpanStartMm,
+                SpanEndMm = snapshot.SpanEndMm,
+                LightOpeningInsetMm = snapshot.LightOpeningInsetMm
             });
         }
     }
@@ -1584,18 +1741,40 @@ public sealed class FrameNode
         SplitOrientation orientation,
         ImpostEdgeAlignment edgeAlignment,
         double thicknessMm,
-        double offsetMm = 0)
+        double offsetMm = 0,
+        double spanStartMm = 0,
+        double spanEndMm = 0,
+        double lightOpeningInsetMm = 0)
     {
         if (!IsLeaf || thicknessMm <= CadMath.Epsilon)
         {
             return false;
         }
 
-        var existing = _extremeImposts.FirstOrDefault(slot => slot.EdgeAlignment == edgeAlignment);
+        var existing = _extremeImposts.FirstOrDefault(slot =>
+            slot.EdgeAlignment == edgeAlignment
+            && CadMath.NearlyEqual(slot.SpanStartMm, spanStartMm)
+            && CadMath.NearlyEqual(slot.SpanEndMm, spanEndMm));
         if (existing is not null)
         {
             existing.OffsetMm = CadMath.RoundMm(Math.Max(0, offsetMm));
             existing.ThicknessMm = thicknessMm;
+            existing.SpanStartMm = CadMath.RoundMm(spanStartMm);
+            existing.SpanEndMm = CadMath.RoundMm(spanEndMm);
+            existing.LightOpeningInsetMm = Math.Max(0, lightOpeningInsetMm);
+            return true;
+        }
+
+        var overlapping = _extremeImposts.FirstOrDefault(slot =>
+            slot.EdgeAlignment == edgeAlignment
+            && SpansOverlap(slot.SpanStartMm, slot.SpanEndMm, spanStartMm, spanEndMm));
+        if (overlapping is not null)
+        {
+            overlapping.OffsetMm = CadMath.RoundMm(Math.Max(0, offsetMm));
+            overlapping.ThicknessMm = thicknessMm;
+            overlapping.SpanStartMm = CadMath.RoundMm(spanStartMm);
+            overlapping.SpanEndMm = CadMath.RoundMm(spanEndMm);
+            overlapping.LightOpeningInsetMm = Math.Max(0, lightOpeningInsetMm);
             return true;
         }
 
@@ -1604,9 +1783,136 @@ public sealed class FrameNode
             Orientation = orientation,
             EdgeAlignment = edgeAlignment,
             ThicknessMm = thicknessMm,
-            OffsetMm = CadMath.RoundMm(Math.Max(0, offsetMm))
+            OffsetMm = CadMath.RoundMm(Math.Max(0, offsetMm)),
+            SpanStartMm = CadMath.RoundMm(spanStartMm),
+            SpanEndMm = CadMath.RoundMm(spanEndMm),
+            LightOpeningInsetMm = Math.Max(0, lightOpeningInsetMm)
         });
         return true;
+    }
+
+    /// <summary>
+    /// Суммарные отступы светового проёма от крайних импостов (нащельник и т.п.) по краям ячейки.
+    /// Учитывает слоты предков, если их край совпадает с соответствующим краем этой ячейки.
+    /// </summary>
+    public EdgeLightOpeningInsets ResolveEdgeLightOpeningInsets()
+    {
+        double left = 0, right = 0, bottom = 0, top = 0;
+        for (var node = this; node is not null; node = node.Parent)
+        {
+            var nodeLeft = node.X;
+            var nodeRight = node.X + node.Width;
+            var nodeBottom = node.Y;
+            var nodeTop = node.Y + node.Height;
+
+            foreach (var slot in node.ExtremeImposts)
+            {
+                var inset = slot.LightOpeningInsetMm > CadMath.Epsilon
+                    ? slot.LightOpeningInsetMm
+                    : slot.ThicknessMm;
+                inset += slot.OffsetMm;
+
+                if (slot.EdgeAlignment == ImpostEdgeAlignment.Left
+                    && CadMath.NearlyEqual(X, nodeLeft))
+                {
+                    left = Math.Max(left, inset);
+                }
+                else if (slot.EdgeAlignment == ImpostEdgeAlignment.Right
+                         && CadMath.NearlyEqual(X + Width, nodeRight))
+                {
+                    right = Math.Max(right, inset);
+                }
+                else if (slot.EdgeAlignment == ImpostEdgeAlignment.Bottom
+                         && CadMath.NearlyEqual(Y, nodeBottom))
+                {
+                    bottom = Math.Max(bottom, inset);
+                }
+                else if (slot.EdgeAlignment == ImpostEdgeAlignment.Top
+                         && CadMath.NearlyEqual(Y + Height, nodeTop))
+                {
+                    top = Math.Max(top, inset);
+                }
+            }
+        }
+
+        return new EdgeLightOpeningInsets
+        {
+            Left = CadMath.RoundMm(left),
+            Right = CadMath.RoundMm(right),
+            Bottom = CadMath.RoundMm(bottom),
+            Top = CadMath.RoundMm(top)
+        };
+    }
+
+    /// <summary>
+    /// Габариты вложенной коробки/заполнения внутри ячейки с учётом нащельника на краях.
+    /// </summary>
+    public (double OriginX, double OriginY, double Width, double Height) ResolveNestedOpeningBounds()
+    {
+        var edge = ResolveEdgeLightOpeningInsets();
+        return (
+            CadMath.RoundMm(X + edge.Left),
+            CadMath.RoundMm(Y + edge.Bottom),
+            CadMath.RoundMm(Math.Max(0, Width - edge.Left - edge.Right)),
+            CadMath.RoundMm(Math.Max(0, Height - edge.Bottom - edge.Top)));
+    }
+
+    /// <summary>
+    /// Габариты размещения внутри квадранта пунктирной сетки с учётом нащельника на совпадающих краях.
+    /// </summary>
+    public (double OriginX, double OriginY, double Width, double Height) ResolvePlacementBoundsForCell(
+        double cellLeft,
+        double cellBottom,
+        double cellRight,
+        double cellTop)
+    {
+        var edge = ResolveEdgeLightOpeningInsets();
+        var originX = cellLeft;
+        var originY = cellBottom;
+        var width = cellRight - cellLeft;
+        var height = cellTop - cellBottom;
+
+        if (CadMath.NearlyEqual(cellLeft, X))
+        {
+            originX += edge.Left;
+            width -= edge.Left;
+        }
+
+        if (CadMath.NearlyEqual(cellRight, X + Width))
+        {
+            width -= edge.Right;
+        }
+
+        if (CadMath.NearlyEqual(cellBottom, Y))
+        {
+            originY += edge.Bottom;
+            height -= edge.Bottom;
+        }
+
+        if (CadMath.NearlyEqual(cellTop, Y + Height))
+        {
+            height -= edge.Top;
+        }
+
+        return (
+            CadMath.RoundMm(originX),
+            CadMath.RoundMm(originY),
+            CadMath.RoundMm(Math.Max(0, width)),
+            CadMath.RoundMm(Math.Max(0, height)));
+    }
+
+    public double ResolveInsetAdjustedVerticalSplitCenterLocal()
+    {
+        var edge = ResolveEdgeLightOpeningInsets();
+        var innerWidth = Width - edge.Left - edge.Right;
+        return CadMath.RoundMm(edge.Left + innerWidth / 2.0);
+    }
+
+    public double ResolveInsetAdjustedHorizontalSplitCenterLocal(double splitExtentLocal)
+    {
+        var edge = ResolveEdgeLightOpeningInsets();
+        var innerHeight = splitExtentLocal - edge.Bottom - edge.Top;
+        return CadMath.RoundMm(edge.Bottom + innerHeight / 2.0);
     }
 
     public bool TrySetExtremeImpostOffset(Guid slotId, double offsetMm)
@@ -1629,13 +1935,13 @@ public sealed class FrameNode
 
     public IEnumerable<(FrameNode Leaf, ExtremeImpostSlot Slot)> EnumerateExtremeImposts()
     {
+        foreach (var slot in _extremeImposts)
+        {
+            yield return (this, slot);
+        }
+
         if (IsLeaf)
         {
-            foreach (var slot in _extremeImposts)
-            {
-                yield return (this, slot);
-            }
-
             yield break;
         }
 
@@ -1671,7 +1977,10 @@ public sealed class FrameNode
 
     private void ClearExtremeImposts() => _extremeImposts.Clear();
 
-    private void BecomingSplitParent() => ClearExtremeImposts();
+    private void BecomingSplitParent()
+    {
+        // Крайние импосты (нащельник) остаются на узле-родителе и наследуются дочерними ячейками.
+    }
 
     public void ClearSplits()
     {
@@ -1701,4 +2010,7 @@ public sealed class FrameNode
         Width = width;
         Height = height;
     }
+
+    private static bool SpansOverlap(double startA, double endA, double startB, double endB) =>
+        endA > startB + CadMath.MmPrecision && endB > startA + CadMath.MmPrecision;
 }

@@ -11,6 +11,7 @@ public sealed partial class FinishedGoodEditViewModel : ObservableObject
 {
     private readonly IUserSessionService _sessionService;
     private Guid _id = Guid.NewGuid();
+    private Guid _orderId;
     private bool _isNew;
 
     public FinishedGoodEditViewModel(IUserSessionService sessionService)
@@ -50,6 +51,7 @@ public sealed partial class FinishedGoodEditViewModel : ObservableObject
     {
         _isNew = isNew;
         _id = isNew ? Guid.NewGuid() : source.Id;
+        _orderId = source.OrderId;
 
         OrderNumber = source.OrderNumber;
         ProductCode = source.ProductCode;
@@ -68,6 +70,7 @@ public sealed partial class FinishedGoodEditViewModel : ObservableObject
     public FinishedGoodItem BuildResult() => new()
     {
         Id = _id,
+        OrderId = _orderId,
         OrderNumber = OrderNumber.Trim(),
         ProductCode = ProductCode.Trim(),
         CellAddress = CellAddress.Trim(),

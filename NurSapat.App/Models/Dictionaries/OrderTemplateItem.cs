@@ -22,6 +22,16 @@ public sealed class OrderTemplateItem
 
     public string CurrencyCode { get; set; } = "KGS";
 
+    public string DefaultOrderNote { get; set; } = string.Empty;
+
+    public int DefaultProductionDays { get; set; } = 14;
+
+    public decimal DefaultPrepaymentPercent { get; set; } = 30m;
+
+    public bool ApplyDealerDiscount { get; set; }
+
+    public decimal DealerDiscountPercent { get; set; }
+
     public OrderTemplateItem Clone() => new()
     {
         Id = Id,
@@ -33,6 +43,11 @@ public sealed class OrderTemplateItem
         AdditionalExpensesFixed = AdditionalExpensesFixed,
         DismantlingPrice = DismantlingPrice,
         InstallationPrice = InstallationPrice,
-        CurrencyCode = CurrencyCode
+        CurrencyCode = CurrencyCode,
+        DefaultOrderNote = DefaultOrderNote,
+        DefaultProductionDays = DefaultProductionDays,
+        DefaultPrepaymentPercent = DefaultPrepaymentPercent,
+        ApplyDealerDiscount = ApplyDealerDiscount,
+        DealerDiscountPercent = DealerDiscountPercent
     };
 }

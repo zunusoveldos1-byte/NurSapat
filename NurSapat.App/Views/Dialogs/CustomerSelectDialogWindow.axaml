@@ -28,7 +28,7 @@
                                         Title="{Binding Title}"
                                         CloseRequested="OnTitleBarClose"/>
 
-            <Grid Grid.Row="1" Margin="16,14,16,0" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <Grid Grid.Row="1" Margin="16,0,16,0" ColumnDefinitions="*,Auto" ColumnSpacing="10">
                 <TextBox x:Name="SearchTextBox"
                          Classes="erp-input"
                          PlaceholderText="Поиск по ФИО или телефону..."
@@ -46,7 +46,7 @@
 
             <dg:DataGrid Grid.Row="2"
                          Classes="erp-grid"
-                         Margin="16,12,16,0"
+                         Margin="16,0,16,0"
                          ItemsSource="{Binding Customers}"
                          SelectedItem="{Binding SelectedCustomer}"
                          AutoGenerateColumns="False"
@@ -54,8 +54,10 @@
                          CanUserReorderColumns="False"
                          CanUserResizeColumns="True">
                 <dg:DataGrid.Columns>
-                    <dg:DataGridTextColumn Header="ФИО / Компания" Binding="{Binding FullName}" Width="*"/>
-                    <dg:DataGridTextColumn Header="Телефон" Binding="{Binding Phone}" Width="160"/>
+                    <dg:DataGridTextColumn Header="Наименование" Binding="{Binding FullName}" Width="*"/>
+                    <dg:DataGridTextColumn Header="Телефон" Binding="{Binding Phone}" Width="140"/>
+                    <dg:DataGridTextColumn Header="Тип" Binding="{Binding TypeDisplay}" Width="100"/>
+                    <dg:DataGridTextColumn Header="Город" Binding="{Binding City}" Width="120"/>
                     <dg:DataGridTextColumn Header="Баланс, сом" Binding="{Binding CurrentBalance, StringFormat=N0}" Width="110"/>
                 </dg:DataGrid.Columns>
             </dg:DataGrid>

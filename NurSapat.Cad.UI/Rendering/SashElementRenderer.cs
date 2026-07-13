@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Media;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.UI.Models;
+using NurSapat.Cad.UI.Services;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Orders;
 using System.Linq;
@@ -45,7 +46,7 @@ public static class SashElementRenderer
     {
         foreach (var element in SnapshotElements(elements))
         {
-            if (element.Kind == GeometryElementKind.Sash)
+            if (element.Kind is GeometryElementKind.Sash or GeometryElementKind.SlidingSash)
             {
                 DrawProfile(context, editor, element);
             }
@@ -62,7 +63,7 @@ public static class SashElementRenderer
     {
         foreach (var element in SnapshotElements(elements))
         {
-            if (element.Kind == GeometryElementKind.Sash)
+            if (element.Kind is GeometryElementKind.Sash or GeometryElementKind.SlidingSash)
             {
                 DrawOpeningIndicator(context, editor, element);
             }
@@ -71,25 +72,27 @@ public static class SashElementRenderer
 
     public static void DrawHardwareOverlays(DrawingContext context, CadEditorViewModel editor, IEnumerable<GeometryElement> elements)
     {
-        foreach (var element in SnapshotElements(elements))
+        var list = SnapshotElements(elements);
+        foreach (var element in list)
         {
-            if (element.Kind == GeometryElementKind.Sash)
+            if (element.Kind is GeometryElementKind.Sash or GeometryElementKind.SlidingSash)
             {
-                DrawHardwareOverlay(context, editor, element);
+                DrawHardwareOverlay(context, editor, element, list);
             }
         }
     }
 
-    public static void Draw(DrawingContext context, CadEditorViewModel editor, GeometryElement element)
+    public static void Draw(DrawingContext context, CadEditorViewModel editor, GeometryElement element, IEnumerable<GeometryElement>? allElements = null)
     {
+        var list = SnapshotElements(allElements ?? [element]);
         DrawProfile(context, editor, element);
         DrawOpeningIndicator(context, editor, element);
-        DrawHardwareOverlay(context, editor, element);
+        DrawHardwareOverlay(context, editor, element, list);
     }
 
     public static void DrawProfile(DrawingContext context, CadEditorViewModel editor, GeometryElement element)
     {
-        if (editor?.Viewport == null || element.Kind != GeometryElementKind.Sash)
+        if (editor?.Viewport == null || element.Kind is not (GeometryElementKind.Sash or GeometryElementKind.SlidingSash))
         {
             return;
         }
@@ -169,7 +172,7 @@ public static class SashElementRenderer
 
     private static void DrawOpeningIndicator(DrawingContext context, CadEditorViewModel editor, GeometryElement element)
     {
-        if (editor?.Viewport == null || element.Kind != GeometryElementKind.Sash)
+        if (editor?.Viewport == null || element.Kind is not (GeometryElementKind.Sash or GeometryElementKind.SlidingSash))
         {
             return;
         }
@@ -197,9 +200,13 @@ public static class SashElementRenderer
         DrawOpeningDirectionLines(context, editor, inner, opening, hinge, OpeningIndicatorPen);
     }
 
-    private static void DrawHardwareOverlay(DrawingContext context, CadEditorViewModel editor, GeometryElement element)
+    private static void DrawHardwareOverlay(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        GeometryElement element,
+        IReadOnlyList<GeometryElement> allElements)
     {
-        if (editor?.Viewport == null || element.Kind != GeometryElementKind.Sash)
+        if (editor?.Viewport == null || element.Kind is not (GeometryElementKind.Sash or GeometryElementKind.SlidingSash))
         {
             return;
         }
@@ -231,6 +238,11 @@ public static class SashElementRenderer
             return;
         }
 
+        var handleElement = allElements.FirstOrDefault(item =>
+            item.Kind == GeometryElementKind.Handle && item.HostSashId == element.Id);
+        var handleSide = handleElement?.HingeSide
+            ?? CadHostedElementHelper.ResolveDefaultHandleSide(hinge, opening);
+
         if (element.HasHandle)
         {
             DrawHandleOnGlass(
@@ -239,7 +251,7 @@ public static class SashElementRenderer
                 inner,
                 glass,
                 outer,
-                hinge,
+                handleSide,
                 preview: false);
         }
 
@@ -247,6 +259,30 @@ public static class SashElementRenderer
         {
             DrawSashHinges(context, editor, inner, outer, hinge, opening, preview: false);
         }
+
+        foreach (var accessory in allElements.Where(item =>
+                     item.Kind == GeometryElementKind.Hardware && item.HostSashId == element.Id))
+        {
+            DrawSashHardwareMarker(context, editor, inner, accessory);
+        }
+    }
+
+    private static void DrawSashHardwareMarker(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        SashGeometry.InnerOpeningBounds inner,
+        GeometryElement accessory)
+    {
+        var center = accessory.SourceToolId switch
+        {
+            CadCreationToolCatalog.Lock => new CadPoint(inner.Right - 40, (inner.Bottom + inner.Top) / 2.0),
+            CadCreationToolCatalog.OpeningLimiter => new CadPoint((inner.Left + inner.Right) / 2.0, inner.Top - 20),
+            CadCreationToolCatalog.DoorCloser => new CadPoint((inner.Left + inner.Right) / 2.0, inner.Bottom + 20),
+            CadCreationToolCatalog.Espagnolette => new CadPoint(inner.Left + 40, (inner.Bottom + inner.Top) / 2.0),
+            _ => new CadPoint((inner.Left + inner.Right) / 2.0, (inner.Bottom + inner.Top) / 2.0)
+        };
+        var screen = WorldToScreen(editor, center);
+        context.DrawEllipse(Brushes.White, HandleOutlinePen, screen, 6, 6);
     }
 
     public static void DrawPreview(DrawingContext context, CadEditorViewModel editor, SashDragPreview preview)
@@ -413,6 +449,7 @@ public static class SashElementRenderer
         {
             case SashOpeningType.Turn:
             case SashOpeningType.TiltTurn:
+            case SashOpeningType.Suspended:
                 if (IsSideHungHinge(hingeSide))
                 {
                     DrawSideTurnOpeningLines(context, editor, pen, hingeSide, inner);
@@ -422,9 +459,25 @@ public static class SashElementRenderer
                     DrawTiltOpeningLines(context, editor, pen, hingeSide, inner);
                 }
 
+                if (opening is SashOpeningType.TiltTurn or SashOpeningType.Suspended)
+                {
+                    DrawTiltOpeningLines(context, editor, pen, SashHingeSide.Bottom, inner);
+                }
+
+                break;
+            case SashOpeningType.Tilt:
+                DrawTiltOpeningLines(context, editor, pen, hingeSide, inner);
+                break;
+            case SashOpeningType.Folding:
+                DrawSideTurnOpeningLines(context, editor, pen, SashHingeSide.Left, inner);
+                DrawSideTurnOpeningLines(context, editor, pen, SashHingeSide.Right, inner);
                 break;
         }
     }
+
+    private static bool ShouldDrawOpeningDirectionLines(SashOpeningType opening) =>
+        opening is SashOpeningType.Turn or SashOpeningType.TiltTurn or SashOpeningType.Tilt
+            or SashOpeningType.Suspended or SashOpeningType.Folding;
 
     private static bool IsSideHungHinge(SashHingeSide hingeSide) =>
         hingeSide is SashHingeSide.Left or SashHingeSide.Right;
@@ -496,9 +549,6 @@ public static class SashElementRenderer
         CadPoint from,
         CadPoint to) =>
         context.DrawLine(pen, WorldToScreen(editor, from), WorldToScreen(editor, to));
-
-    private static bool ShouldDrawOpeningDirectionLines(SashOpeningType opening) =>
-        opening is SashOpeningType.Turn or SashOpeningType.TiltTurn;
 
     private static void DrawSashHinges(
         DrawingContext context,

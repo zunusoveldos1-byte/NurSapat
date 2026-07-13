@@ -61,7 +61,7 @@ public sealed partial class CustomerSelectDialogViewModel : ViewModelBase
     public void ReloadCustomers()
     {
         _allRows.Clear();
-        foreach (var item in _customersStore.GetAll().Where(c => c.Type != Models.Dictionaries.CustomerType.Dealer))
+        foreach (var item in _customersStore.GetAll().Where(c => c.CanSelectForOrder))
         {
             _allRows.Add(CustomerRowViewModel.FromItem(item));
         }
@@ -77,7 +77,9 @@ public sealed partial class CustomerSelectDialogViewModel : ViewModelBase
         {
             if (query.Length == 0
                 || row.FullName.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || row.Phone.Contains(query, StringComparison.OrdinalIgnoreCase))
+                || row.Phone.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || row.City.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || row.TypeDisplay.Contains(query, StringComparison.OrdinalIgnoreCase))
             {
                 Customers.Add(row);
             }
@@ -95,6 +97,16 @@ public sealed class CustomerRowViewModel
 
     public string Phone => Model.Phone;
 
+    public string City => Model.City;
+
+    public string TypeDisplay => Model.Type switch
+    {
+        CustomerType.Individual => "Физ. лицо",
+        CustomerType.LegalEntity => "Юр. лицо",
+        CustomerType.Dealer => "Дилер",
+        _ => Model.Type.ToString()
+    };
+
     public decimal CurrentBalance => Model.CurrentBalance;
 
     public bool HasDebt => Model.HasDebt;
@@ -103,13 +115,6 @@ public sealed class CustomerRowViewModel
 
     public static CustomerRowViewModel FromItem(Models.Dictionaries.CustomerItem item) => new()
     {
-        Model = new Customer
-        {
-            Id = item.Id,
-            FullName = item.FullName,
-            Phone = CustomerPhoneValidator.IsValid(item.Phone) ? item.Phone : CustomerPhoneValidator.Normalize(item.Phone),
-            CurrentBalance = -item.Debt,
-            IsActive = true
-        }
+        Model = item.Clone()
     };
 }

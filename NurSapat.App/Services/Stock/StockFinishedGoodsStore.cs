@@ -1,4 +1,7 @@
+using NurSapat.App.Models.Orders;
 using NurSapat.App.Models.Stock;
+using NurSapat.App.Services.Orders;
+using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.App.Services.Stock;
 
@@ -15,7 +18,7 @@ public interface IStockFinishedGoodsStore
     void Delete(Guid id);
 }
 
-public sealed class StockFinishedGoodsStore : IStockFinishedGoodsStore
+public sealed class StockFinishedGoodsStore(IOrdersStore ordersStore) : IStockFinishedGoodsStore
 {
     private readonly List<FinishedGoodItem> _items = CreateDemoItems();
 
@@ -28,10 +31,15 @@ public sealed class StockFinishedGoodsStore : IStockFinishedGoodsStore
     public FinishedGoodItem? GetById(Guid id) =>
         _items.FirstOrDefault(item => item.Id == id);
 
-    public void Add(FinishedGoodItem item) => _items.Add(item);
+    public void Add(FinishedGoodItem item)
+    {
+        PrepareItem(item);
+        _items.Add(item);
+    }
 
     public void Update(FinishedGoodItem item)
     {
+        PrepareItem(item);
         var index = _items.FindIndex(x => x.Id == item.Id);
         if (index >= 0)
         {
@@ -41,11 +49,17 @@ public sealed class StockFinishedGoodsStore : IStockFinishedGoodsStore
 
     public void Delete(Guid id) => _items.RemoveAll(x => x.Id == id);
 
+    private void PrepareItem(FinishedGoodItem item)
+    {
+        item.LinkToOrder(ordersStore.GetAll());
+    }
+
     private static List<FinishedGoodItem> CreateDemoItems() =>
     [
         new()
         {
-            OrderNumber = "ЗК-2026-0142",
+            OrderId = DemoEntityIds.Order1024,
+            OrderNumber = "#1024",
             ProductCode = "FG-OK-0142-01",
             CellAddress = "A-12",
             State = FinishedGoodState.OnWarehouse,
@@ -54,7 +68,8 @@ public sealed class StockFinishedGoodsStore : IStockFinishedGoodsStore
         },
         new()
         {
-            OrderNumber = "ЗК-2026-0098",
+            OrderId = DemoEntityIds.Order1023,
+            OrderNumber = "#1023",
             ProductCode = "FG-DV-0098-02",
             CellAddress = "B-03",
             State = FinishedGoodState.QualityControl,
@@ -63,7 +78,8 @@ public sealed class StockFinishedGoodsStore : IStockFinishedGoodsStore
         },
         new()
         {
-            OrderNumber = "ЗК-2026-0061",
+            OrderId = DemoEntityIds.Order1022,
+            OrderNumber = "#1022",
             ProductCode = "FG-BL-0061-01",
             CellAddress = "C-07",
             State = FinishedGoodState.Shipped,

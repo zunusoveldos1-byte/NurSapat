@@ -1,0 +1,82 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Help"
+        xmlns:controls="clr-namespace:NurSapat.App.Views.Help.Controls"
+        x:Class="NurSapat.App.Views.Help.UpdateWindow"
+        x:DataType="vm:UpdateViewModel"
+        Title="Обновить программу"
+        Width="520"
+        Height="420"
+        MinWidth="460"
+        MinHeight="360"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <controls:ServiceWindowShell WindowTitle="Обновить программу">
+        <controls:ServiceWindowShell.BodyContent>
+            <StackPanel Spacing="16" HorizontalAlignment="Center">
+                <Border Classes="svc-update-icon">
+                    <Image Source="/Assets/Icons/update.png"
+                       Width="32"
+                       Height="32"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                </Border>
+
+                <TextBlock Classes="svc-heading"
+                           Text="Проверка обновлений"
+                           TextAlignment="Center"/>
+
+                <Border Classes="svc-version-pill">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Classes="svc-label" Text="Текущая версия"/>
+                            <TextBlock Grid.Column="1" Classes="svc-value" Text="{Binding CurrentVersion}"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Classes="svc-label" Text="Доступная версия"/>
+                            <TextBlock Grid.Column="1" Classes="svc-value" Text="{Binding AvailableVersion}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <ProgressBar Minimum="0"
+                             Maximum="100"
+                             IsIndeterminate="{Binding IsUpdateProgressIndeterminate}"
+                             IsVisible="{Binding IsUpdating}"
+                             Height="6"
+                             Width="320"/>
+
+                <TextBlock Classes="svc-body"
+                           Text="{Binding StatusText}"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxWidth="380"/>
+            </StackPanel>
+        </controls:ServiceWindowShell.BodyContent>
+
+        <controls:ServiceWindowShell.FooterContent>
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Grid.Column="0"
+                        Classes="mat-primary"
+                        Content="Обновить"
+                        Command="{Binding UpdateCommand}"
+                        MinWidth="120"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+                <Button Grid.Column="2"
+                        Classes="mat-toolbar"
+                        Content="Закрыть"
+                        Command="{Binding CloseCommand}"
+                        MinWidth="100"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+            </Grid>
+        </controls:ServiceWindowShell.FooterContent>
+    </controls:ServiceWindowShell>
+</Window>

@@ -7,7 +7,7 @@ using Avalonia.Media;
 namespace NurSapat.Cad.UI.Converters;
 
 /// <summary>
-/// Resolves a string resource key (e.g. "Icon.CorrugationVertical") to a
+/// Resolves a string resource key (e.g. "CadIcon.CorrugationVertical") to a
 /// <see cref="Geometry"/> from the application-wide resource dictionary.
 /// </summary>
 public sealed class ResourceKeyToGeometryConverter : IValueConverter

@@ -32,12 +32,14 @@ public sealed partial class TemplatePickerViewModel : ObservableObject
     {
         var frame = _editor.CanvasElements.FirstOrDefault();
         var nextIndex = _store.Templates.Count + 1;
+        var geometryJson = _editor.TryCaptureConstructionGeometryJson();
         var template = new CadDrawingTemplate
         {
             Name = $"Шаблон {nextIndex}",
             WidthMm = _editor.Length > 0 ? _editor.Length : 1000,
             HeightMm = _editor.Height > 0 ? _editor.Height : 1000,
-            IsFakeFrame = frame?.Kind is GeometryElementKind.DummyFrame or GeometryElementKind.FictitiousFrame
+            IsFakeFrame = frame?.Kind is GeometryElementKind.DummyFrame or GeometryElementKind.FictitiousFrame,
+            GeometryJson = geometryJson
         };
         _store.Templates.Add(template);
         SelectedTemplate = template;

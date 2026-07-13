@@ -3,6 +3,7 @@ using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.UI.Models;
 using NurSapat.Cad.UI.Services;
+using NurSapat.Core.Models.Construction;
 using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.Cad.UI.ViewModels;
@@ -33,6 +34,32 @@ public sealed partial class CadEditorViewModel
 
     private bool _isSyncingExtremeImpostPanel;
 
+    /// <summary>
+    /// Параметры размещения крайнего импоста с учётом выбранного материала.
+    /// «Умные» накладные профили (нащельник) переключаются в магнитный режим
+    /// <see cref="ExtremeImpostPlacementKind.Auto"/>: ориентация определяется
+    /// автоматически, а тонкая толщина ставит фантом заподлицо с осью.
+    /// </summary>
+    private (ExtremeImpostPlacementKind Placement, double Thickness, double LightOpeningInsetMm) ResolveExtremeImpostPlacement()
+    {
+        var material = SelectedConstructionMaterialOption?.Material;
+
+        if (material is { SnapsToConstructionAxes: true })
+        {
+            var thickness = material.DrawThicknessMm is double draw && draw > CadMath.Epsilon
+                ? draw
+                : GetImpostProfileWidth(WindowToolMode.RealVerticalImpost);
+            var inset = material.LightOpeningInsetMm is double lightInset && lightInset > CadMath.Epsilon
+                ? lightInset
+                : thickness;
+
+            return (ExtremeImpostPlacementKind.Auto, thickness, inset);
+        }
+
+        var manualPlacement = SelectedExtremeImpostPlacementOption?.Kind ?? ExtremeImpostPlacementKind.Post;
+        return (manualPlacement, GetImpostProfileWidth(WindowToolMode.RealVerticalImpost), 0);
+    }
+
     public void UpdateExtremeImpostHover(CadPoint worldPoint)
     {
         if (CurrentToolMode != WindowToolMode.ExtremeImpost || FrameRoot is null)
@@ -41,8 +68,7 @@ public sealed partial class CadEditorViewModel
             return;
         }
 
-        var placement = SelectedExtremeImpostPlacementOption?.Kind ?? ExtremeImpostPlacementKind.Post;
-        var thickness = GetImpostProfileWidth(WindowToolMode.RealVerticalImpost);
+        var (placement, thickness, lightOpeningInset) = ResolveExtremeImpostPlacement();
         if (!ExtremeImpostGeometry.TryHitTestHover(
                 FrameRoot,
                 FrameThickness,
@@ -55,8 +81,12 @@ public sealed partial class CadEditorViewModel
             return;
         }
 
-        if (_extremeImpostHoverPreview?.Leaf == preview.Leaf
-            && _extremeImpostHoverPreview.Edge == preview.Edge)
+        if (_extremeImpostHoverPreview is { } current
+            && current.Leaf == preview.Leaf
+            && current.Edge == preview.Edge
+            && Math.Abs(current.AxisWorld - preview.AxisWorld) < CadMath.MmPrecision
+            && Math.Abs(current.SpanStart - preview.SpanStart) < CadMath.MmPrecision
+            && Math.Abs(current.SpanEnd - preview.SpanEnd) < CadMath.MmPrecision)
         {
             return;
         }
@@ -90,8 +120,7 @@ public sealed partial class CadEditorViewModel
             return false;
         }
 
-        var placement = SelectedExtremeImpostPlacementOption?.Kind ?? ExtremeImpostPlacementKind.Post;
-        var thickness = GetImpostProfileWidth(WindowToolMode.RealVerticalImpost);
+        var (placement, thickness, lightOpeningInset) = ResolveExtremeImpostPlacement();
         if (!ExtremeImpostGeometry.TryHitTestHover(
                 FrameRoot,
                 FrameThickness,
@@ -100,7 +129,7 @@ public sealed partial class CadEditorViewModel
                 thickness,
                 out var preview))
         {
-            StatusText = "Наведите курсор на край светового проёма";
+            StatusText = "Наведите курсор на секцию конструкции";
             return false;
         }
 
@@ -109,7 +138,13 @@ public sealed partial class CadEditorViewModel
             "Крайний импост установлен",
             () =>
             {
-                if (!preview.Leaf.TryUpsertExtremeImpost(orientation, preview.Edge, thickness))
+                if (!preview.Leaf.TryUpsertExtremeImpost(
+                        orientation,
+                        preview.Edge,
+                        thickness,
+                        spanStartMm: preview.SpanStart,
+                        spanEndMm: preview.SpanEnd,
+                        lightOpeningInsetMm: lightOpeningInset))
                 {
                     return false;
                 }
@@ -233,9 +268,14 @@ public sealed partial class CadEditorViewModel
                     SourceToolId = "mullion-edge",
                     IsExtremeImpost = true,
                     ExtremeImpostSlotId = slot.Id,
-                    HostFrameNodeId = leaf.NodeId
+                    HostFrameNodeId = leaf.NodeId,
+                    MaterialId = SelectedConstructionMaterialOption?.MaterialId
                 };
                 AddCanvasElement(element);
+            }
+            else if (SelectedConstructionMaterialOption?.MaterialId is Guid materialId)
+            {
+                element.MaterialId = materialId;
             }
 
             UpdateExtremeImpostElementGeometry(leaf, slot, element);
@@ -254,6 +294,91 @@ public sealed partial class CadEditorViewModel
         }
 
         RefreshConstructionVolume();
+        SyncAllNestedFrameElements();
+    }
+
+    private void SyncAllNestedFrameElements()
+    {
+        // Nested real frames exist only inside a fictitious container; the primary
+        // outer frame element must keep tracking FrameRoot after impost splits.
+        if (FrameRoot is null || !FrameRoot.IsFictitiousContainer)
+        {
+            return;
+        }
+
+        foreach (var leaf in EnumerateFrameLayoutLeaves(FrameRoot))
+        {
+            if (FindFrameInLeaf(leaf) is not null)
+            {
+                SyncNestedElementsInLeaf(leaf);
+            }
+        }
+    }
+
+    private static IEnumerable<FrameNode> EnumerateFrameLayoutLeaves(FrameNode node)
+    {
+        if (node.IsLeaf)
+        {
+            yield return node;
+            yield break;
+        }
+
+        if (node.IsUniformSplit)
+        {
+            foreach (var cell in node.UniformCells)
+            {
+                foreach (var leaf in EnumerateFrameLayoutLeaves(cell))
+                {
+                    yield return leaf;
+                }
+            }
+
+            yield break;
+        }
+
+        if (node.ChildA is not null)
+        {
+            foreach (var leaf in EnumerateFrameLayoutLeaves(node.ChildA))
+            {
+                yield return leaf;
+            }
+        }
+
+        if (node.ChildB is not null)
+        {
+            foreach (var leaf in EnumerateFrameLayoutLeaves(node.ChildB))
+            {
+                yield return leaf;
+            }
+        }
+    }
+
+    private void SyncNestedElementsInLeaf(FrameNode leaf)
+    {
+        var frame = FindFrameInLeaf(leaf);
+        if (frame is null)
+        {
+            return;
+        }
+
+        var probeX = (double)frame.X;
+        var probeY = (double)frame.Y;
+        var (originX, originY, width, height) = Rendering.SashGeometry.ResolvePlacementBoundsAtPoint(
+            leaf,
+            FrameRoot,
+            FrameThickness,
+            probeX,
+            probeY);
+
+        if (width <= CadMath.Epsilon || height <= CadMath.Epsilon)
+        {
+            return;
+        }
+
+        frame.X = (decimal)RoundMm(originX + width / 2.0);
+        frame.Y = (decimal)RoundMm(originY + height / 2.0);
+        frame.WidthMm = (decimal)width;
+        frame.HeightMm = (decimal)height;
     }
 
     private void UpdateExtremeImpostElementGeometry(FrameNode leaf, ExtremeImpostSlot slot, GeometryElement element)
@@ -263,9 +388,18 @@ public sealed partial class CadEditorViewModel
             return;
         }
 
-        var inner = Rendering.SashGeometry.ResolveLeafInnerOpeningBounds(leaf, FrameRoot, FrameThickness, includeExtremeImposts: false);
-        var axis = ExtremeImpostGeometry.ResolveAxisWorld(inner, slot.EdgeAlignment, slot.ThicknessMm, slot.OffsetMm);
-        ExtremeImpostGeometry.ResolveSpan(inner, slot.EdgeAlignment, out var spanStart, out var spanEnd);
+        var cellAxes = Rendering.SashGeometry.ResolveLeafCellAxisBounds(leaf, FrameRoot, FrameThickness, includeExtremeImposts: false);
+        var axis = ExtremeImpostGeometry.ResolveAxisWorld(cellAxes, slot.EdgeAlignment, slot.ThicknessMm, slot.OffsetMm);
+        ExtremeImpostGeometry.ResolveSpan(
+            leaf,
+            FrameRoot,
+            FrameThickness,
+            cellAxes,
+            slot.EdgeAlignment,
+            slot.ThicknessMm,
+            out var spanStart,
+            out var spanEnd,
+            slot);
         element.EdgeAlignment = slot.EdgeAlignment;
         element.ExtremeImpostOffsetMm = slot.OffsetMm;
         element.HostFrameNodeId = leaf.NodeId;

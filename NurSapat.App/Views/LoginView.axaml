@@ -315,7 +315,8 @@
                                     Content="{Binding SupportPhoneDisplay}"
                                     Command="{Binding OpenPhoneCommand}"
                                     HorizontalAlignment="Left"
-                                    VerticalAlignment="Center"/>
+                                    VerticalAlignment="Center"
+                                    Focusable="False"/>
                         </Grid>
     
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
@@ -328,7 +329,8 @@
                                     Content="{Binding SupportEmail}"
                                     Command="{Binding OpenEmailCommand}"
                                     HorizontalAlignment="Left"
-                                    VerticalAlignment="Center"/>
+                                    VerticalAlignment="Center"
+                                    Focusable="False"/>
                         </Grid>
     
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
@@ -341,7 +343,8 @@
                                     Content="{Binding SupportTelegramUrl}"
                                     Command="{Binding OpenTelegramCommand}"
                                     HorizontalAlignment="Left"
-                                    VerticalAlignment="Center"/>
+                                    VerticalAlignment="Center"
+                                    Focusable="False"/>
                         </Grid>
     
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">

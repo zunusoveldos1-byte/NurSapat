@@ -121,6 +121,29 @@ public sealed class ConstructionProjectData
     public ConstructionCostData Cost { get; set; } = new();
 
     public ConstructionMetricsData Metrics { get; set; } = new();
+
+    public List<CostSpecificationLineData> SpecificationLines { get; set; } = [];
+}
+
+public sealed class CostSpecificationLineData
+{
+    public Guid MaterialId { get; set; }
+
+    public Guid? ConstructionMaterialId { get; set; }
+
+    public string Category { get; set; } = string.Empty;
+
+    public string MaterialName { get; set; } = string.Empty;
+
+    public string Article { get; set; } = string.Empty;
+
+    public decimal Quantity { get; set; }
+
+    public string Unit { get; set; } = string.Empty;
+
+    public decimal UnitPrice { get; set; }
+
+    public decimal WastePercent { get; set; }
 }
 
 public sealed class ConstructionAppearanceData
@@ -175,6 +198,8 @@ public sealed class GeometryElementData
 
     public bool HasHandle { get; set; }
 
+    public bool HasMosquitoNet { get; set; }
+
     public Guid? HostSashId { get; set; }
 
     public Guid? ProfileSeriesId { get; set; }
@@ -188,6 +213,16 @@ public sealed class GeometryElementData
     public decimal? EndY { get; set; }
 
     public Guid? ParentGlazingId { get; set; }
+
+    public Guid? ParentBeadId { get; set; }
+
+    public Guid? LinkedGlazingId { get; set; }
+
+    public Guid? GlassMaterialId { get; set; }
+
+    public double? BeadOffsetMm { get; set; }
+
+    public DateTimeOffset? CreatedAt { get; set; }
 
     public string? SpokeType { get; set; }
 
@@ -208,6 +243,20 @@ public sealed class GeometryElementData
     public decimal? SpokeArcCenterY { get; set; }
 
     public double? SpokeArcRadius { get; set; }
+
+    public bool IsExtremeImpost { get; set; }
+
+    public string? EdgeAlignment { get; set; }
+
+    public double? ExtremeImpostOffsetMm { get; set; }
+
+    public Guid? HostFrameNodeId { get; set; }
+
+    public Guid? ExtremeImpostSlotId { get; set; }
+
+    public string? FillType { get; set; }
+
+    public string? Shape { get; set; }
 }
 
 public sealed class ConstructionCostData

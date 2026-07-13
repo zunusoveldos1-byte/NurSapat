@@ -21,7 +21,7 @@
     </Window.Styles>
 
     <Border Classes="mat-shell" Margin="12">
-        <Grid RowDefinitions="40,*,Auto">
+        <Grid RowDefinitions="32,*,Auto">
             <Border Grid.Row="0"
                     Classes="mat-titlebar"
                     PointerPressed="OnTitleBarPointerPressed">
@@ -44,7 +44,7 @@
                 </Grid>
             </Border>
 
-            <ScrollViewer Grid.Row="1" Margin="12,12,12,0" Padding="16,0,16,16">
+            <ScrollViewer Grid.Row="1" Margin="12,0,12,0" Padding="16,0,16,16">
                 <Grid ColumnDefinitions="2*,*" ColumnSpacing="16">
                     <StackPanel Grid.Column="0" Spacing="12">
                         <Border Classes="mat-card">

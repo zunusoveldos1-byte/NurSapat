@@ -6,7 +6,8 @@ public enum DimensionHitKind
 {
     OverallWidth,
     OverallHeight,
-    SegmentWidth
+    SegmentWidth,
+    SegmentHeight
 }
 
 /// <summary>
@@ -32,9 +33,15 @@ public sealed class DimensionHitInfo
     /// <summary>Мировые X границ сегментов: [левый торец, импосты…, правый торец].</summary>
     public IReadOnlyList<double>? BoundaryWorldX { get; init; }
 
+    /// <summary>Мировые Y границ сегментов: [низ, импосты…, верх].</summary>
+    public IReadOnlyList<double>? BoundaryWorldY { get; init; }
+
     /// <summary>Импост, который нужно сдвинуть при изменении внутреннего сегмента.</summary>
     public VerticalImpostTarget? ImpostTarget { get; init; }
 
     /// <summary>true — сдвигать правую границу сегмента; false — левую (для крайнего правого сегмента).</summary>
     public bool MoveRightBoundary { get; init; }
+
+    /// <summary>true — сдвигать верхнюю границу сегмента; false — нижнюю (для крайнего верхнего сегмента).</summary>
+    public bool MoveUpperBoundary { get; init; }
 }

@@ -20,5 +20,5 @@ public sealed class CadPreviewEditorFactory : ICadPreviewEditorFactory
     }
 
     public CadEditorViewModel CreatePreviewEditor() =>
-        new(_dialogService, _templateStore, materialRepository: null);
+        new(_dialogService, _templateStore);
 }

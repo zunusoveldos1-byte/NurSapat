@@ -144,13 +144,18 @@ public static class ConstructionVolumeCalculator
             GeometryElementKind.RoundDummyFrame => ResolveRoundFrameLengthMm(element, material),
             GeometryElementKind.TriangleDummyFrame => ResolveTriangleFramePerimeterMm(element),
             GeometryElementKind.Corrugation or GeometryElementKind.MosquitoNet
+                or GeometryElementKind.Accessory or GeometryElementKind.Installation
+                or GeometryElementKind.Handle or GeometryElementKind.Hardware
                 => Math.Sqrt((double)element.WidthMm * (double)element.HeightMm),
             GeometryElementKind.Sill => (double)element.WidthMm,
             GeometryElementKind.Mullion or GeometryElementKind.DummyMullion or GeometryElementKind.EdgeMullion
                 => ResolveMullionLengthMm(element),
             GeometryElementKind.Frame or GeometryElementKind.Sash or GeometryElementKind.ArchFrame
                 or GeometryElementKind.TransitionFrame or GeometryElementKind.Bead
-                => ResolveRectangularPerimeterMm(element, endCutType),
+                or GeometryElementKind.SlidingSash
+                => element.Shape == ConstructionShape.Triangle
+                    ? ResolveTriangleFramePerimeterMm(element)
+                    : ResolveRectangularPerimeterMm(element, endCutType),
             GeometryElementKind.DecorativeSpoke
                 => DecorativeSpokeMetricsCalculator.CalculateTotalLengthMm(element),
             _ => 0

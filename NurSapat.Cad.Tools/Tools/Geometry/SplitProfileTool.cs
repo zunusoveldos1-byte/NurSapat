@@ -1,19 +1,22 @@
 namespace NurSapat.Cad.Tools.Tools.Geometry;
 
 /// <summary>
-/// Разделение существующего импоста или стороны рамы новой вершиной.
-/// TODO: split FrameNode at click position.
+/// Делит выбранный профиль (ячейку или импост) пополам перпендикулярным разрезом.
 /// </summary>
-public sealed class SplitProfileTool : CadToolBase
+public sealed class SplitProfileTool : InstantCadToolBase
 {
     public override CadToolKind Kind => CadToolKind.SplitProfile;
     public override string Id => CadToolMetadata.GetId(Kind);
     public override string DisplayName => CadToolMetadata.GetDisplayName(Kind);
-    public override bool IsImplemented => false;
 
-    public override void OnActivated(CadToolContext context) =>
-        context.SetStatus?.Invoke($"{DisplayName}: кликните по профилю в точке разделения");
+    protected override bool TryExecute(CadToolContext context)
+    {
+        if (context.TrySplitProfile is null)
+        {
+            context.SetStatus?.Invoke("Редактор не поддерживает разбиение профиля");
+            return false;
+        }
 
-    public override void OnMouseDown(CadToolContext context, CadPointerEvent e) =>
-        ReportNotImplemented(context, DisplayName);
+        return context.TrySplitProfile();
+    }
 }

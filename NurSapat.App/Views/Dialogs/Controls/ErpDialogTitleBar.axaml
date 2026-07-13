@@ -1,7 +1,12 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="NurSapat.App.Views.Dialogs.Controls.ErpDialogTitleBar"
-             x:Name="Root">
+             x:Name="Root"
+             Classes="erp-dialog-titlebar"
+             Padding="0"
+             Margin="0"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch">
 
     <Border x:Name="TitleBarBorder" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
         <Grid Height="32" ColumnDefinitions="*,Auto">

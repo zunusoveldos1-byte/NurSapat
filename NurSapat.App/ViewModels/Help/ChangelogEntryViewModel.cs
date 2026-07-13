@@ -4,7 +4,9 @@ public sealed class ChangelogEntryViewModel
 {
     public string Version { get; init; } = string.Empty;
 
-    public string Title { get; init; } = string.Empty;
+    public string ReleaseDate { get; init; } = string.Empty;
 
-    public IReadOnlyList<string> Items { get; init; } = [];
+    public string VersionLabel { get; init; } = string.Empty;
+
+    public IReadOnlyList<string> Changes { get; init; } = [];
 }

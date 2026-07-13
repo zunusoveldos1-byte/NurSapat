@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Media;
 using NurSapat.Cad.Core.Geometry;
@@ -98,6 +99,7 @@ internal static class CorrugationFillRenderer
         {
             "corrugation-h" => GlazingType.HorizontalCorrugation,
             "corrugation-v" => GlazingType.VerticalCorrugation,
+            "corrugation-slanted" => GlazingType.SlantedCorrugation,
             _ => GlazingType.VerticalCorrugation
         };
 
@@ -149,10 +151,95 @@ internal static class CorrugationFillRenderer
             return;
         }
 
+        if (fillType == GlazingType.SlantedCorrugation)
+        {
+            DrawSlantedCorrugationLines(context, editor, bounds);
+            return;
+        }
+
         for (var y = bounds.Bottom + LineSpacingMm; y < bounds.Top; y += LineSpacingMm)
         {
             DrawClippedHorizontalLine(context, editor, bounds, y);
         }
+    }
+
+    private static void DrawSlantedCorrugationLines(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        SashGeometry.GlassOpeningBounds bounds)
+    {
+        var corners = new[]
+        {
+            (bounds.Left, bounds.Bottom),
+            (bounds.Right, bounds.Bottom),
+            (bounds.Left, bounds.Top),
+            (bounds.Right, bounds.Top)
+        };
+
+        var minK = corners.Min(c => c.Item1 - c.Item2) - LineSpacingMm;
+        var maxK = corners.Max(c => c.Item1 - c.Item2) + LineSpacingMm;
+
+        for (var k = minK; k <= maxK; k += LineSpacingMm)
+        {
+            if (!TryClipDiagonalLine(bounds, k, out var start, out var end))
+            {
+                continue;
+            }
+
+            DrawWorldLine(context, editor, start, end);
+        }
+    }
+
+    /// <summary>Линия x - y = k под углом 45° (вверх-вправо), обрезанная по прямоугольнику.</summary>
+    private static bool TryClipDiagonalLine(
+        SashGeometry.GlassOpeningBounds bounds,
+        double k,
+        out CadPoint start,
+        out CadPoint end)
+    {
+        start = default;
+        end = default;
+        var points = new List<CadPoint>();
+
+        void TryAdd(double x, double y)
+        {
+            if (x >= bounds.Left - CadMath.Epsilon
+                && x <= bounds.Right + CadMath.Epsilon
+                && y >= bounds.Bottom - CadMath.Epsilon
+                && y <= bounds.Top + CadMath.Epsilon)
+            {
+                points.Add(new CadPoint(x, y));
+            }
+        }
+
+        TryAdd(bounds.Left, bounds.Left - k);
+        TryAdd(bounds.Right, bounds.Right - k);
+        TryAdd(bounds.Bottom + k, bounds.Bottom);
+        TryAdd(bounds.Top + k, bounds.Top);
+
+        if (points.Count < 2)
+        {
+            return false;
+        }
+
+        var distinct = points
+            .GroupBy(p => (CadMath.RoundMm(p.X), CadMath.RoundMm(p.Y)))
+            .Select(g => g.First())
+            .ToList();
+        if (distinct.Count < 2)
+        {
+            return false;
+        }
+
+        distinct.Sort((a, b) =>
+        {
+            var cmp = a.X.CompareTo(b.X);
+            return cmp != 0 ? cmp : a.Y.CompareTo(b.Y);
+        });
+
+        start = distinct[0];
+        end = distinct[^1];
+        return end.X - start.X > CadMath.Epsilon || end.Y - start.Y > CadMath.Epsilon;
     }
 
     private static void DrawClippedVerticalLine(

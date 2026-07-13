@@ -3,7 +3,7 @@
         xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
         xmlns:views="clr-namespace:NurSapat.App.Views"
         x:Class="NurSapat.App.Views.MainWindow"
-        x:DataType="vm:LoginViewModel"
+        x:DataType="vm:MainWindowViewModel"
         Title="NurSapat"
         Icon="/Assets/logo.ico"
         Width="1240" Height="820"
@@ -32,6 +32,6 @@
             </Transitions>
         </Border.Transitions>
 
-        <views:LoginView/>
+        <ContentControl Content="{Binding CurrentView}"/>
     </Border>
 </Window>

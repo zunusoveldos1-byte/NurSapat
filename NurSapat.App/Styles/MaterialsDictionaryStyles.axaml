@@ -7,12 +7,27 @@
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="12"/>
         <Setter Property="BoxShadow" Value="0 12 32 0 #220F172A"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="ClipToBounds" Value="True"/>
+    </Style>
+
+    <Style Selector="Border.mat-shell > Grid">
+        <Setter Property="RowSpacing" Value="0"/>
+        <Setter Property="ColumnSpacing" Value="0"/>
+        <Setter Property="Margin" Value="0"/>
     </Style>
 
     <Style Selector="Border.mat-titlebar">
         <Setter Property="Background" Value="#0F172A"/>
         <Setter Property="Height" Value="32"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="MaxHeight" Value="32"/>
+        <Setter Property="Margin" Value="0,0,0,-1"/>
+        <Setter Property="Padding" Value="0"/>
         <Setter Property="CornerRadius" Value="12,12,0,0"/>
+        <Setter Property="VerticalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="ZIndex" Value="1"/>
     </Style>
 
     <Style Selector="TextBlock.mat-titlebar-text">

@@ -19,7 +19,7 @@
     </Window.Styles>
 
     <Border Classes="mat-shell" Margin="12">
-        <Grid RowDefinitions="40,*,Auto">
+        <Grid RowDefinitions="32,*,Auto">
             <Border Grid.Row="0"
                     Classes="mat-titlebar"
                     PointerPressed="OnTitleBarPointerPressed">

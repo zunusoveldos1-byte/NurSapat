@@ -22,6 +22,17 @@ internal static class ProfileBandHitTest
         return ContainsPoint(outerLoop, innerLoop, rectCenter(rect));
     }
 
+    public static bool ContainsPointInTriangularBand(
+        CadPoint outerBl,
+        CadPoint outerBr,
+        CadPoint outerTop,
+        CadPoint innerBl,
+        CadPoint innerBr,
+        CadPoint innerTop,
+        CadPoint point) =>
+        FrameTriangleGeometry.ContainsPoint(outerBl, outerBr, outerTop, point.X, point.Y)
+        && !FrameTriangleGeometry.ContainsPoint(innerBl, innerBr, innerTop, point.X, point.Y);
+
     public static bool ContainsPointInRectangularBand(
         double outerLeft,
         double outerBottom,

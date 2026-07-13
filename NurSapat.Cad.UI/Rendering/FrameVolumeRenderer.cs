@@ -3,6 +3,8 @@ using Avalonia.Media;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.UI.ViewModels;
+using NurSapat.Core.Models.Orders;
+using System.Collections.Generic;
 
 namespace NurSapat.Cad.UI.Rendering;
 
@@ -204,6 +206,149 @@ public static class FrameVolumeRenderer
         }
     }
 
+    /// <summary>
+    /// Переходной профиль: только кольцо адаптера по периметру проёма без
+    /// отдельной внутренней коробки и без размерных линий.
+    /// </summary>
+    public static void DrawTransitionProfileBand(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        double originX,
+        double originY,
+        double width,
+        double height,
+        double profileThicknessMm,
+        IReadOnlyDictionary<ImpostEdgeAlignment, double>? extremeImpostAxes = null)
+    {
+        if (editor.Viewport is null || width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        var halfThickness = FrameProfileGeometry.ResolveProfileThickness(width, height, profileThicknessMm) / 2.0;
+        if (halfThickness <= CadMath.Epsilon)
+        {
+            DrawFallbackOutline(context, editor, originX, originY, width, height, dashed: false);
+            return;
+        }
+
+        var x0 = originX;
+        var y0 = originY;
+        var x1 = originX + width;
+        var y1 = originY + height;
+
+        double xi0Bl, xi1Br, xi0Tl, xi1Tr, yi0Bl, yi0Br, yi1Tl, yi1Tr;
+        if (editor.FrameRoot is { } frameRoot)
+        {
+            var centerX = originX + width / 2.0;
+            var centerY = originY + height / 2.0;
+            var leaf = frameRoot.FindLeafAt(centerX, centerY);
+            if (leaf is not null)
+            {
+                SashGeometry.ApplyExtremeImpostJunctionToTransitionBandOuter(
+                    leaf,
+                    frameRoot,
+                    editor.FrameThickness,
+                    ref x0,
+                    ref y0,
+                    ref x1,
+                    ref y1);
+
+                if (x1 <= x0 + CadMath.Epsilon || y1 <= y0 + CadMath.Epsilon)
+                {
+                    return;
+                }
+
+                SashGeometry.ResolveTransitionBandInnerCorners(
+                    leaf,
+                    frameRoot,
+                    editor.FrameThickness,
+                    x0,
+                    y0,
+                    x1,
+                    y1,
+                    halfThickness,
+                    out var innerLeftBottom,
+                    out var innerRightBottom,
+                    out var innerLeftTop,
+                    out var innerRightTop,
+                    out var innerBottomLeft,
+                    out var innerTopLeft,
+                    out var innerBottomRight,
+                    out var innerTopRight);
+                xi0Bl = innerLeftBottom;
+                xi1Br = innerRightBottom;
+                xi0Tl = innerLeftTop;
+                xi1Tr = innerRightTop;
+                yi0Bl = innerBottomLeft;
+                yi0Br = innerBottomRight;
+                yi1Tl = innerTopLeft;
+                yi1Tr = innerTopRight;
+            }
+            else
+            {
+                xi0Bl = xi0Tl = x0 + halfThickness;
+                xi1Br = xi1Tr = x1 - halfThickness;
+                yi0Bl = yi0Br = y0 + halfThickness;
+                yi1Tl = yi1Tr = y1 - halfThickness;
+            }
+        }
+        else
+        {
+            xi0Bl = xi0Tl = x0 + halfThickness;
+            xi1Br = xi1Tr = x1 - halfThickness;
+            yi0Bl = yi0Br = y0 + halfThickness;
+            yi1Tl = yi1Tr = y1 - halfThickness;
+
+            if (extremeImpostAxes is not null)
+            {
+                foreach (var (edge, axis) in extremeImpostAxes)
+                {
+                    switch (edge)
+                    {
+                        case ImpostEdgeAlignment.Left:
+                            x0 = Math.Max(x0, axis);
+                            xi0Bl = xi0Tl = Math.Max(xi0Bl, axis);
+                            break;
+                        case ImpostEdgeAlignment.Right:
+                            x1 = Math.Min(x1, axis);
+                            xi1Br = xi1Tr = Math.Min(xi1Br, axis);
+                            break;
+                        case ImpostEdgeAlignment.Bottom:
+                            y0 = Math.Max(y0, axis);
+                            yi0Bl = yi0Br = Math.Max(yi0Bl, axis);
+                            break;
+                        case ImpostEdgeAlignment.Top:
+                            y1 = Math.Min(y1, axis);
+                            yi1Tl = yi1Tr = Math.Min(yi1Tl, axis);
+                            break;
+                    }
+                }
+            }
+        }
+
+        DrawRail(context, editor, ProfilePen, ProfileFill,
+            new CadPoint(x0, y0), new CadPoint(x1, y0),
+            new CadPoint(xi1Br, yi0Br), new CadPoint(xi0Bl, yi0Bl));
+
+        DrawRail(context, editor, ProfilePen, ProfileFill,
+            new CadPoint(x0, y1), new CadPoint(x1, y1),
+            new CadPoint(xi1Tr, yi1Tr), new CadPoint(xi0Tl, yi1Tl));
+
+        DrawRail(context, editor, ProfilePen, ProfileFill,
+            new CadPoint(x0, y0), new CadPoint(x0, y1),
+            new CadPoint(xi0Tl, yi1Tl), new CadPoint(xi0Bl, yi0Bl));
+
+        DrawRail(context, editor, ProfilePen, ProfileFill,
+            new CadPoint(x1, y0), new CadPoint(x1, y1),
+            new CadPoint(xi1Tr, yi1Tr), new CadPoint(xi1Br, yi0Br));
+
+        DrawCornerMiter(context, editor, new CadPoint(x0, y0), new CadPoint(xi0Bl, yi0Bl));
+        DrawCornerMiter(context, editor, new CadPoint(x1, y0), new CadPoint(xi1Br, yi0Br));
+        DrawCornerMiter(context, editor, new CadPoint(x0, y1), new CadPoint(xi0Tl, yi1Tl));
+        DrawCornerMiter(context, editor, new CadPoint(x1, y1), new CadPoint(xi1Tr, yi1Tr));
+    }
+
     public static void DrawArchedProfileContours(
         DrawingContext context,
         CadEditorViewModel editor,
@@ -278,6 +423,11 @@ public static class FrameVolumeRenderer
         var handleBrush = SelectionHighlightBrush;
 
         DrawArcHandleEllipse(context, editor, springingHandle, handleBrush);
+
+        if (editor.CurrentToolMode == WindowToolMode.ArcVertex)
+        {
+            DrawArcHandleEllipse(context, editor, segment.GetArcApexWorld(), handleBrush);
+        }
     }
 
     private static void DrawArcHandleEllipse(

@@ -4,6 +4,7 @@ using NurSapat.App.Services.EditDialogs;
 using NurSapat.App.Services.Settings;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models;
+using NurSapat.Core.Models.Calculation;
 using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.App.Services.Export;
@@ -234,103 +235,58 @@ public sealed class ExportService : IExportService
     {
         var lines = new List<MaterialLineExportNode>();
         var quantity = Math.Max(1, construction.Cost.Quantity);
-        var billableElements = construction.Geometry.Elements
-            .Where(element => !FictitiousFrame.IsFictitiousElement(element)
-                              && !DummyFrame.IsDummyElement(element))
-            .ToList();
-        if (billableElements.Count == 0)
+
+        if (construction.SpecificationLines.Count > 0)
+        {
+            foreach (var line in construction.SpecificationLines)
+            {
+                lines.Add(new MaterialLineExportNode
+                {
+                    MaterialId = line.MaterialId,
+                    Article = string.IsNullOrWhiteSpace(line.Article) ? "MAT" : line.Article,
+                    Name = line.MaterialName,
+                    Unit = line.Unit,
+                    Quantity = Math.Round(line.Quantity * quantity, 3),
+                    UnitPrice = line.UnitPrice,
+                    TotalCost = Math.Round(line.LineTotal * quantity, 2),
+                    MaterialType = MapMaterialType(line.Category),
+                    ConstructionNumber = construction.Number
+                });
+            }
+
+            return lines;
+        }
+
+        if (construction.Geometry.Elements.Count == 0)
         {
             return lines;
         }
 
-        var (billableWidth, _) = construction.Geometry.ResolveBillableOuterBounds();
-
-        if (!string.IsNullOrWhiteSpace(construction.ProfileSystemName) && billableWidth > 0)
+        lines.Add(new MaterialLineExportNode
         {
-            lines.Add(new MaterialLineExportNode
-            {
-                Article = "PROFILE",
-                Name = $"Профиль {construction.ProfileSystemName}",
-                Unit = "м.п.",
-                Quantity = Math.Round(billableWidth / 1000m * 4m * quantity, 3),
-                UnitPrice = 420m,
-                TotalCost = Math.Round(billableWidth / 1000m * 4m * quantity * 420m, 2),
-                MaterialType = "Profile",
-                ConstructionNumber = construction.Number
-            });
-        }
-
-        foreach (var element in billableElements)
-        {
-            if (element.Kind == GeometryElementKind.Glazing)
-            {
-                continue;
-            }
-
-            if (element.Kind is GeometryElementKind.Frame or GeometryElementKind.ArchFrame
-                or GeometryElementKind.TransitionFrame or GeometryElementKind.Mullion
-                or GeometryElementKind.EdgeMullion or GeometryElementKind.Sash)
-            {
-                continue;
-            }
-
-            var area = Math.Round((decimal)(element.WidthMm * element.HeightMm) / 1_000_000m, 3);
-            if (area <= 0)
-            {
-                continue;
-            }
-
-            lines.Add(new MaterialLineExportNode
-            {
-                Article = "GLASS",
-                Name = string.IsNullOrWhiteSpace(element.Label) ? "Стеклопакет" : element.Label,
-                Unit = "м²",
-                Quantity = area * quantity,
-                UnitPrice = 4800m,
-                TotalCost = Math.Round(area * quantity * 4800m, 2),
-                MaterialType = "Glass",
-                ConstructionNumber = construction.Number
-            });
-        }
-
-        foreach (var element in billableElements.Where(e => e.Kind == GeometryElementKind.Glazing))
-        {
-            var area = Math.Round((decimal)(element.WidthMm * element.HeightMm) / 1_000_000m, 3);
-            if (area <= 0)
-            {
-                continue;
-            }
-
-            lines.Add(new MaterialLineExportNode
-            {
-                Article = "GLASS",
-                Name = string.IsNullOrWhiteSpace(element.Label) ? "Стеклопакет" : element.Label,
-                Unit = "м²",
-                Quantity = area * quantity,
-                UnitPrice = 4800m,
-                TotalCost = Math.Round(area * quantity * 4800m, 2),
-                MaterialType = "Glass",
-                ConstructionNumber = construction.Number
-            });
-        }
-
-        if (lines.Count == 0)
-        {
-            lines.Add(new MaterialLineExportNode
-            {
-                Article = "MAT-001",
-                Name = construction.Name,
-                Unit = "шт.",
-                Quantity = quantity,
-                UnitPrice = 0m,
-                TotalCost = 0m,
-                MaterialType = "Other",
-                ConstructionNumber = construction.Number
-            });
-        }
+            Article = "MAT-001",
+            Name = construction.Name,
+            Unit = "шт.",
+            Quantity = quantity,
+            UnitPrice = 0m,
+            TotalCost = 0m,
+            MaterialType = "Other",
+            ConstructionNumber = construction.Number
+        });
 
         return lines;
     }
+
+    private static string MapMaterialType(CostMaterialCategory category) => category switch
+    {
+        CostMaterialCategory.Profile => "Profile",
+        CostMaterialCategory.Glazing => "Glass",
+        CostMaterialCategory.Hardware => "Hardware",
+        CostMaterialCategory.Sealant => "Sealant",
+        CostMaterialCategory.Installation => "Installation",
+        CostMaterialCategory.Labor => "Labor",
+        _ => "Other"
+    };
 
     private string? TryCaptureSketchBase64(CadEditorViewModel? cadEditor)
     {

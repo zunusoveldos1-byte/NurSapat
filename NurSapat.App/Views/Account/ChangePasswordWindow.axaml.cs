@@ -8,9 +8,13 @@ namespace NurSapat.App.Views.Account;
 
 public partial class ChangePasswordWindow : Window
 {
-    public ChangePasswordWindow(ChangePasswordViewModel viewModel)
+    public ChangePasswordWindow()
     {
         InitializeComponent();
+    }
+
+    public ChangePasswordWindow(ChangePasswordViewModel viewModel) : this()
+    {
         DataContext = viewModel;
         viewModel.OwnerWindow = this;
         viewModel.RequestClose += OnRequestClose;

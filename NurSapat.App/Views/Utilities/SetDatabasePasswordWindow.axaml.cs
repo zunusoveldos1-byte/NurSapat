@@ -8,9 +8,13 @@ namespace NurSapat.App.Views.Utilities;
 
 public partial class SetDatabasePasswordWindow : Window
 {
-    public SetDatabasePasswordWindow(SetDatabasePasswordViewModel viewModel)
+    public SetDatabasePasswordWindow()
     {
         InitializeComponent();
+    }
+
+    public SetDatabasePasswordWindow(SetDatabasePasswordViewModel viewModel) : this()
+    {
         DataContext = viewModel;
         viewModel.OwnerWindow = this;
         viewModel.RequestClose += OnRequestClose;

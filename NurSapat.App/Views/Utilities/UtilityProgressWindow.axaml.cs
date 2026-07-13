@@ -5,9 +5,13 @@ namespace NurSapat.App.Views.Utilities;
 
 public partial class UtilityProgressWindow : Window
 {
-    public UtilityProgressWindow(UtilityProgressViewModel viewModel)
+    public UtilityProgressWindow()
     {
         InitializeComponent();
+    }
+
+    public UtilityProgressWindow(UtilityProgressViewModel viewModel) : this()
+    {
         DataContext = viewModel;
         viewModel.RequestClose += Close;
     }

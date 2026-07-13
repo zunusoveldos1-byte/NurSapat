@@ -12,5 +12,9 @@ public sealed class CadDrawingTemplate
 
     public bool IsFakeFrame { get; set; }
 
-    public bool IsBlank => WidthMm <= 0 || HeightMm <= 0;
+    public string? GeometryJson { get; set; }
+
+    public bool HasFullGeometry => !string.IsNullOrWhiteSpace(GeometryJson);
+
+    public bool IsBlank => !HasFullGeometry && (WidthMm <= 0 || HeightMm <= 0);
 }

@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.Input;
 using NurSapat.App.Models.Dictionaries;
+using NurSapat.App.Services;
 using NurSapat.App.Services.Dictionaries;
 
 namespace NurSapat.App.ViewModels.Dictionaries;
@@ -9,13 +10,16 @@ public sealed partial class ManufacturersDictionaryViewModel : BaseDictionaryVie
 {
     private readonly IManufacturersStore _store;
     private readonly IManufacturerEditorService _editorService;
+    private readonly IAppMessageService _messageService;
 
     public ManufacturersDictionaryViewModel(
         IManufacturersStore store,
-        IManufacturerEditorService editorService)
+        IManufacturerEditorService editorService,
+        IAppMessageService messageService)
     {
         _store = store;
         _editorService = editorService;
+        _messageService = messageService;
     }
 
     public override string Title => "Производители";
@@ -44,7 +48,29 @@ public sealed partial class ManufacturersDictionaryViewModel : BaseDictionaryVie
         return Task.CompletedTask;
     }
 
-    protected override Task AddItemAsync() => Task.CompletedTask;
+    protected override async Task AddItemAsync()
+    {
+        var draft = new ManufacturerItem
+        {
+            Name = "Новый производитель",
+            IsActive = true,
+            EndCuttingMm = 2.0,
+            BladeWidthMm = 3.0,
+            WeldingShrinkageMm = 1.5
+        };
+
+        var saved = await _editorService.ShowEditorAsync(OwnerWindow, draft);
+        if (saved is null)
+        {
+            return;
+        }
+
+        _store.Add(saved);
+        var item = ManufacturerDictionaryItemViewModel.FromModel(saved);
+        AllItems.Add(item);
+        SelectedItem = item;
+        _messageService.LogInfo($"Производитель «{saved.Name}» добавлен.");
+    }
 
     protected override async Task EditItemAsync(ManufacturerDictionaryItemViewModel item)
     {
@@ -59,7 +85,12 @@ public sealed partial class ManufacturersDictionaryViewModel : BaseDictionaryVie
         item.RefreshFrom(saved);
     }
 
-    protected override Task DeleteItemAsync(ManufacturerDictionaryItemViewModel item) => Task.CompletedTask;
+    protected override Task DeleteItemAsync(ManufacturerDictionaryItemViewModel item)
+    {
+        _store.Delete(item.Id);
+        _messageService.LogInfo($"Производитель «{item.Name}» удалён.");
+        return Task.CompletedTask;
+    }
 
     [RelayCommand]
     private void CloseWindow() => RequestClose?.Invoke();

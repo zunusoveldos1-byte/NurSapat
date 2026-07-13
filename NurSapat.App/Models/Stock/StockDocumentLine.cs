@@ -1,10 +1,13 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using NurSapat.Core.Validation;
 
 namespace NurSapat.App.Models.Stock;
 
 public sealed partial class StockDocumentLine : ObservableObject
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+
+    public Guid MaterialId { get; set; }
 
     [ObservableProperty]
     private string _article = string.Empty;
@@ -33,9 +36,19 @@ public sealed partial class StockDocumentLine : ObservableObject
 
     partial void OnPriceChanged(decimal value) => OnPropertyChanged(nameof(TotalSum));
 
+    public void Validate()
+    {
+        DomainInvariants.RequireNonEmptyGuid(MaterialId, nameof(MaterialId));
+        DomainInvariants.RequireNonEmpty(Article, nameof(Article));
+        DomainInvariants.RequireNonEmpty(Name, nameof(Name));
+        DomainInvariants.RequireNonNegative(Quantity, nameof(Quantity));
+        DomainInvariants.RequireNonNegative(Price, nameof(Price));
+    }
+
     public StockDocumentLine Clone() => new()
     {
         Id = Id,
+        MaterialId = MaterialId,
         Article = Article,
         Name = Name,
         Color = Color,

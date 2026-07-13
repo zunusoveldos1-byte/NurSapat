@@ -28,6 +28,12 @@ public sealed partial class Camera2D : ObservableObject, IViewport
     [ObservableProperty]
     private Size _viewportSize = new(1000, 700);
 
+    /// <summary>
+    /// Разрешает мировые границы выделенных объектов по их идентификаторам.
+    /// Устанавливается слоем сцены (см. <see cref="Workspace.Workspace"/>).
+    /// </summary>
+    public Func<IEnumerable<Guid>, Bounds2D?>? SelectionBoundsResolver { get; set; }
+
     public Camera2D()
     {
     }
@@ -102,9 +108,32 @@ public sealed partial class Camera2D : ObservableObject, IViewport
     /// <inheritdoc />
     public void ZoomToSelection(IEnumerable<Guid> objectIds)
     {
-        // По границам объектов — реализация требует IScene; оставляем заглушкой,
-        // сервисный слой (ViewportService) построит bounds и вызовет ZoomToFit.
-        if (objectIds is null) return;
+        if (objectIds is null || SelectionBoundsResolver is null)
+        {
+            return;
+        }
+
+        Bounds2D? bounds = null;
+        foreach (var objectId in objectIds)
+        {
+            if (objectId == Guid.Empty)
+            {
+                continue;
+            }
+
+            var objectBounds = SelectionBoundsResolver(new[] { objectId });
+            if (objectBounds is not { IsEmpty: false } next)
+            {
+                continue;
+            }
+
+            bounds = bounds is null ? next : bounds.Value.Union(next);
+        }
+
+        if (bounds is { IsEmpty: false } resolved)
+        {
+            ZoomToFit(resolved);
+        }
     }
 
     /// <summary>Изменить масштаб вокруг точки курсора (сохраняя мир под курсором).</summary>

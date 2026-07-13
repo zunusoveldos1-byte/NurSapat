@@ -23,8 +23,12 @@ public sealed class CadSelectableItem : IEquatable<CadSelectableItem>
     public FrameNode? ImpostNode { get; init; }
     public int ImpostGapIndex { get; init; }
     public int HingeSlot { get; init; }
+    public FrameProfileRail? ProfileRail { get; init; }
 
     public static CadSelectableItem Frame() => new() { Kind = CadSelectableKind.Frame };
+
+    public static CadSelectableItem FrameRail(FrameProfileRail rail) =>
+        new() { Kind = CadSelectableKind.Frame, ProfileRail = rail };
 
     public static CadSelectableItem Sash(Guid id) =>
         new() { Kind = CadSelectableKind.Sash, ElementId = id };
@@ -77,7 +81,7 @@ public sealed class CadSelectableItem : IEquatable<CadSelectableItem>
 
         return Kind switch
         {
-            CadSelectableKind.Frame => true,
+            CadSelectableKind.Frame => ProfileRail == other.ProfileRail,
             CadSelectableKind.Impost =>
                 ReferenceEquals(ImpostNode, other.ImpostNode) && ImpostGapIndex == other.ImpostGapIndex,
             CadSelectableKind.ExtremeImpost =>
@@ -93,7 +97,7 @@ public sealed class CadSelectableItem : IEquatable<CadSelectableItem>
     public override int GetHashCode() =>
         Kind switch
         {
-            CadSelectableKind.Frame => HashCode.Combine(Kind),
+            CadSelectableKind.Frame => HashCode.Combine(Kind, ProfileRail),
             CadSelectableKind.Impost => HashCode.Combine(Kind, ImpostNode, ImpostGapIndex),
             CadSelectableKind.ExtremeImpost => HashCode.Combine(Kind, ImpostNode, ElementId),
             CadSelectableKind.SashHinge => HashCode.Combine(Kind, ElementId, HingeSlot),

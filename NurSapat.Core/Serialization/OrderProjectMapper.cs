@@ -132,7 +132,8 @@ public static class OrderProjectMapper
         Appearance = ToAppearanceData(construction.Appearance),
         Geometry = ToGeometryData(construction.Geometry),
         Cost = ToCostData(construction.Cost),
-        Metrics = ToMetricsData(construction.Metrics)
+        Metrics = ToMetricsData(construction.Metrics),
+        SpecificationLines = construction.SpecificationLines.Select(ToSpecificationLineData).ToList()
     };
 
     private static OrderConstruction FromConstructionData(ConstructionProjectData data)
@@ -155,6 +156,12 @@ public static class OrderProjectMapper
 
         ApplyGeometryData(construction.Geometry, data.Geometry);
         ApplyCostData(construction.Cost, data.Cost);
+        construction.SpecificationLines.Clear();
+        foreach (var line in data.SpecificationLines)
+        {
+            construction.SpecificationLines.Add(FromSpecificationLineData(line));
+        }
+
         return construction;
     }
 
@@ -221,6 +228,7 @@ public static class OrderProjectMapper
         HingeSide = element.HingeSide?.ToString(),
         HasHardware = element.HasHardware,
         HasHandle = element.HasHandle,
+        HasMosquitoNet = element.HasMosquitoNet,
         HostSashId = element.HostSashId,
         ProfileSeriesId = element.ProfileSeriesId,
         MaterialId = element.MaterialId,
@@ -228,6 +236,11 @@ public static class OrderProjectMapper
         EndX = element.EndX,
         EndY = element.EndY,
         ParentGlazingId = element.ParentGlazingId,
+        ParentBeadId = element.ParentBeadId,
+        LinkedGlazingId = element.LinkedGlazingId,
+        GlassMaterialId = element.GlassMaterialId,
+        BeadOffsetMm = element.BeadOffsetMm,
+        CreatedAt = element.CreatedAt,
         SpokeType = element.SpokeType?.ToString(),
         SpokeThicknessMm = element.SpokeThicknessMm,
         SpokeColor = element.SpokeColor,
@@ -237,7 +250,14 @@ public static class OrderProjectMapper
         SpokeIsArched = element.SpokeIsArched,
         SpokeArcCenterX = element.SpokeArcCenterX,
         SpokeArcCenterY = element.SpokeArcCenterY,
-        SpokeArcRadius = element.SpokeArcRadius
+        SpokeArcRadius = element.SpokeArcRadius,
+        IsExtremeImpost = element.IsExtremeImpost,
+        EdgeAlignment = element.EdgeAlignment?.ToString(),
+        ExtremeImpostOffsetMm = element.ExtremeImpostOffsetMm,
+        HostFrameNodeId = element.HostFrameNodeId,
+        ExtremeImpostSlotId = element.ExtremeImpostSlotId,
+        FillType = element.FillType?.ToString(),
+        Shape = element.Shape?.ToString()
     };
 
     private static GeometryElement FromElementData(GeometryElementData data)
@@ -264,6 +284,27 @@ public static class OrderProjectMapper
             spokeType = parsedSpokeType;
         }
 
+        GlazingType? fillType = null;
+        if (!string.IsNullOrEmpty(data.FillType) &&
+            Enum.TryParse<GlazingType>(data.FillType, out var parsedFillType))
+        {
+            fillType = parsedFillType;
+        }
+
+        ConstructionShape? shape = null;
+        if (!string.IsNullOrEmpty(data.Shape) &&
+            Enum.TryParse<ConstructionShape>(data.Shape, out var parsedShape))
+        {
+            shape = parsedShape;
+        }
+
+        ImpostEdgeAlignment? edgeAlignment = null;
+        if (!string.IsNullOrEmpty(data.EdgeAlignment) &&
+            Enum.TryParse<ImpostEdgeAlignment>(data.EdgeAlignment, out var parsedEdgeAlignment))
+        {
+            edgeAlignment = parsedEdgeAlignment;
+        }
+
         return new GeometryElement
         {
             Id = data.Id == Guid.Empty ? Guid.NewGuid() : data.Id,
@@ -277,6 +318,7 @@ public static class OrderProjectMapper
             HingeSide = hinge,
             HasHardware = data.HasHardware,
             HasHandle = data.HasHandle,
+            HasMosquitoNet = data.HasMosquitoNet,
             HostSashId = data.HostSashId,
             ProfileSeriesId = data.ProfileSeriesId,
             MaterialId = data.MaterialId,
@@ -284,6 +326,11 @@ public static class OrderProjectMapper
             EndX = data.EndX,
             EndY = data.EndY,
             ParentGlazingId = data.ParentGlazingId,
+            ParentBeadId = data.ParentBeadId,
+            LinkedGlazingId = data.LinkedGlazingId,
+            GlassMaterialId = data.GlassMaterialId,
+            BeadOffsetMm = data.BeadOffsetMm,
+            CreatedAt = data.CreatedAt,
             SpokeType = spokeType,
             SpokeThicknessMm = data.SpokeThicknessMm,
             SpokeColor = data.SpokeColor,
@@ -293,7 +340,44 @@ public static class OrderProjectMapper
             SpokeIsArched = data.SpokeIsArched,
             SpokeArcCenterX = data.SpokeArcCenterX,
             SpokeArcCenterY = data.SpokeArcCenterY,
-            SpokeArcRadius = data.SpokeArcRadius
+            SpokeArcRadius = data.SpokeArcRadius,
+            IsExtremeImpost = data.IsExtremeImpost,
+            EdgeAlignment = edgeAlignment,
+            ExtremeImpostOffsetMm = data.ExtremeImpostOffsetMm,
+            HostFrameNodeId = data.HostFrameNodeId,
+            ExtremeImpostSlotId = data.ExtremeImpostSlotId,
+            FillType = fillType,
+            Shape = shape
+        };
+    }
+
+    private static CostSpecificationLineData ToSpecificationLineData(CostSpecificationLine line) => new()
+    {
+        MaterialId = line.MaterialId,
+        ConstructionMaterialId = line.ConstructionMaterialId,
+        Category = line.Category.ToString(),
+        MaterialName = line.MaterialName,
+        Article = line.Article,
+        Quantity = line.Quantity,
+        Unit = line.Unit,
+        UnitPrice = line.UnitPrice,
+        WastePercent = line.WastePercent
+    };
+
+    private static CostSpecificationLine FromSpecificationLineData(CostSpecificationLineData data)
+    {
+        Enum.TryParse<CostMaterialCategory>(data.Category, out var category);
+        return new CostSpecificationLine
+        {
+            MaterialId = data.MaterialId,
+            ConstructionMaterialId = data.ConstructionMaterialId,
+            Category = category,
+            MaterialName = data.MaterialName,
+            Article = data.Article,
+            Quantity = data.Quantity,
+            Unit = data.Unit,
+            UnitPrice = data.UnitPrice,
+            WastePercent = data.WastePercent
         };
     }
 

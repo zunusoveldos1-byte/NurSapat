@@ -21,7 +21,7 @@
     </Window.Styles>
 
     <Border Classes="mat-shell" Margin="12">
-        <Grid RowDefinitions="40,Auto,*,Auto">
+        <Grid RowDefinitions="32,Auto,*,Auto">
             <Border Grid.Row="0"
                     Classes="mat-titlebar"
                     PointerPressed="OnTitleBarPointerPressed">
@@ -45,7 +45,7 @@
             </Border>
 
             <Border Grid.Row="1"
-                    Margin="12,12,12,0"
+                    Margin="12,0,12,0"
                     Padding="0,0,0,10"
                     Background="White">
                 <Grid ColumnDefinitions="*,220,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10">

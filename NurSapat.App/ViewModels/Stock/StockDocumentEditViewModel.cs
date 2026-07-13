@@ -177,6 +177,7 @@ public sealed partial class StockDocumentEditViewModel : ObservableObject
     {
         var line = new StockDocumentLine
         {
+            MaterialId = material.Id,
             Article = material.Article,
             Name = material.Name,
             Unit = MaterialEnumLabels.MainUnit(material.MainUnit),
@@ -185,7 +186,6 @@ public sealed partial class StockDocumentEditViewModel : ObservableObject
             Currency = MaterialEnumLabels.Currency(material.Currency)
         };
 
-        line.PropertyChanged += (_, _) => { };
         return line;
     }
 }

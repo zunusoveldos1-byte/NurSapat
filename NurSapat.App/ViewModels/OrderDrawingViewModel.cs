@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Tools;
@@ -317,7 +317,7 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
         Tool("dummy-frame", "Коробка фиктивная", "Базовая геометрия и рамы", "\uE739", GeometryElementKind.DummyFrame, cadToolId: "design-rect"),
         Tool("dummy-mullion", "Фиктивные импосты", "Базовая геометрия и рамы", "\uE8B0", GeometryElementKind.DummyMullion, places: true),
         Tool("frame", "Коробка (рама)", "Базовая геометрия и рамы", "\uE7F4", GeometryElementKind.Frame, cadToolId: "rectangle"),
-        Tool("edge-mullion", "Стойка/ригель в крайнем положении", "Базовая геометрия и рамы", "\uE8A5", GeometryElementKind.EdgeMullion, places: true),
+        Tool("edge-mullion", "Стойка/ригель в крайнем положении", "Базовая геометрия и рамы", "CadIcon.RackRigelEdge", GeometryElementKind.EdgeMullion, places: true),
         Tool("round-dummy", "Коробка фиктивная круглая", "Базовая геометрия и рамы", "\uECAF", GeometryElementKind.RoundDummyFrame, cadToolId: "design-rect"),
         Tool("transition-frame", "Коробка и переходной профиль", "Базовая геометрия и рамы", "\uE8AB", GeometryElementKind.TransitionFrame, cadToolId: "design-rect"),
         Tool("sash", "Створка", "Створки и фурнитура", "\uE7C3", GeometryElementKind.Sash, cadToolId: "design-rect"),

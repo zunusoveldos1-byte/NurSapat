@@ -32,5 +32,16 @@ public enum CadToolKind
   ChangeOverallDimensions = 14,
   DeleteSelection = 15,
   ClearConstruction = 16,
-  RadiusVertex = 17
+  RadiusVertex = 17,
+  Recalculate = 18,
+  Properties = 19,
+  Details = 20,
+  ArcVertex = 21,
+  RemoveArcVertex = 22,
+  SplitArc = 23,
+  SetRadius = 24,
+  CopyConstruction = 25,
+  PasteConstruction = 26,
+  AddToStandard = 27,
+  InsertFromStandard = 28
 }

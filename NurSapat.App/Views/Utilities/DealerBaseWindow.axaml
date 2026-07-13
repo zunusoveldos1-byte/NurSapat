@@ -19,7 +19,7 @@
     </Window.Styles>
 
     <Border Classes="mat-shell" Margin="12">
-        <Grid RowDefinitions="40,*,Auto">
+        <Grid RowDefinitions="32,*,Auto">
             <Border Grid.Row="0"
                     Classes="mat-titlebar"
                     PointerPressed="OnTitleBarPointerPressed">
@@ -38,14 +38,14 @@
                 </Grid>
             </Border>
 
-            <StackPanel Grid.Row="1" Margin="16,12,16,0" Spacing="10">
+            <StackPanel Grid.Row="1" Margin="16,0,16,0" Spacing="10">
                 <TextBlock Text="Пароль защиты (необязательно)"
                            FontSize="12"
                            Foreground="#64748B"/>
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBox Text="{Binding ProtectionPassword}"
                              PasswordChar="{Binding PasswordChar}"
-                             Watermark="Оставьте пустым для незашифрованного пакета"
+                             PlaceholderText="Оставьте пустым для незашифрованного пакета"
                              MinHeight="34"
                              VerticalContentAlignment="Center"/>
                     <Button Grid.Column="1"

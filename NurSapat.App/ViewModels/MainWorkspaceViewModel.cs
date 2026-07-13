@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using NurSapat.App.Models.Help;
 using NurSapat.App.Models.Settings;
 using NurSapat.App.Models.Dictionaries;
 using NurSapat.App.Services;
@@ -12,6 +13,8 @@ using NurSapat.App.Services.Dictionaries;
 using NurSapat.App.Services.EditDialogs;
 using NurSapat.App.Services.Export;
 using NurSapat.App.Services.Help;
+using NurSapat.App.Models.Materials;
+using NurSapat.App.Services.Materials;
 using NurSapat.App.Services.Orders;
 using NurSapat.App.Services.Users;
 using NurSapat.App.Services.Settings;
@@ -45,6 +48,9 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     private readonly ICustomersStore _customersStore;
     private readonly IOrderErpDialogService _orderErpDialogService;
     private readonly IUserSessionService _userSessionService;
+    private readonly IWorkspaceNavigationService _workspaceNavigation;
+    private readonly SystemLogsViewModel _systemLogsViewModel;
+    private readonly AdditionalDashboardViewModel _additionalDashboardViewModel;
     private bool _isNavigating;
 
     // ДОБАВЛЕНО: Ссылка на главное окно для диалогов
@@ -143,30 +149,48 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     private async Task SelectOrderCustomerAsync()
     {
         var customer = await _orderErpDialogService.ShowCustomerSelectAsync();
-        if (customer is null)
+        if (customer is null || customer.IsBlocked || customer.IsDeleted)
         {
             return;
         }
 
-        var header = _orderWorkspace.Order.Header;
-        header.CustomerId = customer.Id;
-        header.CustomerName = customer.FullName;
-        header.CustomerPhone = customer.Phone;
-        _orderWorkspace.Sheet.CustomerName = customer.FullName;
+        var sheet = _orderWorkspace.Sheet;
+        sheet.ReloadCustomerLookups();
+        sheet.SelectedCustomer = sheet.AvailableCustomers.FirstOrDefault(c => c.Id == customer.Id);
+        if (sheet.SelectedCustomer is null)
+        {
+            var lookup = CustomerLookupItem.FromItem(
+                new Models.Dictionaries.CustomerItem
+                {
+                    Id = customer.Id,
+                    FullName = customer.FullName,
+                    Phone = customer.Phone,
+                    City = customer.City,
+                    Type = customer.Type
+                });
+            sheet.AvailableCustomers.Add(lookup);
+            sheet.SelectedCustomer = lookup;
+        }
+
         _orderWorkspace.NotifyModified();
+    }
+
+    [RelayCommand]
+    private async Task SelectOrderManagerAsync()
+    {
+        await _dictionaryWindowService.ShowManagersAsync(ResolveOwnerWindow());
+        _orderWorkspace.Sheet.ReloadManagerLookups();
     }
 
     [RelayCommand]
     private async Task SelectOrderDealerAsync()
     {
-        if (!await _orderErpDialogService.ShowDealerSelectAsync(_orderWorkspace.Order))
-        {
-            return;
-        }
-
-        _orderWorkspace.RecalculateAll();
-        _orderWorkspace.NotifyModified();
+        await _dictionaryWindowService.ShowDealersPlaceholderAsync(ResolveOwnerWindow());
     }
+
+    [RelayCommand]
+    private async Task Managers() =>
+        await _dictionaryWindowService.ShowManagersAsync(ResolveOwnerWindow());
 
     [RelayCommand]
     private async Task OpenPriceModeAsync()
@@ -459,12 +483,37 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     private async Task ChangePassword() =>
         await _userWindowService.ShowChangePasswordAsync(ResolveOwnerWindow());
 
+    [RelayCommand]
+    private void OpenArchive() => Navigate("archive");
+
+    [RelayCommand]
+    private void OpenDataTransfer() => Navigate("data-transfer");
+
+    [RelayCommand]
+    private void OpenProductionOptions() => Navigate("production-options");
+
     // ==========================================
     // КОМАНДЫ МЕНЮ "СПРАВКА"
     // ==========================================
     [RelayCommand]
-    private async Task OpenHelpWindow(string? tabKey) =>
-        await _helpWindowService.ShowAsync(ResolveOwnerWindow(), tabKey);
+    private async Task OpenHelpGuideWindow() =>
+        await _helpWindowService.ShowAsync(ResolveOwnerWindow(), HelpTabKeys.Help);
+
+    [RelayCommand]
+    private async Task OpenWhatsNewWindow() =>
+        await _helpWindowService.ShowAsync(ResolveOwnerWindow(), HelpTabKeys.WhatsNew);
+
+    [RelayCommand]
+    private async Task OpenUpdateWindow() =>
+        await _helpWindowService.ShowAsync(ResolveOwnerWindow(), HelpTabKeys.Update);
+
+    [RelayCommand]
+    private async Task OpenSupportWindow() =>
+        await _helpWindowService.ShowAsync(ResolveOwnerWindow(), HelpTabKeys.Consultation);
+
+    [RelayCommand]
+    private async Task OpenAboutWindow() =>
+        await _helpWindowService.ShowAsync(ResolveOwnerWindow(), HelpTabKeys.About);
 
     // ==========================================
     // КОНСТРУКТОР И СУЩЕСТВУЮЩАЯ ЛОГИКА НАВИГАЦИИ
@@ -490,7 +539,10 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         IDialogService dialogService,
         ICustomersStore customersStore,
         IOrderErpDialogService orderErpDialogService,
-        IUserSessionService userSessionService)
+        IUserSessionService userSessionService,
+        IWorkspaceNavigationService workspaceNavigation,
+        IMaterialsDetailStore materialsDetailStore,
+        IProfileSeriesStore profileSeriesStore)
     {
         _orderWorkspace = orderWorkspace;
         _documentManager = documentManager;
@@ -508,6 +560,10 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         _customersStore = customersStore;
         _orderErpDialogService = orderErpDialogService;
         _userSessionService = userSessionService;
+        _workspaceNavigation = workspaceNavigation;
+        _systemLogsViewModel = systemLogsViewModel;
+        _additionalDashboardViewModel = additionalDashboardViewModel;
+        _workspaceNavigation.Configure(Navigate);
         _orderWorkspace.NavigateToCadTabHandler = () =>
         {
             Navigate("cad");
@@ -526,12 +582,33 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
             ["production-options"] = productionOptionsViewModel,
             ["environment"] = environmentPathsViewModel,
             ["data-transfer"] = dataTransferViewModel,
-            ["customers"] = Section("Клиенты", "CRUD клиентов будет подключен на следующем этапе.", "Создать клиента", "История заказов"),
-            ["materials"] = Section("Материалы и цены", "Складской справочник материалов и прайсов.", "Профили", "Стеклопакеты", "Фурнитура"),
-            ["profile-systems"] = Section("Системы профилей", "Каталог профильных систем.", "PVC", "Aluminum"),
-            ["hardware"] = Section("Фурнитура", "Справочник фурнитуры и модификаторов створок.", "Петли", "Ручки", "Замки"),
+            ["customers"] = new ErpReferenceHubViewModel(
+                "Клиенты",
+                "Справочник заказчиков, дилеров и контактных данных.",
+                _customersStore.GetAll().Count,
+                () => Customers(),
+                () => Customers()),
+            ["materials"] = new ErpReferenceHubViewModel(
+                "Материалы и цены",
+                "Профили, стеклопакеты, фурнитура и прайс-листы.",
+                materialsDetailStore.GetAll().Count,
+                () => Materials()),
+            ["profile-systems"] = new ErpReferenceHubViewModel(
+                "Системы профилей",
+                "Каталог профильных серий и производственных систем.",
+                profileSeriesStore.GetAll().Count,
+                () => Series()),
+            ["hardware"] = new ErpReferenceHubViewModel(
+                "Фурнитура",
+                "Справочник фурнитуры, ручек и комплектующих.",
+                materialsDetailStore.GetAll().Count(item => item.Section == MaterialSection.Hardware),
+                () => Materials()),
             ["additional"] = additionalDashboardViewModel,
-            ["help"] = Section("Помощь", "Руководство пользователя и справка.", "Чертеж", "Лист заказа")
+            ["help"] = new ErpReferenceHubViewModel(
+                "Помощь",
+                "Руководство пользователя, обновления и консультации.",
+                0,
+                () => OpenHelpGuideWindow())
         };
 
         Navigate("cad");
@@ -627,7 +704,7 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
             ProductionOptionsViewModel => "Технологические допуски",
             EnvironmentPathsViewModel => "Настройка окружения",
             DataTransferViewModel => "Коммерческий перенос данных",
-            WorkspaceSectionViewModel section => section.Title,
+            ErpReferenceHubViewModel hub => hub.Title,
             _ => "NurSapat"
         };
 
@@ -649,9 +726,18 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
             _orderWorkspace.Drawing.CadEditor.OnDrawingTabActivated();
         }
 
+        if (key == "archive")
+        {
+            _ = _systemLogsViewModel.LoadCommand.ExecuteAsync(null);
+        }
+
+        if (key == "additional")
+        {
+            _ = _additionalDashboardViewModel.LoadRatesAsync();
+        }
+
         _activeScreenKey = key;
     }
 
-    private static WorkspaceSectionViewModel Section(string title, string description, params string[] items) =>
-        new(title, description, items);
+    // Section helper removed — replaced by ErpReferenceHubViewModel.
 }

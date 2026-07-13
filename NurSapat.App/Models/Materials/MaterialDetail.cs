@@ -1,5 +1,8 @@
 namespace NurSapat.App.Models.Materials;
 
+using NurSapat.Core.Validation;
+
+/// <summary>Каноническая ERP-сущность материала (цены, единицы, склад, спецификация). Ключ — <see cref="Id"/> + <see cref="Article"/>.</summary>
 public sealed class MaterialDetail
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -67,6 +70,15 @@ public sealed class MaterialDetail
     public List<MaterialColorPrice> ColorPrices { get; set; } = [];
 
     public List<MaterialDimensionPrice> DimensionPrices { get; set; } = [];
+
+    public void Validate()
+    {
+        DomainInvariants.RequireNonEmptyGuid(Id, nameof(Id));
+        DomainInvariants.RequireNonEmpty(Article, nameof(Article));
+        DomainInvariants.RequireNonEmpty(Name, nameof(Name));
+        DomainInvariants.RequireNonNegative(BasePrice, nameof(BasePrice));
+        DomainInvariants.RequireNonNegative(WastePercent, nameof(WastePercent));
+    }
 
     public MaterialDetail Clone(bool newId = true)
     {

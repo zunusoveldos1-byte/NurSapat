@@ -1,20 +1,11 @@
+using NurSapat.Core.Models.Orders;
+
 namespace NurSapat.App.Models.Dictionaries;
 
-public sealed class SupplierItem
+/// <summary>App-совместимый алиас канонической модели <see cref="Supplier"/>.</summary>
+public sealed class SupplierItem : Supplier
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-
-    public string Name { get; set; } = string.Empty;
-
-    public string Phone { get; set; } = string.Empty;
-
-    public string LegalAddress { get; set; } = string.Empty;
-
-    public string ContractTerms { get; set; } = string.Empty;
-
-    public string Note { get; set; } = string.Empty;
-
-    public SupplierItem Clone() => new()
+    public new SupplierItem Clone() => new()
     {
         Id = Id,
         Name = Name,

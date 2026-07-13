@@ -57,7 +57,7 @@ public sealed partial class CadDesignToolButtonViewModel : ObservableObject
 
     public string Title { get; }
 
-    /// <summary>Resource key pointing to a <c>StreamGeometry</c> in CadToolIcons.axaml.</summary>
+    /// <summary>Resource key pointing to a <c>StreamGeometry</c> in CadIcons.axaml.</summary>
     public string? IconResourceKey { get; }
 
     public IRelayCommand<string>? ActivateCommand { get; }

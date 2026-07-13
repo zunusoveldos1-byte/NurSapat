@@ -8,9 +8,13 @@ namespace NurSapat.App.Views.Utilities;
 
 public partial class ProductionBaseWindow : Window
 {
-    public ProductionBaseWindow(ProductionBaseViewModel viewModel)
+    public ProductionBaseWindow()
     {
         InitializeComponent();
+    }
+
+    public ProductionBaseWindow(ProductionBaseViewModel viewModel) : this()
+    {
         DataContext = viewModel;
         viewModel.OwnerWindow = this;
         viewModel.RequestClose += OnRequestClose;

@@ -8,9 +8,13 @@ namespace NurSapat.App.Views.Utilities;
 
 public partial class DealerBaseWindow : Window
 {
-    public DealerBaseWindow(DealerBaseViewModel viewModel)
+    public DealerBaseWindow()
     {
         InitializeComponent();
+    }
+
+    public DealerBaseWindow(DealerBaseViewModel viewModel) : this()
+    {
         DataContext = viewModel;
         viewModel.OwnerWindow = this;
         viewModel.RequestClose += OnRequestClose;

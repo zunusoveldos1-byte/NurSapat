@@ -347,6 +347,7 @@ public sealed partial class StockMaterialsViewModel : ObservableObject
         {
             template.Lines.Add(new StockDocumentLine
             {
+                MaterialId = material.Id,
                 Article = material.Article,
                 Name = material.Name,
                 Unit = MaterialEnumLabels.MainUnit(material.MainUnit),

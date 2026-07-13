@@ -137,7 +137,7 @@ public sealed class MullionPlacementTool : CadToolBase
 
         if (Mode == MullionPlacementMode.Vertical)
         {
-            var centerX = Math.Clamp(current.X, innerMinX + mullionWidth, innerMaxX - mullionWidth);
+            var centerX = current.X;
             var singleMullion = new CadRect(
                 centerX - mullionWidth / 2.0,
                 innerMaxY,
@@ -149,7 +149,7 @@ public sealed class MullionPlacementTool : CadToolBase
 
         if (Mode == MullionPlacementMode.Horizontal)
         {
-            var centerY = Math.Clamp(current.Y, innerMinY + mullionWidth, innerMaxY - mullionWidth);
+            var centerY = current.Y;
             var singleMullion = new CadRect(
                 innerMinX,
                 centerY + mullionWidth / 2.0,

@@ -35,9 +35,12 @@ public enum SashOpeningType
 {
     Fixed,
     Turn,
+    Tilt,
     TiltTurn,
     SlideLeft,
-    SlideRight
+    SlideRight,
+    Suspended,
+    Folding
 }
 
 public sealed class GeometryElement
@@ -71,6 +74,21 @@ public sealed class GeometryElement
 
     /// <summary>Стеклопакет-родитель для декоративных шпросов.</summary>
     public Guid? ParentGlazingId { get; set; }
+
+    /// <summary>Штапик-родитель для остекления, установленного через инструмент «Штапик».</summary>
+    public Guid? ParentBeadId { get; set; }
+
+    /// <summary>Стеклопакет, связанный с штапиком (на элементе штапика).</summary>
+    public Guid? LinkedGlazingId { get; set; }
+
+    /// <summary>Материал стекла (на элементе штапика).</summary>
+    public Guid? GlassMaterialId { get; set; }
+
+    /// <summary>Смещение штапика от светового проёма, мм.</summary>
+    public double? BeadOffsetMm { get; set; }
+
+    /// <summary>Время создания элемента (UTC).</summary>
+    public DateTimeOffset? CreatedAt { get; set; }
 
     public DecorativeSpokeType? SpokeType { get; set; }
 

@@ -7,4 +7,11 @@ public sealed class GraphicSymbolItem
     public string Name { get; set; } = string.Empty;
 
     public string Code { get; set; } = string.Empty;
+
+    public GraphicSymbolItem Clone() => new()
+    {
+        Id = Id,
+        Name = Name,
+        Code = Code
+    };
 }

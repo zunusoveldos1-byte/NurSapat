@@ -1,169 +1,275 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Style Selector="Border.ad-card">
+    <Style Selector="Border.oc-card">
         <Setter Property="Background" Value="White"/>
         <Setter Property="BorderBrush" Value="#E6EAF2"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="CornerRadius" Value="14"/>
         <Setter Property="Padding" Value="20"/>
-        <Setter Property="BoxShadow" Value="0 1 3 0 #0A000000"/>
+        <Setter Property="BoxShadow" Value="0 2 8 0 #0D000000"/>
     </Style>
 
-    <Style Selector="TextBlock.ad-title">
+    <Style Selector="Border.oc-card-compact">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#E6EAF2"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="16"/>
+        <Setter Property="BoxShadow" Value="0 1 4 0 #0A000000"/>
+    </Style>
+
+    <Style Selector="Border.oc-header-panel">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#E6EAF2"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="14"/>
+        <Setter Property="Padding" Value="20,16"/>
+        <Setter Property="BoxShadow" Value="0 2 8 0 #0D000000"/>
+    </Style>
+
+    <Style Selector="Border.oc-status-badge">
+        <Setter Property="CornerRadius" Value="20"/>
+        <Setter Property="Padding" Value="12,6"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+    </Style>
+
+    <Style Selector="TextBlock.oc-title">
         <Setter Property="FontSize" Value="16"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Foreground" Value="#0F172A"/>
     </Style>
 
-    <Style Selector="TextBlock.ad-label">
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="Foreground" Value="#64748B"/>
-        <Setter Property="Margin" Value="0,0,0,8"/>
-    </Style>
-
-    <Style Selector="TextBlock.ad-body">
-        <Setter Property="FontSize" Value="13"/>
+    <Style Selector="TextBlock.oc-section">
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Foreground" Value="#0F172A"/>
     </Style>
 
-    <Style Selector="TextBlock.ad-muted">
+    <Style Selector="TextBlock.oc-label">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Foreground" Value="#64748B"/>
+    </Style>
+
+    <Style Selector="TextBlock.oc-value">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#0F172A"/>
+    </Style>
+
+    <Style Selector="TextBlock.oc-muted">
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="Foreground" Value="#94A3B8"/>
     </Style>
 
-    <Style Selector="TextBlock.ad-icon">
+    <Style Selector="TextBlock.oc-big-number">
+        <Setter Property="FontSize" Value="28"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="#0F172A"/>
+    </Style>
+
+    <Style Selector="TextBlock.oc-icon">
         <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
         <Setter Property="FontSize" Value="16"/>
         <Setter Property="Foreground" Value="#64748B"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
-    <Style Selector="Button.ad-primary">
-        <Setter Property="Height" Value="36"/>
-        <Setter Property="MinHeight" Value="36"/>
+    <Style Selector="Button.oc-primary">
+        <Setter Property="Height" Value="38"/>
+        <Setter Property="MinHeight" Value="38"/>
         <Setter Property="Padding" Value="16,0"/>
         <Setter Property="Background" Value="#2F80ED"/>
         <Setter Property="Foreground" Value="White"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="CornerRadius" Value="10"/>
         <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
         <Setter Property="Cursor" Value="Hand"/>
     </Style>
 
-    <Style Selector="Button.ad-primary:pointerover">
+    <Style Selector="Button.oc-primary:pointerover">
         <Setter Property="Background" Value="#2563EB"/>
     </Style>
 
-    <Style Selector="Button.ad-secondary">
+    <Style Selector="Button.oc-primary:disabled">
+        <Setter Property="Background" Value="#CBD5E1"/>
+        <Setter Property="Foreground" Value="#94A3B8"/>
+    </Style>
+
+    <Style Selector="Button.oc-secondary">
         <Setter Property="Height" Value="36"/>
         <Setter Property="MinHeight" Value="36"/>
-        <Setter Property="Padding" Value="16,0"/>
+        <Setter Property="Padding" Value="14,0"/>
         <Setter Property="Background" Value="White"/>
         <Setter Property="Foreground" Value="#0F172A"/>
         <Setter Property="BorderBrush" Value="#E6EAF2"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="CornerRadius" Value="10"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
         <Setter Property="Cursor" Value="Hand"/>
     </Style>
 
-    <Style Selector="Button.ad-secondary:pointerover">
+    <Style Selector="Button.oc-secondary:pointerover">
         <Setter Property="Background" Value="#F7F9FC"/>
     </Style>
 
-    <Style Selector="Button.ad-ghost">
+    <Style Selector="Button.oc-ghost">
         <Setter Property="Height" Value="32"/>
-        <Setter Property="MinHeight" Value="32"/>
-        <Setter Property="Width" Value="32"/>
-        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Padding" Value="10,0"/>
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="FontSize" Value="13"/>
         <Setter Property="Cursor" Value="Hand"/>
     </Style>
 
-    <Style Selector="Button.ad-ghost:pointerover">
+    <Style Selector="Button.oc-ghost:pointerover">
         <Setter Property="Background" Value="#F1F5F9"/>
     </Style>
 
-    <Style Selector="ComboBox.ad-field">
-        <Setter Property="Height" Value="36"/>
-        <Setter Property="CornerRadius" Value="8"/>
-        <Setter Property="BorderBrush" Value="#E6EAF2"/>
-        <Setter Property="FontSize" Value="13"/>
-        <Setter Property="Padding" Value="8,0"/>
-    </Style>
-
-    <Style Selector="TextBox.ad-note">
-        <Setter Property="MinHeight" Value="120"/>
-        <Setter Property="AcceptsReturn" Value="True"/>
-        <Setter Property="TextWrapping" Value="Wrap"/>
-        <Setter Property="CornerRadius" Value="8"/>
-        <Setter Property="BorderBrush" Value="#E6EAF2"/>
-        <Setter Property="Padding" Value="12"/>
-        <Setter Property="FontSize" Value="13"/>
-        <Setter Property="PlaceholderText" Value="Введите примечание..."/>
-    </Style>
-
-    <Style Selector="ToggleSwitch.ad-switch">
-        <Setter Property="FontSize" Value="13"/>
-    </Style>
-
-    <Style Selector="Border.ad-table-header">
-        <Setter Property="Background" Value="#F7F9FC"/>
-        <Setter Property="BorderBrush" Value="#E6EAF2"/>
-        <Setter Property="BorderThickness" Value="0,0,0,1"/>
-        <Setter Property="Height" Value="42"/>
-        <Setter Property="MinHeight" Value="42"/>
-    </Style>
-
-    <Style Selector="Border.ad-table-row">
-        <Setter Property="Height" Value="42"/>
-        <Setter Property="MinHeight" Value="42"/>
-        <Setter Property="BorderBrush" Value="#EEF2F7"/>
-        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    <Style Selector="Button.oc-tab">
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="Padding" Value="14,0"/>
         <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Transitions">
-            <Transitions>
-                <BrushTransition Property="Background" Duration="0:0:0.12"/>
-            </Transitions>
-        </Setter>
-    </Style>
-
-    <Style Selector="Border.ad-table-row:pointerover">
-        <Setter Property="Background" Value="#F7F9FC"/>
-    </Style>
-
-    <Style Selector="TextBlock.ad-th">
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Foreground" Value="#64748B"/>
-        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Cursor" Value="Hand"/>
     </Style>
 
-    <Style Selector="Border.ad-info-tile">
-        <Setter Property="Background" Value="#F7F9FC"/>
+    <Style Selector="Button.oc-tab:pointerover">
+        <Setter Property="Background" Value="#F1F5F9"/>
+    </Style>
+
+    <Style Selector="Button.oc-tab.active">
+        <Setter Property="Background" Value="#EAF2FD"/>
+        <Setter Property="Foreground" Value="#2F80ED"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <Style Selector="ComboBox.oc-field">
+        <Setter Property="Height" Value="38"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="BorderBrush" Value="#E6EAF2"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Padding" Value="10,0"/>
+    </Style>
+
+    <Style Selector="ToggleSwitch.oc-switch">
+        <Setter Property="FontSize" Value="13"/>
+    </Style>
+
+    <Style Selector="Border.oc-timeline-node">
+        <Setter Property="Width" Value="28"/>
+        <Setter Property="Height" Value="28"/>
+        <Setter Property="CornerRadius" Value="14"/>
+        <Setter Property="BorderThickness" Value="2"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="Border.oc-timeline-node.selected">
+        <Setter Property="BoxShadow" Value="0 0 0 4 #332F80ED"/>
+    </Style>
+
+    <Style Selector="Border.oc-impact-item">
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="10,8"/>
+    </Style>
+
+    <Style Selector="Border.oc-profile-row">
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="12,10"/>
+    </Style>
+
+    <Style Selector="Border.oc-file-card">
+        <Setter Property="Background" Value="#F8FAFC"/>
         <Setter Property="BorderBrush" Value="#E6EAF2"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="14"/>
+        <Setter Property="MinWidth" Value="120"/>
+        <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+
+    <Style Selector="Border.oc-file-card:pointerover">
+        <Setter Property="Background" Value="#F1F5F9"/>
+    </Style>
+
+    <Style Selector="Border.oc-drop-zone">
+        <Setter Property="Background" Value="#FAFBFD"/>
+        <Setter Property="BorderBrush" Value="#CBD5E1"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="20"/>
+    </Style>
+
+    <Style Selector="Border.oc-comment-bubble">
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="12,10"/>
+    </Style>
+
+    <Style Selector="Border.oc-avatar">
+        <Setter Property="Width" Value="36"/>
+        <Setter Property="Height" Value="36"/>
+        <Setter Property="CornerRadius" Value="18"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Top"/>
+    </Style>
+
+    <Style Selector="Border.oc-currency-row">
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="CornerRadius" Value="10"/>
         <Setter Property="Padding" Value="12"/>
-        <Setter Property="MinHeight" Value="72"/>
     </Style>
 
-    <Style Selector="Border.ad-badge">
-        <Setter Property="CornerRadius" Value="6"/>
-        <Setter Property="Padding" Value="8,4"/>
-        <Setter Property="HorizontalAlignment" Value="Left"/>
-        <Setter Property="VerticalAlignment" Value="Center"/>
+    <Style Selector="Border.oc-finance-tile">
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="16"/>
+        <Setter Property="MinHeight" Value="88"/>
     </Style>
 
-    <Style Selector="Border.ad-status-pill">
+    <Style Selector="Border.oc-info-footer-item">
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="12,10"/>
+        <Setter Property="MinHeight" Value="64"/>
+    </Style>
+
+    <Style Selector="Border.oc-stage-detail">
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="BorderBrush" Value="#E6EAF2"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="16"/>
+    </Style>
+
+    <Style Selector="Border.oc-history-badge">
         <Setter Property="CornerRadius" Value="6"/>
         <Setter Property="Padding" Value="8,4"/>
-        <Setter Property="HorizontalAlignment" Value="Left"/>
+    </Style>
+
+    <Style Selector="ProgressBar.oc-progress">
+        <Setter Property="Height" Value="10"/>
+        <Setter Property="Foreground" Value="#2F80ED"/>
+        <Setter Property="Background" Value="#E2E8F0"/>
+        <Setter Property="CornerRadius" Value="5"/>
+    </Style>
+
+    <Style Selector="TextBox.oc-comment-input">
+        <Setter Property="MinHeight" Value="40"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="BorderBrush" Value="#E6EAF2"/>
+        <Setter Property="Padding" Value="12,8"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="PlaceholderText" Value="Написать комментарий..."/>
     </Style>
 
 </Styles>

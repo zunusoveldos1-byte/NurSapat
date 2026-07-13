@@ -75,7 +75,7 @@ public sealed partial class SuppliersDictionaryViewModel : BaseDictionaryViewMod
 
     protected override async Task EditItemAsync(SupplierDictionaryItemViewModel item)
     {
-        var source = _store.GetById(item.Id)?.Clone() ?? item.ToModel();
+        var source = (_store.GetById(item.Id) as SupplierItem)?.Clone() ?? item.ToModel();
         var saved = await _editorService.ShowEditorAsync(OwnerWindow, source, isNew: false);
         if (saved is null)
         {

@@ -11,15 +11,18 @@ public sealed partial class OrderTemplateEditViewModel : ObservableObject
 {
     private readonly IManufacturersStore _manufacturersStore;
     private readonly IAppMessageService _messageService;
+    private readonly IOrderTemplateParametersService _parametersService;
     private Guid _id = Guid.NewGuid();
     private bool _isNew;
 
     public OrderTemplateEditViewModel(
         IManufacturersStore manufacturersStore,
-        IAppMessageService messageService)
+        IAppMessageService messageService,
+        IOrderTemplateParametersService parametersService)
     {
         _manufacturersStore = manufacturersStore;
         _messageService = messageService;
+        _parametersService = parametersService;
         ManufacturerOptions = new ObservableCollection<ManufacturerSelectionOption>();
         CurrencyOptions = ["KGS", "USD", "EUR"];
     }
@@ -58,6 +61,21 @@ public sealed partial class OrderTemplateEditViewModel : ObservableObject
     private string _currencyCode = "KGS";
 
     [ObservableProperty]
+    private string _defaultOrderNote = string.Empty;
+
+    [ObservableProperty]
+    private int _defaultProductionDays = 14;
+
+    [ObservableProperty]
+    private decimal _defaultPrepaymentPercent = 30m;
+
+    [ObservableProperty]
+    private bool _applyDealerDiscount;
+
+    [ObservableProperty]
+    private decimal _dealerDiscountPercent;
+
+    [ObservableProperty]
     private string _validationMessage = string.Empty;
 
     public event Action<bool>? RequestClose;
@@ -86,6 +104,11 @@ public sealed partial class OrderTemplateEditViewModel : ObservableObject
         DismantlingPrice = source.DismantlingPrice;
         InstallationPrice = source.InstallationPrice;
         CurrencyCode = source.CurrencyCode;
+        DefaultOrderNote = source.DefaultOrderNote;
+        DefaultProductionDays = source.DefaultProductionDays;
+        DefaultPrepaymentPercent = source.DefaultPrepaymentPercent;
+        ApplyDealerDiscount = source.ApplyDealerDiscount;
+        DealerDiscountPercent = source.DealerDiscountPercent;
         ValidationMessage = string.Empty;
 
         OnPropertyChanged(nameof(WindowTitle));
@@ -102,7 +125,12 @@ public sealed partial class OrderTemplateEditViewModel : ObservableObject
         AdditionalExpensesFixed = AdditionalExpensesFixed,
         DismantlingPrice = DismantlingPrice,
         InstallationPrice = InstallationPrice,
-        CurrencyCode = CurrencyCode
+        CurrencyCode = CurrencyCode,
+        DefaultOrderNote = DefaultOrderNote,
+        DefaultProductionDays = DefaultProductionDays,
+        DefaultPrepaymentPercent = DefaultPrepaymentPercent,
+        ApplyDealerDiscount = ApplyDealerDiscount,
+        DealerDiscountPercent = DealerDiscountPercent
     };
 
     [RelayCommand]
@@ -121,9 +149,18 @@ public sealed partial class OrderTemplateEditViewModel : ObservableObject
     private void Cancel() => RequestClose?.Invoke(false);
 
     [RelayCommand]
-    private void OpenTemplateParameters()
+    private async Task OpenTemplateParameters()
     {
-        _messageService.LogInfo("Диалог шаблонных параметров заказа будет доступен в следующей версии.");
+        var draft = BuildResult();
+        if (await _parametersService.ShowAsync(null, draft))
+        {
+            DefaultOrderNote = draft.DefaultOrderNote;
+            DefaultProductionDays = draft.DefaultProductionDays;
+            DefaultPrepaymentPercent = draft.DefaultPrepaymentPercent;
+            ApplyDealerDiscount = draft.ApplyDealerDiscount;
+            DealerDiscountPercent = draft.DealerDiscountPercent;
+            _messageService.LogInfo("Шаблонные параметры заказа обновлены.");
+        }
     }
 
     private string Validate()

@@ -1,4 +1,5 @@
 using System.Reflection;
+using NurSapat.App.Services.Orders;
 using NurSapat.App.Services.Settings;
 using NurSapat.App.ViewModels;
 using NurSapat.Cad.UI.ViewModels;
@@ -18,6 +19,7 @@ public sealed class DocumentManager : IDocumentManager
     private readonly IPrintSettingsService _printSettingsService;
     private readonly IWorkspaceWindowService _workspaceWindowService;
     private readonly IEnvironmentSettingsService _environmentSettingsService;
+    private readonly IOrdersStore _ordersStore;
 
     private bool _isModified;
     private bool _suppressModification;
@@ -33,7 +35,8 @@ public sealed class DocumentManager : IDocumentManager
         IAutoSaveService autoSaveService,
         IPrintSettingsService printSettingsService,
         IWorkspaceWindowService workspaceWindowService,
-        IEnvironmentSettingsService environmentSettingsService)
+        IEnvironmentSettingsService environmentSettingsService,
+        IOrdersStore ordersStore)
     {
         _workspace = workspace;
         _cadEditor = cadEditor;
@@ -44,6 +47,7 @@ public sealed class DocumentManager : IDocumentManager
         _printSettingsService = printSettingsService;
         _workspaceWindowService = workspaceWindowService;
         _environmentSettingsService = environmentSettingsService;
+        _ordersStore = ordersStore;
 
         _workspace.ProjectModified += OnProjectModified;
         _cadEditor.Commands.CommandExecuted += (_, _) => MarkModifiedIfAllowed();
@@ -149,6 +153,9 @@ public sealed class DocumentManager : IDocumentManager
 
         return await SaveToFileAsync(_filePath, cancellationToken);
     }
+
+    public Task<bool> SaveOrderToPathAsync(string path, CancellationToken cancellationToken = default) =>
+        SaveToFileAsync(path, cancellationToken);
 
     public async Task<bool> SaveAsCopyAsync(CancellationToken cancellationToken = default)
     {
@@ -287,6 +294,7 @@ public sealed class DocumentManager : IDocumentManager
             _isModified = false;
             _recentFilesService.AddRecentFile(path);
             _autoSaveService.ClearAutoSave();
+            _ordersStore.UpsertFromProject(snapshot, path);
             RaiseStateChanged();
             return true;
         }

@@ -89,6 +89,8 @@ public sealed class ElementExportNode
 
 public sealed class MaterialLineExportNode
 {
+    public Guid MaterialId { get; init; }
+
     public string Article { get; init; } = string.Empty;
 
     public string Name { get; init; } = string.Empty;

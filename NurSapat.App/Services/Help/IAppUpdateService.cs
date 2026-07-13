@@ -21,5 +21,7 @@ public interface IAppUpdateService
 {
     string CurrentVersion { get; }
 
+    string BuildVersion { get; }
+
     Task<UpdateCheckResult> CheckForUpdatesAsync(CancellationToken cancellationToken = default);
 }

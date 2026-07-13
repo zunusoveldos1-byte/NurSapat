@@ -24,6 +24,9 @@ public sealed partial class OrderDictionaryItemViewModel : DictionaryItemViewMod
     [ObservableProperty]
     private OrderStatus _status = OrderStatus.Calculation;
 
+    [ObservableProperty]
+    private string? _filePath;
+
     public string DateCreatedDisplay => DateCreated.ToString("dd.MM.yyyy");
 
     public string TotalSumDisplay => $"{TotalSum:N2}";
@@ -44,6 +47,30 @@ public sealed partial class OrderDictionaryItemViewModel : DictionaryItemViewMod
         CustomerName = item.CustomerName,
         StructuresCount = item.StructuresCount,
         TotalSum = item.TotalSum,
-        Status = item.Status
+        Status = item.Status,
+        FilePath = item.FilePath
     };
+
+    public OrderHeaderItem ToModel() => new()
+    {
+        Id = Id,
+        OrderNumber = OrderNumber,
+        DateCreated = DateCreated,
+        CustomerName = CustomerName,
+        StructuresCount = StructuresCount,
+        TotalSum = TotalSum,
+        Status = Status,
+        FilePath = FilePath
+    };
+
+    public void RefreshFrom(OrderHeaderItem item)
+    {
+        OrderNumber = item.OrderNumber;
+        DateCreated = item.DateCreated;
+        CustomerName = item.CustomerName;
+        StructuresCount = item.StructuresCount;
+        TotalSum = item.TotalSum;
+        Status = item.Status;
+        FilePath = item.FilePath;
+    }
 }

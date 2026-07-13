@@ -7,6 +7,8 @@ public sealed partial class FinishedGoodDictionaryItemViewModel : ObservableObje
 {
     public Guid Id { get; init; } = Guid.NewGuid();
 
+    public Guid OrderId { get; init; }
+
     [ObservableProperty]
     private string _orderNumber = string.Empty;
 
@@ -36,6 +38,7 @@ public sealed partial class FinishedGoodDictionaryItemViewModel : ObservableObje
     public static FinishedGoodDictionaryItemViewModel FromModel(FinishedGoodItem item) => new()
     {
         Id = item.Id,
+        OrderId = item.OrderId,
         OrderNumber = item.OrderNumber,
         ProductCode = item.ProductCode,
         CellAddress = item.CellAddress,
@@ -47,6 +50,7 @@ public sealed partial class FinishedGoodDictionaryItemViewModel : ObservableObje
     public FinishedGoodItem ToModel() => new()
     {
         Id = Id,
+        OrderId = OrderId,
         OrderNumber = OrderNumber,
         ProductCode = ProductCode,
         CellAddress = CellAddress,

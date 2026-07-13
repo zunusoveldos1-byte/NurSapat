@@ -53,13 +53,7 @@ public sealed partial class OrderCalculationState : ObservableObject
 
     public ObservableCollection<OrderActivityEvent> ActivityLog { get; } = new();
 
-    public ObservableCollection<ExchangeRateLine> ExchangeRates { get; } =
-    [
-        new("KGS", "Кыргызский сом", 1m, DateTime.Today, "Базовая валюта"),
-        new("USD", "Доллар США", 89.45m, DateTime.Today, "Ручной ввод"),
-        new("EUR", "Евро", 96.12m, DateTime.Today, "Ручной ввод"),
-        new("RUB", "Российский рубль", 0.98m, DateTime.Today, "Ручной ввод")
-    ];
+    public ObservableCollection<ExchangeRateLine> ExchangeRates { get; } = [];
 
     public string OrderDateText => OrderDate.ToString("dd.MM.yyyy");
 
@@ -126,15 +120,14 @@ public sealed partial class OrderCalculationState : ObservableObject
         ImpostCount = 0;
         SashCount = 0;
         FillSummary = rects.Count > 0 ? $"Прямоугольников: {rects.Count}" : "Нет элементов";
-        HardwareSummary = "Не поддерживается";
+        HardwareSummary = rects.Count > 0 ? "См. лист заказа" : "Нет элементов";
         ProfileSystem = "Не указана";
         LaminationColor = "Не указан";
         GlassFormula = "Не указана";
         WorkType = HasInstallation ? "Производство и монтаж" : "Производство";
         GlassTotalArea = (decimal)ItemArea;
 
-        // Пример расчета стоимости (можно заменить на свою логику)
-        EstimatedMaterialCost = (decimal)ItemArea * 5000m; // Примерная цена за квадратный метр
+        EstimatedMaterialCost = 0m;
         RecalculateTotals();
 
         RebuildSpecificationLines();
@@ -187,7 +180,10 @@ public sealed partial class OrderCalculationState : ObservableObject
     private void RebuildSpecificationLines()
     {
         SpecificationLines.Clear();
-        AddSpecificationLine("Общая площадь", (decimal)ItemArea, "м²", EstimatedMaterialCost);
+        if (ItemArea > 0)
+        {
+            AddSpecificationLine("Общая площадь", (decimal)ItemArea, "м²", 0m);
+        }
     }
 
     private void RecalculateTotals()
@@ -241,5 +237,7 @@ public sealed record ExchangeRateLine(string Code, string Name, decimal Rate, Da
 
     public string PeriodEndText => "—";
 
-    public string ActionText => Source;
+    public string ActionType => Source;
+
+    public string ActionText => ActionType;
 }

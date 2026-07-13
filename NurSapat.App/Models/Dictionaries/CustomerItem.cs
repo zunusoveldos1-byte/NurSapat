@@ -1,46 +1,20 @@
+using NurSapat.Core.Models.Orders;
+
 namespace NurSapat.App.Models.Dictionaries;
 
-public enum CustomerType
+/// <summary>App-совместимый алиас канонической модели <see cref="Customer"/>.</summary>
+public sealed class CustomerItem : Customer
 {
-    Individual,
-    LegalEntity,
-    Dealer
-}
-
-public sealed class CustomerItem
-{
-    public Guid Id { get; set; } = Guid.NewGuid();
-
-    public string FullName { get; set; } = string.Empty;
-
-    public string Phone { get; set; } = string.Empty;
-
-    public CustomerType Type { get; set; } = CustomerType.Individual;
-
-    public decimal Turnover { get; set; }
-
-    public decimal Debt { get; set; }
-
-    public string OkpoCode { get; set; } = string.Empty;
-
-    public string BankName { get; set; } = string.Empty;
-
-    public string CheckingAccount { get; set; } = string.Empty;
-
-    public string Mfo { get; set; } = string.Empty;
-
-    public string LegalAddress { get; set; } = string.Empty;
-
-    public string Note { get; set; } = string.Empty;
-
-    public static CustomerItem CreateDefault() => new()
+    public static new CustomerItem CreateDefault() => new()
     {
-        FullName = "Новый заказчик",
+        FullName = string.Empty,
         Phone = "+996",
-        Type = CustomerType.Individual
+        Type = CustomerType.Individual,
+        CreatedAt = DateTime.Now,
+        ModifiedAt = DateTime.Now
     };
 
-    public CustomerItem Clone() => new()
+    public new CustomerItem Clone() => new()
     {
         Id = Id,
         FullName = FullName,
@@ -53,6 +27,13 @@ public sealed class CustomerItem
         CheckingAccount = CheckingAccount,
         Mfo = Mfo,
         LegalAddress = LegalAddress,
-        Note = Note
+        City = City,
+        ActualAddress = ActualAddress,
+        DealerCode = DealerCode,
+        Note = Note,
+        IsBlocked = IsBlocked,
+        IsDeleted = IsDeleted,
+        CreatedAt = CreatedAt,
+        ModifiedAt = ModifiedAt
     };
 }

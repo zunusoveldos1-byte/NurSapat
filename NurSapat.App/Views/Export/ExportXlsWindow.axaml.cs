@@ -8,9 +8,13 @@ namespace NurSapat.App.Views.Export;
 
 public partial class ExportXlsWindow : Window
 {
-    public ExportXlsWindow(ExportXlsViewModel viewModel)
+    public ExportXlsWindow()
     {
         InitializeComponent();
+    }
+
+    public ExportXlsWindow(ExportXlsViewModel viewModel) : this()
+    {
         DataContext = viewModel;
         viewModel.OwnerWindow = this;
         viewModel.RequestClose += OnRequestClose;

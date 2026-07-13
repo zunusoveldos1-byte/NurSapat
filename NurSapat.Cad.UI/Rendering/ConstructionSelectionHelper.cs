@@ -96,6 +96,13 @@ internal static class ConstructionSelectionHelper
             }
         }
 
+        if (editor.CurrentToolMode == WindowToolMode.SelectProfile
+            && editor.FrameRoot is FrameNode profileFrame
+            && TryHitTestFrameProfileRail(editor, profileFrame, worldPoint, out var profileRail))
+        {
+            return CadSelectableItem.FrameRail(profileRail);
+        }
+
         if (editor.FrameRoot is not null && HitTestFrame(editor, worldPoint))
         {
             return CadSelectableItem.Frame();
@@ -265,28 +272,39 @@ internal static class ConstructionSelectionHelper
     public static CadRect? TryGetExtremeImpostBounds(
         CadEditorViewModel editor,
         FrameNode leaf,
-        ExtremeImpostSlot slot)
+        ExtremeImpostSlot slot,
+        double? displayThicknessMm = null)
     {
         if (editor.FrameRoot is null)
         {
             return null;
         }
 
-        var inner = SashGeometry.ResolveLeafInnerOpeningBounds(
+        var cellAxes = SashGeometry.ResolveLeafCellAxisBounds(
             leaf,
             editor.FrameRoot,
             editor.FrameThickness,
             includeExtremeImposts: false);
-        var axis = ExtremeImpostGeometry.ResolveAxisWorld(inner, slot.EdgeAlignment, slot.ThicknessMm, slot.OffsetMm);
-        ExtremeImpostGeometry.ResolveSpan(inner, slot.EdgeAlignment, out var spanStart, out var spanEnd);
-        var half = slot.ThicknessMm / 2.0;
+        var axis = ExtremeImpostGeometry.ResolveAxisWorld(cellAxes, slot.EdgeAlignment, slot.ThicknessMm, slot.OffsetMm);
+        ExtremeImpostGeometry.ResolveSpan(
+            leaf,
+            editor.FrameRoot,
+            editor.FrameThickness,
+            cellAxes,
+            slot.EdgeAlignment,
+            slot.ThicknessMm,
+            out var spanStart,
+            out var spanEnd,
+            slot);
+        var thickness = displayThicknessMm ?? slot.ThicknessMm;
+        var half = thickness / 2.0;
 
         if (slot.Orientation == SplitOrientation.Vertical)
         {
-            return new CadRect(axis - half, spanEnd, slot.ThicknessMm, spanEnd - spanStart);
+            return new CadRect(axis - half, spanEnd, thickness, spanEnd - spanStart);
         }
 
-        return new CadRect(spanStart, axis + half, spanEnd - spanStart, slot.ThicknessMm);
+        return new CadRect(spanStart, axis + half, spanEnd - spanStart, thickness);
     }
 
     private static bool HitTestFrame(CadEditorViewModel editor, CadPoint worldPoint)
@@ -294,6 +312,20 @@ internal static class ConstructionSelectionHelper
         if (editor.FrameRoot is not FrameNode frame)
         {
             return false;
+        }
+
+        if (frame.Shape == ConstructionShape.Triangle)
+        {
+            var outer = FrameTriangleGeometry.BuildOuterTriangle(frame.X, frame.Y, frame.Width, frame.Height);
+            var inner = FrameTriangleGeometry.BuildInnerTriangle(frame, editor.FrameThickness);
+            return ProfileBandHitTest.ContainsPointInTriangularBand(
+                outer.Bl,
+                outer.Br,
+                outer.Top,
+                inner.Bl,
+                inner.Br,
+                inner.Top,
+                worldPoint);
         }
 
         if (TryGetArchedFrameContours(editor, out var outerLoop, out var innerLoop))
@@ -343,6 +375,39 @@ internal static class ConstructionSelectionHelper
             frame.Y + inset,
             frame.X + frame.Width - inset,
             frame.Y + frame.Height - inset);
+    }
+
+    private static bool TryHitTestFrameProfileRail(
+        CadEditorViewModel editor,
+        FrameNode frame,
+        CadPoint worldPoint,
+        out FrameProfileRail rail)
+    {
+        rail = default;
+        if (frame.IsDummy || frame.IsFictitiousContainer)
+        {
+            return false;
+        }
+
+        if (frame.Shape != ConstructionShape.Rectangle)
+        {
+            return false;
+        }
+
+        if (frame.TopProfile?.SegmentType == SegmentType.Arc
+            && frame.TopProfile.ArcHeight > ProfileSegment.MinFlatArcHeightMm + CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        return FrameProfileRailGeometry.TryHitRectangularFrameRail(
+            frame.X,
+            frame.Y,
+            frame.Width,
+            frame.Height,
+            editor.FrameThickness,
+            worldPoint,
+            out rail);
     }
 
     private static bool TryGetArchedFrameContours(
@@ -405,7 +470,7 @@ internal static class ConstructionSelectionHelper
             return TryGetElementBounds(editor, element, out var bounds) && selection.Intersects(bounds);
         }
 
-        if (glass.IsArched)
+        if (glass.IsArched || glass.IsTriangular)
         {
             return ProfileBandHitTest.RectIntersectsPolygon(glass.BuildOuterContourLoop().Tessellate(), selection);
         }

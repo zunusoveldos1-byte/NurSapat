@@ -31,6 +31,8 @@ public enum WindowToolMode
     CorrugationVertical,
     /// <summary>Гофра горизонтальная (заполнение проёма).</summary>
     CorrugationHorizontal,
+    /// <summary>Гофра наклонная 45° (заполнение проёма).</summary>
+    CorrugationSlanted,
     Hardware,
     SlidingSash,
     RoundDummyFrame,
@@ -124,6 +126,36 @@ public enum WindowToolMode
 
     /// <summary>Выделение радиусных вершин (преобразование верхнего профиля в дугу).</summary>
     RadiusVertex,
+
+    /// <summary>Выделение и редактирование дуговых вершин арочного профиля.</summary>
+    ArcVertex,
+
+    /// <summary>Разделение арочного профиля вертикальным импостом.</summary>
+    SplitArc,
+
+    /// <summary>Замок на створке.</summary>
+    Lock,
+
+    /// <summary>Ограничитель открывания на створке.</summary>
+    OpeningLimiter,
+
+    /// <summary>Доводчик на двери/створке.</summary>
+    DoorCloser,
+
+    /// <summary>Шпингалет на створке.</summary>
+    Espagnolette,
+
+    /// <summary>Карниз по стороне конструкции.</summary>
+    Cornice,
+
+    /// <summary>Жалюзи вертикальные.</summary>
+    BlindVertical,
+
+    /// <summary>Жалюзи горизонтальные.</summary>
+    BlindHorizontal,
+
+    /// <summary>Блок управления жалюзи.</summary>
+    BlindControl,
 
     // Системные
     /// <summary>Разделитель панели инструментов.</summary>

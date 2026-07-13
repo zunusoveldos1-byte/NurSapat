@@ -5,5 +5,6 @@ public enum GlazingType
 {
     Glass,
     VerticalCorrugation,
-    HorizontalCorrugation
+    HorizontalCorrugation,
+    SlantedCorrugation
 }

@@ -20,7 +20,7 @@
     </Window.Styles>
 
     <Border Classes="mat-shell" Margin="12">
-        <Grid RowDefinitions="40,*,Auto">
+        <Grid RowDefinitions="32,*,Auto">
             <Border Grid.Row="0"
                     Classes="mat-titlebar"
                     PointerPressed="OnTitleBarPointerPressed">
@@ -39,7 +39,7 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="1" Margin="12,12,12,0" Classes="mat-card">
+            <Border Grid.Row="1" Margin="12,0,12,0" Classes="mat-card">
                 <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12">
                     <TextBlock Text="Название серии" VerticalAlignment="Center"/>
                     <TextBox Grid.Column="1" Text="{Binding Name}"/>

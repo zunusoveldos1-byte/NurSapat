@@ -1,4 +1,5 @@
 using NurSapat.App.Models.Stock;
+using NurSapat.Core.Models.Materials;
 
 namespace NurSapat.App.Services.Stock;
 
@@ -59,7 +60,8 @@ public sealed class StockMaterialsStore : IStockMaterialsStore
         };
         minStock.Lines.Add(new StockDocumentLine
         {
-            Article = "RH-70-WHT",
+            MaterialId = CatalogMaterialIds.ProfileRehau70,
+            Article = CatalogMaterialArticles.ProfileRehau70,
             Name = "Профиль Rehau 70 белый",
             Unit = "м/п",
             Quantity = 120m,
@@ -68,7 +70,8 @@ public sealed class StockMaterialsStore : IStockMaterialsStore
         });
         minStock.Lines.Add(new StockDocumentLine
         {
-            Article = "MACO-EGRESS",
+            MaterialId = CatalogMaterialIds.HardwareMacoEgress,
+            Article = CatalogMaterialArticles.HardwareMacoEgress,
             Name = "Ножницы Maco Multi-Matic",
             Unit = "шт.",
             Quantity = 40m,
@@ -85,7 +88,8 @@ public sealed class StockMaterialsStore : IStockMaterialsStore
         };
         receipt.Lines.Add(new StockDocumentLine
         {
-            Article = "RH-70-WHT",
+            MaterialId = CatalogMaterialIds.ProfileRehau70,
+            Article = CatalogMaterialArticles.ProfileRehau70,
             Name = "Профиль Rehau 70 белый",
             Color = "Белый",
             Unit = "м/п",
@@ -95,7 +99,8 @@ public sealed class StockMaterialsStore : IStockMaterialsStore
         });
         receipt.Lines.Add(new StockDocumentLine
         {
-            Article = "GL-4-16-4",
+            MaterialId = CatalogMaterialIds.Glazing4_16_4,
+            Article = CatalogMaterialArticles.Glazing4_16_4,
             Name = "Стеклопакет 4-16-4",
             Color = "Прозрачный",
             Unit = "м.кв.",
@@ -113,7 +118,8 @@ public sealed class StockMaterialsStore : IStockMaterialsStore
         };
         invoice.Lines.Add(new StockDocumentLine
         {
-            Article = "RH-70-WHT",
+            MaterialId = CatalogMaterialIds.ProfileRehau70,
+            Article = CatalogMaterialArticles.ProfileRehau70,
             Name = "Профиль Rehau 70 белый",
             Color = "Белый",
             Unit = "м/п",
@@ -131,7 +137,8 @@ public sealed class StockMaterialsStore : IStockMaterialsStore
         };
         inventory.Lines.Add(new StockDocumentLine
         {
-            Article = "RH-70-WHT",
+            MaterialId = CatalogMaterialIds.ProfileRehau70,
+            Article = CatalogMaterialArticles.ProfileRehau70,
             Name = "Профиль Rehau 70 белый",
             Unit = "м/п",
             Quantity = 202m,
@@ -140,7 +147,8 @@ public sealed class StockMaterialsStore : IStockMaterialsStore
         });
         inventory.Lines.Add(new StockDocumentLine
         {
-            Article = "MACO-EGRESS",
+            MaterialId = CatalogMaterialIds.HardwareMacoEgress,
+            Article = CatalogMaterialArticles.HardwareMacoEgress,
             Name = "Ножницы Maco Multi-Matic",
             Unit = "шт.",
             Quantity = 86m,
@@ -157,7 +165,8 @@ public sealed class StockMaterialsStore : IStockMaterialsStore
         };
         request.Lines.Add(new StockDocumentLine
         {
-            Article = "MACO-EGRESS",
+            MaterialId = CatalogMaterialIds.HardwareMacoEgress,
+            Article = CatalogMaterialArticles.HardwareMacoEgress,
             Name = "Ножницы Maco Multi-Matic",
             Unit = "шт.",
             Quantity = 20m,

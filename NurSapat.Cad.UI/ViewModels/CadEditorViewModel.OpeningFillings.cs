@@ -544,9 +544,7 @@ public sealed partial class CadEditorViewModel
             return false;
         }
 
-        var label = fillType == GlazingType.HorizontalCorrugation
-            ? "Гофра горизонтальная"
-            : "Гофра вертикальная";
+        var label = ResolveCorrugationLabel(fillType);
 
         if (!RecordPlacement(label, () =>
             {
@@ -597,13 +595,13 @@ public sealed partial class CadEditorViewModel
             return new GeometryElement
             {
                 Kind = GeometryElementKind.Corrugation,
-                Label = fillType == GlazingType.HorizontalCorrugation ? "Гофра горизонтальная" : "Гофра вертикальная",
+                Label = ResolveCorrugationLabel(fillType),
                 X = (decimal)((glass.Left + glass.Right) / 2.0),
                 Y = (decimal)((glass.Bottom + glass.Top) / 2.0),
                 WidthMm = (decimal)glass.Width,
                 HeightMm = (decimal)glass.Height,
                 FillType = fillType,
-                SourceToolId = fillType == GlazingType.HorizontalCorrugation ? "corrugation-h" : "corrugation-v",
+                SourceToolId = ResolveCorrugationSourceToolId(fillType),
                 HostSashId = sash.Id
             };
         }
@@ -622,13 +620,13 @@ public sealed partial class CadEditorViewModel
             return new GeometryElement
             {
                 Kind = GeometryElementKind.Corrugation,
-                Label = fillType == GlazingType.HorizontalCorrugation ? "Гофра горизонтальная" : "Гофра вертикальная",
+                Label = ResolveCorrugationLabel(fillType),
                 X = (decimal)(innerX + innerW / 2.0),
                 Y = (decimal)(innerY + innerH / 2.0),
                 WidthMm = (decimal)innerW,
                 HeightMm = (decimal)innerH,
                 FillType = fillType,
-                SourceToolId = fillType == GlazingType.HorizontalCorrugation ? "corrugation-h" : "corrugation-v"
+                SourceToolId = ResolveCorrugationSourceToolId(fillType)
             };
         }
 
@@ -640,15 +638,29 @@ public sealed partial class CadEditorViewModel
         return new GeometryElement
         {
             Kind = GeometryElementKind.Corrugation,
-            Label = fillType == GlazingType.HorizontalCorrugation ? "Гофра горизонтальная" : "Гофра вертикальная",
+            Label = ResolveCorrugationLabel(fillType),
             X = (decimal)((fixedGlass.Left + fixedGlass.Right) / 2.0),
             Y = (decimal)((fixedGlass.Bottom + fixedGlass.Top) / 2.0),
             WidthMm = (decimal)fixedGlass.Width,
             HeightMm = (decimal)fixedGlass.Height,
             FillType = fillType,
-            SourceToolId = fillType == GlazingType.HorizontalCorrugation ? "corrugation-h" : "corrugation-v"
+            SourceToolId = ResolveCorrugationSourceToolId(fillType)
         };
     }
+
+    private static string ResolveCorrugationLabel(GlazingType fillType) => fillType switch
+    {
+        GlazingType.HorizontalCorrugation => "Гофра горизонтальная",
+        GlazingType.SlantedCorrugation => "Гофра наклонная",
+        _ => "Гофра вертикальная"
+    };
+
+    private static string ResolveCorrugationSourceToolId(GlazingType fillType) => fillType switch
+    {
+        GlazingType.HorizontalCorrugation => "corrugation-h",
+        GlazingType.SlantedCorrugation => "corrugation-slanted",
+        _ => "corrugation-v"
+    };
 
     private void SyncCorrugationElementToLayout(GeometryElement corrugation)
     {

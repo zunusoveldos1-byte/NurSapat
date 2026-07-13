@@ -22,6 +22,8 @@ public interface IDocumentManager
 
     Task<bool> SaveOrderAsync(CancellationToken cancellationToken = default);
 
+    Task<bool> SaveOrderToPathAsync(string path, CancellationToken cancellationToken = default);
+
     Task<bool> SaveAsCopyAsync(CancellationToken cancellationToken = default);
 
     Task<bool> CloseOrderAsync(CancellationToken cancellationToken = default);

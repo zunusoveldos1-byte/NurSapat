@@ -19,6 +19,8 @@ public abstract partial class BaseDictionaryViewModel<TItem> : ObservableObject
 
     public abstract string Title { get; }
 
+    public bool ShowCloseButton { get; set; } = true;
+
     public async Task InitializeAsync()
     {
         await LoadItemsAsync();

@@ -4,15 +4,15 @@ using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.UI.Services;
 using NurSapat.Cad.UI.ViewModels;
+using NurSapat.Core.Models.Construction;
 using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.Cad.UI.Rendering;
 
 public static class ExtremeImpostRenderer
 {
-    private static readonly IPen PreviewPen = new Pen(
-        new SolidColorBrush(Color.Parse("#CC22C55E")),
-        3);
+    private static readonly IBrush PreviewFillBrush = new SolidColorBrush(Color.FromArgb(128, 255, 4, 4));
+    private static readonly IPen PreviewPen = new Pen(new SolidColorBrush(Color.FromArgb(200, 255, 4, 4)), 2);
 
     private static readonly IBrush ProfileFillBrush = Brushes.White;
     private static readonly IPen ProfilePen = new Pen(Brushes.Black, FrameVolumeRenderer.ProfileStrokeThickness);
@@ -25,21 +25,31 @@ public static class ExtremeImpostRenderer
         }
 
         var half = preview.ThicknessMm / 2.0;
-        var edgeWorld = preview.IsVertical
-            ? preview.AxisWorld - half
-            : preview.AxisWorld - half;
+        var edgeWorld = preview.AxisWorld - half;
 
         if (preview.IsVertical)
         {
-            var start = WorldToScreen(editor, new CadPoint(edgeWorld, preview.SpanStart));
-            var end = WorldToScreen(editor, new CadPoint(edgeWorld, preview.SpanEnd));
-            context.DrawLine(PreviewPen, start, end);
+            DrawWorldRect(
+                context,
+                editor,
+                edgeWorld,
+                preview.SpanStart,
+                preview.ThicknessMm,
+                preview.SpanEnd - preview.SpanStart,
+                PreviewFillBrush,
+                PreviewPen);
             return;
         }
 
-        var lineStart = WorldToScreen(editor, new CadPoint(preview.SpanStart, edgeWorld));
-        var lineEnd = WorldToScreen(editor, new CadPoint(preview.SpanEnd, edgeWorld));
-        context.DrawLine(PreviewPen, lineStart, lineEnd);
+        DrawWorldRect(
+            context,
+            editor,
+            preview.SpanStart,
+            edgeWorld,
+            preview.SpanEnd - preview.SpanStart,
+            preview.ThicknessMm,
+            PreviewFillBrush,
+            PreviewPen);
     }
 
     public static void DrawCommittedImposts(DrawingContext context, CadEditorViewModel editor, FrameNode? root)
@@ -66,10 +76,23 @@ public static class ExtremeImpostRenderer
             return;
         }
 
-        var inner = SashGeometry.ResolveLeafInnerOpeningBounds(leaf, editor.FrameRoot, editor.FrameThickness, includeExtremeImposts: false);
-        var axis = ExtremeImpostGeometry.ResolveAxisWorld(inner, slot.EdgeAlignment, slot.ThicknessMm, slot.OffsetMm);
-        ExtremeImpostGeometry.ResolveSpan(inner, slot.EdgeAlignment, out var spanStart, out var spanEnd);
-        var half = slot.ThicknessMm / 2.0;
+        var cellAxes = SashGeometry.ResolveLeafCellAxisBounds(leaf, editor.FrameRoot, editor.FrameThickness, includeExtremeImposts: false);
+        var axis = ExtremeImpostGeometry.ResolveAxisWorld(cellAxes, slot.EdgeAlignment, slot.ThicknessMm, slot.OffsetMm);
+        ExtremeImpostGeometry.ResolveSpan(
+            leaf,
+            editor.FrameRoot,
+            editor.FrameThickness,
+            cellAxes,
+            slot.EdgeAlignment,
+            slot.ThicknessMm,
+            out var spanStart,
+            out var spanEnd,
+            slot);
+
+        // Тонкие накладные материалы (нащельник, 65 рама НИЗ) рисуются узкой
+        // полосой по оси профиля; геометрия размещения при этом не меняется.
+        var drawThickness = ResolveDrawThickness(editor, slot);
+        var half = drawThickness / 2.0;
 
         if (slot.Orientation == SplitOrientation.Vertical)
         {
@@ -78,7 +101,7 @@ public static class ExtremeImpostRenderer
                 editor,
                 axis - half,
                 spanStart,
-                slot.ThicknessMm,
+                drawThickness,
                 spanEnd - spanStart,
                 ProfileFillBrush,
                 ProfilePen);
@@ -91,9 +114,22 @@ public static class ExtremeImpostRenderer
             spanStart,
             axis - half,
             spanEnd - spanStart,
-            slot.ThicknessMm,
+            drawThickness,
             ProfileFillBrush,
             ProfilePen);
+    }
+
+    /// <summary>
+    /// Толщина отрисовки крайнего импоста: у тонких накладных материалов
+    /// (нащельник, 65 рама НИЗ) берётся DrawThicknessMm материала, иначе —
+    /// реальная толщина профиля из слота.
+    /// </summary>
+    internal static double ResolveDrawThickness(CadEditorViewModel editor, ExtremeImpostSlot slot)
+    {
+        var element = editor.CanvasElements.FirstOrDefault(e =>
+            e.Kind == GeometryElementKind.EdgeMullion && e.ExtremeImpostSlotId == slot.Id);
+        var material = ConstructionMaterialCatalog.FindById(element?.MaterialId);
+        return material?.DrawThicknessMm ?? slot.ThicknessMm;
     }
 
     private static Point WorldToScreen(CadEditorViewModel editor, CadPoint worldPoint)

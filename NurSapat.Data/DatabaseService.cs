@@ -3,7 +3,7 @@ using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
 using Npgsql;
-using NurSapat.Core.Models;
+using NurSapat.Data.Legacy;
 
 namespace NurSapat.Data;
 
@@ -17,7 +17,7 @@ public class DatabaseService
     {
         _connectionString = connectionString;
         var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-        dataSourceBuilder.MapEnum<MaterialCategory>("material_category");
+        dataSourceBuilder.MapEnum<LegacyMaterialCategory>("material_category");
         DataSource = dataSourceBuilder.Build();
     }
 

@@ -1,4 +1,5 @@
-using NurSapat.App.Services;
+using NurSapat.App.Models.EditDialogs;
+using NurSapat.App.Services.EditDialogs;
 using NurSapat.App.ViewModels;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Project;
@@ -18,17 +19,20 @@ public sealed class PrintService : IPrintService
     private readonly IPrintSettingsService _printSettingsService;
     private readonly IDocumentManager _documentManager;
     private readonly CadEditorViewModel _cadEditor;
+    private readonly IPrintDocumentRenderer _printDocumentRenderer;
 
     public PrintService(
         IDialogService dialogService,
         IPrintSettingsService printSettingsService,
         IDocumentManager documentManager,
-        CadEditorViewModel cadEditor)
+        CadEditorViewModel cadEditor,
+        IPrintDocumentRenderer printDocumentRenderer)
     {
         _dialogService = dialogService;
         _printSettingsService = printSettingsService;
         _documentManager = documentManager;
         _cadEditor = cadEditor;
+        _printDocumentRenderer = printDocumentRenderer;
     }
 
     public async Task ShowPrintDialogAsync(CancellationToken cancellationToken = default)
@@ -38,7 +42,7 @@ public sealed class PrintService : IPrintService
         {
             _printSettingsService.Load(viewModel.ToSettings());
             _documentManager.MarkModified();
-            await viewModel.PrintAsync(cancellationToken);
+            await viewModel.PrintAsync(_printDocumentRenderer, cancellationToken);
         }
     }
 

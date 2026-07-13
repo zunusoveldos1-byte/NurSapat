@@ -20,7 +20,7 @@
     </Window.Styles>
 
     <Border Classes="mat-shell" Margin="12">
-        <Grid RowDefinitions="40,Auto,*,Auto">
+        <Grid RowDefinitions="32,Auto,*,Auto">
             <Border Grid.Row="0" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Classes="mat-titlebar-text" Text="{Binding Title}" Margin="16,0,0,0"/>
@@ -29,7 +29,7 @@
                 </Grid>
             </Border>
 
-            <TextBox Grid.Row="1" Margin="12,12,12,0" MinHeight="36"
+            <TextBox Grid.Row="1" Margin="12,0,12,0" MinHeight="36"
                      PlaceholderText="Поиск по артикулу или наименованию..."
                      Text="{Binding SearchText}"
                      VerticalContentAlignment="Center"/>

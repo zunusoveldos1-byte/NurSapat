@@ -1,80 +1,124 @@
+using NurSapat.App.Models.Dictionaries;
+using NurSapat.Core.Models.Orders;
+
 namespace NurSapat.App.Services.Dictionaries;
 
 public interface ICustomersStore
 {
-    IReadOnlyList<Models.Dictionaries.CustomerItem> GetAll();
+    event EventHandler? Changed;
 
-    Models.Dictionaries.CustomerItem? GetById(Guid id);
+    /// <summary>Активные (не удалённые) заказчики.</summary>
+    IReadOnlyList<CustomerItem> GetAll();
 
-    void Add(Models.Dictionaries.CustomerItem item);
+    /// <summary>Заказчики, доступные для выбора в заказе.</summary>
+    IReadOnlyList<CustomerItem> GetSelectable();
 
-    void Update(Models.Dictionaries.CustomerItem item);
+    CustomerItem? GetById(Guid id);
 
+    void Add(CustomerItem item);
+
+    void Update(CustomerItem item);
+
+    /// <summary>Мягкое удаление.</summary>
     void Delete(Guid id);
+
+    /// <summary>
+    /// Пересчёт оборота и долга по оплаченным/неоплаченным заказам.
+    /// turnover = сумма оплат, debt = сумма заказов − сумма оплат.
+    /// </summary>
+    void RecalculateFinancials(IEnumerable<(Guid CustomerId, decimal OrderTotal, decimal PaidAmount)> orderLines);
 }
 
 public sealed class CustomersStore : ICustomersStore
 {
-    private readonly List<Models.Dictionaries.CustomerItem> _items =
-    [
-        new()
+    private readonly List<CustomerItem> _items = [];
+    private int _rowNumberSeed;
+
+    public event EventHandler? Changed;
+
+    public IReadOnlyList<CustomerItem> GetAll() =>
+        _items.Where(x => !x.IsDeleted).OrderBy(x => x.FullName).ToList();
+
+    public IReadOnlyList<CustomerItem> GetSelectable() =>
+        _items.Where(x => x.CanSelectForOrder).OrderBy(x => x.FullName).ToList();
+
+    public CustomerItem? GetById(Guid id) => _items.FirstOrDefault(x => x.Id == id);
+
+    public void Add(CustomerItem item)
+    {
+        item.ModifiedAt = DateTime.Now;
+        if (item.CreatedAt == default)
         {
-            FullName = "Иванов Алексей Петрович",
-            Phone = "+996 555 123 456",
-            Type = Models.Dictionaries.CustomerType.Individual,
-            Turnover = 485_600m,
-            Debt = 0m,
-            OkpoCode = "21456398741236",
-            BankName = "ОАО «РСК Банк»",
-            CheckingAccount = "11800000012345678901",
-            Mfo = "118001",
-            LegalAddress = "г. Бишкек, ул. Чуй 145, кв. 32",
-            Note = "Постоянный розничный клиент"
-        },
-        new()
-        {
-            FullName = "ОсОО «Окна Бишкек»",
-            Phone = "+996 312 45 67 89",
-            Type = Models.Dictionaries.CustomerType.LegalEntity,
-            Turnover = 2_150_000m,
-            Debt = 125_400m,
-            OkpoCode = "30567890123456",
-            BankName = "ОАО «Кыргызкоммерцбанк»",
-            CheckingAccount = "10900000098765432109",
-            Mfo = "109001",
-            LegalAddress = "г. Бишкек, пр. Манаса 40, офис 12",
-            Note = "Оплата по договору, отсрочка 14 дней"
-        },
-        new()
-        {
-            FullName = "Дилер «СтройПлюс»",
-            Phone = "+996 700 987 654",
-            Type = Models.Dictionaries.CustomerType.Dealer,
-            Turnover = 980_300m,
-            Debt = 42_000m,
-            OkpoCode = "30890123456789",
-            BankName = "ОАО «Демир Банк»",
-            CheckingAccount = "12900000011223344556",
-            Mfo = "129001",
-            LegalAddress = "г. Ош, ул. Ленина 88",
-            Note = "Дилерская скидка 12%"
+            item.CreatedAt = DateTime.Now;
         }
-    ];
 
-    public IReadOnlyList<Models.Dictionaries.CustomerItem> GetAll() => _items;
+        _items.Add(item);
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 
-    public Models.Dictionaries.CustomerItem? GetById(Guid id) => _items.FirstOrDefault(x => x.Id == id);
-
-    public void Add(Models.Dictionaries.CustomerItem item) => _items.Add(item);
-
-    public void Update(Models.Dictionaries.CustomerItem item)
+    public void Update(CustomerItem item)
     {
         var index = _items.FindIndex(x => x.Id == item.Id);
-        if (index >= 0)
+        if (index < 0)
         {
-            _items[index] = item;
+            return;
+        }
+
+        item.ModifiedAt = DateTime.Now;
+        _items[index] = item;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void Delete(Guid id)
+    {
+        var item = _items.FirstOrDefault(x => x.Id == id);
+        if (item is null)
+        {
+            return;
+        }
+
+        item.IsDeleted = true;
+        item.ModifiedAt = DateTime.Now;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void RecalculateFinancials(IEnumerable<(Guid CustomerId, decimal OrderTotal, decimal PaidAmount)> orderLines)
+    {
+        var aggregates = orderLines
+            .GroupBy(line => line.CustomerId)
+            .ToDictionary(
+                group => group.Key,
+                group => (
+                    Turnover: group.Sum(x => x.PaidAmount),
+                    Debt: Math.Max(0, group.Sum(x => x.OrderTotal) - group.Sum(x => x.PaidAmount))));
+
+        var changed = false;
+        foreach (var item in _items)
+        {
+            if (aggregates.TryGetValue(item.Id, out var values))
+            {
+                if (item.Turnover != values.Turnover || item.Debt != values.Debt)
+                {
+                    item.Turnover = values.Turnover;
+                    item.Debt = values.Debt;
+                    item.ModifiedAt = DateTime.Now;
+                    changed = true;
+                }
+            }
+            else if (item.Turnover != 0 || item.Debt != 0)
+            {
+                item.Turnover = 0;
+                item.Debt = 0;
+                item.ModifiedAt = DateTime.Now;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
         }
     }
 
-    public void Delete(Guid id) => _items.RemoveAll(x => x.Id == id);
+    public int NextDisplayNumber() => ++_rowNumberSeed;
 }

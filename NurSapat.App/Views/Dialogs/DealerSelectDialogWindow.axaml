@@ -31,13 +31,13 @@
             <TextBox Grid.Row="1"
                      x:Name="SearchTextBox"
                      Classes="erp-input"
-                     Margin="16,14,16,0"
+                     Margin="16,0,16,0"
                      PlaceholderText="Поиск по компании или контактному лицу..."
                      Text="{Binding SearchText}"/>
 
             <dg:DataGrid Grid.Row="2"
                          Classes="erp-grid"
-                         Margin="16,12,16,0"
+                         Margin="16,0,16,0"
                          ItemsSource="{Binding FilteredDealers}"
                          SelectedItem="{Binding SelectedDealer}"
                          AutoGenerateColumns="False"

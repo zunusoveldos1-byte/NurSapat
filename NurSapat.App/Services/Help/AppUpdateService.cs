@@ -23,6 +23,8 @@ public sealed class AppUpdateService : IAppUpdateService
 
     public string CurrentVersion => ResolveCurrentVersion();
 
+    public string BuildVersion => ResolveBuildVersion();
+
     public async Task<UpdateCheckResult> CheckForUpdatesAsync(CancellationToken cancellationToken = default)
     {
         var current = CurrentVersion;
@@ -90,15 +92,32 @@ public sealed class AppUpdateService : IAppUpdateService
 
     private static string ResolveCurrentVersion()
     {
-        var assembly = Assembly.GetExecutingAssembly();
-        var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        var informational = GetInformationalVersion();
         if (!string.IsNullOrWhiteSpace(informational))
         {
             return informational.Split('+')[0];
         }
 
-        return assembly.GetName().Version?.ToString(3) ?? "9.0.0";
+        return Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "9.0.0";
     }
+
+    private static string ResolveBuildVersion()
+    {
+        var informational = GetInformationalVersion();
+        if (!string.IsNullOrWhiteSpace(informational))
+        {
+            var parts = informational.Split('+', 2);
+            if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]))
+            {
+                return parts[1];
+            }
+        }
+
+        return Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "—";
+    }
+
+    private static string? GetInformationalVersion() =>
+        Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 
     private static string ReadCheckUrl()
     {

@@ -48,9 +48,13 @@ public sealed class WorkspaceWindowService(IServiceProvider serviceProvider) : I
         _serviceProvider.GetRequiredService<IUserSessionService>().Clear();
 
         var loginWindow = _serviceProvider.GetRequiredService<MainWindow>();
-        var loginVm = _serviceProvider.GetRequiredService<LoginViewModel>();
-        loginVm.LoadSavedCredentials();
-        loginWindow.DataContext = loginVm;
+        var shell = _serviceProvider.GetRequiredService<MainWindowViewModel>();
+        shell.NavigateToLogin();
+        if (shell.CurrentView is LoginViewModel loginVm)
+        {
+            loginVm.LoadSavedCredentials();
+        }
+        loginWindow.DataContext = shell;
 
         var oldMainWindow = desktop.MainWindow;
         desktop.MainWindow = loginWindow;

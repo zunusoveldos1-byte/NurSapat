@@ -35,8 +35,24 @@ public sealed class CadToolContext
     public Func<bool>? TryDeleteLastPlaced { get; set; }
     public Func<bool>? TryDeleteSelection { get; set; }
     public Func<bool>? TryClearConstruction { get; set; }
+    public Func<bool>? TryAlignGlazingUnits { get; set; }
+    public Func<bool>? TryAlignDeadLights { get; set; }
+    public Func<bool>? TryAlignImposts { get; set; }
     public Func<CadPoint, (double X, double Y)?>? ShowVertexCoordinateDialog { get; set; }
+    public Func<CadPoint, bool>? TrySetVertexCoordinates { get; set; }
     public Func<bool>? TryChangeOverallDimensions { get; set; }
+    public Func<bool>? TryRecalculateConstruction { get; set; }
+    public Func<bool>? TryShowObjectProperties { get; set; }
+    public Func<bool>? TryShowConstructionDetails { get; set; }
+    public Func<CadPoint, bool>? TryPressArcVertex { get; set; }
+    public Func<bool>? TryRemoveArcVertex { get; set; }
+    public Func<CadPoint, bool>? TrySplitArcAtPoint { get; set; }
+    public Func<bool>? TrySplitProfile { get; set; }
+    public Func<bool>? TrySetArcRadius { get; set; }
+    public Func<bool>? TryCopyConstruction { get; set; }
+    public Func<bool>? TryPasteConstruction { get; set; }
+    public Func<bool>? TryAddConstructionToStandard { get; set; }
+    public Func<bool>? TryInsertConstructionFromStandard { get; set; }
     public Func<CadPoint, CadSelectionMode, CadSelectionTarget?>? HitTestSelection { get; set; }
     public Action<CadSelectionTarget>? SelectTarget { get; set; }
 

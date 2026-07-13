@@ -4,12 +4,14 @@ namespace NurSapat.Core.Models.Construction;
 public static class ProfileSeriesCatalog
 {
     public static readonly Guid Pvc60Id = Guid.Parse("a1000001-0000-4000-8000-000000000001");
+    public static readonly Guid Pvc65Id = Guid.Parse("a1000004-0000-4000-8000-000000000004");
     public static readonly Guid Pvc70Id = Guid.Parse("a1000002-0000-4000-8000-000000000002");
     public static readonly Guid AluWarm75Id = Guid.Parse("a1000003-0000-4000-8000-000000000003");
 
     public static IReadOnlyList<ProfileSeries> All { get; } =
     [
         new ProfileSeries { Id = Pvc60Id, Name = "ПВХ 60 мм", SystemDepth = 60.0 },
+        new ProfileSeries { Id = Pvc65Id, Name = "ПВХ 65 мм", SystemDepth = 65.0 },
         new ProfileSeries { Id = Pvc70Id, Name = "ПВХ 70 мм", SystemDepth = 70.0 },
         new ProfileSeries { Id = AluWarm75Id, Name = "Алюминий Тёплый 75 мм", SystemDepth = 75.0 }
     ];

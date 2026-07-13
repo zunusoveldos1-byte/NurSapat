@@ -17,6 +17,7 @@ public partial class LoginViewModel : ObservableObject
     private readonly IUserSessionService _sessionService;
     private readonly SettingsService _settings;
     private readonly IWorkspaceWindowService _workspaceWindowService;
+    private readonly MainWindowViewModel _mainWindowViewModel;
 
     // Константные данные для контактов
     public string SupportPhoneDisplay => "+996 (559) 34-00-32";
@@ -53,13 +54,15 @@ public partial class LoginViewModel : ObservableObject
         IUsersStore usersStore,
         IUserSessionService sessionService,
         SettingsService settings,
-        IWorkspaceWindowService workspaceWindowService)
+        IWorkspaceWindowService workspaceWindowService,
+        MainWindowViewModel mainWindowViewModel)
     {
         _userRepo = userRepo;
         _usersStore = usersStore;
         _sessionService = sessionService;
         _settings = settings;
         _workspaceWindowService = workspaceWindowService;
+        _mainWindowViewModel = mainWindowViewModel;
     }
 
     [ObservableProperty]
@@ -146,7 +149,7 @@ public partial class LoginViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void GoToRegister() => ErrorMessage = "Регистрация временно недоступна.";
+    private void GoToRegister() => _mainWindowViewModel.NavigateToRegister();
 
     [RelayCommand]
     private void TogglePasswordVisibility() => IsPasswordVisible = !IsPasswordVisible;

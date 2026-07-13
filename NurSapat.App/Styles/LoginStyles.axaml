@@ -21,35 +21,51 @@
         <Setter Property="BoxShadow" Value="0 0 0 3 #332563EB"/>
     </Style>
 
-    <Style Selector="Button.title-btn">
-        <Setter Property="Width" Value="32"/>
-        <Setter Property="Height" Value="32"/>
-        <Setter Property="MinWidth" Value="32"/>
-        <Setter Property="MinHeight" Value="32"/>
-        <Setter Property="MaxWidth" Value="32"/>
-        <Setter Property="MaxHeight" Value="32"/>
-        <Setter Property="Padding" Value="0"/>
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="CornerRadius" Value="6"/>
-        <Setter Property="Foreground" Value="#64748B"/>
-        <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
-        <Setter Property="HorizontalContentAlignment" Value="Center"/>
-        <Setter Property="VerticalContentAlignment" Value="Center"/>
-        <Setter Property="Cursor" Value="Hand"/>
-        <Setter Property="Transitions">
-            <Transitions>
-                <BrushTransition Property="Background" Duration="0:0:0.15"/>
-            </Transitions>
-        </Setter>
+    <!-- Базовый стиль кнопки-ссылки -->
+    <Style Selector="Button.link-btn">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="Margin" Value="0"/>
+    <Setter Property="Foreground" Value="#0F172A"/>
+    <Setter Property="FontSize" Value="14"/>
+    <Setter Property="FontWeight" Value="Bold"/>
+    <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Opacity" Value="0.85"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+    <Setter Property="Transitions">
+        <Transitions>
+            <DoubleTransition Property="Opacity" Duration="0:0:0.15"/>
+        </Transitions>
+    </Setter>
+</Style>
+
+<Style Selector="Button.link-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+    <Setter Property="TextBlock.Foreground" Value="#000000"/>
+    <Setter Property="TextBlock.TextDecorations" Value="Underline"/>
+</Style>
+
+<Style Selector="Button.link-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+    <Setter Property="TextBlock.Foreground" Value="#222222"/>
+    <Setter Property="TextBlock.TextDecorations" Value="Underline"/>
+</Style>
+
+    <!-- Оформление текста при наведении -->
+    <Style Selector="Button.link-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="TextBlock.Foreground" Value="#000000"/>
+        <Setter Property="TextBlock.TextDecorations" Value="Underline"/>
     </Style>
 
-    <Style Selector="Button.title-btn:pointerover">
-        <Setter Property="Background" Value="#F1F5F9"/>
-    </Style>
-
-    <Style Selector="Button.title-btn.close:pointerover">
-        <Setter Property="Background" Value="#FEE2E2"/>
+    <!-- Оформление текста при зажатии -->
+    <Style Selector="Button.link-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="TextBlock.Foreground" Value="#222222"/>
+        <Setter Property="TextBlock.TextDecorations" Value="Underline"/>
     </Style>
 
     <Style Selector="Button.login-primary">
@@ -108,46 +124,6 @@
     <Style Selector="Button.login-secondary:pointerover">
         <Setter Property="Background" Value="#F8FAFC"/>
         <Setter Property="BorderBrush" Value="#CBD5E1"/>
-    </Style>
-
-    <Style Selector="Button.link-btn">
-    <Setter Property="Background" Value="Transparent"/>
-    <Setter Property="BorderBrush" Value="Transparent"/>
-    <Setter Property="BorderThickness" Value="0"/>
-    <Setter Property="Padding" Value="0"/>
-    <Setter Property="Margin" Value="0"/>
-    <Setter Property="Foreground" Value="#2563EB"/>
-    <Setter Property="FontSize" Value="14"/>
-    <Setter Property="FontWeight" Value="Medium"/>
-    <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
-    <Setter Property="Cursor" Value="Hand"/>
-    <Setter Property="Opacity" Value="0.85"/> 
-    <Setter Property="Transitions">
-        <Transitions>
-            <DoubleTransition Property="Opacity" Duration="0:0:0.15"/>
-        </Transitions>
-    </Setter>   
-</Style>
-
-<Style Selector="Button.link-btn:pointerover">
-    <Setter Property="Opacity" Value="1.0"/>
-</Style>
-
-<Style Selector="Button.link-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="Transparent"/>
-    <Setter Property="BorderBrush" Value="Transparent"/>
-    <Setter Property="TextBlock.Foreground" Value="#1E40AF"/> <Setter Property="TextBlock.TextDecorations" Value="Underline"/> 
-</Style>
-
-<Style Selector="Button.link-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="Transparent"/>
-    <Setter Property="BorderBrush" Value="Transparent"/>
-    <Setter Property="TextBlock.Foreground" Value="#1E3A8A"/> 
-    <Setter Property="TextBlock.TextDecorations" Value="Underline"/>
-</Style>
-
-    <Style Selector="Button.link-btn:pointerover">
-        <Setter Property="Foreground" Value="#1D4ED8"/>
     </Style>
 
     <Style Selector="Button.icon-btn">
@@ -251,6 +227,37 @@
                 <BrushTransition Property="Background" Duration="0:0:0.15"/>
             </Transitions>
         </Setter>
+    </Style>
+
+        <!-- Стиль для обычных кнопок управления окном (Свернуть) -->
+    <Style Selector="Button.title-btn">
+        <Setter Property="Width" Value="32"/>
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Foreground" Value="#64748B"/>
+        <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <!-- Наведение на Свернуть (светло-серый фон) -->
+    <Style Selector="Button.title-btn:pointerover">
+        <Setter Property="Background" Value="#F1F5F9"/>
+    </Style>
+
+    <!-- Наведение на Закрыть (красный фон, как в стандартных окнах) -->
+    <Style Selector="Button.title-btn.close:pointerover">
+        <Setter Property="Background" Value="#FEE2E2"/>
+        <Setter Property="Foreground" Value="#B91C1C"/>
     </Style>
 
     <Style Selector="Button.dark-link-btn">

@@ -15,10 +15,6 @@ public static class ConstructionSelectionRenderer
     private static readonly IPen SelectionPen = new Pen(
         FrameVolumeRenderer.SelectionHighlightBrush,
         2.5);
-    private static readonly IPen DummySelectionPen = new Pen(
-        FrameVolumeRenderer.DummySelectionHighlightBrush,
-        2.5,
-        new DashStyle(new double[] { 4, 3 }, 0));
 
     public static void DrawHighlights(
         DrawingContext context,
@@ -35,7 +31,7 @@ public static class ConstructionSelectionRenderer
             switch (item.Kind)
             {
                 case CadSelectableKind.Frame:
-                    DrawFrameHighlight(context, editor);
+                    DrawFrameHighlight(context, editor, item.ProfileRail);
                     break;
                 case CadSelectableKind.Impost when item.ImpostNode is not null:
                     DrawImpostHighlight(context, editor, item.ImpostNode, item.ImpostGapIndex);
@@ -51,7 +47,7 @@ public static class ConstructionSelectionRenderer
                     DrawGeometryElementHighlight(context, editor, glazingId, GeometryElementKind.Glazing);
                     break;
                 case CadSelectableKind.Bead when item.ElementId is Guid beadId:
-                    DrawGeometryElementHighlight(context, editor, beadId, GeometryElementKind.Bead);
+                    DrawBeadHighlight(context, editor, beadId);
                     break;
                 case CadSelectableKind.SashHandle when item.ElementId is Guid handleSashId:
                     DrawHardwareHighlight(context, editor, handleSashId, CadSelectableKind.SashHandle, 0);
@@ -63,22 +59,31 @@ public static class ConstructionSelectionRenderer
         }
     }
 
-    private static void DrawFrameHighlight(DrawingContext context, CadEditorViewModel editor)
+    private static void DrawFrameHighlight(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameProfileRail? profileRail = null)
     {
         if (editor.FrameRoot is not FrameNode frame)
         {
             return;
         }
 
-        if (frame.IsDummy)
+        // Фиктивная коробка: без наложенной рамки и угловых маркеров — только собственный пунктир в отрисовщике рамы.
+        if (frame.IsDummy || frame.IsFictitiousContainer)
         {
-            var bounds = new CadRect(frame.X, frame.Y + frame.Height, frame.Width, frame.Height);
-            DrawWorldRectOutline(
-                context,
-                editor,
-                bounds,
-                DummySelectionPen);
-            DrawDummyResizeHandles(context, editor, bounds);
+            return;
+        }
+
+        if (frame.Shape == ConstructionShape.Triangle)
+        {
+            DrawTriangularFrameHighlight(context, editor, frame);
+            return;
+        }
+
+        if (profileRail is FrameProfileRail rail)
+        {
+            DrawRectangularFrameRailHighlight(context, editor, frame, rail);
             return;
         }
 
@@ -95,6 +100,11 @@ public static class ConstructionSelectionRenderer
                     frame.TopProfile,
                     editor.FrameThickness);
             StrokeProfileBand(context, editor, contours.OuterLoop, contours.InnerLoop, SelectionPen);
+                if (ConstructionSelectionHelper.GetFrameBounds(editor) is { } archedBounds)
+                {
+                    DrawEdgeResizeHandles(context, editor, archedBounds);
+                }
+
                 return;
             }
             catch (InvalidOperationException)
@@ -123,6 +133,65 @@ public static class ConstructionSelectionRenderer
             frame.X + frame.Width - inset,
             frame.Y + frame.Height - inset,
             SelectionPen);
+        DrawEdgeResizeHandles(context, editor, bounds);
+    }
+
+    private static void DrawRectangularFrameRailHighlight(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameNode frame,
+        FrameProfileRail rail)
+    {
+        var band = FrameProfileRailGeometry.ResolveRailBand(
+            frame.X,
+            frame.Y,
+            frame.Width,
+            frame.Height,
+            editor.FrameThickness,
+            rail);
+        StrokeRailBandHighlight(context, editor, band, SelectionPen);
+    }
+
+    private static void StrokeRailBandHighlight(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameProfileRailGeometry.RailBand band,
+        IPen pen)
+    {
+        StrokePolygon(
+            context,
+            editor,
+            [band.OuterStart, band.OuterEnd, band.InnerEnd, band.InnerStart],
+            close: true,
+            pen);
+    }
+
+    private static void DrawTriangularFrameHighlight(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameNode frame)
+    {
+        var outer = FrameTriangleGeometry.BuildOuterTriangle(frame.X, frame.Y, frame.Width, frame.Height);
+        var half = FrameProfileGeometry.ResolveProfileThickness(frame.Width, frame.Height, editor.FrameThickness);
+        var inner = FrameTriangleGeometry.InsetTriangle(outer, half);
+
+        void Stroke(CadPoint a, CadPoint b)
+        {
+            context.DrawLine(
+                SelectionPen,
+                WorldToScreen(editor, a),
+                WorldToScreen(editor, b));
+        }
+
+        Stroke(outer.Bl, outer.Br);
+        Stroke(outer.Br, outer.Top);
+        Stroke(outer.Top, outer.Bl);
+        Stroke(inner.Bl, inner.Br);
+        Stroke(inner.Br, inner.Top);
+        Stroke(inner.Top, inner.Bl);
+        Stroke(outer.Bl, inner.Bl);
+        Stroke(outer.Br, inner.Br);
+        Stroke(outer.Top, inner.Top);
     }
 
     private static void DrawImpostHighlight(
@@ -170,7 +239,15 @@ public static class ConstructionSelectionRenderer
         Guid slotId)
     {
         var slot = leaf.FindExtremeImpost(slotId);
-        if (slot is null || ConstructionSelectionHelper.TryGetExtremeImpostBounds(editor, leaf, slot) is not { } bounds)
+        if (slot is null)
+        {
+            return;
+        }
+
+        // Подсветка повторяет видимую толщину: у тонких накладных материалов
+        // (нащельник, 65 рама НИЗ) обводится узкая полоса, а не полный профиль.
+        var drawThickness = ExtremeImpostRenderer.ResolveDrawThickness(editor, slot);
+        if (ConstructionSelectionHelper.TryGetExtremeImpostBounds(editor, leaf, slot, drawThickness) is not { } bounds)
         {
             return;
         }
@@ -265,6 +342,32 @@ public static class ConstructionSelectionRenderer
         }
     }
 
+    private static void DrawBeadHighlight(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        Guid beadId)
+    {
+        var element = editor.CanvasElements.FirstOrDefault(e => e.Id == beadId && e.Kind == GeometryElementKind.Bead);
+        if (element is null)
+        {
+            return;
+        }
+
+        if (element.SourceToolId == "bead"
+            && Services.GlazingBead.GlazingBeadBuilder.TryResolveBeadContours(
+                element,
+                editor,
+                out var outerLoop,
+                out var innerLoop))
+        {
+            StrokeContourLoop(context, editor, outerLoop, SelectionPen);
+            StrokeContourLoop(context, editor, innerLoop, SelectionPen);
+            return;
+        }
+
+        DrawGeometryElementHighlight(context, editor, beadId, GeometryElementKind.Bead);
+    }
+
     private static void DrawGeometryElementHighlight(
         DrawingContext context,
         CadEditorViewModel editor,
@@ -279,7 +382,7 @@ public static class ConstructionSelectionRenderer
 
         if (expectedKind == GeometryElementKind.Glazing &&
             SashGeometry.TryResolveGlassForGlazingElement(editor, element, editor.CanvasElements, out var glass) &&
-            glass.IsArched)
+            (glass.IsArched || glass.IsTriangular))
         {
             StrokeContourLoop(context, editor, glass.BuildOuterContourLoop(), SelectionPen);
             return;
@@ -378,6 +481,37 @@ public static class ConstructionSelectionRenderer
                 context.DrawLine(pen, previous, current);
                 previous = current;
             }
+        }
+    }
+
+    /// <summary>Маркеры изменения размера по серединам сторон (без угловых грифов).</summary>
+    private static void DrawEdgeResizeHandles(DrawingContext context, CadEditorViewModel editor, CadRect bounds)
+    {
+        if (editor.Viewport is null)
+        {
+            return;
+        }
+
+        const double handleHalfPx = 4.0;
+        var fill = new SolidColorBrush(Color.FromArgb(200, 0xAE, 0xAE, 0xAE));
+        var pen = new Pen(FrameVolumeRenderer.SelectionHighlightBrush, 1.5);
+        CadPoint[] edgeMidpoints =
+        [
+            new(bounds.X + bounds.Width / 2.0, bounds.Y),
+            new(bounds.X + bounds.Width / 2.0, bounds.Y - bounds.Height),
+            new(bounds.X, bounds.Y - bounds.Height / 2.0),
+            new(bounds.X + bounds.Width, bounds.Y - bounds.Height / 2.0)
+        ];
+
+        foreach (var midpoint in edgeMidpoints)
+        {
+            var screen = editor.Viewport.WorldToScreen(midpoint);
+            var handleRect = new Rect(
+                screen.X - handleHalfPx,
+                screen.Y - handleHalfPx,
+                handleHalfPx * 2,
+                handleHalfPx * 2);
+            context.DrawRectangle(fill, pen, handleRect);
         }
     }
 

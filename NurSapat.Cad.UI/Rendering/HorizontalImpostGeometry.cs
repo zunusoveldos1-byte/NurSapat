@@ -16,7 +16,8 @@ internal static class HorizontalImpostGeometry
             return (splitNode.X, splitNode.X + splitNode.Width);
         }
 
-        var inner = SashGeometry.ResolveNodeInnerOpeningBounds(
+        var inner = TransitionAdjacentFrameGeometry.ResolveImpostHostInnerOpeningBounds(
+            editor,
             splitNode,
             editor.FrameRoot,
             editor.FrameThickness);

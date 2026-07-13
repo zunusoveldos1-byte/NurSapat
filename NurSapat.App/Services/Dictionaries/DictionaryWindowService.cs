@@ -34,6 +34,10 @@ public interface IDictionaryWindowService
 
     Task ShowCustomersAsync(Window? owner);
 
+    Task ShowManagersAsync(Window? owner);
+
+    Task ShowDealersPlaceholderAsync(Window? owner);
+
     Task ShowOrdersAsync(Window? owner);
 
     Task ShowStockMaterialsAsync(Window? owner);
@@ -116,6 +120,16 @@ public sealed class DictionaryWindowService(IServiceProvider serviceProvider) : 
         await viewModel.InitializeAsync();
         await ShowDialogSafeAsync(new CustomersDictionaryWindow(viewModel), owner);
     }
+
+    public async Task ShowManagersAsync(Window? owner)
+    {
+        var viewModel = serviceProvider.GetRequiredService<ManagersDictionaryViewModel>();
+        await viewModel.InitializeAsync();
+        await ShowDialogSafeAsync(new ManagersDictionaryWindow(viewModel), owner);
+    }
+
+    public async Task ShowDealersPlaceholderAsync(Window? owner) =>
+        await ShowDialogSafeAsync(new DealersPlaceholderWindow(), owner);
 
     public async Task ShowOrdersAsync(Window? owner)
     {

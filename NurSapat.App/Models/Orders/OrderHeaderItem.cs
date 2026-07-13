@@ -17,4 +17,18 @@ public sealed class OrderHeaderItem
     public decimal TotalSum { get; set; }
 
     public OrderStatus Status { get; set; } = OrderStatus.Calculation;
+
+    public string? FilePath { get; set; }
+
+    public OrderHeaderItem Clone() => new()
+    {
+        Id = Id,
+        OrderNumber = OrderNumber,
+        DateCreated = DateCreated,
+        CustomerName = CustomerName,
+        StructuresCount = StructuresCount,
+        TotalSum = TotalSum,
+        Status = Status,
+        FilePath = FilePath
+    };
 }

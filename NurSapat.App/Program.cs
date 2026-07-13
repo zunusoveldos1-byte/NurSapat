@@ -2,6 +2,11 @@
 using Avalonia.Fonts.Inter;
 using Microsoft.Extensions.DependencyInjection;
 using NurSapat.App.Services;
+using NurSapat.App.Services.Currency;
+using NurSapat.Core.Interfaces.Currency;
+using NurSapat.Core.Services.Currency;
+using NurSapat.Core.Calculations;
+using NurSapat.Core.Interfaces;
 using NurSapat.App.Services.Documents;
 using NurSapat.App.Services.Dictionaries;
 using NurSapat.App.Services.EditDialogs;
@@ -30,9 +35,12 @@ using NurSapat.App.Views;
 using NurSapat.Cad.UI.Services;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Settings;
-using NurSapat.Core.Interfaces;
 using NurSapat.Core.Services.Orders;
+using Microsoft.Extensions.Configuration;
+using NurSapat.App.Services.Persistence;
+using NurSapat.Infrastructure.Persistence.DependencyInjection;
 using NurSapat.Data;
+using NurSapat.Data.Legacy;
 using NurSapat.Data.Repositories;
 using System;
 using System.IO;
@@ -78,6 +86,9 @@ class Program
 
     private static void ConfigureServices(IServiceCollection services)
     {
+        var configuration = BuildConfiguration();
+        services.AddSingleton<IConfiguration>(configuration);
+
         var environmentSettings = new EnvironmentSettings();
         environmentSettings.EnsureDirectories();
 
@@ -92,6 +103,12 @@ class Program
         services.AddSingleton<IRecentFilesService, RecentFilesService>();
         services.AddSingleton<IAutoSaveService, AutoSaveService>();
         services.AddSingleton<IPrintSettingsService, PrintSettingsService>();
+        services.AddSingleton<IWorkspaceNavigationService, WorkspaceNavigationService>();
+        services.AddSingleton<IOrderBatchOperationsService, OrderBatchOperationsService>();
+        services.AddSingleton<IOrderHeaderEditorService, OrderHeaderEditorService>();
+        services.AddSingleton<IGraphicSymbolEditorService, GraphicSymbolEditorService>();
+        services.AddSingleton<IOrderTemplateParametersService, OrderTemplateParametersService>();
+        services.AddSingleton<IPrintDocumentRenderer, PrintDocumentRenderer>();
         services.AddSingleton<IPrintService, PrintService>();
         services.AddSingleton<IDrawingExportService, DrawingExportService>();
         services.AddSingleton<IRecentColorsService, RecentColorsService>();
@@ -103,7 +120,6 @@ class Program
         services.AddSingleton<IProfileCutEditorService, ProfileCutEditorService>();
         services.AddSingleton<IStockGlassCutsStore, StockGlassCutsStore>();
         services.AddSingleton<IGlassCutEditorService, GlassCutEditorService>();
-        services.AddSingleton<IStockFinishedGoodsStore, StockFinishedGoodsStore>();
         services.AddSingleton<IFinishedGoodEditorService, FinishedGoodEditorService>();
         services.AddSingleton<IGraphicSymbolsStore, GraphicSymbolsStore>();
         services.AddSingleton<IStandardStructuresStore, StandardStructuresStore>();
@@ -115,26 +131,43 @@ class Program
         services.AddSingleton<IUserEditorService, UserEditorService>();
         services.AddSingleton<IProfileSeriesStore, ProfileSeriesStore>();
         services.AddSingleton<ISeriesEditorService, SeriesEditorService>();
-        services.AddSingleton<ICustomersStore, CustomersStore>();
         services.AddSingleton<IOrdersStore, OrdersStore>();
+        services.AddSingleton<IOrderNumberService, OrderNumberService>();
         services.AddSingleton<IDealersCatalog, DealersCatalog>();
         services.AddSingleton<IOrderErpDialogService, OrderErpDialogService>();
         services.AddSingleton<ICustomerEditorService, CustomerEditorService>();
+        services.AddSingleton<IManagerEditorService, ManagerEditorService>();
+        services.AddSingleton<IManagersStore, ManagersStore>();
         services.AddSingleton<IExchangeRatesStore, ExchangeRatesStore>();
         services.AddSingleton<IExchangeRateEditorService, ExchangeRateEditorService>();
-        services.AddSingleton<IMaterialsDetailStore, MaterialsDetailStore>();
+        services.AddSingleton<ICurrencyRateImporter, CurrencyRateImporter>();
+        services.AddSingleton<ICurrencySyncLogger, AppMessageCurrencySyncLogger>();
+        services.AddSingleton<ICurrencyService, CurrencyService>();
+
+        services.AddAppPersistence(configuration);
+
+        if (!configuration.IsPostgreSqlPersistence())
+        {
+            services.AddSingleton<ICustomersStore, CustomersStore>();
+            services.AddSingleton<ISuppliersStore, SuppliersStore>();
+            services.AddSingleton<IMaterialsDetailStore, MaterialsDetailStore>();
+            services.AddSingleton<IStockMaterialsStore, StockMaterialsStore>();
+            services.AddSingleton<IStockFinishedGoodsStore, StockFinishedGoodsStore>();
+        }
+
+        services.AddSingleton<IMaterialCatalogResolver, MaterialCatalogResolver>();
+        services.AddSingleton<IMaterialPriceCatalog, MaterialsDetailPriceCatalog>();
+        services.AddSingleton<OrderCalculationService>();
         services.AddSingleton<IMaterialExportService, MaterialExportService>();
         services.AddSingleton<IMaterialEditorService, MaterialEditorService>();
         services.AddSingleton<IManufacturersStore, ManufacturersStore>();
         services.AddSingleton<IManufacturerEditorService, ManufacturerEditorService>();
-        services.AddSingleton<ISuppliersStore, SuppliersStore>();
         services.AddSingleton<ISupplierEditorService, SupplierEditorService>();
         services.AddSingleton<IOrderTemplatesStore, OrderTemplatesStore>();
         services.AddSingleton<IOrderTemplateEditorService, OrderTemplateEditorService>();
         services.AddSingleton<IStructureNamesStore, StructureNamesStore>();
         services.AddSingleton<IStructureNameEditorService, StructureNameEditorService>();
         services.AddSingleton<IWindowColorsStore, WindowColorsStore>();
-        services.AddSingleton<IStockMaterialsStore, StockMaterialsStore>();
         services.AddSingleton<IStockDocumentEditorService, StockDocumentEditorService>();
         services.AddSingleton<IMaterialPickerService, MaterialPickerService>();
         services.AddSingleton<IStockReportDialogService, StockReportDialogService>();
@@ -148,6 +181,8 @@ class Program
         services.AddSingleton<IProductionBaseService, ProductionBaseService>();
         services.AddSingleton<IUtilitiesWindowService, UtilitiesWindowService>();
         services.AddSingleton<IAppUpdateService, AppUpdateService>();
+        services.AddSingleton<IUserGuideService, UserGuideService>();
+        services.AddSingleton<IChangelogService, ChangelogService>();
         services.AddSingleton<IHelpWindowService, HelpWindowService>();
         services.AddSingleton<IConstructionElementsStore, ConstructionElementsStore>();
         services.AddSingleton<IAppMessageService, AppMessageService>();
@@ -156,7 +191,7 @@ class Program
         services.AddSingleton<DataMigrationService>();
         services.AddSingleton<ISystemLogRepository, SystemLogRepository>();
         services.AddSingleton<IUserRepository, UserRepository>();
-        services.AddSingleton<IMaterialRepository, MaterialRepository>();
+        services.AddSingleton<ILegacyMaterialRepository, LegacyMaterialRepository>();
 
         // ViewModels
         services.AddTransient<LoginViewModel>();
@@ -179,7 +214,11 @@ class Program
         services.AddTransient<ProductionBaseViewModel>();
         services.AddTransient<SetDatabasePasswordViewModel>();
         services.AddTransient<UtilityProgressViewModel>();
-        services.AddTransient<HelpAndAboutViewModel>();
+        services.AddTransient<HelpGuideViewModel>();
+        services.AddTransient<WhatsNewViewModel>();
+        services.AddTransient<UpdateViewModel>();
+        services.AddTransient<SupportViewModel>();
+        services.AddTransient<AboutViewModel>();
         services.AddTransient<DataTransferViewModel>();
         services.AddSingleton<AdditionalDashboardViewModel>();
         services.AddSingleton<OrderCalculationState>();
@@ -188,12 +227,16 @@ class Program
         services.AddSingleton<CadEditorViewModel>(sp =>
             new CadEditorViewModel(
                 sp.GetRequiredService<ICadDialogService>(),
-                sp.GetRequiredService<CadTemplateStore>(),
-                sp.GetRequiredService<IMaterialRepository>()));
+                sp.GetRequiredService<CadTemplateStore>()));
         services.AddSingleton<OrderWorkspaceViewModel>(sp =>
             new OrderWorkspaceViewModel(
                 sp.GetRequiredService<CadEditorViewModel>(),
-                sp.GetRequiredService<IOrderErpDialogService>()));
+                sp.GetRequiredService<IOrderErpDialogService>(),
+                sp.GetRequiredService<OrderCalculationService>(),
+                sp.GetRequiredService<ICustomersStore>(),
+                sp.GetRequiredService<IManagersStore>(),
+                sp.GetRequiredService<IOrderNumberService>(),
+                sp.GetRequiredService<IDictionaryWindowService>()));
         services.AddSingleton<OrderSheetViewModel>(sp => sp.GetRequiredService<OrderWorkspaceViewModel>().Sheet);
         services.AddSingleton<OrderDrawingViewModel>(sp => sp.GetRequiredService<OrderWorkspaceViewModel>().Drawing);
         services.AddTransient<CostTableViewModel>();
@@ -213,7 +256,12 @@ class Program
         services.AddTransient<SeriesDictionaryViewModel>();
         services.AddTransient<SeriesEditViewModel>();
         services.AddTransient<CustomersDictionaryViewModel>();
+        services.AddTransient<ManagersDictionaryViewModel>();
+        services.AddTransient<ManagerEditViewModel>();
         services.AddTransient<OrdersDictionaryViewModel>();
+        services.AddTransient<OrderHeaderEditViewModel>();
+        services.AddTransient<GraphicSymbolEditViewModel>();
+        services.AddTransient<OrderTemplateParametersViewModel>();
         services.AddTransient<CustomerEditViewModel>();
         services.AddTransient<ExchangeRatesDictionaryViewModel>();
         services.AddTransient<ExchangeRateEditViewModel>();
@@ -232,11 +280,30 @@ class Program
         services.AddTransient<StockDocumentEditViewModel>();
         services.AddTransient<MaterialPickerViewModel>();
         services.AddTransient<StockDateRangeDialogViewModel>();
+        services.AddTransient<OrderEditViewModel>();
         services.AddSingleton<MessagesViewModel>();
 
         // Главное окно
-        services.AddTransient<MainWindow>();
+        services.AddTransient<MainWindow>(sp =>
+        {
+            var viewModel = sp.GetRequiredService<MainWindowViewModel>();
+            return new MainWindow(viewModel);
+        });
         services.AddTransient<MainWorkspaceWindow>();
+    }
+
+    private static IConfiguration BuildConfiguration()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        if (!File.Exists(path))
+        {
+            path = Path.Combine(Directory.GetCurrentDirectory(), "NurSapat.App", "appsettings.json");
+        }
+
+        return new ConfigurationBuilder()
+            .AddJsonFile(path, optional: true)
+            .AddEnvironmentVariables()
+            .Build();
     }
 
     private static string ReadConnectionString()

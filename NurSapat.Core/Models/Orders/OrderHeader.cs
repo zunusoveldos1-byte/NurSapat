@@ -28,6 +28,8 @@ public sealed class OrderHeader
 
     public string OrderManagerName { get; set; } = "";
 
+    public Guid? ManagerId { get; set; }
+
     public string CustomerCity { get; set; } = "";
 
     public string CustomerCode { get; set; } = "";

@@ -4,7 +4,7 @@ using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 using NurSapat.App.ViewModels;
 using NurSapat.App.Views;
-using System;
+using NurSapat.Core.Interfaces.Currency;
 
 namespace NurSapat.App;
 
@@ -12,13 +12,12 @@ public partial class App : Application
 {
     private readonly IServiceProvider? _serviceProvider;
 
-    // ДОБАВЛЕНО: Статическое свойство для доступа к DI из MainWorkspaceViewModel
     public static IServiceProvider? ServiceProvider { get; private set; }
 
     public App(IServiceProvider serviceProvider)
     {
         _serviceProvider = serviceProvider;
-        ServiceProvider = serviceProvider; // Инициализируем статическое свойство
+        ServiceProvider = serviceProvider;
     }
 
     public App()
@@ -41,9 +40,23 @@ public partial class App : Application
             else
             {
                 desktop.MainWindow = _serviceProvider!.GetRequiredService<MainWindow>();
+                _ = SyncCurrencyRatesOnStartupAsync();
             }
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private async Task SyncCurrencyRatesOnStartupAsync()
+    {
+        try
+        {
+            var currencyService = _serviceProvider!.GetRequiredService<ICurrencyService>();
+            await currencyService.CheckAndSyncRatesAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Синхронизация курсов НБКР при старте: {ex.Message}");
+        }
     }
 }

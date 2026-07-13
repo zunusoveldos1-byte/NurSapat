@@ -1,12 +1,14 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
 using NurSapat.App.Services;
+using NurSapat.App.Services.Dictionaries;
 using NurSapat.App.Services.Orders;
 using NurSapat.App.Views.Dialogs;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models;
 using NurSapat.Core.Models.Orders;
 using NurSapat.Core.Models.Project;
+using NurSapat.Core.Calculations;
 using NurSapat.Core.Services.Orders;
 using System.Linq;
 
@@ -31,13 +33,28 @@ public sealed class OrderWorkspaceViewModel
 
     public event EventHandler? ProjectModified;
 
-    public OrderWorkspaceViewModel(CadEditorViewModel cadEditor, IOrderErpDialogService orderErpDialogService)
+    public OrderWorkspaceViewModel(
+        CadEditorViewModel cadEditor,
+        IOrderErpDialogService orderErpDialogService,
+        OrderCalculationService calculationService,
+        ICustomersStore customersStore,
+        IManagersStore managersStore,
+        IOrderNumberService orderNumberService,
+        IDictionaryWindowService dictionaryWindowService)
     {
         _cadEditor = cadEditor;
         _orderErpDialogService = orderErpDialogService;
         _isResettingCanvas = true;
 
-        Sheet = new OrderSheetViewModel(this, cadEditor, orderErpDialogService);
+        Sheet = new OrderSheetViewModel(
+            this,
+            cadEditor,
+            orderErpDialogService,
+            calculationService,
+            customersStore,
+            managersStore,
+            orderNumberService,
+            dictionaryWindowService);
         Drawing = new OrderDrawingViewModel(this, cadEditor);
         Sheet.ProjectModified += (_, _) => ProjectModified?.Invoke(this, EventArgs.Empty);
         Drawing.ProjectModified += (_, _) => ProjectModified?.Invoke(this, EventArgs.Empty);

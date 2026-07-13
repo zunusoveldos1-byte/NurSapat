@@ -8,7 +8,11 @@ public interface IManufacturersStore
 
     ManufacturerItem? GetById(Guid id);
 
+    void Add(ManufacturerItem item);
+
     void Update(ManufacturerItem item);
+
+    void Delete(Guid id);
 }
 
 public sealed class ManufacturersStore : IManufacturersStore
@@ -29,6 +33,10 @@ public sealed class ManufacturersStore : IManufacturersStore
             _items[index] = item;
         }
     }
+
+    public void Add(ManufacturerItem item) => _items.Add(item);
+
+    public void Delete(Guid id) => _items.RemoveAll(item => item.Id == id);
 
     private static List<ManufacturerItem> CreateFixedManufacturers() =>
     [

@@ -222,6 +222,7 @@
                         <TextBlock Classes="paramLabel" Text="Материалы"/>
                         <ComboBox Width="200"
                                   MinWidth="160"
+                                  IsEnabled="{Binding IsConstructionMaterialComboEnabled}"
                                   ItemsSource="{Binding FilteredConstructionMaterialOptions}"
                                   SelectedItem="{Binding SelectedConstructionMaterialOption}">
                             <ComboBox.ItemTemplate>

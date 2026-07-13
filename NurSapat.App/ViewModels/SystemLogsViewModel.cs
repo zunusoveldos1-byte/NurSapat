@@ -24,6 +24,7 @@ public partial class SystemLogsViewModel : ObservableObject
     public SystemLogsViewModel(ISystemLogRepository systemLogRepository)
     {
         _systemLogRepository = systemLogRepository;
+        _ = LoadAsync();
     }
 
     [RelayCommand]

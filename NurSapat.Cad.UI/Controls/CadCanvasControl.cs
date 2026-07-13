@@ -11,6 +11,7 @@ using NurSapat.Cad.Tools.Tools;
 using NurSapat.Cad.UI.Diagnostics;
 using NurSapat.Cad.UI.Models;
 using NurSapat.Cad.UI.Rendering;
+using NurSapat.Cad.UI.Services;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Orders;
 using System.Linq;
@@ -34,22 +35,22 @@ public sealed class CadCanvasControl : Control
             or WindowToolMode.SlantedImpost
             or WindowToolMode.MullionVertical or WindowToolMode.MullionHorizontal;
 
+    private static bool IsRealImpostDragPlacementTool(WindowToolMode mode) =>
+        mode is WindowToolMode.RealVerticalImpost or WindowToolMode.RealHorizontalImpost;
+
     private static readonly IBrush CanvasBrush = Brushes.White;
     private static readonly IBrush CadStrokeBrush = new SolidColorBrush(Color.Parse("#AEAEAE"));
     private static readonly Pen FramePen = new(CadStrokeBrush, 1.5);
+    private static readonly Pen MullionPreviewPen = new(
+        new SolidColorBrush(Color.FromArgb(200, 255, 4, 4)),
+        2);
+    private static readonly IBrush MullionPreviewFill = new SolidColorBrush(Color.FromArgb(128, 255, 4, 4));
     private static readonly Pen MiterPreviewPen = new(new SolidColorBrush(FrameVolumeRenderer.MiterColor), 1.2);
     private static readonly Pen SelectedFramePen = new(CadStrokeBrush, 2);
     private static readonly Pen DummySelectedFramePen = new(
         new SolidColorBrush(FrameVolumeRenderer.DummySelectionHighlightColor),
         2,
         new DashStyle(new double[] { 4, 3 }, 0));
-    private static readonly IBrush DummyResizeHandleFill = new SolidColorBrush(Color.FromArgb(200, 0x00, 0x78, 0xD7));
-    private static readonly Pen DummyResizeHandlePen = new(
-        new SolidColorBrush(FrameVolumeRenderer.DummySelectionHighlightColor),
-        1.5,
-        new DashStyle(new double[] { 4, 3 }, 0));
-    private static readonly IBrush ResizeHandleFill = new SolidColorBrush(Color.FromArgb(200, 0xAE, 0xAE, 0xAE));
-    private static readonly Pen ResizeHandlePen = new(CadStrokeBrush, 1.5);
     private static readonly Pen FramePreviewPen = new(
         new SolidColorBrush(Color.Parse("#0078D7")),
         1.5,
@@ -66,6 +67,7 @@ public sealed class CadCanvasControl : Control
     private bool _isPanning;
     private Point _startPoint;
     private bool _isDrawingFrame;
+    private bool _isImpostDragPlacing;
 
     public CadEditorViewModel? Editor
     {
@@ -284,11 +286,18 @@ public sealed class CadCanvasControl : Control
             {
                 ExtremeImpostRenderer.DrawHoverPreview(context, Editor, extremeHover);
             }
+
+            if (Editor.TransitionProfileHoverBounds is { } transitionHover)
+            {
+                DrawTransitionProfileHoverPreview(context, transitionHover);
+            }
         }
 
         if (!suppressCommittedFrame && canvasElements.Count > 0)
         {
             SashElementRenderer.DrawAll(context, Editor, canvasElements);
+            GlazingBeadRenderer.DrawAll(context, Editor, canvasElements);
+            GlassRenderer.DrawBeadLinkedLayer(context, Editor, canvasElements);
             GeometryElementRenderer.DrawGlazingLayer(context, Editor, canvasElements);
             DecorativeSpokeRenderer.DrawLayer(context, Editor, canvasElements);
             SashElementRenderer.DrawOpeningIndicators(context, Editor, canvasElements);
@@ -364,8 +373,13 @@ public sealed class CadCanvasControl : Control
         {
             foreach (var rect in mullionTool.PreviewRects)
             {
-                DrawRect(context, rect, null, FramePen);
+                DrawRect(context, rect, MullionPreviewFill, MullionPreviewPen);
             }
+        }
+
+        if (Editor.ImpostDragPlacementPreview is not null)
+        {
+            ImpostDragPlacementRenderer.Draw(context, Editor);
         }
 
         if (Editor.ActiveTool is DesignRectPlacementTool designRectTool && designRectTool.PreviewRect is CadRect designPreview)
@@ -464,6 +478,30 @@ public sealed class CadCanvasControl : Control
 
         var hingeSide = sash.HingeSide ?? SashHingeSide.Left;
         SashElementRenderer.DrawHandleMarker(context, Editor, sash, hingeSide, preview: true);
+    }
+
+    /// <summary>
+    /// Фантом переходного профиля: единый контур будущего размещения
+    /// (для дверных материалов — сквозной, на всю высоту рамы).
+    /// </summary>
+    private void DrawTransitionProfileHoverPreview(
+        DrawingContext context,
+        (double OriginX, double OriginY, double Width, double Height) bounds)
+    {
+        if (Editor?.Viewport is null)
+        {
+            return;
+        }
+
+        var topLeft = Editor.Viewport.WorldToScreen(new CadPoint(bounds.OriginX, bounds.OriginY + bounds.Height));
+        var bottomRight = Editor.Viewport.WorldToScreen(new CadPoint(bounds.OriginX + bounds.Width, bounds.OriginY));
+        var rect = new Rect(new Point(topLeft.X, topLeft.Y), new Point(bottomRight.X, bottomRight.Y));
+        if (rect.Width <= 0 || rect.Height <= 0)
+        {
+            return;
+        }
+
+        context.DrawRectangle(MullionPreviewFill, MullionPreviewPen, rect);
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
@@ -656,7 +694,44 @@ public sealed class CadCanvasControl : Control
 
         if (Editor != null && Editor.CurrentToolMode == WindowToolMode.Handle && properties.IsLeftButtonPressed)
         {
-            if (Editor.TryToggleSashHandle(cadEvent.WorldPoint))
+            if (Editor.TryCycleHandleOnSash(cadEvent.WorldPoint))
+            {
+                e.Handled = true;
+                InvalidateVisual();
+                return;
+            }
+        }
+
+        if (Editor != null
+            && Editor.CurrentToolMode == WindowToolMode.BeadSystem
+            && properties.IsLeftButtonPressed)
+        {
+            if (Editor.TryPlaceGlazingBead(cadEvent.WorldPoint, cadEvent.IsAltDown))
+            {
+                e.Handled = true;
+                InvalidateVisual();
+                return;
+            }
+        }
+
+        if (Editor != null
+            && CadCreationToolCatalog.IsClickPlacementMode(Editor.CurrentToolMode)
+            && properties.IsLeftButtonPressed
+            && Editor.CurrentToolMode is not (WindowToolMode.Glassing or WindowToolMode.MosquitoNet or WindowToolMode.BeadSystem))
+        {
+            if (Editor.TryPlaceCreationToolClick(cadEvent.WorldPoint))
+            {
+                e.Handled = true;
+                InvalidateVisual();
+                return;
+            }
+        }
+
+        if (Editor != null
+            && CadCreationToolCatalog.ResolveHardwareToolId(Editor.CurrentToolMode) is not null
+            && properties.IsLeftButtonPressed)
+        {
+            if (Editor.TryPlaceCreationToolClick(cadEvent.WorldPoint))
             {
                 e.Handled = true;
                 InvalidateVisual();
@@ -693,17 +768,33 @@ public sealed class CadCanvasControl : Control
         }
 
         if (Editor != null
-            && Editor.CurrentToolMode == WindowToolMode.RadiusVertex
+            && Editor.CurrentToolMode is WindowToolMode.RadiusVertex or WindowToolMode.ArcVertex
             && properties.IsLeftButtonPressed)
         {
             e.Handled = true;
-            if (Editor.TryPressRadiusVertex(cadEvent.WorldPoint))
+            var handled = Editor.CurrentToolMode == WindowToolMode.RadiusVertex
+                ? Editor.TryPressRadiusVertex(cadEvent.WorldPoint)
+                : Editor.TryPressArcVertex(cadEvent.WorldPoint);
+            if (handled)
             {
                 e.Pointer.Capture(this);
             }
 
             InvalidateVisual();
             return;
+        }
+
+        if (Editor != null
+            && Editor.CurrentToolMode == WindowToolMode.Sash
+            && Editor.ActiveDesignToolId == CadCreationToolCatalog.SashFixed
+            && properties.IsLeftButtonPressed)
+        {
+            if (Editor.TryPlaceCreationToolClick(cadEvent.WorldPoint))
+            {
+                e.Handled = true;
+                InvalidateVisual();
+                return;
+            }
         }
 
         if (Editor?.TryBeginPointerInteraction(cadEvent.WorldPoint) == true)
@@ -719,6 +810,20 @@ public sealed class CadCanvasControl : Control
         {
             e.Handled = true;
             _ = HandleAdapterProfileClickAsync(cadEvent.WorldPoint);
+            return;
+        }
+
+        if (Editor != null && IsRealImpostDragPlacementTool(Editor.CurrentToolMode) && properties.IsLeftButtonPressed)
+        {
+            e.Handled = true;
+            var pressPoint = e.GetPosition(this);
+            if (Editor.TryBeginImpostDragPlacement(cadEvent.WorldPoint, pressPoint.X, pressPoint.Y))
+            {
+                _isImpostDragPlacing = true;
+                e.Pointer.Capture(this);
+                InvalidateVisual();
+            }
+
             return;
         }
 
@@ -799,6 +904,13 @@ public sealed class CadCanvasControl : Control
         Editor.UpdateCursor(worldPoint);
         UpdateInteractionCursor(_isPanning);
 
+        if (_isImpostDragPlacing)
+        {
+            Editor.UpdateImpostDragPlacement(worldPoint, point.X, point.Y);
+            InvalidateVisual();
+            return;
+        }
+
         if (_isDrawingFrame)
         {
             Editor.UpdateShapePlacementPreview(worldPoint);
@@ -816,6 +928,15 @@ public sealed class CadCanvasControl : Control
         else
         {
             Editor.ClearExtremeImpostHover();
+        }
+
+        if (Editor.CurrentToolMode == WindowToolMode.AdapterProfile)
+        {
+            Editor.UpdateAdapterProfileHover(worldPoint);
+        }
+        else
+        {
+            Editor.ClearAdapterProfileHover();
         }
 
         if (Editor.IsVerticalImpostDragging)
@@ -867,6 +988,27 @@ public sealed class CadCanvasControl : Control
         if (wasPanning)
         {
             UpdateInteractionCursor(isDragging: false);
+        }
+
+        if (_isImpostDragPlacing && Editor != null)
+        {
+            if (e.InitialPressMouseButton != MouseButton.Left)
+            {
+                Editor.CancelImpostDragPlacement();
+                _isImpostDragPlacing = false;
+                e.Pointer.Capture(null);
+                InvalidateVisual();
+                return;
+            }
+
+            var impostReleasePoint = e.GetPosition(this);
+            var impostWorldPoint = Editor.Viewport.ScreenToWorld(new ScreenPoint(impostReleasePoint.X, impostReleasePoint.Y));
+            Editor.UpdateImpostDragPlacement(impostWorldPoint, impostReleasePoint.X, impostReleasePoint.Y);
+            Editor.CommitImpostDragPlacement();
+            _isImpostDragPlacing = false;
+            e.Pointer.Capture(null);
+            InvalidateVisual();
+            return;
         }
 
         if (_isDrawingFrame)
@@ -948,6 +1090,15 @@ public sealed class CadCanvasControl : Control
     {
         if (Editor == null) return;
 
+        if (e.Key == Key.Escape && _isImpostDragPlacing)
+        {
+            Editor.CancelImpostDragPlacement();
+            _isImpostDragPlacing = false;
+            e.Handled = true;
+            InvalidateVisual();
+            return;
+        }
+
         if (e.Key == Key.Delete)
         {
             Editor.DeleteSelectedCommand.Execute(null);
@@ -1021,46 +1172,36 @@ public sealed class CadCanvasControl : Control
 
     private void DrawSelectedRectangleOverlay(DrawingContext context)
     {
+        if (Editor?.FrameRoot is FrameNode frame
+            && frame.Shape == ConstructionShape.Triangle
+            && !frame.IsDummy
+            && !frame.IsFictitiousContainer)
+        {
+            ShapedFrameRenderer.DrawTriangularOutline(
+                context,
+                Editor,
+                frame.X,
+                frame.Y,
+                frame.Width,
+                frame.Height,
+                SelectedFramePen);
+            return;
+        }
+
         if (Editor?.SelectedRectangle is not CadRect selected || selected.Width <= 0 || selected.Height <= 0)
         {
             return;
         }
 
-        var useDummyStyle = Editor.FrameRoot?.IsDummy == true || Editor.HasFakeFrameOnCanvas;
-        var outlinePen = useDummyStyle ? DummySelectedFramePen : SelectedFramePen;
-        DrawRect(context, selected, null, outlinePen);
-        DrawResizeHandles(context, selected, useDummyStyle);
-    }
-
-    private void DrawResizeHandles(DrawingContext context, CadRect rect, bool useDummyStyle)
-    {
-        if (Editor?.Viewport is null)
+        var isFictitiousFrame = Editor.FrameRoot?.IsDummy == true
+            || Editor.FrameRoot?.IsFictitiousContainer == true
+            || Editor.HasFakeFrameOnCanvas;
+        if (isFictitiousFrame)
         {
             return;
         }
 
-        var fill = useDummyStyle ? DummyResizeHandleFill : ResizeHandleFill;
-        var pen = useDummyStyle ? DummyResizeHandlePen : ResizeHandlePen;
-        const double handleHalfPx = 4.0;
-
-        CadPoint[] corners =
-        [
-            rect.TopLeft,
-            rect.TopRight,
-            rect.BottomLeft,
-            rect.BottomRight
-        ];
-
-        foreach (var corner in corners)
-        {
-            var screen = Editor.Viewport.WorldToScreen(corner);
-            var handleRect = new Rect(
-                screen.X - handleHalfPx,
-                screen.Y - handleHalfPx,
-                handleHalfPx * 2,
-                handleHalfPx * 2);
-            context.DrawRectangle(fill, pen, handleRect);
-        }
+        DrawRect(context, selected, null, SelectedFramePen);
     }
 
     private void DrawRect(DrawingContext context, CadRect rect, IBrush? fill, Pen pen)

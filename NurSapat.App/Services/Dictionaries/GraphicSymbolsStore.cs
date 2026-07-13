@@ -17,7 +17,7 @@ public interface IGraphicSymbolsStore
 
 public sealed class GraphicSymbolsStore : IGraphicSymbolsStore
 {
-    private readonly List<GraphicSymbolItem> _items = [];
+    private readonly List<GraphicSymbolItem> _items = CreateSeedItems();
 
     public IReadOnlyList<GraphicSymbolItem> GetAll() => _items;
 
@@ -35,4 +35,12 @@ public sealed class GraphicSymbolsStore : IGraphicSymbolsStore
     }
 
     public void Delete(Guid id) => _items.RemoveAll(x => x.Id == id);
+
+    private static List<GraphicSymbolItem> CreateSeedItems() =>
+    [
+        new() { Name = "Ручка справа", Code = "HND-R" },
+        new() { Name = "Ручка слева", Code = "HND-L" },
+        new() { Name = "Замок", Code = "LCK-01" },
+        new() { Name = "Ограничитель", Code = "LIM-01" }
+    ];
 }

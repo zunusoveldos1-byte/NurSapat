@@ -459,33 +459,33 @@
                                    Text="Параметры конструкции"/>
 
                         <Grid Grid.Row="1"
-                              ColumnSpacing="12"
+                              RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                              RowSpacing="6"
                               IsVisible="{Binding !ShowConstructionNotSelected}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="200" MinWidth="180" MaxWidth="220"/>
-                            </Grid.ColumnDefinitions>
-
-                            <Grid Grid.Column="0"
-                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
-                                  RowSpacing="6">
                                 <Grid Grid.Row="0" ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="72"/>
                                         <ColumnDefinition Width="92"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
+                                        <TextBlock Classes="os-label" Text="№ заказа"/>
+                                        <TextBox Classes="os-field-readonly"
+                                                 IsReadOnly="True"
+                                                 Text="{Binding OrderNumberDisplay}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
                                         <TextBlock Classes="os-label" Text="Наименование"/>
                                         <TextBox Classes="os-field"
                                                  Text="{Binding SelectedConstructionModel.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                     </StackPanel>
-                                    <StackPanel Grid.Column="1">
+                                    <StackPanel Grid.Column="2">
                                         <TextBlock Classes="os-label" Text="Кол-во"/>
                                         <TextBox Classes="os-field"
                                                  Text="{Binding SelectedConstructionModel.Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                     </StackPanel>
-                                    <StackPanel Grid.Column="2">
+                                    <StackPanel Grid.Column="3">
                                         <TextBlock Classes="os-label" Text="Площадь"/>
                                         <TextBox Classes="os-field-readonly"
                                                  IsReadOnly="True"
@@ -536,17 +536,27 @@
                                 <Grid Grid.Row="4" ColumnDefinitions="*,*" ColumnSpacing="8">
                                     <StackPanel Grid.Column="0">
                                         <TextBlock Classes="os-label" Text="Менеджер"/>
-                                        <ComboBox Classes="os-field"
-                                                  ItemsSource="{Binding Managers}"
-                                                  SelectedItem="{Binding SelectedConstructionModel.Manager, Mode=TwoWay}"
-                                                  HorizontalAlignment="Stretch"/>
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                            <ComboBox Classes="os-field"
+                                                      ItemsSource="{Binding ManagerNames}"
+                                                      SelectedItem="{Binding SelectedConstructionModel.Manager, Mode=TwoWay}"
+                                                      HorizontalAlignment="Stretch"
+                                                      IsTextSearchEnabled="True"/>
+                                            <Button Grid.Column="1"
+                                                    Classes="os-chip"
+                                                    Width="36"
+                                                    Content="..."
+                                                    Command="{Binding BrowseManagerCommand}"
+                                                    ToolTip.Tip="Справочник менеджеров"/>
+                                        </Grid>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1">
                                         <TextBlock Classes="os-label" Text="Ответственный"/>
                                         <ComboBox Classes="os-field"
-                                                  ItemsSource="{Binding Supervisors}"
+                                                  ItemsSource="{Binding ManagerNames}"
                                                   SelectedItem="{Binding SelectedConstructionModel.Supervisor, Mode=TwoWay}"
-                                                  HorizontalAlignment="Stretch"/>
+                                                  HorizontalAlignment="Stretch"
+                                                  IsTextSearchEnabled="True"/>
                                     </StackPanel>
                                 </Grid>
 
@@ -560,59 +570,6 @@
                                              PlaceholderText="Введите примечание..."
                                              Text="{Binding SelectedConstructionModel.Notes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                 </StackPanel>
-                            </Grid>
-
-                            <Border Grid.Column="1"
-                                    VerticalAlignment="Stretch"
-                                    Background="#FAFAFA"
-                                    BorderBrush="#CBD5E1"
-                                    BorderThickness="1"
-                                    CornerRadius="8"
-                                    Padding="8">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="Конструкция"
-                                               FontSize="12"
-                                               FontWeight="SemiBold"
-                                               Foreground="#0F172A"/>
-                                    <Border Background="White"
-                                            BorderBrush="#E2E8F0"
-                                            BorderThickness="1"
-                                            CornerRadius="6"
-                                            ClipToBounds="True"
-                                            Height="64">
-                                        <controls:CadCanvasControl Editor="{Binding PreviewEditor}"
-                                                                   AutoFitOnResize="True"
-                                                                   IsThumbnailPreview="True"
-                                                                   IsHitTestVisible="False"
-                                                                   IsEnabled="False"
-                                                                   Height="64"/>
-                                    </Border>
-                                    <TextBlock Text="{Binding ActiveDimensionsDisplay}"
-                                               FontSize="10"
-                                               Foreground="#94A3B8"
-                                               HorizontalAlignment="Center"/>
-                                    <Grid ColumnDefinitions="Auto,*"
-                                          RowDefinitions="Auto,Auto,Auto,Auto,Auto"
-                                          ColumnSpacing="8"
-                                          RowSpacing="2">
-                                        <TextBlock Grid.Row="0" Grid.Column="0" Classes="os-spec-label" Text="Тип профиля"/>
-                                        <TextBlock Grid.Row="0" Grid.Column="1" Classes="os-spec-value" Text="{Binding ProfileType}"/>
-                                        <TextBlock Grid.Row="1" Grid.Column="0" Classes="os-spec-label" Text="Цвет профиля"/>
-                                        <TextBlock Grid.Row="1" Grid.Column="1" Classes="os-spec-value" Text="{Binding ProfileColor}"/>
-                                        <TextBlock Grid.Row="2" Grid.Column="0" Classes="os-spec-label" Text="Стеклопакет"/>
-                                        <TextBlock Grid.Row="2" Grid.Column="1" Classes="os-spec-value" Text="{Binding GlassPacket}"/>
-                                        <TextBlock Grid.Row="3" Grid.Column="0" Classes="os-spec-label" Text="Фурнитура"/>
-                                        <TextBlock Grid.Row="3" Grid.Column="1" Classes="os-spec-value" Text="{Binding Hardware}"/>
-                                        <TextBlock Grid.Row="4" Grid.Column="0" Classes="os-spec-label" Text="Ориентация"/>
-                                        <CheckBox Grid.Row="4" Grid.Column="1"
-                                                  Content="Белый"
-                                                  FontSize="11"
-                                                  IsChecked="{Binding ActiveWhiteOrientation}"
-                                                  IsEnabled="False"
-                                                  Padding="0"/>
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
                         </Grid>
 
                         <StackPanel Grid.Row="1"
@@ -649,8 +606,19 @@
                                         Orientation="Horizontal"
                                         Spacing="8"
                                         VerticalAlignment="Center">
-                                <Button Classes="os-chip active" Content="2D"/>
-                                <Button Classes="os-chip" Content="3D"/>
+                                <Border MinWidth="32"
+                                        Height="32"
+                                        Padding="8,0"
+                                        Background="#EFF6FF"
+                                        BorderBrush="#3B82F6"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                    <TextBlock Text="2D"
+                                               FontSize="12"
+                                               Foreground="#1D4ED8"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Border>
                                 <Button Classes="os-chip"
                                         Width="32"
                                         Height="32"
@@ -734,7 +702,7 @@
                   ColumnDefinitions="*,*,*"
                   ColumnSpacing="12"
                   VerticalAlignment="Top"
-                  MaxHeight="252">
+                  MaxHeight="340">
 
                 <!-- НАЧАЛО: Карточка «Данные по заказу» -->
                 <Border Grid.Column="0"
@@ -745,14 +713,36 @@
                         <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
                             <StackPanel Grid.Column="0">
                                 <TextBlock Classes="os-label" Text="Заказчик"/>
-                                <TextBox Classes="os-field"
-                                         Text="{Binding CustomerName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                    <ComboBox Classes="os-field"
+                                              ItemsSource="{Binding AvailableCustomers}"
+                                              SelectedItem="{Binding SelectedCustomer, Mode=TwoWay}"
+                                              HorizontalAlignment="Stretch"
+                                              IsTextSearchEnabled="True">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Spacing="1">
+                                                    <TextBlock Text="{Binding FullName}" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{Binding DetailText}" FontSize="11" Foreground="#64748B"/>
+                                                    <TextBlock Text="{Binding Phone}" FontSize="11" Foreground="#94A3B8"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Button Grid.Column="1"
+                                            Classes="os-chip"
+                                            Width="36"
+                                            Content="..."
+                                            Command="{Binding BrowseCustomerCommand}"
+                                            ToolTip.Tip="Справочник заказчиков"/>
+                                </Grid>
                             </StackPanel>
                             <StackPanel Grid.Column="1">
                                 <TextBlock Classes="os-label" Text="Телефон"/>
-                                <TextBox Classes="os-field"
+                                <TextBox Classes="os-field-readonly"
+                                         IsReadOnly="True"
                                          PlaceholderText="+996(___) __ __ __"
-                                         Text="{Binding CustomerPhone, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                         Text="{Binding CustomerPhone}"/>
                             </StackPanel>
                         </Grid>
                         <StackPanel>
@@ -768,10 +758,28 @@
                             </StackPanel>
                             <StackPanel Grid.Column="1">
                                 <TextBlock Classes="os-label" Text="Менеджер"/>
-                                <ComboBox Classes="os-field"
-                                          ItemsSource="{Binding Managers}"
-                                          SelectedItem="{Binding OrderManagerName, Mode=TwoWay}"
-                                          HorizontalAlignment="Stretch"/>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                    <ComboBox Classes="os-field"
+                                              ItemsSource="{Binding AvailableManagers}"
+                                              SelectedItem="{Binding SelectedManager, Mode=TwoWay}"
+                                              HorizontalAlignment="Stretch"
+                                              IsTextSearchEnabled="True">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Spacing="1">
+                                                    <TextBlock Text="{Binding FullName}" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{Binding DisplayText}" FontSize="11" Foreground="#64748B"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Button Grid.Column="1"
+                                            Classes="os-chip"
+                                            Width="36"
+                                            Content="..."
+                                            Command="{Binding BrowseManagerCommand}"
+                                            ToolTip.Tip="Справочник менеджеров"/>
+                                </Grid>
                             </StackPanel>
                         </Grid>
                     </StackPanel>
@@ -787,22 +795,42 @@
                         <TextBlock Grid.Row="0"
                                    Classes="os-title"
                                    Text="Итоги по заказу"
-                                   Margin="12,12,12,0"/>
+                                   Margin="12,12,12,8"/>
                         <StackPanel Grid.Row="1"
-                                    Spacing="4"
-                                    Margin="12,8,12,8"
+                                    Spacing="3"
+                                    Margin="12,4,12,8"
                                     VerticalAlignment="Top">
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="Конструкций" FontSize="12" Foreground="#64748B"/>
-                                <TextBlock Grid.Column="1" Text="{Binding TotalCountDisplay}" FontSize="13" FontWeight="SemiBold" Foreground="#0F172A"/>
+                                <TextBlock Grid.Column="1" Text="{Binding TotalCountDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A"/>
                             </Grid>
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="Общая площадь" FontSize="12" Foreground="#64748B"/>
-                                <TextBlock Grid.Column="1" Text="{Binding TotalAreaDisplay}" FontSize="13" FontWeight="SemiBold" Foreground="#0F172A"/>
+                                <TextBlock Grid.Column="1" Text="{Binding TotalAreaDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A"/>
                             </Grid>
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="Общий вес" FontSize="12" Foreground="#64748B"/>
-                                <TextBlock Grid.Column="1" Text="{Binding TotalWeightDisplay}" FontSize="13" FontWeight="SemiBold" Foreground="#0F172A"/>
+                                <TextBlock Grid.Column="1" Text="{Binding TotalWeightDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Дополнительные материалы" FontSize="12" Foreground="#64748B"/>
+                                <TextBlock Grid.Column="1" Text="{Binding AdditionalMaterialsDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Стоимость доставки" FontSize="12" Foreground="#64748B"/>
+                                <TextBlock Grid.Column="1" Text="{Binding DeliveryCostDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Итого без НДС" FontSize="12" Foreground="#64748B"/>
+                                <TextBlock Grid.Column="1" Text="{Binding SubtotalWithoutVatDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="НДС" FontSize="12" Foreground="#64748B"/>
+                                <TextBlock Grid.Column="1" Text="{Binding VatAmountDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Общая скидка" FontSize="12" Foreground="#64748B"/>
+                                <TextBlock Grid.Column="1" Text="{Binding DiscountDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A"/>
                             </Grid>
                         </StackPanel>
                         <Border Grid.Row="2"

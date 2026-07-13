@@ -4,7 +4,9 @@ using Avalonia.Media;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.UI.Diagnostics;
+using NurSapat.Cad.UI.Services.ImpostDragPlacement;
 using NurSapat.Cad.UI.ViewModels;
+using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.Cad.UI.Rendering;
 
@@ -15,10 +17,78 @@ public static class FrameNodeRenderer
         FrameVolumeRenderer.SelectionHighlightBrush,
         FrameVolumeRenderer.ProfileStrokeThickness);
     private static readonly IBrush GhostImpostFillBrush = new SolidColorBrush(Color.Parse("#50FF0404"));
+    private static readonly IBrush InvalidPlacementFillBrush = new SolidColorBrush(Color.Parse("#FFCCCC"));
+    private static readonly IPen InvalidPlacementPen = new Pen(
+        new SolidColorBrush(Color.Parse("#CC2222")),
+        FrameVolumeRenderer.ProfileStrokeThickness);
     private static readonly IPen GhostImpostPen = new Pen(
         FrameVolumeRenderer.SelectionHighlightBrush,
         FrameVolumeRenderer.ProfileStrokeThickness,
         new DashStyle(new double[] { 6, 4 }, 0));
+
+    public static void DrawDragPlacementPreview(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        ImpostDragPlacementPreview preview)
+    {
+        if (editor.Viewport is null)
+        {
+            return;
+        }
+
+        var fill = preview.IsValid ? ImpostFillBrush : InvalidPlacementFillBrush;
+        var pen = preview.IsValid
+            ? FrameVolumeRenderer.ResolveProfileOutlinePen(preview.LineStyle == ImpostLineStyle.Dashed)
+            : InvalidPlacementPen;
+        var leaf = preview.Leaf;
+        var thickness = preview.ImpostWidthMm;
+        var container = leaf.GetRoot();
+
+        if (preview.Orientation == SplitOrientation.Vertical)
+        {
+            if (!TryResolveVerticalImpostRenderBounds(preview.AxisValue, thickness, out var left, out var right))
+            {
+                return;
+            }
+
+            var yBottom = ResolveVerticalImpostBottom(editor, leaf, preview.AxisValue);
+            if (CurvedContainerImpostGeometry.IsRoundContainer(editor, container)
+                && CurvedContainerImpostGeometry.TryResolveVerticalImpostSpan(
+                    editor,
+                    container,
+                    leaf,
+                    preview.AxisValue,
+                    out var bottomY,
+                    out var topY))
+            {
+                DrawVerticalProfileVolumeRect(context, editor, left, right, bottomY, topY, fill, pen);
+                return;
+            }
+
+            DrawVerticalProfileVolume(context, editor, leaf, left, right, yBottom, fill, pen);
+            return;
+        }
+
+        if (!TryResolveHorizontalImpostRenderBounds(preview.AxisValue, thickness, out var bottom, out var top))
+        {
+            return;
+        }
+
+        if (CurvedContainerImpostGeometry.IsRoundContainer(editor, container)
+            && CurvedContainerImpostGeometry.TryResolveHorizontalImpostSpan(
+                editor,
+                container,
+                leaf,
+                preview.AxisValue,
+                out var leftX,
+                out var rightX))
+        {
+            DrawHorizontalProfileVolumeRect(context, editor, leftX, rightX, bottom, top, fill, pen);
+            return;
+        }
+
+        DrawHorizontalProfileVolume(context, editor, leaf, bottom, top, fill, pen);
+    }
 
     public static void DrawImposts(DrawingContext context, CadEditorViewModel editor, FrameNode? root)
     {
@@ -102,7 +172,7 @@ public static class FrameNodeRenderer
                     continue;
                 }
 
-                var yBottom = ResolveVerticalImpostBottom(editor, node);
+                var yBottom = ResolveVerticalImpostBottom(editor, node, (left + right) / 2.0);
                 DrawVerticalProfileVolume(context, editor, node, left, right, yBottom, pen);
             }
         }
@@ -157,7 +227,7 @@ public static class FrameNodeRenderer
             return;
         }
 
-        var yBottom = ResolveVerticalImpostBottom(editor, node);
+        var yBottom = ResolveVerticalImpostBottom(editor, node, (left + right) / 2.0);
         DrawVerticalProfileVolume(context, editor, node, left, right, yBottom, ImpostFillBrush, pen);
     }
 
@@ -443,9 +513,9 @@ public static class FrameNodeRenderer
         return top - bottom > CadMath.Epsilon;
     }
 
-    private static double ResolveVerticalImpostBottom(CadEditorViewModel editor, FrameNode splitNode)
+    private static double ResolveVerticalImpostBottom(CadEditorViewModel editor, FrameNode splitNode, double axisX)
     {
-        var (bottom, _) = ResolveVerticalImpostSpan(editor, splitNode);
+        var (bottom, _) = ResolveVerticalImpostSpan(editor, splitNode, axisX);
         return bottom;
     }
 
@@ -557,7 +627,10 @@ public static class FrameNodeRenderer
         return Math.Min(spanTop, cappedTop);
     }
 
-    private static (double Bottom, double Top) ResolveVerticalImpostSpan(CadEditorViewModel editor, FrameNode splitNode)
+    private static (double Bottom, double Top) ResolveVerticalImpostSpan(
+        CadEditorViewModel editor,
+        FrameNode splitNode,
+        double impostAxisX)
     {
         var container = splitNode.GetRoot();
         if (CurvedContainerImpostGeometry.IsRoundContainer(editor, container))
@@ -579,7 +652,7 @@ public static class FrameNodeRenderer
 
         if (editor.FrameRoot?.IsFictitiousContainer == true)
         {
-            return (splitNode.Y, splitNode.Y + splitNode.Height);
+            return ResolveFictitiousVerticalImpostSpan(editor, splitNode, impostAxisX);
         }
 
         if (editor.FrameRoot is null)
@@ -596,6 +669,78 @@ public static class FrameNodeRenderer
         return (
             CadMath.RoundMm(bottom),
             CadMath.RoundMm(Math.Clamp(top, bottom, maxY)));
+    }
+
+    /// <summary>
+    /// Вертикальный пролёт в фиктивном контейнере: строго по внутренним граням
+    /// светового проёма ячейки (импостные оси + рама), с уточнением у вложенных коробок.
+    /// </summary>
+    internal static (double Bottom, double Top) ResolveFictitiousVerticalImpostSpan(
+        CadEditorViewModel editor,
+        FrameNode splitNode,
+        double impostAxisX)
+    {
+        var inner = TransitionAdjacentFrameGeometry.ResolveImpostHostInnerOpeningBounds(
+            editor,
+            splitNode,
+            editor.FrameRoot!,
+            editor.FrameThickness);
+
+        var bottom = inner.Bottom;
+        var top = inner.Top;
+        ClipVerticalImpostSpanAtNestedFrames(editor, impostAxisX, ref bottom, ref top);
+
+        return (
+            CadMath.RoundMm(bottom),
+            CadMath.RoundMm(Math.Max(bottom, top)));
+    }
+
+    /// <summary>
+    /// Т-образная подрезка вертикального импоста внутри фиктивного контейнера:
+    /// концы упираются во внутренние грани горизонтальных профилей вложенной
+    /// коробки (высота = чистый световой проём), не перекрывая её угловые резы.
+    /// </summary>
+    internal static void ClipVerticalImpostSpanAtNestedFrames(
+        CadEditorViewModel editor,
+        double impostAxisX,
+        ref double bottom,
+        ref double top)
+    {
+        foreach (var element in editor.CanvasElements)
+        {
+            if (element.Kind is not (GeometryElementKind.Frame or GeometryElementKind.ArchFrame))
+            {
+                continue;
+            }
+
+            var width = (double)element.WidthMm;
+            var height = (double)element.HeightMm;
+            if (width <= CadMath.Epsilon || height <= CadMath.Epsilon)
+            {
+                continue;
+            }
+
+            var frameLeft = (double)element.X - width / 2.0;
+            var frameRight = frameLeft + width;
+            var frameBottom = (double)element.Y - height / 2.0;
+            var frameTop = frameBottom + height;
+
+            // Импост должен проходить внутри коробки: ось строго между стойками.
+            if (impostAxisX <= frameLeft + CadMath.MmPrecision
+                || impostAxisX >= frameRight - CadMath.MmPrecision)
+            {
+                continue;
+            }
+
+            if (frameTop <= bottom + CadMath.Epsilon || frameBottom >= top - CadMath.Epsilon)
+            {
+                continue;
+            }
+
+            var inset = FrameProfileGeometry.ResolveInnerInset(width, height, editor.FrameThickness);
+            bottom = Math.Max(bottom, CadMath.RoundMm(frameBottom + inset));
+            top = Math.Min(top, CadMath.RoundMm(frameTop - inset));
+        }
     }
 
 
@@ -619,14 +764,14 @@ public static class FrameNodeRenderer
         IBrush fill,
         IPen pen)
     {
+        var centerX = (left + right) / 2.0;
         var rectangularTop = ResolveVerticalImpostRectangularTop(
             editor,
             splitNode,
             left,
             right,
-            ResolveVerticalImpostSpan(editor, splitNode).Top,
+            ResolveVerticalImpostSpan(editor, splitNode, centerX).Top,
             yBottom);
-        var centerX = (left + right) / 2.0;
         var minY = splitNode.Y;
 
         if (TryResolveVerticalImpostArcTrim(
@@ -646,6 +791,18 @@ public static class FrameNodeRenderer
             }
 
             DrawVerticalProfileArcTrimmed(context, editor, arc, left, right, yBottom, fill, pen);
+            return;
+        }
+
+        if (editor.FrameRoot?.Shape == ConstructionShape.Triangle
+            && TryResolveVerticalImpostTriangleTrim(editor, left, right, yBottom, out var triTopLeft, out var triTopRight))
+        {
+            if (triTopLeft - yBottom <= CadMath.Epsilon && triTopRight - yBottom <= CadMath.Epsilon)
+            {
+                return;
+            }
+
+            DrawVerticalProfilePolygon(context, editor, left, right, yBottom, triTopLeft, triTopRight, fill, pen);
             return;
         }
 
@@ -736,6 +893,26 @@ public static class FrameNodeRenderer
         return points;
     }
 
+    private static bool TryResolveVerticalImpostTriangleTrim(
+        CadEditorViewModel editor,
+        double left,
+        double right,
+        double yBottom,
+        out double topLeft,
+        out double topRight)
+    {
+        topLeft = topRight = 0;
+        if (editor.FrameRoot?.Shape != ConstructionShape.Triangle)
+        {
+            return false;
+        }
+
+        var innerTri = FrameTriangleGeometry.BuildInnerTriangle(editor.FrameRoot, editor.FrameThickness);
+        topLeft = FrameTriangleGeometry.InterpolateTopAtX(innerTri.Bl, innerTri.Br, innerTri.Top, left);
+        topRight = FrameTriangleGeometry.InterpolateTopAtX(innerTri.Bl, innerTri.Br, innerTri.Top, right);
+        return topLeft > yBottom + CadMath.Epsilon || topRight > yBottom + CadMath.Epsilon;
+    }
+
     private static void DrawVerticalProfilePolygon(
         DrawingContext context,
         CadEditorViewModel editor,
@@ -784,7 +961,7 @@ public static class FrameNodeRenderer
             return;
         }
 
-        var yBottom = ResolveVerticalImpostBottom(editor, node);
+        var yBottom = ResolveVerticalImpostBottom(editor, node, axisX);
         var container = node.GetRoot();
         if (CurvedContainerImpostGeometry.IsRoundContainer(editor, container)
             && CurvedContainerImpostGeometry.TryResolveVerticalImpostSpan(editor, container, node, axisX, out var bottomY, out var topY))

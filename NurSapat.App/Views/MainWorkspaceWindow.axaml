@@ -21,7 +21,7 @@
         </Style>
     </Window.Styles>
 
-    <Grid RowDefinitions="40,Auto,28,Auto,*">
+    <Grid RowDefinitions="32,Auto,Auto,*">
         <!-- Кастомная верхняя панель -->
         <Border Grid.Row="0"
                 Background="White"
@@ -144,6 +144,7 @@
                 <MenuItem Header="Заказ">
                     <MenuItem Header="Параметры заказа" Command="{Binding OpenOrderSettingsCommand}"/>
                     <MenuItem Header="Заказчик" Command="{Binding SelectOrderCustomerCommand}"/>
+                    <MenuItem Header="Менеджер" Command="{Binding SelectOrderManagerCommand}"/>
                     <MenuItem Header="Дилер" Command="{Binding SelectOrderDealerCommand}"/>
                     <MenuItem Header="Режим цены" Command="{Binding OpenPriceModeCommand}"/>
                 </MenuItem>
@@ -170,6 +171,7 @@
                 <MenuItem Header="Справочники">
                     <MenuItem Header="Материалы" Command="{Binding MaterialsCommand}"/>
                     <MenuItem Header="Заказчики" Command="{Binding CustomersCommand}"/>
+                    <MenuItem Header="Менеджеры" Command="{Binding ManagersCommand}"/>
                     <MenuItem Header="Заказы" Command="{Binding OrdersCommand}"/>
                     <MenuItem Header="Склад (материалы)" Command="{Binding StockMaterialsCommand}"/>
                     <MenuItem Header="Склад (обрезки профиля)" Command="{Binding StockProfileCutsCommand}"/>
@@ -196,6 +198,8 @@
                 <MenuItem Header="Сервис">
                     <MenuItem Header="Экспорт списания DBF/JSON" Command="{Binding ExportDbfJsonCommand}"/>
                     <MenuItem Header="Экспорт списания XLS" Command="{Binding ExportXlsCommand}"/>
+                    <MenuItem Header="Импорт / экспорт данных" Command="{Binding OpenDataTransferCommand}"/>
+                    <MenuItem Header="Журнал операций" Command="{Binding OpenArchiveCommand}"/>
                     <Separator/>
                     <MenuItem Header="Изменить пароль" Command="{Binding ChangePasswordCommand}"/>
                 </MenuItem>
@@ -213,29 +217,18 @@
                 </MenuItem>
 
                 <MenuItem Header="Справка">
-                    <MenuItem Header="Справка" Command="{Binding OpenHelpWindowCommand}" CommandParameter="Help"/>
-                    <MenuItem Header="Что нового?" Command="{Binding OpenHelpWindowCommand}" CommandParameter="WhatsNew"/>
-                    <MenuItem Header="Обновить программу" Command="{Binding OpenHelpWindowCommand}" CommandParameter="Update"/>
-                    <MenuItem Header="Консультация" Command="{Binding OpenHelpWindowCommand}" CommandParameter="Consultation"/>
+                    <MenuItem Header="Руководство пользователя" Command="{Binding OpenHelpGuideWindowCommand}"/>
+                    <MenuItem Header="Что нового?" Command="{Binding OpenWhatsNewWindowCommand}"/>
+                    <MenuItem Header="Обновить программу" Command="{Binding OpenUpdateWindowCommand}"/>
+                    <MenuItem Header="Консультация" Command="{Binding OpenSupportWindowCommand}"/>
                     <Separator/>
-                    <MenuItem Header="О программе" Command="{Binding OpenHelpWindowCommand}" CommandParameter="About"/>
+                    <MenuItem Header="О программе" Command="{Binding OpenAboutWindowCommand}"/>
                 </MenuItem>
             </Menu>
         </Border>
 
-        <Border Grid.Row="2"
-                Background="#F8FAFC"
-                BorderBrush="#E2E8F0"
-                BorderThickness="0,0,0,1"
-                Padding="16,0">
-            <TextBlock Text="{Binding ConfigurationStatusText}"
-                       FontSize="12"
-                       Foreground="#64748B"
-                       VerticalAlignment="Center"/>
-        </Border>
-
         <!-- Вкладки -->
-        <Border Grid.Row="3"
+        <Border Grid.Row="2"
                 Background="White"
                 BorderBrush="#E2E8F0"
                 BorderThickness="0,0,0,1">
@@ -250,7 +243,7 @@
         </Border>
 
         <!-- Рабочая область -->
-        <Border Grid.Row="4" Background="#F6F9FD">
+        <Border Grid.Row="3" Background="#F6F9FD">
             <ContentControl Content="{Binding CurrentContent}"/>
         </Border>
     </Grid>

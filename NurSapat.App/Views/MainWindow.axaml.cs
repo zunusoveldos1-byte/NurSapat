@@ -11,9 +11,14 @@ public partial class MainWindow : Window
         Opened += OnOpened;
     }
 
-    public MainWindow(LoginViewModel viewModel) : this()
+    public MainWindow(MainWindowViewModel viewModel) : this()
     {
         DataContext = viewModel;
+        viewModel.NavigateToLogin();
+        if (viewModel.CurrentView is LoginViewModel loginViewModel)
+        {
+            loginViewModel.LoadSavedCredentials();
+        }
     }
 
     private void OnOpened(object? sender, EventArgs e)

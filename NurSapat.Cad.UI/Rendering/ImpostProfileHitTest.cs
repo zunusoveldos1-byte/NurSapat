@@ -1,6 +1,7 @@
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.UI.ViewModels;
+using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.Cad.UI.Rendering;
 
@@ -12,7 +13,11 @@ internal static class ImpostProfileHitTest
         double Bottom,
         double Top,
         ArcSpringingGeometry? Arc,
-        IReadOnlyList<CadPoint>? HorizontalPolygon);
+        IReadOnlyList<CadPoint>? HorizontalPolygon,
+        bool IsTriangular = false,
+        CadPoint TriBl = default,
+        CadPoint TriBr = default,
+        CadPoint TriTop = default);
 
     public static bool ContainsPoint(
         CadEditorViewModel editor,
@@ -41,6 +46,18 @@ internal static class ImpostProfileHitTest
         {
             var arcTopY = ProfileSegment.GetPointOnUpperArc(arc.Center, arc.InnerRadius, point.X).Y;
             return point.Y <= arcTopY + CadMath.Epsilon;
+        }
+
+        if (footprint.IsTriangular)
+        {
+            return point.X >= footprint.Left - CadMath.Epsilon
+                   && point.X <= footprint.Right + CadMath.Epsilon
+                   && point.Y >= footprint.Bottom - CadMath.Epsilon
+                   && point.Y <= FrameTriangleGeometry.InterpolateTopAtX(
+                       footprint.TriBl,
+                       footprint.TriBr,
+                       footprint.TriTop,
+                       point.X) + CadMath.Epsilon;
         }
 
         return point.Y <= footprint.Top + CadMath.Epsilon;
@@ -199,6 +216,23 @@ internal static class ImpostProfileHitTest
             arc = resolvedArc;
         }
 
+        if (editor.FrameRoot?.Shape == ConstructionShape.Triangle)
+        {
+            var innerTri = FrameTriangleGeometry.BuildInnerTriangle(editor.FrameRoot, editor.FrameThickness);
+            footprint = new ImpostFootprint(
+                left,
+                right,
+                yBottom,
+                rectangularTop,
+                null,
+                null,
+                IsTriangular: true,
+                TriBl: innerTri.Bl,
+                TriBr: innerTri.Br,
+                TriTop: innerTri.Top);
+            return true;
+        }
+
         footprint = new ImpostFootprint(left, right, yBottom, rectangularTop, arc, null);
         return true;
     }
@@ -288,6 +322,23 @@ internal static class ImpostProfileHitTest
         if (TryResolveVerticalImpostArcTrim(editor, node, centerX, left, right, rectangularTop, out var resolvedArc))
         {
             arc = resolvedArc;
+        }
+
+        if (editor.FrameRoot?.Shape == ConstructionShape.Triangle)
+        {
+            var innerTri = FrameTriangleGeometry.BuildInnerTriangle(editor.FrameRoot, editor.FrameThickness);
+            footprint = new ImpostFootprint(
+                left,
+                right,
+                yBottom,
+                rectangularTop,
+                null,
+                null,
+                IsTriangular: true,
+                TriBl: innerTri.Bl,
+                TriBr: innerTri.Br,
+                TriTop: innerTri.Top);
+            return true;
         }
 
         footprint = new ImpostFootprint(left, right, yBottom, rectangularTop, arc, null);
@@ -400,15 +451,30 @@ internal static class ImpostProfileHitTest
             return (splitNode.Y, splitNode.Y + splitNode.Height);
         }
 
-        var (bottom, top) = SashGeometry.ResolveVerticalImpostStructuralSpan(
+        if (editor.FrameRoot.IsFictitiousContainer)
+        {
+            if (axisX is double axisWorld)
+            {
+                return FrameNodeRenderer.ResolveFictitiousVerticalImpostSpan(editor, splitNode, axisWorld);
+            }
+
+            return FrameNodeRenderer.ResolveFictitiousVerticalImpostSpan(
+                editor,
+                splitNode,
+                splitNode.TryGetVerticalImpostAxisWorldX(out var fallbackAxis)
+                    ? fallbackAxis
+                    : splitNode.X + splitNode.Width / 2.0);
+        }
+
+        var (structuralBottom, structuralTop) = SashGeometry.ResolveVerticalImpostStructuralSpan(
             splitNode,
             editor.FrameRoot,
             editor.FrameThickness);
 
         var maxY = ResolveVerticalImpostExtentMaxY(editor, splitNode);
         return (
-            CadMath.RoundMm(bottom),
-            CadMath.RoundMm(Math.Clamp(top, bottom, maxY)));
+            CadMath.RoundMm(structuralBottom),
+            CadMath.RoundMm(Math.Clamp(structuralTop, structuralBottom, maxY)));
     }
 
     private static double ResolveVerticalImpostExtentMaxY(CadEditorViewModel editor, FrameNode splitNode)
