@@ -19,7 +19,7 @@ public interface IStructureNamesStore
 
 public sealed class StructureNamesStore : IStructureNamesStore
 {
-    private readonly List<StructureNameItem> _items = CreateDemoItems();
+    private readonly List<StructureNameItem> _items = [];
 
     public IReadOnlyList<StructureNameItem> GetAll() =>
         _items.OrderBy(item => item.Code, StringComparer.OrdinalIgnoreCase).ToList();
@@ -44,12 +44,5 @@ public sealed class StructureNamesStore : IStructureNamesStore
 
     public void Delete(Guid id) => _items.RemoveAll(x => x.Id == id);
 
-    private static List<StructureNameItem> CreateDemoItems() =>
-    [
-        new() { Code = "OK-01", Name = "Окно арочное глухое" },
-        new() { Code = "DV-PVC-02", Name = "Дверь балконная" },
-        new() { Code = "OK-03", Name = "Окно поворотно-откидное" },
-        new() { Code = "BL-01", Name = "Балконный блок" },
-        new() { Code = "FS-01", Name = "Фасадное остекление" }
-    ];
+    private static List<StructureNameItem> CreateDemoItems() => [];
 }

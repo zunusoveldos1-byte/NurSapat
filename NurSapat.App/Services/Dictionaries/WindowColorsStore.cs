@@ -13,13 +13,7 @@ public interface IWindowColorsStore
 
 public sealed class WindowColorsStore : IWindowColorsStore
 {
-    private readonly List<Models.Dictionaries.WindowColorItem> _items =
-    [
-        new() { Name = "Белый", HexCode = "#FFFFFF" },
-        new() { Name = "Махагон", HexCode = "#4E2A1D" },
-        new() { Name = "Золотой дуб", HexCode = "#9B6636" },
-        new() { Name = "Антрацит", HexCode = "#2C3E50" }
-    ];
+    private readonly List<Models.Dictionaries.WindowColorItem> _items = [];
 
     public IReadOnlyList<Models.Dictionaries.WindowColorItem> GetAll() => _items;
 

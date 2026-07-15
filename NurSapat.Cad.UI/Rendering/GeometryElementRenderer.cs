@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Media;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
+using NurSapat.Cad.Core.Models.Grid;
 using NurSapat.Cad.UI.Diagnostics;
 using NurSapat.Cad.UI.Models;
 using NurSapat.Cad.UI.Services;
@@ -492,39 +493,64 @@ public static class GeometryElementRenderer
 
         var width = (double)element.WidthMm;
         var height = (double)element.HeightMm;
+        var root = editor.FrameRoot;
 
-        if (editor.FrameRoot != null && FrameMatchesElement(editor.FrameRoot, element))
+        // Внешняя фиктивная коробка всегда строит размерные цепочки по FrameRoot:
+        // строгий AABB-match может расходиться после сплитов/округления и оставляет только габариты.
+        var isOuterDimensionHost = root is not null
+            && (FrameMatchesElement(root, element)
+                || (root.IsFictitiousContainer && DummyFrame.IsDummyKind(element.Kind)));
+
+        if (isOuterDimensionHost)
         {
-            var hasBottomSegments = TryCollectBottomWidthSegments(
-                editor.FrameRoot,
-                out var segmentWidths,
-                out var boundaryWorldX);
-            var hasLeftSegments = TryCollectLeftHeightSegments(
-                editor.FrameRoot,
-                out var segmentHeights,
-                out var boundaryWorldY);
-
-            if (hasBottomSegments || hasLeftSegments)
+            try
             {
-                DrawScreenDimensionsWithSegments(
-                    context,
+                var hasBottomSegments = TryCollectBottomWidthSegments(
                     editor,
-                    rect,
-                    element,
-                    hasBottomSegments ? segmentWidths : null,
-                    hasBottomSegments ? boundaryWorldX : null,
-                    hasLeftSegments ? segmentHeights : null,
-                    hasLeftSegments ? boundaryWorldY : null,
-                    width,
-                    height,
-                    registerHits: true);
-                return;
+                    root!,
+                    out var segmentWidths,
+                    out var boundaryWorldX);
+                var hasLeftSegments = TryCollectLeftHeightSegments(
+                    editor,
+                    root!,
+                    out var segmentHeights,
+                    out var boundaryWorldY);
+
+                if (hasBottomSegments || hasLeftSegments)
+                {
+                    DrawScreenDimensionsWithSegments(
+                        context,
+                        editor,
+                        rect,
+                        element,
+                        hasBottomSegments ? segmentWidths : null,
+                        hasBottomSegments ? boundaryWorldX : null,
+                        hasLeftSegments ? segmentHeights : null,
+                        hasLeftSegments ? boundaryWorldY : null,
+                        width,
+                        height,
+                        registerHits: true);
+                    return;
+                }
             }
+            catch (Exception ex)
+            {
+                CadDiagnostics.LogWarning(
+                    "DrawFrameDimensions: segmented chain failed; falling back to overall dimensions",
+                    ex);
+            }
+
+            // Габариты 2300×2200 и т.п. должны оставаться даже если сегменты
+            // (1300/900) временно не собрались после установки профилей.
+            DrawScreenDimensions(context, rect, $"{width:0}", $"{height:0}", editor, registerHits: true);
+            return;
         }
-        else if (editor.FrameRoot is not null
+        else if (root is not null
                  && element.Kind is GeometryElementKind.Frame or GeometryElementKind.ArchFrame
+                     or GeometryElementKind.DummyFrame
                  && TryCollectSmartWidthSegmentsForNestedFrame(
-                     editor.FrameRoot,
+                     editor,
+                     root,
                      element,
                      out var nestedWidths,
                      out var nestedBoundariesX,
@@ -867,7 +893,9 @@ public static class GeometryElementRenderer
     {
         var (_, originY, _, _) = GetWorldOriginBounds(element);
 
-        if (segmentHeightsMm is { Count: > 0 } && boundaryWorldY is { Count: >= 2 })
+        // Один проём по оси = дубликат габарита; детальную цепочку рисуем только
+        // при наличии внутренних делений (импостов / нескольких секций).
+        if (segmentHeightsMm is { Count: > 1 } && boundaryWorldY is { Count: >= 3 })
         {
             var screenBoundariesY = boundaryWorldY
                 .Select(worldY => WorldYToScreenY(editor, worldY, editor.FrameRoot!.X))
@@ -887,7 +915,7 @@ public static class GeometryElementRenderer
             DrawLeftHeightDimension(context, rect, heightMm, editor, registerHits);
         }
 
-        if (segmentWidthsMm is { Count: > 0 } && boundaryWorldX is { Count: >= 2 })
+        if (segmentWidthsMm is { Count: > 1 } && boundaryWorldX is { Count: >= 3 })
         {
             var screenBoundariesX = boundaryWorldX
                 .Select(worldX => WorldXToScreenX(editor, worldX, originY))
@@ -1190,40 +1218,463 @@ public static class GeometryElementRenderer
     }
 
     private static bool TryCollectBottomWidthSegments(
+        CadEditorViewModel editor,
         FrameNode root,
         out IReadOnlyList<double> segmentWidthsMm,
-        out IReadOnlyList<double> boundaryWorldX)
-    {
-        var axes = new List<double>();
-        CollectVerticalImpostAxes(root, axes);
-        axes.Sort();
+        out IReadOnlyList<double> boundaryWorldX) =>
+        DimensionChainFromGridLines.TryCollectSegments(
+            editor,
+            root,
+            GridLineOrientation.Vertical,
+            out segmentWidthsMm,
+            out boundaryWorldX);
 
-        if (axes.Count == 0)
+    private static bool TryCollectLeftHeightSegments(
+        CadEditorViewModel editor,
+        FrameNode root,
+        out IReadOnlyList<double> segmentHeightsMm,
+        out IReadOnlyList<double> boundaryWorldY) =>
+        DimensionChainFromGridLines.TryCollectSegments(
+            editor,
+            root,
+            GridLineOrientation.Horizontal,
+            out segmentHeightsMm,
+            out boundaryWorldY);
+
+    /// <summary>Публичный мост для <see cref="DimensionChainFromGridLines"/>.</summary>
+    internal static bool TryBuildOpeningSegmentsForGrid(
+        CadEditorViewModel editor,
+        FrameNode root,
+        List<double> rawBoundaries,
+        bool alongX,
+        out IReadOnlyList<double> segmentSizesMm,
+        out IReadOnlyList<double> boundaryWorld) =>
+        TryBuildOpeningSegmentsExcludingProfileBodies(
+            editor,
+            root,
+            rawBoundaries,
+            alongX,
+            out segmentSizesMm,
+            out boundaryWorld);
+
+    /// <summary>
+    /// Строит размерную цепочку световых/ячеечных сегментов, исключая толщины
+    /// импостов, переходных и соединительных профилей (единый алгоритм для X и Y).
+    /// </summary>
+    private static bool TryBuildOpeningSegmentsExcludingProfileBodies(
+        CadEditorViewModel editor,
+        FrameNode root,
+        List<double> rawBoundaries,
+        bool alongX,
+        out IReadOnlyList<double> segmentSizesMm,
+        out IReadOnlyList<double> boundaryWorld)
+    {
+        // Инвариант: boundaryWorld.Count == segmentSizesMm.Count + 1.
+        // Границы добавляем только вместе с принятым сегментом — иначе после
+        // исключения тела профиля и нулевого светового сегмента списки расходятся.
+        var filteredBoundaries = new List<double>();
+        var sizes = new List<double>();
+        double? lastBoundary = null;
+
+        for (var i = 0; i < rawBoundaries.Count - 1; i++)
         {
-            segmentWidthsMm = Array.Empty<double>();
-            boundaryWorldX = Array.Empty<double>();
+            var a = rawBoundaries[i];
+            var b = rawBoundaries[i + 1];
+            if (b - a <= CadMath.Epsilon)
+            {
+                continue;
+            }
+
+            if (IsStructuralProfileBodySpan(editor, root, a, b, alongX))
+            {
+                // Тело профиля не получает сегмент; следующий проём начнётся с новой опоры.
+                continue;
+            }
+
+            var size = alongX
+                ? ResolveBottomSegmentWidth(root, a, b)
+                : ResolveLeftSegmentHeight(root, a, b);
+            if (size <= CadMath.Epsilon)
+            {
+                continue;
+            }
+
+            if (lastBoundary is null)
+            {
+                filteredBoundaries.Add(a);
+                lastBoundary = a;
+            }
+            else if (Math.Abs(lastBoundary.Value - a) > CadMath.MmPrecision)
+            {
+                // Разрыв после тела профиля: начинаем новую опору с `a`, не связывая
+                // её с концом предыдущего проёма — иначе boundaries.Count ≠ sizes+1
+                // и вся цепочка размеров отбрасывается.
+                filteredBoundaries.Add(a);
+                lastBoundary = a;
+            }
+
+            sizes.Add(size);
+            filteredBoundaries.Add(b);
+            lastBoundary = b;
+        }
+
+        // После разрывов списка boundaries может превысить sizes+1 за счёт стартов
+        // новых проёмов. Пересобираем непрерывные цепочки: оставляем все сегменты,
+        // сшивая границы так, что Count == sizes.Count + 1.
+        if (sizes.Count == 0)
+        {
+            segmentSizesMm = Array.Empty<double>();
+            boundaryWorld = Array.Empty<double>();
             return false;
         }
 
-        var externalLeft = root.X;
-        var externalRight = root.X + root.Width;
-
-        var boundaries = new List<double> { externalLeft };
-        boundaries.AddRange(axes);
-        boundaries.Add(externalRight);
-
-        var widths = new List<double>();
-        for (var i = 0; i < boundaries.Count - 1; i++)
+        if (filteredBoundaries.Count == sizes.Count + 1)
         {
-            widths.Add(ResolveBottomSegmentWidth(root, boundaries[i], boundaries[i + 1]));
+            segmentSizesMm = sizes;
+            boundaryWorld = filteredBoundaries;
+            return true;
         }
 
-        segmentWidthsMm = widths;
-        boundaryWorldX = boundaries;
+        // Fallback при разрывах: границы [start0, end0, end1, ...] из пар сегментов,
+        // каждый сегмент даёт свой label, геометрия якорей — фактические a/b.
+        return TryRebuildSegmentChainAcrossGaps(
+            rawBoundaries,
+            editor,
+            root,
+            alongX,
+            out segmentSizesMm,
+            out boundaryWorld);
+    }
+
+    /// <summary>
+    /// Собирает размерную цепочку при наличии «дыр» (тел профилей между проёмами).
+    /// Сохраняет инвариант boundaries.Count == sizes.Count + 1, не вставляя
+    /// лишние старты после пропущенного тела профиля.
+    /// </summary>
+    private static bool TryRebuildSegmentChainAcrossGaps(
+        List<double> rawBoundaries,
+        CadEditorViewModel editor,
+        FrameNode root,
+        bool alongX,
+        out IReadOnlyList<double> segmentSizesMm,
+        out IReadOnlyList<double> boundaryWorld)
+    {
+        var sizes = new List<double>();
+        var boundaries = new List<double>();
+        var started = false;
+
+        for (var i = 0; i < rawBoundaries.Count - 1; i++)
+        {
+            var a = rawBoundaries[i];
+            var b = rawBoundaries[i + 1];
+            if (b - a <= CadMath.Epsilon || IsStructuralProfileBodySpan(editor, root, a, b, alongX))
+            {
+                continue;
+            }
+
+            var size = alongX
+                ? ResolveBottomSegmentWidth(root, a, b)
+                : ResolveLeftSegmentHeight(root, a, b);
+            if (size <= CadMath.Epsilon)
+            {
+                continue;
+            }
+
+            if (!started)
+            {
+                boundaries.Add(a);
+                started = true;
+            }
+
+            sizes.Add(size);
+            boundaries.Add(b);
+        }
+
+        if (sizes.Count == 0 || boundaries.Count != sizes.Count + 1)
+        {
+            segmentSizesMm = Array.Empty<double>();
+            boundaryWorld = Array.Empty<double>();
+            return false;
+        }
+
+        segmentSizesMm = sizes;
+        boundaryWorld = boundaries;
         return true;
     }
 
+    /// <summary>
+    /// Сегмент является толщиной конструктивного профиля (импост / переходной / стык ячеек),
+    /// а не размером полезного проёма.
+    /// </summary>
+    private static bool IsStructuralProfileBodySpan(
+        CadEditorViewModel editor,
+        FrameNode root,
+        double spanMin,
+        double spanMax,
+        bool alongX)
+    {
+        var span = spanMax - spanMin;
+        if (span <= CadMath.Epsilon)
+        {
+            return true;
+        }
+
+        var mid = (spanMin + spanMax) / 2.0;
+
+        if (IsImpostBodySpan(root, spanMin, spanMax, mid, alongX))
+        {
+            return true;
+        }
+
+        foreach (var element in editor.CanvasElements)
+        {
+            if (element.Kind is not (GeometryElementKind.TransitionFrame
+                or GeometryElementKind.Frame
+                or GeometryElementKind.ArchFrame))
+            {
+                continue;
+            }
+
+            if (DummyFrame.IsDummyElement(element))
+            {
+                continue;
+            }
+
+            if (element.Kind == GeometryElementKind.TransitionFrame
+                && IsTransitionProfileWallSpan(editor, element, spanMin, spanMax, mid, alongX))
+            {
+                return true;
+            }
+
+            if (element.Kind is GeometryElementKind.Frame or GeometryElementKind.ArchFrame
+                && IsNestedFrameWallSpan(editor, element, spanMin, spanMax, mid, alongX))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Толщина стенки переходного профиля (не весь AABB ячейки).
+    /// </summary>
+    private static bool IsTransitionProfileWallSpan(
+        CadEditorViewModel editor,
+        GeometryElement element,
+        double spanMin,
+        double spanMax,
+        double mid,
+        bool alongX)
+    {
+        if (!TransitionAdjacentFrameGeometry.TryResolveHostGeometry(
+                editor,
+                element,
+                editor.FrameRoot,
+                editor.FrameThickness,
+                out var host))
+        {
+            return false;
+        }
+
+        var span = spanMax - spanMin;
+        var tol = FrameNode.DefaultImpostProfileMm;
+
+        if (alongX)
+        {
+            var probeY = (host.OuterBottom + host.OuterTop) / 2.0;
+            var leftInner = host.InnerLeftFace(probeY);
+            var rightInner = host.InnerRightFace(probeY);
+
+            // Узкая вертикальная полоса (стойка на всю ячейку по толщине профиля).
+            if (host.OuterWidth <= host.ProfileThickness + tol
+                && mid >= host.OuterLeft - CadMath.MmPrecision
+                && mid <= host.OuterRight + CadMath.MmPrecision
+                && span <= host.OuterWidth + CadMath.MmPrecision
+                && Math.Abs(spanMin - host.OuterLeft) <= tol
+                && Math.Abs(spanMax - host.OuterRight) <= tol)
+            {
+                return true;
+            }
+
+            // Левая / правая стойка полого хоста.
+            if (IsWallSpan(spanMin, spanMax, mid, host.OuterLeft, leftInner, tol)
+                || IsWallSpan(spanMin, spanMax, mid, rightInner, host.OuterRight, tol))
+            {
+                return true;
+            }
+        }
+        else
+        {
+            var probeX = (host.OuterLeft + host.OuterRight) / 2.0;
+            var bottomInner = host.InnerBottomFace(probeX);
+            var topInner = host.InnerTopFace(probeX);
+
+            if (host.OuterHeight <= host.ProfileThickness + tol
+                && mid >= host.OuterBottom - CadMath.MmPrecision
+                && mid <= host.OuterTop + CadMath.MmPrecision
+                && span <= host.OuterHeight + CadMath.MmPrecision
+                && Math.Abs(spanMin - host.OuterBottom) <= tol
+                && Math.Abs(spanMax - host.OuterTop) <= tol)
+            {
+                return true;
+            }
+
+            if (IsWallSpan(spanMin, spanMax, mid, host.OuterBottom, bottomInner, tol)
+                || IsWallSpan(spanMin, spanMax, mid, topInner, host.OuterTop, tol))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Толщина стенки вложенной оконной коробки.
+    /// </summary>
+    private static bool IsNestedFrameWallSpan(
+        CadEditorViewModel editor,
+        GeometryElement element,
+        double spanMin,
+        double spanMax,
+        double mid,
+        bool alongX)
+    {
+        var (originX, originY, width, height) = GetWorldOriginBounds(element);
+        if (width <= CadMath.Epsilon || height <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var inset = FrameProfileGeometry.ResolveInnerInset(width, height, editor.FrameThickness);
+        if (inset <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var tol = FrameNode.DefaultImpostProfileMm;
+        if (alongX)
+        {
+            return IsWallSpan(spanMin, spanMax, mid, originX, originX + inset, tol)
+                   || IsWallSpan(spanMin, spanMax, mid, originX + width - inset, originX + width, tol);
+        }
+
+        return IsWallSpan(spanMin, spanMax, mid, originY, originY + inset, tol)
+               || IsWallSpan(spanMin, spanMax, mid, originY + height - inset, originY + height, tol);
+    }
+
+    private static bool IsWallSpan(
+        double spanMin,
+        double spanMax,
+        double mid,
+        double wallMin,
+        double wallMax,
+        double tol)
+    {
+        if (wallMax - wallMin <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        return mid >= wallMin - CadMath.MmPrecision
+               && mid <= wallMax + CadMath.MmPrecision
+               && Math.Abs(spanMin - wallMin) <= tol
+               && Math.Abs(spanMax - wallMax) <= tol;
+    }
+
+    private static bool IsImpostBodySpan(
+        FrameNode node,
+        double spanMin,
+        double spanMax,
+        double mid,
+        bool alongX)
+    {
+        var span = spanMax - spanMin;
+        if (node.IsUniformSplit)
+        {
+            var cells = node.UniformCells;
+            var thickness = node.GetResolvedImpostThicknessMm();
+            if (thickness > CadMath.Epsilon
+                && ((alongX && node.SplitOrientation == SplitOrientation.Vertical)
+                    || (!alongX && node.SplitOrientation == SplitOrientation.Horizontal)))
+            {
+                for (var i = 0; i < cells.Count - 1; i++)
+                {
+                    double gapStart;
+                    double gapEnd;
+                    if (alongX)
+                    {
+                        gapStart = cells[i].X + cells[i].Width;
+                        gapEnd = cells[i + 1].X;
+                    }
+                    else
+                    {
+                        gapStart = cells[i].Y + cells[i].Height;
+                        gapEnd = cells[i + 1].Y;
+                    }
+
+                    if (mid >= gapStart - CadMath.MmPrecision
+                        && mid <= gapEnd + CadMath.MmPrecision
+                        && span <= Math.Max(thickness, gapEnd - gapStart) + CadMath.MmPrecision)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            foreach (var cell in cells)
+            {
+                if (IsImpostBodySpan(cell, spanMin, spanMax, mid, alongX))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (!node.IsLeaf && node.ChildA is not null && node.ChildB is not null)
+        {
+            var thickness = node.GetResolvedImpostThicknessMm();
+            if (thickness > CadMath.Epsilon)
+            {
+                if (alongX && node.SplitOrientation == SplitOrientation.Vertical)
+                {
+                    var gapStart = node.ChildA.X + node.ChildA.Width;
+                    var gapEnd = node.ChildB.X;
+                    if (mid >= gapStart - CadMath.MmPrecision
+                        && mid <= gapEnd + CadMath.MmPrecision
+                        && spanMax - spanMin <= Math.Max(thickness, gapEnd - gapStart) + CadMath.MmPrecision)
+                    {
+                        return true;
+                    }
+                }
+                else if (!alongX && node.SplitOrientation == SplitOrientation.Horizontal)
+                {
+                    var gapStart = node.ChildA.Y + node.ChildA.Height;
+                    var gapEnd = node.ChildB.Y;
+                    if (mid >= gapStart - CadMath.MmPrecision
+                        && mid <= gapEnd + CadMath.MmPrecision
+                        && spanMax - spanMin <= Math.Max(thickness, gapEnd - gapStart) + CadMath.MmPrecision)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            if (IsImpostBodySpan(node.ChildA, spanMin, spanMax, mid, alongX)
+                || IsImpostBodySpan(node.ChildB, spanMin, spanMax, mid, alongX))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool TryCollectSmartWidthSegmentsForNestedFrame(
+        CadEditorViewModel editor,
         FrameNode root,
         GeometryElement element,
         out IReadOnlyList<double> segmentWidthsMm,
@@ -1248,8 +1699,16 @@ public static class GeometryElementRenderer
         var innerRight = hostLeaf.X + hostLeaf.Width - insets.Right;
 
         var axes = new List<double>();
-        CollectVerticalImpostAxes(dimensionNode, axes);
-        axes.Sort();
+        if (root.IsFictitiousContainer)
+        {
+            CollectFictitiousGridVerticalDivisions(dimensionNode, dimensionNode, axes);
+        }
+        else
+        {
+            CollectVerticalImpostAxes(dimensionNode, axes);
+        }
+
+        DeduplicateSortedAxes(axes);
 
         if (axes.Count > 0)
         {
@@ -1257,21 +1716,32 @@ public static class GeometryElementRenderer
             boundaries.AddRange(axes);
             boundaries.Add(innerRight);
 
-            var widths = new List<double>();
-            for (var i = 0; i < boundaries.Count - 1; i++)
+            if (TryBuildOpeningSegmentsExcludingProfileBodies(
+                    editor,
+                    root,
+                    boundaries,
+                    alongX: true,
+                    out var widths,
+                    out var filteredX))
             {
-                widths.Add(CadMath.RoundMm(boundaries[i + 1] - boundaries[i]));
+                segmentWidthsMm = widths;
+                boundaryWorldX = filteredX;
             }
-
-            segmentWidthsMm = widths;
-            boundaryWorldX = boundaries;
         }
 
         var innerBottom = hostLeaf.Y + insets.Bottom;
         var innerTop = hostLeaf.Y + hostLeaf.Height - insets.Top;
         var hAxes = new List<double>();
-        CollectHorizontalImpostAxes(dimensionNode, hAxes);
-        hAxes.Sort();
+        if (root.IsFictitiousContainer)
+        {
+            CollectFictitiousGridHorizontalDivisions(dimensionNode, dimensionNode, hAxes);
+        }
+        else
+        {
+            CollectHorizontalImpostAxes(dimensionNode, hAxes);
+        }
+
+        DeduplicateSortedAxes(hAxes);
 
         if (hAxes.Count > 0)
         {
@@ -1279,14 +1749,17 @@ public static class GeometryElementRenderer
             boundariesY.AddRange(hAxes);
             boundariesY.Add(innerTop);
 
-            var heights = new List<double>();
-            for (var i = 0; i < boundariesY.Count - 1; i++)
+            if (TryBuildOpeningSegmentsExcludingProfileBodies(
+                    editor,
+                    root,
+                    boundariesY,
+                    alongX: false,
+                    out var heights,
+                    out var filteredY))
             {
-                heights.Add(CadMath.RoundMm(boundariesY[i + 1] - boundariesY[i]));
+                segmentHeightsMm = heights;
+                boundaryWorldY = filteredY;
             }
-
-            segmentHeightsMm = heights;
-            boundaryWorldY = boundariesY;
         }
 
         return segmentWidthsMm.Count > 0 || segmentHeightsMm.Count > 0;
@@ -1305,40 +1778,6 @@ public static class GeometryElementRenderer
         }
 
         return null;
-    }
-
-    private static bool TryCollectLeftHeightSegments(
-        FrameNode root,
-        out IReadOnlyList<double> segmentHeightsMm,
-        out IReadOnlyList<double> boundaryWorldY)
-    {
-        var axes = new List<double>();
-        CollectHorizontalImpostAxes(root, axes);
-        axes.Sort();
-
-        if (axes.Count == 0)
-        {
-            segmentHeightsMm = Array.Empty<double>();
-            boundaryWorldY = Array.Empty<double>();
-            return false;
-        }
-
-        var externalBottom = root.Y;
-        var externalTop = root.Y + root.Height;
-
-        var boundaries = new List<double> { externalBottom };
-        boundaries.AddRange(axes);
-        boundaries.Add(externalTop);
-
-        var heights = new List<double>();
-        for (var i = 0; i < boundaries.Count - 1; i++)
-        {
-            heights.Add(ResolveLeftSegmentHeight(root, boundaries[i], boundaries[i + 1]));
-        }
-
-        segmentHeightsMm = heights;
-        boundaryWorldY = boundaries;
-        return true;
     }
 
     private static double ResolveBottomSegmentWidth(FrameNode root, double leftWorldX, double rightWorldX)
@@ -1482,6 +1921,259 @@ public static class GeometryElementRenderer
         if (node.ChildB != null)
         {
             CollectVerticalImpostAxes(node.ChildB, axes);
+        }
+    }
+
+    /// <summary>
+    /// Точки деления фиктивной сетки по вертикали: внутренние X-границы ячеек
+    /// (пунктирные импосты с нулевой толщиной совпадают с ними).
+    /// </summary>
+    private static void CollectFictitiousGridVerticalDivisions(
+        FrameNode node,
+        FrameNode root,
+        List<double> axes)
+    {
+        if (node.IsTerminalLeaf)
+        {
+            AddInteriorDivisionAxis(axes, node.X, root.X, root.X + root.Width);
+            AddInteriorDivisionAxis(axes, node.X + node.Width, root.X, root.X + root.Width);
+            return;
+        }
+
+        if (node.IsUniformSplit)
+        {
+            foreach (var cell in node.UniformCells)
+            {
+                CollectFictitiousGridVerticalDivisions(cell, root, axes);
+            }
+
+            return;
+        }
+
+        if (node.ChildA is not null)
+        {
+            CollectFictitiousGridVerticalDivisions(node.ChildA, root, axes);
+        }
+
+        if (node.ChildB is not null)
+        {
+            CollectFictitiousGridVerticalDivisions(node.ChildB, root, axes);
+        }
+    }
+
+    /// <summary>
+    /// Точки деления фиктивной сетки по горизонтали: внутренние Y-границы ячеек.
+    /// </summary>
+    private static void CollectFictitiousGridHorizontalDivisions(
+        FrameNode node,
+        FrameNode root,
+        List<double> axes)
+    {
+        if (node.IsTerminalLeaf)
+        {
+            AddInteriorDivisionAxis(axes, node.Y, root.Y, root.Y + root.Height);
+            AddInteriorDivisionAxis(axes, node.Y + node.Height, root.Y, root.Y + root.Height);
+            return;
+        }
+
+        if (node.IsUniformSplit)
+        {
+            foreach (var cell in node.UniformCells)
+            {
+                CollectFictitiousGridHorizontalDivisions(cell, root, axes);
+            }
+
+            return;
+        }
+
+        if (node.ChildA is not null)
+        {
+            CollectFictitiousGridHorizontalDivisions(node.ChildA, root, axes);
+        }
+
+        if (node.ChildB is not null)
+        {
+            CollectFictitiousGridHorizontalDivisions(node.ChildB, root, axes);
+        }
+    }
+
+    private static void AddInteriorDivisionAxis(
+        List<double> axes,
+        double value,
+        double outerMin,
+        double outerMax)
+    {
+        var rounded = CadMath.RoundMm(value);
+        if (rounded <= outerMin + CadMath.MmPrecision
+            || rounded >= outerMax - CadMath.MmPrecision)
+        {
+            return;
+        }
+
+        axes.Add(rounded);
+    }
+
+    /// <summary>
+    /// Опорные X-грани всех конструктивных профилей на канве (коробки, переходные,
+    /// импосты-элементы), внутри габарита root. Агностично к типу профиля.
+    /// </summary>
+    private static void CollectStructuralProfileVerticalEdges(
+        CadEditorViewModel editor,
+        FrameNode root,
+        List<double> axes)
+    {
+        var outerMin = root.X;
+        var outerMax = root.X + root.Width;
+        foreach (var element in editor.CanvasElements)
+        {
+            if (!IsStructuralDimensionProfileKind(element))
+            {
+                continue;
+            }
+
+            if (element.Kind == GeometryElementKind.TransitionFrame
+                && TransitionAdjacentFrameGeometry.TryResolveHostGeometry(
+                    editor,
+                    element,
+                    editor.FrameRoot,
+                    editor.FrameThickness,
+                    out var host))
+            {
+                if (host.OuterTop <= root.Y + CadMath.MmPrecision
+                    || host.OuterBottom >= root.Y + root.Height - CadMath.MmPrecision)
+                {
+                    continue;
+                }
+
+                var probeY = (host.OuterBottom + host.OuterTop) / 2.0;
+                AddInteriorDivisionAxis(axes, host.OuterLeft, outerMin, outerMax);
+                AddInteriorDivisionAxis(axes, host.InnerLeftFace(probeY), outerMin, outerMax);
+                AddInteriorDivisionAxis(axes, host.InnerRightFace(probeY), outerMin, outerMax);
+                AddInteriorDivisionAxis(axes, host.OuterRight, outerMin, outerMax);
+                continue;
+            }
+
+            var (originX, originY, width, height) = GetWorldOriginBounds(element);
+            if (width <= CadMath.Epsilon || height <= CadMath.Epsilon
+                || double.IsNaN(width) || double.IsNaN(height)
+                || double.IsNaN(originX) || double.IsNaN(originY))
+            {
+                continue;
+            }
+
+            // Профиль должен пересекаться с root по Y, иначе чужие конструкции не учитываем.
+            if (originY + height <= root.Y + CadMath.MmPrecision
+                || originY >= root.Y + root.Height - CadMath.MmPrecision)
+            {
+                continue;
+            }
+
+            AddInteriorDivisionAxis(axes, originX, outerMin, outerMax);
+            AddInteriorDivisionAxis(axes, originX + width, outerMin, outerMax);
+
+            if (element.Kind is GeometryElementKind.Frame or GeometryElementKind.ArchFrame)
+            {
+                var inset = FrameProfileGeometry.ResolveInnerInset(width, height, editor.FrameThickness);
+                if (inset > CadMath.Epsilon)
+                {
+                    AddInteriorDivisionAxis(axes, originX + inset, outerMin, outerMax);
+                    AddInteriorDivisionAxis(axes, originX + width - inset, outerMin, outerMax);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Опорные Y-грани всех конструктивных профилей на канве, внутри габарита root.
+    /// </summary>
+    private static void CollectStructuralProfileHorizontalEdges(
+        CadEditorViewModel editor,
+        FrameNode root,
+        List<double> axes)
+    {
+        var outerMin = root.Y;
+        var outerMax = root.Y + root.Height;
+        foreach (var element in editor.CanvasElements)
+        {
+            if (!IsStructuralDimensionProfileKind(element))
+            {
+                continue;
+            }
+
+            if (element.Kind == GeometryElementKind.TransitionFrame
+                && TransitionAdjacentFrameGeometry.TryResolveHostGeometry(
+                    editor,
+                    element,
+                    editor.FrameRoot,
+                    editor.FrameThickness,
+                    out var host))
+            {
+                if (host.OuterRight <= root.X + CadMath.MmPrecision
+                    || host.OuterLeft >= root.X + root.Width - CadMath.MmPrecision)
+                {
+                    continue;
+                }
+
+                var probeX = (host.OuterLeft + host.OuterRight) / 2.0;
+                AddInteriorDivisionAxis(axes, host.OuterBottom, outerMin, outerMax);
+                AddInteriorDivisionAxis(axes, host.InnerBottomFace(probeX), outerMin, outerMax);
+                AddInteriorDivisionAxis(axes, host.InnerTopFace(probeX), outerMin, outerMax);
+                AddInteriorDivisionAxis(axes, host.OuterTop, outerMin, outerMax);
+                continue;
+            }
+
+            var (originX, originY, width, height) = GetWorldOriginBounds(element);
+            if (width <= CadMath.Epsilon || height <= CadMath.Epsilon
+                || double.IsNaN(width) || double.IsNaN(height)
+                || double.IsNaN(originX) || double.IsNaN(originY))
+            {
+                continue;
+            }
+
+            if (originX + width <= root.X + CadMath.MmPrecision
+                || originX >= root.X + root.Width - CadMath.MmPrecision)
+            {
+                continue;
+            }
+
+            AddInteriorDivisionAxis(axes, originY, outerMin, outerMax);
+            AddInteriorDivisionAxis(axes, originY + height, outerMin, outerMax);
+
+            if (element.Kind is GeometryElementKind.Frame or GeometryElementKind.ArchFrame)
+            {
+                var inset = FrameProfileGeometry.ResolveInnerInset(width, height, editor.FrameThickness);
+                if (inset > CadMath.Epsilon)
+                {
+                    AddInteriorDivisionAxis(axes, originY + inset, outerMin, outerMax);
+                    AddInteriorDivisionAxis(axes, originY + height - inset, outerMin, outerMax);
+                }
+            }
+        }
+    }
+
+    private static bool IsStructuralDimensionProfileKind(GeometryElement element) =>
+        element.Kind is GeometryElementKind.Frame
+            or GeometryElementKind.ArchFrame
+            or GeometryElementKind.TransitionFrame
+            or GeometryElementKind.DummyFrame
+            or GeometryElementKind.ArchDummyFrame
+            or GeometryElementKind.TriangleDummyFrame
+            or GeometryElementKind.RoundDummyFrame;
+
+    private static void DeduplicateSortedAxes(List<double> axes)
+    {
+        if (axes.Count == 0)
+        {
+            return;
+        }
+
+        axes.Sort();
+        for (var i = axes.Count - 1; i > 0; i--)
+        {
+            if (Math.Abs(axes[i] - axes[i - 1]) <= CadMath.MmPrecision)
+            {
+                axes.RemoveAt(i);
+            }
         }
     }
 
@@ -1745,7 +2437,7 @@ public static class GeometryElementRenderer
             out valueMm);
     }
 
-    private static VerticalImpostTarget? TryResolveVerticalImpostForSegment(
+    private static ImpostTarget? TryResolveVerticalImpostForSegment(
         FrameNode root,
         IReadOnlyList<double> boundaries,
         int segmentIndex)
@@ -1769,10 +2461,10 @@ public static class GeometryElementRenderer
         return null;
     }
 
-    private static VerticalImpostTarget? FindVerticalImpostAtAxis(FrameNode root, double axisWorldX)
+    private static ImpostTarget? FindVerticalImpostAtAxis(FrameNode root, double axisWorldX)
     {
         const double tolerance = 1.5;
-        VerticalImpostTarget? match = null;
+        ImpostTarget? match = null;
         var bestDistance = double.MaxValue;
 
         foreach (var node in root.EnumerateInternalNodes())
@@ -1798,7 +2490,7 @@ public static class GeometryElementRenderer
                     }
 
                     bestDistance = distance;
-                    match = new VerticalImpostTarget
+                    match = new ImpostTarget
                     {
                         SplitNode = node,
                         UniformGapIndex = gapIndex
@@ -1820,13 +2512,13 @@ public static class GeometryElementRenderer
             }
 
             bestDistance = binaryDistance;
-            match = new VerticalImpostTarget { SplitNode = node };
+            match = new ImpostTarget { SplitNode = node };
         }
 
         return match;
     }
 
-    private static VerticalImpostTarget? TryResolveHorizontalImpostForSegment(
+    private static ImpostTarget? TryResolveHorizontalImpostForSegment(
         FrameNode root,
         IReadOnlyList<double> boundaries,
         int segmentIndex)
@@ -1850,11 +2542,12 @@ public static class GeometryElementRenderer
         return null;
     }
 
-    private static VerticalImpostTarget? FindHorizontalImpostAtAxis(FrameNode root, double axisWorldY)
+    private static ImpostTarget? FindHorizontalImpostAtAxis(FrameNode root, double axisWorldY)
     {
         const double tolerance = 1.5;
-        VerticalImpostTarget? match = null;
+        ImpostTarget? match = null;
         var bestDistance = double.MaxValue;
+        var bestWidth = double.MaxValue;
 
         foreach (var node in root.EnumerateInternalNodes())
         {
@@ -1873,13 +2566,22 @@ public static class GeometryElementRenderer
                     }
 
                     var distance = Math.Abs(axisY - axisWorldY);
-                    if (distance > tolerance || distance >= bestDistance)
+                    if (distance > tolerance)
+                    {
+                        continue;
+                    }
+
+                    // При равной оси Y предпочитаем локальный (узкий) узел колонки.
+                    if (distance > bestDistance + CadMath.MmPrecision
+                        || (Math.Abs(distance - bestDistance) <= CadMath.MmPrecision
+                            && node.Width >= bestWidth))
                     {
                         continue;
                     }
 
                     bestDistance = distance;
-                    match = new VerticalImpostTarget
+                    bestWidth = node.Width;
+                    match = new ImpostTarget
                     {
                         SplitNode = node,
                         UniformGapIndex = gapIndex
@@ -1895,13 +2597,21 @@ public static class GeometryElementRenderer
             }
 
             var binaryDistance = Math.Abs(binaryAxisY - axisWorldY);
-            if (binaryDistance > tolerance || binaryDistance >= bestDistance)
+            if (binaryDistance > tolerance)
+            {
+                continue;
+            }
+
+            if (binaryDistance > bestDistance + CadMath.MmPrecision
+                || (Math.Abs(binaryDistance - bestDistance) <= CadMath.MmPrecision
+                    && node.Width >= bestWidth))
             {
                 continue;
             }
 
             bestDistance = binaryDistance;
-            match = new VerticalImpostTarget { SplitNode = node };
+            bestWidth = node.Width;
+            match = new ImpostTarget { SplitNode = node };
         }
 
         return match;

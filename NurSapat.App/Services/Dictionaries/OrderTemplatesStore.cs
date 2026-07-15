@@ -17,7 +17,7 @@ public interface IOrderTemplatesStore
 
 public sealed class OrderTemplatesStore : IOrderTemplatesStore
 {
-    private readonly List<OrderTemplateItem> _items = CreateDemoTemplates();
+    private readonly List<OrderTemplateItem> _items = [];
 
     public IReadOnlyList<OrderTemplateItem> GetAll() =>
         _items.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToList();
@@ -38,43 +38,5 @@ public sealed class OrderTemplatesStore : IOrderTemplatesStore
 
     public void Delete(Guid id) => _items.RemoveAll(x => x.Id == id);
 
-    private static List<OrderTemplateItem> CreateDemoTemplates() =>
-    [
-        new()
-        {
-            Name = "Дилерский Ош",
-            ManufacturerId = DictionarySeedIds.GalwinId,
-            WindPressure = 420,
-            ProfitMargin = 18m,
-            AdditionalExpensesPercent = 5,
-            AdditionalExpensesFixed = 1500m,
-            DismantlingPrice = 800m,
-            InstallationPrice = 2200m,
-            CurrencyCode = "KGS"
-        },
-        new()
-        {
-            Name = "Розничный стандарт",
-            ManufacturerId = null,
-            WindPressure = 380,
-            ProfitMargin = 25m,
-            AdditionalExpensesPercent = 7,
-            AdditionalExpensesFixed = 2000m,
-            DismantlingPrice = 1000m,
-            InstallationPrice = 3500m,
-            CurrencyCode = "KGS"
-        },
-        new()
-        {
-            Name = "Опт",
-            ManufacturerId = DictionarySeedIds.RehauId,
-            WindPressure = 450,
-            ProfitMargin = 12m,
-            AdditionalExpensesPercent = 3,
-            AdditionalExpensesFixed = 900m,
-            DismantlingPrice = 600m,
-            InstallationPrice = 1800m,
-            CurrencyCode = "USD"
-        }
-    ];
+    private static List<OrderTemplateItem> CreateDemoTemplates() => [];
 }

@@ -150,6 +150,9 @@ public sealed class GeometryElement
     /// <summary>Идентификатор листа FrameNode, в котором установлен крайний импост.</summary>
     public Guid? HostFrameNodeId { get; set; }
 
+    /// <summary>Идентификатор абсолютной GridLine, к которой привязан переходной профиль.</summary>
+    public Guid? HostGridLineId { get; set; }
+
     public Guid? ExtremeImpostSlotId { get; set; }
 
     /// <summary>Тип заполнения (стекло, гофра) для остекления и панелей гофры.</summary>

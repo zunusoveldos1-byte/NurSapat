@@ -36,38 +36,8 @@ public sealed class StandardStructuresStore : IStandardStructuresStore
 
     public StandardStructuresStore()
     {
-        var doubleLeaf = new StandardStructureGroup { Name = "Двухстворчатые" };
-        var arch = new StandardStructureGroup { Name = "Арочные" };
-        var single = new StandardStructureGroup { Name = "Одностворчатые" };
-
-        _groups = [doubleLeaf, arch, single];
-        _structures =
-        [
-            new()
-            {
-                Name = "Окно 1200×1400",
-                GroupId = doubleLeaf.Id,
-                GeometryJson = """{"version":1,"type":"double-sash","width":1200,"height":1400}"""
-            },
-            new()
-            {
-                Name = "Окно 1500×1500 с импостом",
-                GroupId = doubleLeaf.Id,
-                GeometryJson = """{"version":1,"type":"double-sash-impost","width":1500,"height":1500}"""
-            },
-            new()
-            {
-                Name = "Арочное окно 900×1600",
-                GroupId = arch.Id,
-                GeometryJson = """{"version":1,"type":"arch","width":900,"height":1600}"""
-            },
-            new()
-            {
-                Name = "Балконная дверь 700×2100",
-                GroupId = single.Id,
-                GeometryJson = """{"version":1,"type":"door","width":700,"height":2100}"""
-            }
-        ];
+        _groups = [];
+        _structures = [];
     }
 
     public IReadOnlyList<StandardStructureGroup> GetGroups() =>

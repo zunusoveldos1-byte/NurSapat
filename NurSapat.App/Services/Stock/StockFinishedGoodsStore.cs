@@ -20,7 +20,7 @@ public interface IStockFinishedGoodsStore
 
 public sealed class StockFinishedGoodsStore(IOrdersStore ordersStore) : IStockFinishedGoodsStore
 {
-    private readonly List<FinishedGoodItem> _items = CreateDemoItems();
+    private readonly List<FinishedGoodItem> _items = [];
 
     public IReadOnlyList<FinishedGoodItem> GetAll() =>
         _items
@@ -54,37 +54,5 @@ public sealed class StockFinishedGoodsStore(IOrdersStore ordersStore) : IStockFi
         item.LinkToOrder(ordersStore.GetAll());
     }
 
-    private static List<FinishedGoodItem> CreateDemoItems() =>
-    [
-        new()
-        {
-            OrderId = DemoEntityIds.Order1024,
-            OrderNumber = "#1024",
-            ProductCode = "FG-OK-0142-01",
-            CellAddress = "A-12",
-            State = FinishedGoodState.OnWarehouse,
-            DateIncoming = new DateTime(2026, 6, 28),
-            UserName = "admin"
-        },
-        new()
-        {
-            OrderId = DemoEntityIds.Order1023,
-            OrderNumber = "#1023",
-            ProductCode = "FG-DV-0098-02",
-            CellAddress = "B-03",
-            State = FinishedGoodState.QualityControl,
-            DateIncoming = new DateTime(2026, 6, 30),
-            UserName = "manager"
-        },
-        new()
-        {
-            OrderId = DemoEntityIds.Order1022,
-            OrderNumber = "#1022",
-            ProductCode = "FG-BL-0061-01",
-            CellAddress = "C-07",
-            State = FinishedGoodState.Shipped,
-            DateIncoming = new DateTime(2026, 6, 15),
-            UserName = "admin"
-        }
-    ];
+    private static List<FinishedGoodItem> CreateDemoItems() => [];
 }

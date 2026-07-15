@@ -53,7 +53,7 @@ public sealed class CadSelectableItem : IEquatable<CadSelectableItem>
             ImpostGapIndex = uniformGapIndex
         };
 
-    public static CadSelectableItem FromImpostTarget(VerticalImpostTarget target) =>
+    public static CadSelectableItem FromImpostTarget(ImpostTarget target) =>
         Impost(target.SplitNode, target.UniformGapIndex ?? 0);
 
     public static CadSelectableItem ExtremeImpost(FrameNode leaf, Guid slotId) =>

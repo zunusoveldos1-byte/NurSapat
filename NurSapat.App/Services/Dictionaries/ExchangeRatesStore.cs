@@ -21,7 +21,7 @@ public interface IExchangeRatesStore
 
 public sealed class ExchangeRatesStore : IExchangeRatesStore
 {
-    private readonly List<ExchangeRatePackage> _packages = CreateDemoPackages();
+    private readonly List<ExchangeRatePackage> _packages = [];
 
     public IReadOnlyList<ExchangeRatePackage> GetAll() =>
         _packages
@@ -59,23 +59,5 @@ public sealed class ExchangeRatesStore : IExchangeRatesStore
 
     public void Delete(Guid id) => _packages.RemoveAll(package => package.Id == id);
 
-    private static List<ExchangeRatePackage> CreateDemoPackages() =>
-    [
-        new()
-        {
-            StartDate = new DateTime(2026, 1, 1),
-            UsdRate = 86.20m,
-            EurRate = 98.10m,
-            CnyRate = 12.55m,
-            UeRate = 86.20m
-        },
-        new()
-        {
-            StartDate = new DateTime(2026, 7, 1),
-            UsdRate = 87.45m,
-            EurRate = 99.62m,
-            CnyRate = 12.88m,
-            UeRate = 87.45m
-        }
-    ];
+    private static List<ExchangeRatePackage> CreateDemoPackages() => [];
 }

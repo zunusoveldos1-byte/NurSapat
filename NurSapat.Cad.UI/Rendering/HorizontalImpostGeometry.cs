@@ -52,6 +52,11 @@ internal static class HorizontalImpostGeometry
             axisY,
             ref left,
             ref right);
+        FrameNodeRenderer.PinHorizontalImpostLeftToNestedFrameInnerShelf(
+            editor,
+            splitNode,
+            axisY,
+            ref left);
         FrameNodeRenderer.PinHorizontalImpostRightToNestedFrameInnerShelf(
             editor,
             splitNode,
@@ -123,6 +128,11 @@ internal static class HorizontalImpostGeometry
             impostAxisY,
             ref left,
             ref right);
+        FrameNodeRenderer.PinHorizontalImpostLeftToNestedFrameInnerShelf(
+            editor,
+            splitNode,
+            impostAxisY,
+            ref left);
         FrameNodeRenderer.PinHorizontalImpostRightToNestedFrameInnerShelf(
             editor,
             splitNode,

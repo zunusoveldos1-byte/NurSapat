@@ -147,105 +147,22 @@ public sealed class OrdersStore : IOrdersStore
     {
         if (!File.Exists(_filePath))
         {
-            var demo = CreateDemoItems();
-            File.WriteAllText(_filePath, JsonSerializer.Serialize(demo, JsonOptions));
-            return demo;
+            var empty = new List<OrderHeaderItem>();
+            Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
+            File.WriteAllText(_filePath, JsonSerializer.Serialize(empty, JsonOptions));
+            return empty;
         }
 
         try
         {
             var json = File.ReadAllText(_filePath);
-            return JsonSerializer.Deserialize<List<OrderHeaderItem>>(json, JsonOptions) ?? CreateDemoItems();
+            return JsonSerializer.Deserialize<List<OrderHeaderItem>>(json, JsonOptions) ?? [];
         }
         catch
         {
-            return CreateDemoItems();
+            return [];
         }
     }
-
-    private static List<OrderHeaderItem> CreateDemoItems() =>
-    [
-        new()
-        {
-            Id = DemoEntityIds.Order1024,
-            OrderNumber = "#1024",
-            DateCreated = new DateTime(2026, 6, 28),
-            CustomerName = "Иванов Алексей Петрович",
-            StructuresCount = 4,
-            TotalSum = 186_450m,
-            Status = OrderStatus.InProduction
-        },
-        new()
-        {
-            Id = DemoEntityIds.Order1023,
-            OrderNumber = "#1023",
-            DateCreated = new DateTime(2026, 6, 25),
-            CustomerName = "ОсОО «Окна Бишкек»",
-            StructuresCount = 12,
-            TotalSum = 742_800m,
-            Status = OrderStatus.Ready
-        },
-        new()
-        {
-            Id = DemoEntityIds.Order1022,
-            OrderNumber = "#1022",
-            DateCreated = new DateTime(2026, 6, 22),
-            CustomerName = "Дилер «СтройПлюс»",
-            StructuresCount = 8,
-            TotalSum = 512_300m,
-            Status = OrderStatus.Shipped
-        },
-        new()
-        {
-            Id = DemoEntityIds.Order1021,
-            OrderNumber = "#1021",
-            DateCreated = new DateTime(2026, 6, 20),
-            CustomerName = "Петрова Мария Сергеевна",
-            StructuresCount = 2,
-            TotalSum = 94_600m,
-            Status = OrderStatus.Calculation
-        },
-        new()
-        {
-            Id = DemoEntityIds.Order1020,
-            OrderNumber = "#1020",
-            DateCreated = new DateTime(2026, 6, 18),
-            CustomerName = "ИП «Алма-Арча»",
-            StructuresCount = 6,
-            TotalSum = 328_900m,
-            Status = OrderStatus.Calculation
-        },
-        new()
-        {
-            Id = DemoEntityIds.Order1019,
-            OrderNumber = "#1019",
-            DateCreated = new DateTime(2026, 6, 15),
-            CustomerName = "ОсОО «ТеплоДом»",
-            StructuresCount = 15,
-            TotalSum = 1_045_200m,
-            Status = OrderStatus.InProduction
-        },
-        new()
-        {
-            Id = DemoEntityIds.Order1018,
-            OrderNumber = "#1018",
-            DateCreated = new DateTime(2026, 6, 12),
-            CustomerName = "Садыков Нурбек Т.",
-            StructuresCount = 3,
-            TotalSum = 127_500m,
-            Status = OrderStatus.Ready
-        },
-        new()
-        {
-            Id = DemoEntityIds.Order1017,
-            OrderNumber = "#1017",
-            DateCreated = new DateTime(2026, 6, 10),
-            CustomerName = "ОсОО «Витраж Плюс»",
-            StructuresCount = 9,
-            TotalSum = 468_750m,
-            Status = OrderStatus.Shipped
-        }
-    ];
 
     private static decimal ResolveTotalSum(ProjectDocumentData project)
     {

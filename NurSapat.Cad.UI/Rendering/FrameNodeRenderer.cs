@@ -282,7 +282,6 @@ public static class FrameNodeRenderer
     private static void DrawFictitiousFlatImpost(DrawingContext context, CadEditorViewModel editor, FrameNode node)
     {
         var pen = ResolveImpostPen(editor, node);
-        var container = node.GetRoot();
 
         if (node.IsUniformSplit)
         {
@@ -301,7 +300,7 @@ public static class FrameNodeRenderer
                         axisX = cells[i].X + cells[i].Width;
                     }
 
-                    DrawCurvedVerticalImpost(context, editor, container, pen, axisX);
+                    DrawLocalVerticalDashedImpost(context, editor, node, pen, axisX);
                 }
             }
             else
@@ -313,7 +312,7 @@ public static class FrameNodeRenderer
                         axisY = cells[i].Y + cells[i].Height;
                     }
 
-                    DrawCurvedHorizontalImpost(context, editor, container, pen, axisY);
+                    DrawLocalHorizontalDashedImpost(context, editor, node, pen, axisY);
                 }
             }
 
@@ -328,7 +327,7 @@ public static class FrameNodeRenderer
         if (node.SplitOrientation == SplitOrientation.Vertical)
         {
             var axisX = node.ChildA.X + node.ChildA.Width;
-            DrawCurvedVerticalImpost(context, editor, container, pen, axisX);
+            DrawLocalVerticalDashedImpost(context, editor, node, pen, axisX);
         }
         else if (node.SplitOrientation == SplitOrientation.Horizontal)
         {
@@ -337,8 +336,56 @@ public static class FrameNodeRenderer
                 axisY = node.ChildA.Y + node.ChildA.Height;
             }
 
-            DrawCurvedHorizontalImpost(context, editor, container, pen, axisY);
+            DrawLocalHorizontalDashedImpost(context, editor, node, pen, axisY);
         }
+    }
+
+    /// <summary>
+    /// Пунктирный горизонтальный импост только в пролёте своего узла (колонка),
+    /// а не на всю ширину контейнера — иначе соседняя колонка «прыгает» вместе с локальным drag.
+    /// </summary>
+    private static void DrawLocalHorizontalDashedImpost(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameNode sourceNode,
+        IPen pen,
+        double axisY)
+    {
+        var (left, right) = HorizontalImpostGeometry.ResolveSpanAtY(editor, sourceNode, axisY);
+        if (right - left <= CadMath.Epsilon)
+        {
+            left = sourceNode.X;
+            right = sourceNode.X + sourceNode.Width;
+        }
+
+        DrawWorldLine(
+            context,
+            editor,
+            pen,
+            new CadPoint(left, axisY),
+            new CadPoint(right, axisY));
+    }
+
+    private static void DrawLocalVerticalDashedImpost(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameNode sourceNode,
+        IPen pen,
+        double axisX)
+    {
+        var (bottom, top) = ResolveFictitiousVerticalImpostSpan(editor, sourceNode, axisX);
+        if (top - bottom <= CadMath.Epsilon)
+        {
+            bottom = sourceNode.Y;
+            top = sourceNode.Y + sourceNode.Height;
+        }
+
+        DrawWorldLine(
+            context,
+            editor,
+            pen,
+            new CadPoint(axisX, bottom),
+            new CadPoint(axisX, top));
     }
 
     private static void DrawCurvedHorizontalImpost(
@@ -676,11 +723,12 @@ public static class FrameNodeRenderer
         var boundsLeaf = SashGeometry.TryGetVerticalImpostColumnCell(splitNode, impostAxisX, out var columnCell)
             ? columnCell
             : splitNode;
-        var inner = TransitionAdjacentFrameGeometry.ResolveHostInnerOpeningBounds(
+        var inner = TransitionAdjacentFrameGeometry.ResolveImpostHostInnerOpeningBoundsOnVerticalAxis(
             editor,
             boundsLeaf,
             editor.FrameRoot!,
-            editor.FrameThickness);
+            editor.FrameThickness,
+            impostAxisX);
 
         var bottom = inner.Bottom;
         var top = inner.Top;
@@ -871,8 +919,8 @@ public static class FrameNodeRenderer
             var frameBottom = (double)element.Y - height / 2.0;
             var frameTop = frameBottom + height;
 
-            if (impostAxisY <= frameBottom + CadMath.MmPrecision
-                || impostAxisY >= frameTop - CadMath.MmPrecision)
+            if (impostAxisY < frameBottom - CadMath.MmPrecision
+                || impostAxisY > frameTop + CadMath.MmPrecision)
             {
                 continue;
             }
@@ -918,6 +966,59 @@ public static class FrameNodeRenderer
         }
 
         right = Math.Min(right, frameInnerRight);
+    }
+
+    /// <summary>
+    /// Финальный snap левого конца к внутренней полке вложенных коробок.
+    /// </summary>
+    internal static void PinHorizontalImpostLeftToNestedFrameInnerShelf(
+        CadEditorViewModel editor,
+        FrameNode splitNode,
+        double impostAxisY,
+        ref double left)
+    {
+        foreach (var element in editor.CanvasElements)
+        {
+            if (element.Kind is not (GeometryElementKind.Frame or GeometryElementKind.ArchFrame))
+            {
+                continue;
+            }
+
+            var width = (double)element.WidthMm;
+            var height = (double)element.HeightMm;
+            if (width <= CadMath.Epsilon || height <= CadMath.Epsilon)
+            {
+                continue;
+            }
+
+            var frameLeft = (double)element.X - width / 2.0;
+            var frameRight = frameLeft + width;
+            var frameBottom = (double)element.Y - height / 2.0;
+            var frameTop = frameBottom + height;
+
+            if (impostAxisY < frameBottom - CadMath.MmPrecision
+                || impostAxisY > frameTop + CadMath.MmPrecision)
+            {
+                continue;
+            }
+
+            var inset = FrameProfileGeometry.ResolveInnerInset(width, height, editor.FrameThickness);
+            var frameInnerLeft = CadMath.RoundMm(frameLeft + inset);
+
+            // Левый торец ригеля — встык к внутренней грани левой стойки рамы.
+            if (SashGeometry.HorizontalImpostRowTouchesFrameLeft(
+                    splitNode,
+                    frameLeft,
+                    frameInnerLeft,
+                    left,
+                    impostAxisY)
+                || (splitNode.X >= frameLeft - CadMath.MmPrecision
+                    && splitNode.X < frameRight - CadMath.MmPrecision
+                    && left < frameInnerLeft + FrameNode.DefaultImpostProfileMm))
+            {
+                left = frameInnerLeft;
+            }
+        }
     }
 
     /// <summary>

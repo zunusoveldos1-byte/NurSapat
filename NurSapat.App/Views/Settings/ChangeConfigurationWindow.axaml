@@ -3,10 +3,10 @@
         xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Settings"
         x:Class="NurSapat.App.Views.Settings.ChangeConfigurationWindow"
         x:DataType="vm:ChangeConfigurationViewModel"
-        Width="450"
-        Height="350"
-        MinWidth="420"
-        MinHeight="320"
+            Width="560"
+        Height="400"
+        MinWidth="520"
+        MinHeight="360"
         WindowStartupLocation="CenterScreen"
         WindowDecorations="None"
         ExtendClientAreaToDecorationsHint="True"
@@ -49,15 +49,20 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1" Margin="16,0,16,0" RowDefinitions="Auto,*">
+            <Grid Grid.Row="1" Margin="16,0,16,0" RowDefinitions="Auto,Auto,*" RowSpacing="10">
                 <TextBlock Grid.Row="0"
+                           Text="{Binding CurrentUserDisplay}"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Foreground="#0F172A"/>
+
+                <TextBlock Grid.Row="1"
                            Text="Выберите рабочую конфигурацию (автора) для загрузки персональных настроек среды, шаблонов и параметров списания склада:"
                            TextWrapping="Wrap"
                            Foreground="#475569"
-                           FontSize="12"
-                           Margin="0,0,0,10"/>
+                           FontSize="12"/>
 
-                <Border Grid.Row="1"
+                <Border Grid.Row="2"
                         Background="#F8FAFC"
                         BorderBrush="#E2E8F0"
                         BorderThickness="1"
@@ -86,7 +91,7 @@
             </Grid>
 
             <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
-                <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+                <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto">
                     <Button Grid.Column="0"
                             Classes="mat-toolbar"
                             Content="+ Новый автор"
@@ -94,20 +99,27 @@
                             HorizontalContentAlignment="Center"
                             VerticalContentAlignment="Center"/>
                     <Button Grid.Column="1"
+                            Classes="mat-primary"
+                            Margin="8,0,0,0"
+                            Content="Создать локальный аккаунт"
+                            Command="{Binding CreateLocalAccountCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="2"
                             Classes="mat-toolbar"
                             Margin="8,0,0,0"
                             Content="Удалить"
                             Command="{Binding DeleteProfileCommand}"
                             HorizontalContentAlignment="Center"
                             VerticalContentAlignment="Center"/>
-                    <Button Grid.Column="3"
+                    <Button Grid.Column="4"
                             Classes="mat-primary"
                             Margin="0,0,8,0"
                             Content="ОК"
                             Command="{Binding SelectProfileCommand}"
                             HorizontalContentAlignment="Center"
                             VerticalContentAlignment="Center"/>
-                    <Button Grid.Column="4"
+                    <Button Grid.Column="5"
                             Classes="mat-toolbar"
                             Content="Отмена"
                             Command="{Binding CloseCommand}"

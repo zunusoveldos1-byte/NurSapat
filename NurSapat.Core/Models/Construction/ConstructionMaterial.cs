@@ -46,9 +46,9 @@ public sealed class ConstructionMaterial
     public double? LightOpeningInsetMm { get; init; }
 
     /// <summary>
-    /// Дверной профиль: при размещении игнорирует сквозные горизонтальные оси
-    /// разметки и растягивается на весь вертикальный пролёт конструкции
-    /// (от низа до верха рамы). Пример — «65 компланарная Т (для двери)».
+    /// Дверной профиль («65 компланарная Т»): сквозной вертикальный пролёт на всю высоту
+    /// фиктивной коробки / колонки, игнорируя горизонтальные оси сетки.
+    /// См. ResolveFullHeightPlacementBoundsAtPoint.
     /// </summary>
     public bool SpansFullConstructionHeight { get; init; }
 }

@@ -4,11 +4,11 @@
         xmlns:controls="clr-namespace:NurSapat.App.Views.Help.Controls"
         x:Class="NurSapat.App.Views.Help.UpdateWindow"
         x:DataType="vm:UpdateViewModel"
-        Title="Обновить программу"
-        Width="520"
-        Height="420"
-        MinWidth="460"
-        MinHeight="360"
+        Title="{Binding WindowTitle}"
+        Width="620"
+        Height="560"
+        MinWidth="520"
+        MinHeight="480"
         WindowStartupLocation="CenterOwner"
         WindowDecorations="None"
         ExtendClientAreaToDecorationsHint="True"
@@ -16,66 +16,104 @@
         Background="Transparent"
         FontFamily="Inter">
 
-    <controls:ServiceWindowShell WindowTitle="Обновить программу">
+    <controls:ServiceWindowShell WindowTitle="{Binding WindowTitle}">
         <controls:ServiceWindowShell.BodyContent>
-            <StackPanel Spacing="16" HorizontalAlignment="Center">
-                <Border Classes="svc-update-icon">
-                    <Image Source="/Assets/Icons/update.png"
-                       Width="32"
-                       Height="32"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       RenderOptions.BitmapInterpolationMode="HighQuality"/>
-                </Border>
+            <ScrollViewer Padding="0,0,8,0">
+                <StackPanel Spacing="14" HorizontalAlignment="Stretch">
+                    <Border Classes="svc-update-icon" HorizontalAlignment="Center">
+                        <Image Source="/Assets/Icons/update.png"
+                               Width="32"
+                               Height="32"
+                               RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                    </Border>
 
-                <TextBlock Classes="svc-heading"
-                           Text="Проверка обновлений"
-                           TextAlignment="Center"/>
+                    <TextBlock Classes="svc-heading"
+                               Text="{Binding HeadingText}"
+                               TextAlignment="Center"/>
 
-                <Border Classes="svc-version-pill">
-                    <StackPanel Spacing="6">
+                    <Border Classes="svc-version-pill">
+                        <StackPanel Spacing="6">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="svc-label" Text="Текущая"/>
+                                <TextBlock Grid.Column="1" Classes="svc-value" Text="{Binding CurrentVersion}"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="svc-label" Text="Новая"/>
+                                <TextBlock Grid.Column="1" Classes="svc-value" Text="{Binding AvailableVersion}"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="svc-label" Text="Дата публикации"/>
+                                <TextBlock Grid.Column="1" Classes="svc-value" Text="{Binding PublishedAtText}"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="svc-label" Text="Размер файла"/>
+                                <TextBlock Grid.Column="1" Classes="svc-value" Text="{Binding PackageSizeText}"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="svc-version-pill" IsVisible="{Binding IsUpdateAvailable}">
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="svc-label" Text="Список изменений"/>
+                            <TextBlock Classes="svc-body"
+                                       Text="{Binding ReleaseNotes}"
+                                       TextWrapping="Wrap"
+                                       MaxHeight="140"/>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Spacing="4" IsVisible="{Binding IsDownloading}">
+                        <ProgressBar Minimum="0"
+                                     Maximum="100"
+                                     Value="{Binding DownloadPercent}"
+                                     IsIndeterminate="{Binding IsUpdateProgressIndeterminate}"
+                                     Height="8"/>
                         <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Classes="svc-label" Text="Текущая версия"/>
-                            <TextBlock Grid.Column="1" Classes="svc-value" Text="{Binding CurrentVersion}"/>
-                        </Grid>
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Classes="svc-label" Text="Доступная версия"/>
-                            <TextBlock Grid.Column="1" Classes="svc-value" Text="{Binding AvailableVersion}"/>
+                            <TextBlock Classes="svc-body" Text="{Binding DownloadSpeedText}"/>
+                            <TextBlock Grid.Column="1" Classes="svc-body" Text="{Binding RemainingTimeText}"/>
                         </Grid>
                     </StackPanel>
-                </Border>
 
-                <ProgressBar Minimum="0"
-                             Maximum="100"
-                             IsIndeterminate="{Binding IsUpdateProgressIndeterminate}"
-                             IsVisible="{Binding IsUpdating}"
-                             Height="6"
-                             Width="320"/>
+                    <ProgressBar Minimum="0"
+                                 Maximum="100"
+                                 IsIndeterminate="True"
+                                 IsVisible="{Binding IsBusy}"
+                                 Height="6"
+                                 IsEnabled="{Binding !IsDownloading}"/>
 
-                <TextBlock Classes="svc-body"
-                           Text="{Binding StatusText}"
-                           TextAlignment="Center"
-                           TextWrapping="Wrap"
-                           MaxWidth="380"/>
-            </StackPanel>
+                    <TextBlock Classes="svc-body"
+                               Text="{Binding StatusText}"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </ScrollViewer>
         </controls:ServiceWindowShell.BodyContent>
 
         <controls:ServiceWindowShell.FooterContent>
-            <Grid ColumnDefinitions="Auto,*,Auto">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
                 <Button Grid.Column="0"
                         Classes="mat-primary"
                         Content="Обновить"
                         Command="{Binding UpdateCommand}"
-                        MinWidth="120"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center"/>
+                        IsVisible="{Binding IsUpdateAvailable}"
+                        MinWidth="110"/>
                 <Button Grid.Column="2"
                         Classes="mat-toolbar"
-                        Content="Закрыть"
-                        Command="{Binding CloseCommand}"
-                        MinWidth="100"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center"/>
+                        Content="Позже"
+                        Command="{Binding LaterCommand}"
+                        MinWidth="90"/>
+                <Button Grid.Column="3"
+                        Classes="mat-toolbar"
+                        Content="Пропустить эту версию"
+                        Command="{Binding SkipVersionCommand}"
+                        IsVisible="{Binding IsUpdateAvailable}"
+                        MinWidth="170"/>
+                <Button Grid.Column="4"
+                        Classes="mat-toolbar"
+                        Content="Отмена"
+                        Command="{Binding CancelDownloadCommand}"
+                        IsVisible="{Binding IsDownloading}"
+                        MinWidth="90"/>
             </Grid>
         </controls:ServiceWindowShell.FooterContent>
     </controls:ServiceWindowShell>

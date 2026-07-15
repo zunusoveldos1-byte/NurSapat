@@ -37,7 +37,7 @@ public sealed class DimensionHitInfo
     public IReadOnlyList<double>? BoundaryWorldY { get; init; }
 
     /// <summary>Импост, который нужно сдвинуть при изменении внутреннего сегмента.</summary>
-    public VerticalImpostTarget? ImpostTarget { get; init; }
+    public ImpostTarget? ImpostTarget { get; init; }
 
     /// <summary>true — сдвигать правую границу сегмента; false — левую (для крайнего правого сегмента).</summary>
     public bool MoveRightBoundary { get; init; }

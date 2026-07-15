@@ -4,66 +4,99 @@
         xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
         x:Class="NurSapat.App.Views.CostTableWindow"
         x:DataType="vm:CostTableViewModel"
-        Title="Таблица затрат"
         Width="980"
         Height="620"
         MinWidth="760"
         MinHeight="480"
         WindowStartupLocation="CenterOwner"
-        FontFamily="Inter"
-        Background="#F6F9FD">
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
 
-    <Border Background="White"
-            BorderBrush="#E2E8F0"
-            BorderThickness="1"
-            CornerRadius="10"
-            Margin="16"
-            Padding="20">
-        <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
-            <StackPanel Grid.Row="0" Spacing="4">
-                <TextBlock Text="Таблица затрат"
-                           FontSize="18"
-                           FontWeight="SemiBold"
-                           Foreground="#0F172A"/>
-                <TextBlock Text="{Binding ConstructionTitle}"
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="32,*,Auto">
+            <Border Grid.Row="0"
+                    Classes="mat-titlebar"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="8"
+                                VerticalAlignment="Center"
+                                Margin="16,0,0,0">
+                        <Image Source="/Assets/logo.ico" Width="16" Height="16" VerticalAlignment="Center"/>
+                        <TextBlock Classes="mat-titlebar-text" Text="Таблица затрат"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="0,0,8,0">
+                        <Button Classes="mat-chrome-btn"
+                                Click="OnMinimizeClick"
+                                Content="—"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"/>
+                        <Button Classes="mat-chrome-btn"
+                                Click="OnMaximizeClick"
+                                Content="▢"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"/>
+                        <Button Classes="mat-chrome-btn close"
+                                Click="OnCloseClick"
+                                Content="✕"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1" Margin="16,12,16,0" RowDefinitions="Auto,*" RowSpacing="12">
+                <TextBlock Grid.Row="0"
+                           Text="{Binding ConstructionTitle}"
                            FontSize="13"
                            Foreground="#64748B"/>
-            </StackPanel>
 
-            <dg:DataGrid Grid.Row="1"
-                         ItemsSource="{Binding Items}"
-                         AutoGenerateColumns="False"
-                         IsReadOnly="True"
-                         GridLinesVisibility="Horizontal"
-                         BorderBrush="#E2E8F0"
-                         BorderThickness="1"
-                         CanUserReorderColumns="False"
-                         CanUserResizeColumns="True"
-                         CanUserSortColumns="True">
-                <dg:DataGrid.Columns>
-                    <dg:DataGridTextColumn Header="Наименование материала"
-                                           Binding="{Binding MaterialName}"
-                                           Width="*"
-                                           MinWidth="200"/>
-                    <dg:DataGridTextColumn Header="Тип материала"
-                                           Binding="{Binding MaterialTypeDisplay}"
-                                           Width="130"/>
-                    <dg:DataGridTextColumn Header="Количество"
-                                           Binding="{Binding Quantity, StringFormat={}{0:N2}}"
-                                           Width="110"/>
-                    <dg:DataGridTextColumn Header="Ед. изм."
-                                           Binding="{Binding Unit}"
-                                           Width="90"/>
-                    <dg:DataGridTextColumn Header="Цена за единицу"
-                                           Binding="{Binding UnitPriceDisplay}"
-                                           Width="140"/>
-                    <dg:DataGridTextColumn Header="Итого"
-                                           Binding="{Binding TotalCostDisplay}"
-                                           Width="130"/>
-                </dg:DataGrid.Columns>
-            </dg:DataGrid>
+                <dg:DataGrid Grid.Row="1"
+                             ItemsSource="{Binding Items}"
+                             AutoGenerateColumns="False"
+                             IsReadOnly="True"
+                             GridLinesVisibility="Horizontal"
+                             BorderBrush="#E2E8F0"
+                             BorderThickness="1"
+                             CanUserReorderColumns="False"
+                             CanUserResizeColumns="True"
+                             CanUserSortColumns="True">
+                    <dg:DataGrid.Columns>
+                        <dg:DataGridTextColumn Header="Наименование материала"
+                                               Binding="{Binding MaterialName}"
+                                               Width="*"
+                                               MinWidth="200"/>
+                        <dg:DataGridTextColumn Header="Тип материала"
+                                               Binding="{Binding MaterialTypeDisplay}"
+                                               Width="130"/>
+                        <dg:DataGridTextColumn Header="Количество"
+                                               Binding="{Binding Quantity, StringFormat={}{0:N2}}"
+                                               Width="110"/>
+                        <dg:DataGridTextColumn Header="Ед. изм."
+                                               Binding="{Binding Unit}"
+                                               Width="90"/>
+                        <dg:DataGridTextColumn Header="Цена за единицу"
+                                               Binding="{Binding UnitPriceDisplay}"
+                                               Width="140"/>
+                        <dg:DataGridTextColumn Header="Итого"
+                                               Binding="{Binding TotalCostDisplay}"
+                                               Width="130"/>
+                    </dg:DataGrid.Columns>
+                </dg:DataGrid>
+            </Grid>
 
             <Border Grid.Row="2"
+                    Margin="16"
                     Background="#F8FAFC"
                     BorderBrush="#E2E8F0"
                     BorderThickness="1"

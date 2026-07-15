@@ -6,7 +6,7 @@ namespace NurSapat.App.Services.Currency;
 /// <summary>Локальное хранилище курсов для режима Demo (без PostgreSQL).</summary>
 public sealed class InMemoryCurrencyRateRepository : ICurrencyRateRepository
 {
-    private readonly List<CurrencyRate> _rates = CreateSeedRates();
+    private readonly List<CurrencyRate> _rates = [];
     private readonly object _sync = new();
 
     public Task<bool> HasRatesForDateAsync(DateTime rateDate, CancellationToken cancellationToken = default)
@@ -115,23 +115,8 @@ public sealed class InMemoryCurrencyRateRepository : ICurrencyRateRepository
         return Task.CompletedTask;
     }
 
-    private static List<CurrencyRate> CreateSeedRates()
-    {
-        var createdAt = DateTime.UtcNow;
-        return
-        [
-            Create("USD", 86.20m, new DateTime(2026, 1, 1), createdAt),
-            Create("EUR", 98.10m, new DateTime(2026, 1, 1), createdAt),
-            Create("CNY", 12.55m, new DateTime(2026, 1, 1), createdAt),
-            Create("UE", 86.20m, new DateTime(2026, 1, 1), createdAt),
-            Create("RUB", 0.95m, new DateTime(2026, 1, 1), createdAt),
-            Create("USD", 87.45m, new DateTime(2026, 7, 1), createdAt),
-            Create("EUR", 99.62m, new DateTime(2026, 7, 1), createdAt),
-            Create("CNY", 12.88m, new DateTime(2026, 7, 1), createdAt),
-            Create("UE", 87.45m, new DateTime(2026, 7, 1), createdAt),
-            Create("RUB", 0.98m, new DateTime(2026, 7, 1), createdAt)
-        ];
-    }
+    private static List<CurrencyRate> CreateSeedRates() => [];
+
 
     private static CurrencyRate Create(string code, decimal rate, DateTime rateDate, DateTime createdAt) =>
         new()

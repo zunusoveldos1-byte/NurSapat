@@ -21,7 +21,7 @@ public sealed partial class CadEditorViewModel
         string Label,
         CadPoint CurrentPoint,
         FrameCornerKind? Corner = null,
-        VerticalImpostTarget? Impost = null,
+        ImpostTarget? Impost = null,
         bool IsArcSpringing = false);
 
     private bool TrySetVertexCoordinatesFromTool(CadPoint worldPoint)
@@ -143,7 +143,7 @@ public sealed partial class CadEditorViewModel
     }
 
     private static bool TryReadImpostAxisPoint(
-        VerticalImpostTarget target,
+        ImpostTarget target,
         bool isVertical,
         out CadPoint point)
     {

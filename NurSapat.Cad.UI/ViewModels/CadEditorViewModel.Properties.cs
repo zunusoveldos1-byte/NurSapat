@@ -457,7 +457,7 @@ public sealed partial class CadEditorViewModel
         var target = _selectedMullion
             ?? _constructionSelection
                 .Where(item => item.Kind == CadSelectableKind.Impost && item.ImpostNode is not null)
-                .Select(item => new VerticalImpostTarget
+                .Select(item => new ImpostTarget
                 {
                     SplitNode = item.ImpostNode!,
                     UniformGapIndex = item.ImpostNode!.IsUniformSplit ? item.ImpostGapIndex : null

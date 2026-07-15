@@ -5,6 +5,7 @@ using NurSapat.App.Services.Documents;
 using NurSapat.App.Services.Users;
 using NurSapat.App.ViewModels;
 using NurSapat.App.Views;
+using NurSapat.Infrastructure.Sync.Abstractions;
 
 namespace NurSapat.App.Services;
 
@@ -47,6 +48,9 @@ public sealed class WorkspaceWindowService(IServiceProvider serviceProvider) : I
 
         _serviceProvider.GetRequiredService<IUserSessionService>().Clear();
 
+        // Best-effort cloud sign-out (HTTPS). Does not touch Postgres.
+        _ = SignOutSupabaseSafeAsync();
+
         var loginWindow = _serviceProvider.GetRequiredService<MainWindow>();
         var shell = _serviceProvider.GetRequiredService<MainWindowViewModel>();
         shell.NavigateToLogin();
@@ -60,5 +64,21 @@ public sealed class WorkspaceWindowService(IServiceProvider serviceProvider) : I
         desktop.MainWindow = loginWindow;
         loginWindow.Show();
         oldMainWindow?.Close();
+    }
+
+    private async Task SignOutSupabaseSafeAsync()
+    {
+        try
+        {
+            var auth = _serviceProvider.GetService<ISupabaseAuthService>();
+            if (auth is not null)
+            {
+                await auth.SignOutAsync().ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            // Ignore network errors on logout.
+        }
     }
 }

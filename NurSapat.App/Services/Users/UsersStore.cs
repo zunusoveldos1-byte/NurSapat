@@ -19,7 +19,7 @@ public interface IUsersStore
 
 public sealed class UsersStore : IUsersStore
 {
-    private readonly List<UserAccountItem> _users = CreateDemoUsers();
+    private readonly List<UserAccountItem> _users = [];
 
     public IReadOnlyList<UserAccountItem> GetAll() =>
         _users.OrderBy(user => user.Username, StringComparer.OrdinalIgnoreCase).ToList();
@@ -43,17 +43,5 @@ public sealed class UsersStore : IUsersStore
 
     public void Delete(Guid id) => _users.RemoveAll(user => user.Id == id);
 
-    private static List<UserAccountItem> CreateDemoUsers() =>
-    [
-        UserAccountItem.Create("admin", "admin", 1, UserPermissions.CreateAdmin()),
-        UserAccountItem.Create("manager", "manager", 1, new UserPermissions
-        {
-            CanAccessMaterialsDictionary = true,
-            CanAccessEconomics = true,
-            CanAccessWarehouse = true,
-            CanEditWarehouse = true,
-            CanPrintMaterialPrices = true
-        }),
-        UserAccountItem.Create("operator", "operator", 2, UserPermissions.CreateOperator())
-    ];
+    private static List<UserAccountItem> CreateDemoUsers() => [];
 }

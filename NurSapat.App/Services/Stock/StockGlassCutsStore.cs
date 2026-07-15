@@ -17,49 +17,7 @@ public interface IStockGlassCutsStore
 
 public sealed class StockGlassCutsStore : IStockGlassCutsStore
 {
-    private readonly List<GlassCutItem> _items =
-    [
-        new()
-        {
-            Article = "GL-4-16-4",
-            Name = "Стеклопакет 4-16-4",
-            Color = "Прозрачный",
-            WidthMm = 1200,
-            HeightMm = 800
-        },
-        new()
-        {
-            Article = "GL-4-16-4",
-            Name = "Стеклопакет 4-16-4",
-            Color = "Прозрачный",
-            WidthMm = 980,
-            HeightMm = 640
-        },
-        new()
-        {
-            Article = "GL-4MM-CLR",
-            Name = "Стекло 4 мм",
-            Color = "Прозрачный",
-            WidthMm = 1500,
-            HeightMm = 900
-        },
-        new()
-        {
-            Article = "GL-4MM-GRY",
-            Name = "Стекло 4 мм тонированное",
-            Color = "Серый",
-            WidthMm = 720,
-            HeightMm = 1180
-        },
-        new()
-        {
-            Article = "IGU-24-WHT",
-            Name = "Стеклопакет двухкамерный",
-            Color = "Белый",
-            WidthMm = 860,
-            HeightMm = 1420
-        }
-    ];
+    private readonly List<GlassCutItem> _items = [];
 
     public IReadOnlyList<GlassCutItem> GetAll() => _items;
 

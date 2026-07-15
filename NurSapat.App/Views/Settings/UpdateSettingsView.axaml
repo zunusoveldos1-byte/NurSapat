@@ -1,0 +1,53 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Settings"
+             x:Class="NurSapat.App.Views.Settings.UpdateSettingsView"
+             x:DataType="vm:UpdateSettingsViewModel"
+             FontFamily="Inter">
+
+    <Border Classes="mat-card">
+        <StackPanel Spacing="14">
+            <TextBlock Classes="mat-section-title" Text="Обновления"/>
+
+            <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+                <TextBlock Text="Текущая версия" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="{Binding CurrentVersion}" VerticalAlignment="Center"/>
+
+                <TextBlock Grid.Row="1" Text="Последняя версия" VerticalAlignment="Center"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding LatestVersion}" VerticalAlignment="Center"/>
+
+                <TextBlock Grid.Row="2" Text="Дата проверки" VerticalAlignment="Center"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding LastCheckText}" VerticalAlignment="Center"/>
+
+                <TextBlock Grid.Row="3" Text="Дата последнего обновления" VerticalAlignment="Center"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding LastUpdateText}" VerticalAlignment="Center"/>
+
+                <TextBlock Grid.Row="4" Text="Проверять автоматически" VerticalAlignment="Center"/>
+                <CheckBox Grid.Row="4" Grid.Column="1" IsChecked="{Binding AutoCheckEnabled}" Content="Включено"/>
+
+                <TextBlock Grid.Row="5" Text="Канал обновлений" VerticalAlignment="Center"/>
+                <ComboBox Grid.Row="5"
+                          Grid.Column="1"
+                          ItemsSource="{Binding ChannelOptions}"
+                          SelectedItem="{Binding SelectedChannelOption}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Title}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+
+                <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Classes="mat-primary"
+                            Content="Проверить обновления"
+                            Command="{Binding CheckUpdatesCommand}"
+                            IsEnabled="{Binding !IsChecking}"
+                            MinWidth="180"/>
+                    <TextBlock Text="{Binding StatusText}"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

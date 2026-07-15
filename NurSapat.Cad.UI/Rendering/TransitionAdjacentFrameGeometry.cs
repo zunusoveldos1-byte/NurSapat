@@ -94,7 +94,7 @@ internal static class TransitionAdjacentFrameGeometry
 
     /// <summary>
     /// Внутренний проём хоста с T-образной подрезкой на высоте оси горизонтального импоста.
-    /// Правая грань останавливается на внутренней полке рамы до линии стыка (нащельника).
+    /// Правая/левая грани останавливаются на внутренних полках вертикального переходного профиля.
     /// </summary>
     public static SashGeometry.InnerOpeningBounds ResolveImpostHostInnerOpeningBounds(
         CadEditorViewModel editor,
@@ -128,13 +128,15 @@ internal static class TransitionAdjacentFrameGeometry
                 continue;
             }
 
-            if (IsHostLeftOfTransition(hostNode, transitionLeaf))
+            if (IsHostLeftOfTransition(hostNode, transitionLeaf)
+                || IsHostGeometricallyLeftOf(hostNode, host))
             {
                 inner.Right = Math.Min(inner.Right, host.InnerLeftFace(probeY));
                 inner.PinsFrameRight = true;
             }
 
-            if (IsHostRightOfTransition(hostNode, transitionLeaf))
+            if (IsHostRightOfTransition(hostNode, transitionLeaf)
+                || IsHostGeometricallyRightOf(hostNode, host))
             {
                 inner.Left = Math.Max(inner.Left, host.InnerRightFace(probeY));
                 inner.PinsFrameLeft = true;
@@ -148,6 +150,68 @@ internal static class TransitionAdjacentFrameGeometry
 
         inner.Left = CadMath.RoundMm(inner.Left);
         inner.Right = CadMath.RoundMm(inner.Right);
+        return inner;
+    }
+
+    /// <summary>
+    /// Внутренний проём хоста с T-образной подрезкой на оси вертикального импоста.
+    /// Верхняя/нижняя грани — зеркало <see cref="ResolveImpostHostInnerOpeningBounds(CadEditorViewModel, FrameNode, FrameNode?, double, double)"/>
+    /// для горизонтального переходного профиля (ось X вместо Y).
+    /// </summary>
+    public static SashGeometry.InnerOpeningBounds ResolveImpostHostInnerOpeningBoundsOnVerticalAxis(
+        CadEditorViewModel editor,
+        FrameNode hostNode,
+        FrameNode? frameRoot,
+        double frameThickness,
+        double impostAxisX)
+    {
+        var inner = ResolveHostInnerOpeningBounds(editor, hostNode, frameRoot, frameThickness);
+        if (frameRoot?.IsFictitiousContainer != true)
+        {
+            return inner;
+        }
+
+        var probeX = Math.Clamp(impostAxisX, hostNode.X, hostNode.X + hostNode.Width);
+        foreach (var element in editor.CanvasElements)
+        {
+            if (element.Kind != GeometryElementKind.TransitionFrame)
+            {
+                continue;
+            }
+
+            if (!TryResolveHostGeometry(editor, element, frameRoot, frameThickness, out var host))
+            {
+                continue;
+            }
+
+            var transitionLeaf = ResolveHostLeaf(frameRoot, element, host);
+            if (transitionLeaf is null)
+            {
+                continue;
+            }
+
+            if (IsHostBelowTransition(hostNode, transitionLeaf)
+                || IsHostGeometricallyBelow(hostNode, host))
+            {
+                inner.Top = Math.Min(inner.Top, host.InnerBottomFace(probeX));
+                inner.PinsFrameTop = true;
+            }
+
+            if (IsHostAboveTransition(hostNode, transitionLeaf)
+                || IsHostGeometricallyAbove(hostNode, host))
+            {
+                inner.Bottom = Math.Max(inner.Bottom, host.InnerTopFace(probeX));
+                inner.PinsFrameBottom = true;
+            }
+        }
+
+        if (inner.Top < inner.Bottom)
+        {
+            inner.Top = inner.Bottom;
+        }
+
+        inner.Bottom = CadMath.RoundMm(inner.Bottom);
+        inner.Top = CadMath.RoundMm(inner.Top);
         return inner;
     }
 
@@ -335,14 +399,20 @@ internal static class TransitionAdjacentFrameGeometry
         }
         else if (spansWidth)
         {
-            // Горизонтальная полоса в середине листа: верхняя зона не ниже InnerTopFace.
+            // Горизонтальная полоса в середине листа: зоны сверху и снизу
+            // упираются во внутренние грани (TopFace / BottomFace), как у вертикального.
             inner.Bottom = Math.Max(inner.Bottom, host.InnerTopFace(midX));
+            inner.Top = Math.Min(inner.Top, host.InnerBottomFace(midX));
             inner.PinsFrameBottom = true;
+            inner.PinsFrameTop = true;
         }
         else if (spansHeight)
         {
+            // Вертикальная полоса в середине листа: симметричные LeftFace / RightFace.
             inner.Left = Math.Max(inner.Left, host.InnerRightFace(midY));
+            inner.Right = Math.Min(inner.Right, host.InnerLeftFace(midY));
             inner.PinsFrameLeft = true;
+            inner.PinsFrameRight = true;
         }
     }
 
@@ -515,15 +585,20 @@ internal static class TransitionAdjacentFrameGeometry
                 continue;
             }
 
-            // Вертикальный импост соседней ячейки: низ/верх — внутренние грани переходного хоста,
-            // если ячейка полностью лежит в пределах высоты переходного профиля.
-            if (IsHostRightOfTransition(splitNode, transitionLeaf)
-                || IsHostLeftOfTransition(splitNode, transitionLeaf)
-                || IsNodeChildAdjacentToTransition(splitNode, transitionLeaf))
+            // Ось снаружи, но в зоне примыкания: вертикальный импост соседней колонки
+            // упирается во внутренние горизонтальные полки горизонтального переходного профиля
+            // (зеркало ClipHorizontalSpanAtTransitionShelves для Left/Right).
+            if (IsHostAboveTransition(splitNode, transitionLeaf)
+                || IsHostGeometricallyAbove(splitNode, host))
             {
-                // Не сужаем полный вертикальный пролёт соседней колонны до высоты переходного —
-                // горизонтальные T-стыки обеспечивает PinFrame / nested frames.
-                // Здесь ничего не делаем: Left/Right уже заданы HostInnerOpening.
+                // Ячейка сверху: низ импоста = InnerTopFace.
+                bottom = Math.Max(bottom, host.InnerTopFace(impostAxisX));
+            }
+            else if (IsHostBelowTransition(splitNode, transitionLeaf)
+                     || IsHostGeometricallyBelow(splitNode, host))
+            {
+                // Ячейка снизу: верх импоста = InnerBottomFace.
+                top = Math.Min(top, host.InnerBottomFace(impostAxisX));
             }
         }
 
@@ -560,8 +635,8 @@ internal static class TransitionAdjacentFrameGeometry
                 continue;
             }
 
-            if (impostAxisY <= host.OuterBottom + CadMath.MmPrecision
-                || impostAxisY >= host.OuterTop - CadMath.MmPrecision)
+            if (impostAxisY < host.OuterBottom - CadMath.MmPrecision
+                || impostAxisY > host.OuterTop + CadMath.MmPrecision)
             {
                 continue;
             }
@@ -571,9 +646,18 @@ internal static class TransitionAdjacentFrameGeometry
                 continue;
             }
 
-            // Ось проходит через тело переходного профиля — упор во внутренние вертикальные полки.
-            left = Math.Max(left, host.InnerLeftFace(impostAxisY));
-            right = Math.Min(right, host.InnerRightFace(impostAxisY));
+            // Импост, подходящий к переходнику слева, останавливается на его
+            // внутренней левой грани; подходящий справа — на внутренней правой.
+            // Симметричная подрезка обеих граней оставляла правый торец внутри
+            // переходного профиля.
+            if (left < host.OuterLeft - CadMath.Epsilon)
+            {
+                right = Math.Min(right, host.InnerLeftFace(impostAxisY));
+            }
+            else if (right > host.OuterRight + CadMath.Epsilon)
+            {
+                left = Math.Max(left, host.InnerRightFace(impostAxisY));
+            }
         }
 
         if (right < left)
@@ -620,8 +704,8 @@ internal static class TransitionAdjacentFrameGeometry
                 continue;
             }
 
-            if (impostAxisY <= host.OuterBottom + CadMath.Epsilon
-                || impostAxisY >= host.OuterTop - CadMath.Epsilon)
+            if (impostAxisY < host.OuterBottom - CadMath.MmPrecision
+                || impostAxisY > host.OuterTop + CadMath.MmPrecision)
             {
                 continue;
             }
@@ -645,8 +729,8 @@ internal static class TransitionAdjacentFrameGeometry
             {
                 left = Math.Max(left, host.InnerRightFace(impostAxisY));
             }
-            else if (impostAxisY > host.OuterBottom + CadMath.MmPrecision
-                     && impostAxisY < host.OuterTop - CadMath.MmPrecision)
+            else if (impostAxisY >= host.OuterBottom - CadMath.MmPrecision
+                     && impostAxisY <= host.OuterTop + CadMath.MmPrecision)
             {
                 left = Math.Max(left, host.InnerLeftFace(impostAxisY));
                 right = Math.Min(right, host.InnerRightFace(impostAxisY));
@@ -662,6 +746,7 @@ internal static class TransitionAdjacentFrameGeometry
     /// <summary>
     /// Финальный snap правого конца ригеля к внутренней полке переходного профиля.
     /// Принудительно дотягивает торец, если ячейка слева от переходника (зеркало вертикального PinTop).
+    /// Гарантирует отсутствие нахлёста: right никогда не заходит правее InnerLeftFace.
     /// </summary>
     public static void PinHorizontalImpostRightToTransitionHostInnerShelf(
         CadEditorViewModel editor,
@@ -697,26 +782,20 @@ internal static class TransitionAdjacentFrameGeometry
             }
 
             var transitionLeaf = ResolveHostLeaf(editor.FrameRoot, element, host);
-            if (transitionLeaf is null || !IsSplitSubtreeLeftOfTransition(splitNode, transitionLeaf))
+            var isLeftOf =
+                (transitionLeaf is not null && IsSplitSubtreeLeftOfTransition(splitNode, transitionLeaf))
+                || IsHostGeometricallyLeftOf(splitNode, host);
+            if (!isLeftOf)
             {
                 continue;
             }
 
             var probeY = ClampProbeY(impostAxisY, host);
-            var junctionOuterX = host.OuterLeft;
-            var innerRight = CadMath.RoundMm(host.InnerLeftFace(probeY));
+            var innerLeft = CadMath.RoundMm(host.InnerLeftFace(probeY));
 
-            // Принудительный snap: nested-frame clip мог оставить микрозазор 1–4 мм до полки переходника.
-            if (SashGeometry.HorizontalImpostRowTouchesFrameRight(
-                    splitNode,
-                    junctionOuterX,
-                    innerRight,
-                    right,
-                    impostAxisY)
-                || right < innerRight - CadMath.MmPrecision)
-            {
-                right = innerRight;
-            }
+            // Правый торец ровно на внутренней левой грани переходника —
+            // без зазора и без наложения на тело профиля.
+            right = innerLeft;
         }
     }
 
@@ -802,8 +881,8 @@ internal static class TransitionAdjacentFrameGeometry
         GeometryElement element,
         in TransitionFrameHostGeometry host)
     {
-        if (impostAxisY > host.OuterBottom + CadMath.MmPrecision
-            && impostAxisY < host.OuterTop - CadMath.MmPrecision
+        if (impostAxisY >= host.OuterBottom - CadMath.MmPrecision
+            && impostAxisY <= host.OuterTop + CadMath.MmPrecision
             && splitNode.X + splitNode.Width > host.OuterLeft + CadMath.MmPrecision
             && splitNode.X < host.OuterRight - CadMath.MmPrecision)
         {
@@ -939,7 +1018,14 @@ internal static class TransitionAdjacentFrameGeometry
 
             var probeX = ClampProbeX(impostAxisX, host);
             var innerTop = CadMath.RoundMm(host.InnerTopFace(probeX));
-            if (SashGeometry.VerticalImpostColumnTouchesFrameTop(
+            var transitionLeaf = editor.FrameRoot is { } frameRoot
+                ? ResolveHostLeaf(frameRoot, element, host)
+                : null;
+
+            // Финальная координата стыка — внутренняя верхняя грань переходника
+            // (зеркало PinHorizontalImpostRightToTransitionHostInnerShelf).
+            if (IsSplitSubtreeBelowTransition(splitNode, transitionLeaf)
+                || SashGeometry.VerticalImpostColumnTouchesFrameTop(
                     splitNode,
                     impostAxisX,
                     host.OuterTop,
@@ -949,6 +1035,45 @@ internal static class TransitionAdjacentFrameGeometry
                 top = innerTop;
             }
         }
+    }
+
+    /// <summary>
+    /// Импостный узел или его дочерние/родительские ячейки ниже переходного профиля
+    /// (зеркало <see cref="IsSplitSubtreeLeftOfTransition"/> для оси Y).
+    /// </summary>
+    private static bool IsSplitSubtreeBelowTransition(FrameNode splitNode, FrameNode? transitionLeaf)
+    {
+        if (transitionLeaf is null)
+        {
+            return false;
+        }
+
+        if (IsHostBelowTransition(splitNode, transitionLeaf))
+        {
+            return true;
+        }
+
+        if (splitNode.ChildA is not null && IsHostBelowTransition(splitNode.ChildA, transitionLeaf))
+        {
+            return true;
+        }
+
+        if (splitNode.ChildB is not null && IsHostBelowTransition(splitNode.ChildB, transitionLeaf))
+        {
+            return true;
+        }
+
+        for (var node = splitNode.Parent; node is not null; node = node.Parent)
+        {
+            if (IsHostBelowTransition(node, transitionLeaf))
+            {
+                return true;
+            }
+        }
+
+        return IsNodeChildAdjacentToTransition(splitNode, transitionLeaf)
+               && ((splitNode.ChildA is not null && IsHostBelowTransition(splitNode.ChildA, transitionLeaf))
+                   || (splitNode.ChildB is not null && IsHostBelowTransition(splitNode.ChildB, transitionLeaf)));
     }
 
     /// <summary>
@@ -1005,7 +1130,10 @@ internal static class TransitionAdjacentFrameGeometry
 
         if (!IsHostRightOfTransition(splitNode, transitionLeaf)
             && !IsHostLeftOfTransition(splitNode, transitionLeaf)
-            && !IsNodeChildAdjacentToTransition(splitNode, transitionLeaf))
+            && !IsHostAboveTransition(splitNode, transitionLeaf)
+            && !IsHostBelowTransition(splitNode, transitionLeaf)
+            && !IsNodeChildAdjacentToTransition(splitNode, transitionLeaf)
+            && !IsSplitSubtreeBelowTransition(splitNode, transitionLeaf))
         {
             return false;
         }
@@ -1014,7 +1142,12 @@ internal static class TransitionAdjacentFrameGeometry
             splitNode.Y,
             splitNode.Y + splitNode.Height,
             host.OuterBottom,
-            host.OuterTop);
+            host.OuterTop)
+            || RangesOverlap(
+                splitNode.X,
+                splitNode.X + splitNode.Width,
+                host.OuterLeft,
+                host.OuterRight);
     }
 
     public static bool TryResolveHostGeometry(
@@ -1137,6 +1270,97 @@ internal static class TransitionAdjacentFrameGeometry
 
         return ConstructionMaterialCatalog.ForKind(GeometryElementKind.TransitionFrame).FirstOrDefault()?.ProfileWidth
             ?? 46;
+    }
+
+    /// <summary>
+    /// Подрезка AABB коробки / переходника по внешним граням соседних TransitionFrame.
+    /// Рама слева заканчивается на OuterLeft переходника (= Axis − Thickness/2),
+    /// рама справа начинается на OuterRight (= Axis + Thickness/2) — без щелей и наложений.
+    /// </summary>
+    public static void ClipFramePlacementBoundsAtAdjacentTransitions(
+        CadEditorViewModel editor,
+        FrameNode leaf,
+        ref double left,
+        ref double bottom,
+        ref double right,
+        ref double top)
+    {
+        if (editor.FrameRoot?.IsFictitiousContainer != true)
+        {
+            return;
+        }
+
+        foreach (var element in editor.CanvasElements)
+        {
+            if (element.Kind != GeometryElementKind.TransitionFrame)
+            {
+                continue;
+            }
+
+            if (!TryResolveHostGeometry(
+                    editor,
+                    element,
+                    editor.FrameRoot,
+                    editor.FrameThickness,
+                    out var host)
+                || host.OuterWidth <= CadMath.Epsilon
+                || host.OuterHeight <= CadMath.Epsilon)
+            {
+                continue;
+            }
+
+            var transitionLeaf = ResolveHostLeaf(editor.FrameRoot, element, host);
+            if (transitionLeaf is null)
+            {
+                continue;
+            }
+
+            // Не подрезаем сам переходник по собственной геометрии.
+            if (ReferenceEquals(transitionLeaf, leaf) || transitionLeaf.NodeId == leaf.NodeId)
+            {
+                continue;
+            }
+
+            if (!RangesOverlap(bottom, top, host.OuterBottom, host.OuterTop)
+                && !RangesOverlap(left, right, host.OuterLeft, host.OuterRight)
+                && !IsAdjacent(leaf, transitionLeaf))
+            {
+                continue;
+            }
+
+            if (IsHostLeftOfTransition(leaf, transitionLeaf)
+                || IsHostGeometricallyLeftOf(leaf, host))
+            {
+                // Рама слева → правый торец ровно на левой наружной грани переходника.
+                right = Math.Min(right, host.OuterLeft);
+            }
+            else if (IsHostRightOfTransition(leaf, transitionLeaf)
+                     || IsHostGeometricallyRightOf(leaf, host))
+            {
+                left = Math.Max(left, host.OuterRight);
+            }
+
+            if (IsHostBelowTransition(leaf, transitionLeaf)
+                || IsHostGeometricallyBelow(leaf, host))
+            {
+                top = Math.Min(top, host.OuterBottom);
+            }
+            else if (IsHostAboveTransition(leaf, transitionLeaf)
+                     || IsHostGeometricallyAbove(leaf, host))
+            {
+                bottom = Math.Max(bottom, host.OuterTop);
+            }
+        }
+
+        if (right < left)
+        {
+            right = left;
+        }
+
+        if (top < bottom)
+        {
+            top = bottom;
+        }
     }
 
     public static bool IsTransitionHostEdge(
@@ -1302,11 +1526,18 @@ internal static class TransitionAdjacentFrameGeometry
         && RangesOverlap(hostNode.X, hostNode.X + hostNode.Width, transitionLeaf.X, transitionLeaf.X + transitionLeaf.Width);
 
     /// <summary>
-    /// Соседство с допуском на толщину физического импоста между листьями дерева.
+    /// Максимальный конструктивный зазор между соседними листьями (импост / рама / переходной).
+    /// Покрывает DefaultImpostProfileMm (60) и типовую толщину рамы (80).
+    /// </summary>
+    private const double MaxStructuralNeighborGapMm = 120.0;
+
+    /// <summary>
+    /// Соседство с допуском на толщину физического профиля между листьями дерева
+    /// (импост, рама, переходной профиль — одна логика для X и Y).
     /// </summary>
     private static bool EdgesTouchWithImpostGap(double higherEdge, double lowerEdge) =>
         higherEdge >= lowerEdge - CadMath.MmPrecision
-        && higherEdge <= lowerEdge + FrameNode.DefaultImpostProfileMm + CadMath.MmPrecision;
+        && higherEdge <= lowerEdge + MaxStructuralNeighborGapMm + CadMath.MmPrecision;
 
     private static bool IsHostGeometricallyRightOf(FrameNode hostNode, in TransitionFrameHostGeometry host) =>
         EdgesTouchWithImpostGap(hostNode.X, host.OuterRight)

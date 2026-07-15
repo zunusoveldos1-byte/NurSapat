@@ -24,6 +24,7 @@ public partial class EnvironmentSettingsWindow : Window
         viewModel.OwnerWindow = this;
         viewModel.PickColorHexAsync = PickColorHexAsync;
         viewModel.RequestClose += OnRequestClose;
+        Loaded += async (_, _) => await viewModel.UpdateSettings.InitializeAsync();
     }
 
     private void OnRequestClose() => Close();

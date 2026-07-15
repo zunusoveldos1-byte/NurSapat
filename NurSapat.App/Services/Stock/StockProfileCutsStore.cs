@@ -17,58 +17,7 @@ public interface IStockProfileCutsStore
 
 public sealed class StockProfileCutsStore : IStockProfileCutsStore
 {
-    private readonly List<ProfileCutItem> _items =
-    [
-        new()
-        {
-            Article = "RH-70-WHT",
-            Name = "Рама Rehau 70",
-            Color = "Белый",
-            LengthMm = 1240
-        },
-        new()
-        {
-            Article = "RH-70-WHT",
-            Name = "Импост Rehau 70",
-            Color = "Белый",
-            LengthMm = 860
-        },
-        new()
-        {
-            Article = "GALWIN-60-FR",
-            Name = "Рама Galwin 60",
-            Color = "Золотой дуб",
-            LengthMm = 1580
-        },
-        new()
-        {
-            Article = "GALWIN-60-FR",
-            Name = "Створка Galwin 60",
-            Color = "Золотой дуб",
-            LengthMm = 720
-        },
-        new()
-        {
-            Article = "ALU-50-ANT",
-            Name = "Рама алюминий 50",
-            Color = "Антрацит",
-            LengthMm = 1800
-        },
-        new()
-        {
-            Article = "ALU-50-ANT",
-            Name = "Импост алюминий 50",
-            Color = "Антрацит",
-            LengthMm = 600
-        },
-        new()
-        {
-            Article = "RH-70-WHT",
-            Name = "Рама Rehau 70",
-            Color = "Махагон",
-            LengthMm = 1320
-        }
-    ];
+    private readonly List<ProfileCutItem> _items = [];
 
     public IReadOnlyList<ProfileCutItem> GetAll() => _items;
 

@@ -40,6 +40,8 @@ using Microsoft.Extensions.Configuration;
 using NurSapat.App.Services.Persistence;
 using NurSapat.Core.Interfaces.Persistence;
 using NurSapat.Infrastructure.Persistence.DependencyInjection;
+using NurSapat.Infrastructure.Updates.DependencyInjection;
+using NurSapat.Infrastructure.Sync.DependencyInjection;
 using NurSapat.Data;
 using NurSapat.Data.Legacy;
 using NurSapat.Data.Repositories;
@@ -140,16 +142,18 @@ class Program
         services.AddSingleton<ICurrencyService, CurrencyService>();
 
         services.AddAppPersistence(configuration);
+        services.AddNurSapatUpdates(configuration);
+        services.AddNurSapatSync(configuration);
 
         if (!configuration.IsPostgreSqlPersistence())
         {
             services.AddSingleton<SettingsService>();
             services.AddSingleton<IEnvironmentSettingsService, EnvironmentSettingsService>();
             services.AddSingleton<IUsersStore, UsersStore>();
-            services.AddSingleton<IOrdersStore, OrdersStore>();
+            services.AddSingleton<IOrdersStore, SyncedOrdersStore>();
             services.AddSingleton<ICustomersStore, CustomersStore>();
             services.AddSingleton<ISuppliersStore, SuppliersStore>();
-            services.AddSingleton<IMaterialsDetailStore, MaterialsDetailStore>();
+            services.AddSingleton<IMaterialsDetailStore, SyncedMaterialsDetailStore>();
             services.AddSingleton<IStockMaterialsStore, StockMaterialsStore>();
             services.AddSingleton<IStockFinishedGoodsStore, StockFinishedGoodsStore>();
             services.AddSingleton<IOrderTemplatesStore, OrderTemplatesStore>();
@@ -190,8 +194,11 @@ class Program
         services.AddSingleton<IProductionBaseService, ProductionBaseService>();
         services.AddSingleton<IUtilitiesWindowService, UtilitiesWindowService>();
         services.AddSingleton<IAppUpdateService, AppUpdateService>();
+        services.AddSingleton<IUpdateWindowService, UpdateWindowService>();
+        services.AddSingleton<UpdateStartupCoordinator>();
         services.AddSingleton<IUserGuideService, UserGuideService>();
         services.AddSingleton<IChangelogService, ChangelogService>();
+        services.AddSingleton<IReleaseNotesService, GitHubReleaseNotesService>();
         services.AddSingleton<IHelpWindowService, HelpWindowService>();
         services.AddSingleton<IAppMessageService, AppMessageService>();
         services.AddSingleton<IDocumentManager, DocumentManager>();
@@ -211,6 +218,7 @@ class Program
         services.AddTransient<WorkspaceSectionViewModel>();
         services.AddTransient<ProductionOptionsViewModel>();
         services.AddTransient<EnvironmentPathsViewModel>();
+        services.AddTransient<UpdateSettingsViewModel>();
         services.AddTransient<EnvironmentSettingsViewModel>();
         services.AddTransient<ConstructionElementsViewModel>();
         services.AddTransient<ChangeConfigurationViewModel>();
@@ -302,16 +310,28 @@ class Program
 
     private static IConfiguration BuildConfiguration()
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-        if (!File.Exists(path))
-        {
-            path = Path.Combine(Directory.GetCurrentDirectory(), "NurSapat.App", "appsettings.json");
-        }
+        // Always load appsettings.json from next to the published/running executable.
+        // Do not fall back to the project source tree — that hides publish/config mismatches.
+        var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "appsettings.json"));
+        var exists = File.Exists(path);
 
-        return new ConfigurationBuilder()
-            .AddJsonFile(path, optional: true)
+        System.Diagnostics.Debug.WriteLine($"[Config] AppContext.BaseDirectory = {AppContext.BaseDirectory}");
+        System.Diagnostics.Debug.WriteLine($"[Config] appsettings.json absolute path = {path}");
+        System.Diagnostics.Debug.WriteLine($"[Config] appsettings.json exists = {exists}");
+        Console.WriteLine($"[Config] appsettings.json absolute path = {path} (exists={exists})");
+
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile(path, optional: true, reloadOnChange: false)
             .AddEnvironmentVariables()
             .Build();
+
+        var owner = configuration["Update:Owner"] ?? "<missing>";
+        var repository = configuration["Update:Repository"] ?? "<missing>";
+        System.Diagnostics.Debug.WriteLine($"[Config] Update:Owner = {owner}");
+        System.Diagnostics.Debug.WriteLine($"[Config] Update:Repository = {repository}");
+        Console.WriteLine($"[Config] Update:Owner = {owner}; Update:Repository = {repository}");
+
+        return configuration;
     }
 
     private static string ReadConnectionString()

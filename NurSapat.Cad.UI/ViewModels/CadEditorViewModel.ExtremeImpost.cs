@@ -413,12 +413,7 @@ public sealed partial class CadEditorViewModel
         var material = ConstructionMaterialCatalog.FindById(host.MaterialId);
         var (originX, originY, width, height) = host.Kind == GeometryElementKind.TransitionFrame
             ? ResolveTransitionPlacementBounds(leaf, material, probeX, probeY)
-            : Rendering.SashGeometry.ResolvePlacementBoundsAtPoint(
-                leaf,
-                FrameRoot,
-                FrameThickness,
-                probeX,
-                probeY);
+            : Rendering.SashGeometry.ResolveFramePlacementBoundsAtPoint(this, leaf, probeX, probeY);
 
         if (width <= CadMath.Epsilon || height <= CadMath.Epsilon)
         {
@@ -478,12 +473,13 @@ public sealed partial class CadEditorViewModel
             return;
         }
 
-        var probeX = (double)frame.X;
-        var probeY = (double)frame.Y;
-        var (originX, originY, width, height) = Rendering.SashGeometry.ResolvePlacementBoundsAtPoint(
+        // Probe — центр листа (абсолютные мировые координаты фиктивной коробки),
+        // не центр элемента: иначе после сдвига/импоста ребинд «залипает» на старом смещении.
+        var probeX = leaf.X + leaf.Width / 2.0;
+        var probeY = leaf.Y + leaf.Height / 2.0;
+        var (originX, originY, width, height) = Rendering.SashGeometry.ResolveFramePlacementBoundsAtPoint(
+            this,
             leaf,
-            FrameRoot,
-            FrameThickness,
             probeX,
             probeY);
 
@@ -496,6 +492,7 @@ public sealed partial class CadEditorViewModel
         frame.Y = (decimal)RoundMm(originY + height / 2.0);
         frame.WidthMm = (decimal)width;
         frame.HeightMm = (decimal)height;
+        frame.HostFrameNodeId = leaf.NodeId;
     }
 
     private void UpdateExtremeImpostElementGeometry(FrameNode leaf, ExtremeImpostSlot slot, GeometryElement element)
@@ -505,7 +502,19 @@ public sealed partial class CadEditorViewModel
             return;
         }
 
-        var cellAxes = Rendering.SashGeometry.ResolveLeafCellAxisBounds(leaf, FrameRoot, FrameThickness, includeExtremeImposts: false);
+        var cellAxes = slot.HasResolvedSpan || FrameRoot.IsFictitiousContainer != true
+            ? Rendering.SashGeometry.ResolveLeafCellAxisBounds(
+                leaf,
+                FrameRoot,
+                FrameThickness,
+                includeExtremeImposts: false)
+            : Rendering.SashGeometry.ResolveLeafCellAxisBoundsAtPoint(
+                leaf,
+                FrameRoot,
+                FrameThickness,
+                leaf.X + leaf.Width / 2.0,
+                leaf.Y + leaf.Height / 2.0,
+                includeExtremeImposts: false);
         var axis = ExtremeImpostGeometry.ResolveAxisWorld(cellAxes, slot.EdgeAlignment, slot.ThicknessMm, slot.OffsetMm);
         ExtremeImpostGeometry.ResolveSpan(
             leaf,

@@ -22,10 +22,22 @@
                 <StackPanel Spacing="4">
                     <TextBlock Classes="svc-heading" Text="История изменений" Margin="0,0,0,4"/>
                     <TextBlock Classes="svc-lead"
-                               Text="Основные этапы развития NurSapat — от CAD-редактора до полноценной ERP-системы."
-                               Margin="0,0,0,16"/>
+                               Text="Релизы из GitHub-репозитория NurSapat. Данные кэшируются локально для офлайн-доступа."
+                               Margin="0,0,0,12"/>
 
-                    <ItemsControl ItemsSource="{Binding ChangelogEntries}">
+                    <TextBlock Text="{Binding StatusMessage}"
+                               TextWrapping="Wrap"
+                               Foreground="#64748B"
+                               FontSize="13"
+                               Margin="0,0,0,12"
+                               IsVisible="{Binding !!StatusMessage}"/>
+
+                    <TextBlock Text="Загрузка…"
+                               Foreground="#94A3B8"
+                               IsVisible="{Binding IsBusy}"/>
+
+                    <ItemsControl ItemsSource="{Binding ChangelogEntries}"
+                                  IsVisible="{Binding !IsEmpty}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:ChangelogEntryViewModel">
                                 <Border Classes="svc-release-card">
@@ -44,7 +56,8 @@
                                                                    VerticalAlignment="Top"/>
                                                         <TextBlock Classes="svc-release-item"
                                                                    Text="{Binding}"
-                                                                   VerticalAlignment="Top"/>
+                                                                   VerticalAlignment="Top"
+                                                                   TextWrapping="Wrap"/>
                                                     </StackPanel>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>

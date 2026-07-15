@@ -7,6 +7,7 @@ using NurSapat.App.Models.Settings;
 using NurSapat.App.Services;
 using NurSapat.App.Services.Settings;
 using NurSapat.App.ViewModels.Dialogs;
+using NurSapat.App.ViewModels.Settings;
 using NurSapat.App.Views.Dialogs;
 using System.Collections.ObjectModel;
 
@@ -19,10 +20,12 @@ public sealed partial class EnvironmentSettingsViewModel : ViewModelBase
 
     public EnvironmentSettingsViewModel(
         IEnvironmentSettingsService settingsService,
-        IAppMessageService messageService)
+        IAppMessageService messageService,
+        UpdateSettingsViewModel updateSettings)
     {
         _settingsService = settingsService;
         _messageService = messageService;
+        UpdateSettings = updateSettings;
         CurrencyOptions = ["KGS", "USD", "EUR", "CNY", "грн"];
         LanguageOptions = ["Русский", "Кыргызча"];
         VatModeOptions = VatModeExtensions.AllOptions;
@@ -50,6 +53,8 @@ public sealed partial class EnvironmentSettingsViewModel : ViewModelBase
         CompressAllOrdersCommand = new RelayCommand(CompressAllOrders);
         ApplyFromModel(_settingsService.Current);
     }
+
+    public UpdateSettingsViewModel UpdateSettings { get; }
 
     public IReadOnlyList<string> CalculationWarehouseOptions { get; }
 

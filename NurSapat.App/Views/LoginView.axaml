@@ -109,7 +109,7 @@
 
                         <StackPanel Spacing="16">
                             <StackPanel Spacing="8">
-                                <TextBlock Text="Логин"
+                                <TextBlock Text="Email"
                                            Foreground="#0F172A"
                                            FontWeight="Medium"
                                            FontSize="14"/>
@@ -130,7 +130,7 @@
                                         </Viewbox>
                                         <TextBox Grid.Column="1"
                                                  Text="{Binding Username}"
-                                                 PlaceholderText="Введите логин"
+                                                 PlaceholderText="Введите email"
                                                  Background="Transparent"
                                                  BorderThickness="0"
                                                  FontSize="16"

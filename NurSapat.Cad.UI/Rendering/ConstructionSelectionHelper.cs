@@ -532,61 +532,6 @@ internal static class ConstructionSelectionHelper
                worldPoint.Y >= cy - halfH && worldPoint.Y <= cy + halfH;
     }
 
-    private static VerticalImpostTarget? HitTestImpost(CadEditorViewModel editor, CadPoint worldPoint)
-    {
-        if (editor.FrameRoot is null)
-        {
-            return null;
-        }
-
-        VerticalImpostTarget? best = null;
-        var bestArea = double.MaxValue;
-
-        foreach (var node in editor.FrameRoot.EnumerateInternalNodes())
-        {
-            if (node.IsUniformSplit)
-            {
-                for (var gapIndex = 0; gapIndex < node.UniformCells.Count - 1; gapIndex++)
-                {
-                    if (!ImpostProfileHitTest.ContainsPoint(editor, node, gapIndex, worldPoint))
-                    {
-                        continue;
-                    }
-
-                    if (TryGetImpostBounds(editor, node, gapIndex) is not { } bounds)
-                    {
-                        continue;
-                    }
-
-                    var area = bounds.Width * bounds.Height;
-                    if (area < bestArea)
-                    {
-                        bestArea = area;
-                        best = new VerticalImpostTarget { SplitNode = node, UniformGapIndex = gapIndex };
-                    }
-                }
-
-                continue;
-            }
-
-            if (!ImpostProfileHitTest.ContainsPoint(editor, node, 0, worldPoint))
-            {
-                continue;
-            }
-
-            if (TryGetImpostBounds(editor, node, 0) is not { } binaryBounds)
-            {
-                continue;
-            }
-
-            var binaryArea = binaryBounds.Width * binaryBounds.Height;
-            if (binaryArea < bestArea)
-            {
-                bestArea = binaryArea;
-                best = new VerticalImpostTarget { SplitNode = node };
-            }
-        }
-
-        return best;
-    }
+    private static ImpostTarget? HitTestImpost(CadEditorViewModel editor, CadPoint worldPoint) =>
+        editor.HitTestGridLine(worldPoint);
 }

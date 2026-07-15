@@ -17,7 +17,7 @@ public interface ISuppliersStore
 
 public sealed class SuppliersStore : ISuppliersStore
 {
-    private readonly List<SupplierItem> _items = CreateDemoSuppliers();
+    private readonly List<SupplierItem> _items = [];
 
     public IReadOnlyList<SupplierItem> GetAll() =>
         _items.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToList();
@@ -38,31 +38,5 @@ public sealed class SuppliersStore : ISuppliersStore
 
     public void Delete(Guid id) => _items.RemoveAll(x => x.Id == id);
 
-    private static List<SupplierItem> CreateDemoSuppliers() =>
-    [
-        new()
-        {
-            Name = "Комплект-Юг Ош",
-            Phone = "+996 555 210 334",
-            LegalAddress = "г. Ош, ул. Ленина 45",
-            ContractTerms = "Поставка профиля, отсрочка 14 дней",
-            Note = "Основной поставщик по югу"
-        },
-        new()
-        {
-            Name = "Профиль-Сервис Бишкек",
-            Phone = "+996 312 98 76 54",
-            LegalAddress = "г. Бишкек, пр. Чуй 120",
-            ContractTerms = "Договор №ПС-2025/18, самовывоз",
-            Note = string.Empty
-        },
-        new()
-        {
-            Name = "СтеклоТорг",
-            Phone = "+996 700 445 667",
-            LegalAddress = "г. Бишкек, ул. Токтогула 18",
-            ContractTerms = "Стеклопакеты, предоплата 30%",
-            Note = "Доставка по городу включена"
-        }
-    ];
+    private static List<SupplierItem> CreateDemoSuppliers() => [];
 }

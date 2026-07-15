@@ -17,7 +17,7 @@ public interface IProfileSeriesStore
 
 public sealed class ProfileSeriesStore : IProfileSeriesStore
 {
-    private readonly List<ProfileSeriesItem> _items = CreateDemoSeries();
+    private readonly List<ProfileSeriesItem> _items = [];
 
     public IReadOnlyList<ProfileSeriesItem> GetAll() =>
         _items.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToList();
@@ -38,25 +38,5 @@ public sealed class ProfileSeriesStore : IProfileSeriesStore
 
     public void Delete(Guid id) => _items.RemoveAll(x => x.Id == id);
 
-    private static List<ProfileSeriesItem> CreateDemoSeries() =>
-    [
-        new()
-        {
-            Name = "Galwin 60",
-            ManufacturerId = DictionarySeedIds.GalwinId,
-            HardwareAxisMm = 13.0
-        },
-        new()
-        {
-            Name = "Rehau Delight",
-            ManufacturerId = DictionarySeedIds.RehauId,
-            HardwareAxisMm = 9.0
-        },
-        new()
-        {
-            Name = "KBE Engine",
-            ManufacturerId = DictionarySeedIds.KbeId,
-            HardwareAxisMm = 13.0
-        }
-    ];
+    private static List<ProfileSeriesItem> CreateDemoSeries() => [];
 }

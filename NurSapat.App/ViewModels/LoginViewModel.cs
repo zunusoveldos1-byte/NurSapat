@@ -3,6 +3,8 @@ using CommunityToolkit.Mvvm.Input;
 using NurSapat.App.Models.Users;
 using NurSapat.App.Services;
 using NurSapat.App.Services.Users;
+using NurSapat.Infrastructure.Sync.Abstractions;
+using NurSapat.Infrastructure.Sync.Models;
 using System;
 using System.Threading.Tasks;
 
@@ -10,7 +12,9 @@ namespace NurSapat.App.ViewModels;
 
 public partial class LoginViewModel : ObservableObject
 {
-    private readonly IUsersStore _usersStore;
+    private readonly ISupabaseAuthService _authService;
+    private readonly ICachedUserRepository _cachedUsers;
+    private readonly ISyncService _syncService;
     private readonly IUserSessionService _sessionService;
     private readonly SettingsService _settings;
     private readonly IWorkspaceWindowService _workspaceWindowService;
@@ -26,7 +30,7 @@ public partial class LoginViewModel : ObservableObject
     public IRelayCommand OpenTelegramCommand => new RelayCommand(() => OpenUrl(SupportTelegramUrl));
     public IRelayCommand OpenPhoneCommand => new RelayCommand(() => OpenUrl(SupportPhoneTelUri));
     public IRelayCommand OpenEmailCommand => new RelayCommand(() => OpenUrl(SupportEmailMailtoUri));
-    
+
     private void OpenUrl(string url)
     {
         try
@@ -47,13 +51,17 @@ public partial class LoginViewModel : ObservableObject
     public event Action? RequestClose;
 
     public LoginViewModel(
-        IUsersStore usersStore,
+        ISupabaseAuthService authService,
+        ICachedUserRepository cachedUsers,
+        ISyncService syncService,
         IUserSessionService sessionService,
         SettingsService settings,
         IWorkspaceWindowService workspaceWindowService,
         MainWindowViewModel mainWindowViewModel)
     {
-        _usersStore = usersStore;
+        _authService = authService;
+        _cachedUsers = cachedUsers;
+        _syncService = syncService;
         _sessionService = sessionService;
         _settings = settings;
         _workspaceWindowService = workspaceWindowService;
@@ -114,21 +122,58 @@ public partial class LoginViewModel : ObservableObject
 
         IsBusy = true;
         ErrorMessage = "";
+        var email = Username.Trim();
+        var password = Password;
+
         try
         {
-            await Task.Yield();
-            var account = _usersStore.GetByUsername(Username);
-            if (account is not null && account.VerifyPassword(Password))
+            var result = await _authService.SignInAsync(email, password).ConfigureAwait(true);
+
+            if (result.Success && result.Session is not null)
             {
-                CompleteLogin(account);
+                await _cachedUsers.UpsertSuccessfulLoginAsync(
+                    result.Session.UserId,
+                    result.Session.Email.Length > 0 ? result.Session.Email : email,
+                    password).ConfigureAwait(true);
+
+                CompleteLogin(result.Session, bootstrapSync: true);
                 return;
             }
 
-            ErrorMessage = "Неверное имя пользователя или пароль";
+            if (result.IsOffline)
+            {
+                var offlineSession = await _cachedUsers
+                    .TryAuthenticateOfflineAsync(email, password)
+                    .ConfigureAwait(true);
+
+                if (offlineSession is not null)
+                {
+                    _authService.EstablishLocalSession(offlineSession);
+                    CompleteLogin(offlineSession, bootstrapSync: false);
+                    return;
+                }
+
+                ErrorMessage = "Нет сети. Неверный email/пароль или этот пользователь ещё не входил онлайн на этом устройстве.";
+                return;
+            }
+
+            ErrorMessage = result.ErrorMessage ?? "Неверный email или пароль";
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"Ошибка подключения: {ex.Message}";
+            // Network failures bubbling as exceptions → same offline fallback.
+            var offlineSession = await _cachedUsers
+                .TryAuthenticateOfflineAsync(email, password)
+                .ConfigureAwait(true);
+
+            if (offlineSession is not null)
+            {
+                _authService.EstablishLocalSession(offlineSession);
+                CompleteLogin(offlineSession, bootstrapSync: false);
+                return;
+            }
+
+            ErrorMessage = $"Ошибка входа: {ex.Message}";
         }
         finally
         {
@@ -152,14 +197,23 @@ public partial class LoginViewModel : ObservableObject
     private void CloseContact() => IsContactModalOpen = false;
 
     [RelayCommand]
-    private void Logout()
+    private async Task LogoutAsync()
     {
+        try
+        {
+            await _authService.SignOutAsync().ConfigureAwait(true);
+        }
+        catch
+        {
+            // Local session still cleared below.
+        }
+
         _sessionService.Clear();
         IsLoggedIn = false;
         RequestClose?.Invoke();
     }
 
-    private void CompleteLogin(UserAccountItem account)
+    private void CompleteLogin(AuthSessionInfo session, bool bootstrapSync)
     {
         if (RememberMe)
         {
@@ -174,9 +228,34 @@ public partial class LoginViewModel : ObservableObject
             _settings.SetValue("SavedPassword", "");
         }
 
+        var account = new UserAccountItem
+        {
+            Id = session.UserId,
+            Username = string.IsNullOrWhiteSpace(session.Email) ? Username.Trim() : session.Email,
+            GroupNumber = 1,
+            Permissions = UserPermissions.CreateAdmin()
+        };
+
         _settings.CurrentUserId = account.Id;
         _sessionService.SetCurrentUser(account);
         _workspaceWindowService.OpenWorkspace();
         IsLoggedIn = true;
+
+        if (bootstrapSync)
+        {
+            _ = BootstrapSyncSafeAsync();
+        }
+    }
+
+    private async Task BootstrapSyncSafeAsync()
+    {
+        try
+        {
+            await _syncService.BootstrapAfterLoginAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Bootstrap sync after login: {ex.Message}");
+        }
     }
 }

@@ -6,6 +6,7 @@ using NurSapat.Cad.Core.Commands;
 using NurSapat.Cad.Core.Document;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
+using NurSapat.Cad.Core.Models.Grid;
 using NurSapat.Cad.Core.Snapping;
 using NurSapat.Cad.Core.Viewport;
 using NurSapat.Cad.Tools;
@@ -59,7 +60,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private readonly List<FrameNode> _impostSplitHistory = [];
     private readonly ConstructionPlacementHistory _placementHistory = new();
 
-    private VerticalImpostTarget? _selectedMullion;
+    private ImpostTarget? _selectedMullion;
     private readonly HashSet<CadSelectableItem> _constructionSelection = new();
     private bool _isVerticalImpostDragging;
     private bool _isHorizontalImpostDragging;
@@ -477,6 +478,14 @@ public sealed partial class CadEditorViewModel : ObservableObject
     [ObservableProperty]
     private FrameNode? _frameRoot;
 
+    private GridLineCollection _gridLines = GridLineCollection.Empty;
+
+    /// <summary>
+    /// Абсолютные оси сетки, спроецированные из FrameRoot.
+    /// Единый источник для размеров, HitTest и переходных профилей.
+    /// </summary>
+    public GridLineCollection GridLines => _gridLines;
+
     [ObservableProperty]
     private FrameNode? _selectedElement;
 
@@ -666,7 +675,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         _selectedMullion != null &&
         CurrentToolMode is WindowToolMode.OffsetImpostVertical or WindowToolMode.OffsetImpostHorizontal;
 
-    public VerticalImpostTarget? SelectedMullion => _selectedMullion;
+    public ImpostTarget? SelectedMullion => _selectedMullion;
 
     public IReadOnlyCollection<CadSelectableItem> ConstructionSelection => _constructionSelection;
 
@@ -786,6 +795,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
     partial void OnFrameRootChanged(FrameNode? value)
     {
         AttachTopProfileWatcher();
+        RebuildGridLines();
     }
 
     public double GridSnapStep => Viewport.ChooseGridStep();
@@ -1366,7 +1376,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         return neighborHeight >= MinEditableOpeningMm;
     }
 
-    private bool MoveVerticalImpost(VerticalImpostTarget target, double axisWorldX)
+    private bool MoveVerticalImpost(ImpostTarget target, double axisWorldX)
     {
         var node = target.SplitNode;
         bool moved;
@@ -1387,7 +1397,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         return moved;
     }
 
-    private bool MoveHorizontalImpost(VerticalImpostTarget target, double axisWorldY)
+    private bool MoveHorizontalImpost(ImpostTarget target, double axisWorldY)
     {
         var node = target.SplitNode;
         var extent = FrameNode.ResolveHorizontalSplitExtentLocal(node, FrameRoot ?? node.GetRoot());
@@ -1470,11 +1480,23 @@ public sealed partial class CadEditorViewModel : ObservableObject
                 SyncCorrugationElementToLayout(element);
             }
         }
+
+        RebuildGridLines();
     }
 
-    // === CRITICAL GUARDRAIL: DO NOT TOUCH THIS SECTION ===
-    // Этот блок отвечает за генерацию ЕДИНОГО сквозного нащельника на стыке секций.
-    // Любое изменение логики фильтрации или ребинда хостов ломает отрисовку линии стыка!
+    /// <summary>
+    /// Пересобирает абсолютные GridLines из текущего FrameRoot (без изменения топологии).
+    /// </summary>
+    public void RebuildGridLines()
+    {
+        _gridLines = FrameNodeGridLineProjector.Project(FrameRoot);
+        OnPropertyChanged(nameof(GridLines));
+    }
+
+    // === CRITICAL GUARDRAIL ===
+    // Синхронизация переходных профилей с деревом FrameNode.
+    // Дверные материалы (SpansFullConstructionHeight) растягиваются на всю высоту колонки;
+    // обычные — по квадранту сетки под центром элемента.
     // ======================================================
     private void SyncTransitionProfilesToFrameLayout()
     {
@@ -1483,21 +1505,25 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
-        // Синхронизируем каждый переходной профиль ровно один раз по его центру,
-        // без клонирования/ребинда по дочерним листьям после импостных сплитов.
         foreach (var transition in CanvasElements
                      .Where(e => e.Kind == GeometryElementKind.TransitionFrame)
                      .ToList())
         {
-            var hostLeaf = FrameRoot.FindLeafAt((double)transition.X, (double)transition.Y);
-            if (hostLeaf is null)
+            var probeX = (double)transition.X;
+            var probeY = (double)transition.Y;
+            var hostLeaf = ResolveTransitionHostLeaf(transition, probeX, probeY);
+            if (hostLeaf is null || !hostLeaf.IsLeaf)
             {
                 continue;
             }
 
-            var probeX = (double)transition.X;
-            var probeY = (double)transition.Y;
             var material = ConstructionMaterialCatalog.FindById(transition.MaterialId);
+            // Для сквозных дверей probeY = середина колонки, иначе квадрант под сохранённым центром.
+            if (material?.SpansFullConstructionHeight == true)
+            {
+                probeY = FrameRoot.Y + FrameRoot.Height / 2.0;
+            }
+
             var (originX, originY, width, height) = ResolveTransitionPlacementBounds(
                 hostLeaf,
                 material,
@@ -1517,10 +1543,41 @@ public sealed partial class CadEditorViewModel : ObservableObject
         }
 
         RemoveDuplicateJunctionTransitionProfiles();
+
+        if (FrameRoot.IsFictitiousContainer)
+        {
+            SyncFrameGeometryToDocument();
+        }
+    }
+
+    private FrameNode? ResolveTransitionHostLeaf(GeometryElement transition, double probeX, double probeY)
+    {
+        if (FrameRoot is null)
+        {
+            return null;
+        }
+
+        if (transition.HostFrameNodeId is Guid boundId)
+        {
+            var bound = FrameRoot.FindNodeById(boundId);
+            if (bound is not null)
+            {
+                if (bound.IsLeaf)
+                {
+                    return bound;
+                }
+
+                // После горизонтального сплита колонки берём лист под центром элемента.
+                return bound.FindLeafAt(probeX, probeY)
+                       ?? EnumerateFrameLayoutLeaves(bound).FirstOrDefault();
+            }
+        }
+
+        return FrameRoot.FindLeafAt(probeX, probeY);
     }
 
     /// <summary>
-    /// На стыке (x ≈ 900) допускается только один TransitionFrame. Дубликаты удаляются.
+    /// Дедуп стыков по (Orientation, Coordinate) — симметрично для X и Y.
     /// </summary>
     private void RemoveDuplicateJunctionTransitionProfiles()
     {
@@ -1533,7 +1590,12 @@ public sealed partial class CadEditorViewModel : ObservableObject
         }
 
         var survivors = new HashSet<Guid>();
-        foreach (var group in transitions.GroupBy(t => RoundMm((double)t.X)))
+        foreach (var group in transitions.GroupBy(t =>
+                 {
+                     var vertical = (double)t.WidthMm <= (double)t.HeightMm * 1.25;
+                     var coord = vertical ? RoundMm((double)t.X) : RoundMm((double)t.Y);
+                     return (vertical, coord);
+                 }))
         {
             var best = group
                 .OrderByDescending(t => (double)t.HeightMm * (double)t.WidthMm)
@@ -2541,7 +2603,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
                 break;
             case CadSelectableKind.Impost when item.ImpostNode is not null:
-                _selectedMullion = new VerticalImpostTarget
+                _selectedMullion = new ImpostTarget
                 {
                     SplitNode = item.ImpostNode,
                     UniformGapIndex = item.ImpostNode.IsUniformSplit ? item.ImpostGapIndex : null
@@ -3513,10 +3575,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return false;
         }
 
-        var (originX, originY, width, height) = Rendering.SashGeometry.ResolvePlacementBoundsAtPoint(
+        var (originX, originY, width, height) = Rendering.SashGeometry.ResolveFramePlacementBoundsAtPoint(
+            this,
             leaf,
-            FrameRoot,
-            FrameThickness,
             worldX,
             worldY);
 
@@ -3640,26 +3701,34 @@ public sealed partial class CadEditorViewModel : ObservableObject
             Y = (decimal)RoundMm(originY + height / 2.0),
             WidthMm = (decimal)width,
             HeightMm = (decimal)height,
-            HostFrameNodeId = leaf.NodeId
+            HostFrameNodeId = leaf.NodeId,
+            MaterialId = material?.Id
         };
         AddCanvasElement(transition);
 
         FrameCreated?.Invoke(this, new FrameCreatedEventArgs(transition, replaceExisting: false));
+        if (FrameRoot?.IsFictitiousContainer == true)
+        {
+            SyncFrameGeometryToDocument();
+        }
+
         return true;
     }
 
     /// <summary>
     /// Опорный контур переходного профиля: дверные материалы («65 компланарная Т»)
-    /// игнорируют горизонтальный сплиттер и занимают весь вертикальный пролёт рамы.
+    /// игнорируют горизонтальный сплиттер и занимают весь вертикальный пролёт колонки.
     /// </summary>
     private (double OriginX, double OriginY, double Width, double Height) ResolveTransitionPlacementBounds(
         FrameNode leaf,
         ConstructionMaterial? material,
         double worldX,
-        double worldY) =>
-        material?.SpansFullConstructionHeight == true
-            ? Rendering.SashGeometry.ResolveFullHeightPlacementBoundsAtPoint(leaf, FrameRoot, FrameThickness, worldX, worldY)
-            : Rendering.SashGeometry.ResolvePlacementBoundsAtPoint(leaf, FrameRoot, FrameThickness, worldX, worldY);
+        double worldY)
+    {
+        _ = material;
+        // Всегда ограничиваем квадрантом сетки; стыкуем с соседними Transition Outer-faces.
+        return Rendering.SashGeometry.ResolveFramePlacementBoundsAtPoint(this, leaf, worldX, worldY);
+    }
 
     private (double OriginX, double OriginY, double Width, double Height)? _transitionProfileHoverBounds;
 
@@ -6127,8 +6196,15 @@ public sealed partial class CadEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedElement));
         OnPropertyChanged(nameof(SelectedElementLength));
         OnPropertyChanged(nameof(SelectedElementHeight));
+        if (FrameRoot.IsFictitiousContainer)
+        {
+            // Держим DummyFrame синхронным с FrameRoot, иначе размерные цепочки падают в fallback «только габарит».
+            SyncFrameGeometryToDocument();
+        }
+
         SyncAllNestedFrameElements();
         SyncFillingsToFrameLayout();
+        RebuildGridLines();
         RequestSceneRefresh();
     }
 
@@ -6683,7 +6759,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
     }
 
     private bool TryResolveVerticalImpostDragAxisRange(
-        VerticalImpostTarget target,
+        ImpostTarget target,
         out double minAxisX,
         out double maxAxisX)
     {
@@ -6713,7 +6789,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
     }
 
     private bool TryResolveHorizontalImpostDragAxisRange(
-        VerticalImpostTarget target,
+        ImpostTarget target,
         out double minAxisY,
         out double maxAxisY)
     {
@@ -7086,137 +7162,49 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private double ResolveVerticalImpostHitToleranceMm() =>
         Math.Max(VerticalImpostHitToleranceMm, VerticalImpostHitScreenPx * MillimetersPerPixel);
 
-    private VerticalImpostTarget? HitTestVerticalImpost(CadPoint worldPoint)
+    /// <summary>Единый HitTest по GridLine (одинаковый для вертикали и горизонтали).</summary>
+    public ImpostTarget? HitTestGridLine(CadPoint worldPoint, GridLineOrientation? orientationFilter = null)
     {
-        if (FrameRoot is null)
+        var tolerance = ResolveVerticalImpostHitToleranceMm();
+        var hit = GridLineHitTest.HitTest(this, worldPoint, tolerance);
+        if (hit is null)
         {
             return null;
         }
 
-        var tolerance = ResolveVerticalImpostHitToleranceMm();
-        VerticalImpostTarget? best = null;
-        var bestDistance = double.MaxValue;
-
-        foreach (var node in FrameRoot.EnumerateInternalNodes())
+        if (orientationFilter is { } filter && hit.Orientation != filter)
         {
-            if (node.SplitOrientation != SplitOrientation.Vertical)
+            // Среди кандидатов той же ориентации выбрать ближайший.
+            RebuildGridLines();
+            GridLine? best = null;
+            var bestDistance = double.MaxValue;
+            foreach (var line in GridLines.OfOrientation(filter))
             {
-                continue;
-            }
-
-            if (node.IsUniformSplit)
-            {
-                for (var gapIndex = 0; gapIndex < node.UniformCells.Count - 1; gapIndex++)
+                var d = AxisMath.DistanceToLine(line, worldPoint.X, worldPoint.Y);
+                if (d > tolerance || d >= bestDistance)
                 {
-                    if (!node.TryGetUniformImpostAxisWorld(SplitOrientation.Vertical, gapIndex, out var axisX))
-                    {
-                        continue;
-                    }
-
-                    if (!IsPointNearVerticalImpost(node, gapIndex, axisX, worldPoint, tolerance, out var distance))
-                    {
-                        continue;
-                    }
-
-                    if (distance < bestDistance)
-                    {
-                        bestDistance = distance;
-                        best = new VerticalImpostTarget
-                        {
-                            SplitNode = node,
-                            UniformGapIndex = gapIndex
-                        };
-                    }
+                    continue;
                 }
 
-                continue;
+                bestDistance = d;
+                best = line;
             }
 
-            if (!node.TryGetVerticalImpostAxisWorldX(out var binaryAxisX))
+            hit = best;
+            if (hit is null)
             {
-                continue;
-            }
-
-            if (!IsPointNearVerticalImpost(node, binaryAxisX, worldPoint, tolerance, out var binaryDistance))
-            {
-                continue;
-            }
-
-            if (binaryDistance < bestDistance)
-            {
-                bestDistance = binaryDistance;
-                best = new VerticalImpostTarget { SplitNode = node };
+                return null;
             }
         }
 
-        return best;
+        return GridLineHitTest.ToImpostTarget(this, hit);
     }
 
-    private VerticalImpostTarget? HitTestHorizontalImpost(CadPoint worldPoint)
-    {
-        if (FrameRoot is null)
-        {
-            return null;
-        }
+    private ImpostTarget? HitTestVerticalImpost(CadPoint worldPoint) =>
+        HitTestGridLine(worldPoint, GridLineOrientation.Vertical);
 
-        var tolerance = ResolveVerticalImpostHitToleranceMm();
-        VerticalImpostTarget? best = null;
-        var bestDistance = double.MaxValue;
-
-        foreach (var node in FrameRoot.EnumerateInternalNodes())
-        {
-            if (node.SplitOrientation != SplitOrientation.Horizontal)
-            {
-                continue;
-            }
-
-            if (node.IsUniformSplit)
-            {
-                for (var gapIndex = 0; gapIndex < node.UniformCells.Count - 1; gapIndex++)
-                {
-                    if (!node.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, gapIndex, out var axisY))
-                    {
-                        continue;
-                    }
-
-                    if (!IsPointNearHorizontalImpost(node, gapIndex, axisY, worldPoint, tolerance, out var distance))
-                    {
-                        continue;
-                    }
-
-                    if (distance < bestDistance)
-                    {
-                        bestDistance = distance;
-                        best = new VerticalImpostTarget
-                        {
-                            SplitNode = node,
-                            UniformGapIndex = gapIndex
-                        };
-                    }
-                }
-
-                continue;
-            }
-
-            if (!node.TryGetHorizontalImpostAxisWorldY(out var binaryAxisY))
-            {
-                continue;
-            }
-
-            if (!IsPointNearHorizontalImpost(node, 0, binaryAxisY, worldPoint, tolerance, out var binaryDistance))
-            {
-                continue;
-            }
-
-            if (binaryDistance < bestDistance)
-            {
-                bestDistance = binaryDistance;
-                best = new VerticalImpostTarget { SplitNode = node };
-            }
-        }
-
-        return best;
-    }
+    private ImpostTarget? HitTestHorizontalImpost(CadPoint worldPoint) =>
+        HitTestGridLine(worldPoint, GridLineOrientation.Horizontal);
 
     private bool IsPointNearVerticalImpost(
         FrameNode node,

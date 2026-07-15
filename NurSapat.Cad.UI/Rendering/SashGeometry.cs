@@ -671,29 +671,58 @@ internal static class SashGeometry
     }
 
     /// <summary>
-    /// Опорный контур дверного профиля («65 компланарная Т»): сквозные горизонтальные
-    /// оси разметки игнорируются, вертикальный пролёт — от низа до верха рамы.
-    /// Горизонтальные границы берутся из квадранта под курсором (колонка сохраняется).
+    /// Размещение коробки/переходника с подрезкой по внешним граням соседних TransitionFrame,
+    /// чтобы рама заканчивалась на <c>Axis ± TransitionWidth/2</c> без наложения и щелей.
+    /// </summary>
+    public static (double OriginX, double OriginY, double Width, double Height) ResolveFramePlacementBoundsAtPoint(
+        CadEditorViewModel editor,
+        FrameNode leaf,
+        double worldX,
+        double worldY)
+    {
+        var (originX, originY, width, height) = ResolvePlacementBoundsAtPoint(
+            leaf,
+            editor.FrameRoot,
+            editor.FrameThickness,
+            worldX,
+            worldY);
+
+        if (width <= CadMath.Epsilon || height <= CadMath.Epsilon || editor.FrameRoot is null)
+        {
+            return (originX, originY, width, height);
+        }
+
+        var left = originX;
+        var bottom = originY;
+        var right = originX + width;
+        var top = originY + height;
+
+        TransitionAdjacentFrameGeometry.ClipFramePlacementBoundsAtAdjacentTransitions(
+            editor,
+            leaf,
+            ref left,
+            ref bottom,
+            ref right,
+            ref top);
+
+        return (
+            CadMath.RoundMm(left),
+            CadMath.RoundMm(bottom),
+            CadMath.RoundMm(Math.Max(0, right - left)),
+            CadMath.RoundMm(Math.Max(0, top - bottom)));
+    }
+
+    /// <summary>
+    /// Опорный контур дверного профиля: вертикальный пролёт ограничен сквозными
+    /// горизонтальными осями сетки (физическими и фиктивными).
     /// </summary>
     public static (double OriginX, double OriginY, double Width, double Height) ResolveFullHeightPlacementBoundsAtPoint(
         FrameNode leaf,
         FrameNode? frameRoot,
         double frameThickness,
         double worldX,
-        double worldY)
-    {
-        if (frameRoot?.IsFictitiousContainer != true)
-        {
-            return ResolvePlacementBoundsAtPoint(leaf, frameRoot, frameThickness, worldX, worldY);
-        }
-
-        var cell = ResolveLeafCellAxisBoundsAtPoint(leaf, frameRoot, frameThickness, worldX, worldY);
-        return leaf.ResolvePlacementBoundsForCell(
-            cell.Left,
-            frameRoot.Y,
-            cell.Right,
-            frameRoot.Y + frameRoot.Height);
-    }
+        double worldY) =>
+        ResolvePlacementBoundsAtPoint(leaf, frameRoot, frameThickness, worldX, worldY);
 
     /// <summary>
     /// Собирает внутренние грани крайних импостов ячейки для стыковки переходного профиля.
@@ -863,7 +892,9 @@ internal static class SashGeometry
         spanEnd > bandLeft + CadMath.MmPrecision && spanStart < bandRight - CadMath.MmPrecision;
 
     /// <summary>
-    /// Вычисляет внутренние углы переходного профиля с учётом нащельника и сквозных осей сетки.
+    /// Внутренние углы переходного профиля: строго Outer ± halfThickness.
+    /// Нельзя подтягивать inner к незаклипнутой оси сетки — иначе innerRight
+    /// уезжает правее outerRight и ломает 45° митери на правом торце.
     /// </summary>
     public static void ResolveTransitionBandInnerCorners(
         FrameNode leaf,
@@ -883,68 +914,34 @@ internal static class SashGeometry
         out double innerBottomRight,
         out double innerTopRight)
     {
-        innerLeftBottom = outerLeft + halfThickness;
-        innerRightBottom = outerRight - halfThickness;
-        innerLeftTop = outerLeft + halfThickness;
-        innerRightTop = outerRight - halfThickness;
-        innerBottomLeft = outerBottom + halfThickness;
-        innerTopLeft = outerTop - halfThickness;
-        innerBottomRight = outerBottom + halfThickness;
-        innerTopRight = outerTop - halfThickness;
+        _ = leaf;
+        _ = frameRoot;
+        _ = frameThickness;
 
-        if (frameRoot is null)
+        // Единая толщина стенки со всех сторон — синхронные Outer/Inner дают чистые 45°.
+        innerLeftBottom = CadMath.RoundMm(outerLeft + halfThickness);
+        innerRightBottom = CadMath.RoundMm(outerRight - halfThickness);
+        innerLeftTop = CadMath.RoundMm(outerLeft + halfThickness);
+        innerRightTop = CadMath.RoundMm(outerRight - halfThickness);
+        innerBottomLeft = CadMath.RoundMm(outerBottom + halfThickness);
+        innerTopLeft = CadMath.RoundMm(outerTop - halfThickness);
+        innerBottomRight = CadMath.RoundMm(outerBottom + halfThickness);
+        innerTopRight = CadMath.RoundMm(outerTop - halfThickness);
+
+        // Если проём уже тоньше 2×стенки, схлопываем inner в середину, без инверсии.
+        if (innerRightBottom < innerLeftBottom)
         {
-            return;
+            var midX = CadMath.RoundMm((outerLeft + outerRight) / 2.0);
+            innerLeftBottom = innerLeftTop = midX;
+            innerRightBottom = innerRightTop = midX;
         }
 
-        var probeY = outerBottom + halfThickness;
-        var probeX = outerLeft + halfThickness;
-        var gridAtBottom = ResolveLeafCellAxisBounds(leaf, frameRoot, frameThickness);
-        innerLeftBottom = Math.Min(innerLeftBottom, gridAtBottom.Left + halfThickness);
-        innerRightBottom = Math.Max(innerRightBottom, gridAtBottom.Right - halfThickness);
-        innerBottomLeft = Math.Min(innerBottomLeft, gridAtBottom.Bottom + halfThickness);
-
-        probeY = outerTop - halfThickness;
-        var gridAtTop = ResolveLeafCellAxisBounds(leaf, frameRoot, frameThickness);
-        innerLeftTop = Math.Min(innerLeftTop, gridAtTop.Left + halfThickness);
-        innerRightTop = Math.Max(innerRightTop, gridAtTop.Right - halfThickness);
-        innerTopLeft = Math.Max(innerTopLeft, gridAtTop.Top - halfThickness);
-
-        probeX = outerRight - halfThickness;
-        var gridAtRight = ResolveLeafCellAxisBounds(leaf, frameRoot, frameThickness);
-        innerBottomRight = Math.Min(innerBottomRight, gridAtRight.Bottom + halfThickness);
-        innerTopRight = Math.Max(innerTopRight, gridAtRight.Top - halfThickness);
-
-        ApplyExtremeImpostJunctionToTransitionBand(
-            leaf, frameRoot, frameThickness,
-            outerLeft, outerBottom, outerRight, outerBottom + CadMath.MmPrecision,
-            ref innerLeftBottom, ref innerRightBottom, ref innerBottomLeft, ref innerTopLeft);
-        ApplyExtremeImpostJunctionToTransitionBand(
-            leaf, frameRoot, frameThickness,
-            outerLeft, outerTop - CadMath.MmPrecision, outerRight, outerTop,
-            ref innerLeftTop, ref innerRightTop, ref innerBottomLeft, ref innerTopLeft);
-        ApplyExtremeImpostJunctionToTransitionBand(
-            leaf, frameRoot, frameThickness,
-            outerLeft, outerBottom, outerLeft + CadMath.MmPrecision, outerTop,
-            ref innerLeftBottom, ref innerRightBottom, ref innerBottomLeft, ref innerTopLeft);
-        ApplyExtremeImpostJunctionToTransitionBand(
-            leaf, frameRoot, frameThickness,
-            outerRight - CadMath.MmPrecision, outerBottom, outerRight, outerTop,
-            ref innerLeftBottom, ref innerRightBottom, ref innerBottomRight, ref innerTopRight);
-
-        var minInnerLeft = outerLeft + halfThickness;
-        var minInnerBottom = outerBottom + halfThickness;
-        var maxInnerRight = outerRight - halfThickness;
-        var maxInnerTop = outerTop - halfThickness;
-
-        innerLeftBottom = Math.Max(innerLeftBottom, minInnerLeft);
-        innerLeftTop = Math.Max(innerLeftTop, minInnerLeft);
-        innerRightBottom = Math.Min(innerRightBottom, maxInnerRight);
-        innerRightTop = Math.Min(innerRightTop, maxInnerRight);
-        innerBottomLeft = Math.Max(innerBottomLeft, minInnerBottom);
-        innerBottomRight = Math.Max(innerBottomRight, minInnerBottom);
-        innerTopLeft = Math.Min(innerTopLeft, maxInnerTop);
-        innerTopRight = Math.Min(innerTopRight, maxInnerTop);
+        if (innerTopLeft < innerBottomLeft)
+        {
+            var midY = CadMath.RoundMm((outerBottom + outerTop) / 2.0);
+            innerBottomLeft = innerBottomRight = midY;
+            innerTopLeft = innerTopRight = midY;
+        }
     }
     public static InnerOpeningBounds ResolveNodeInnerOpeningBounds(
         FrameNode node,
@@ -2549,11 +2546,9 @@ internal static class SashGeometry
         {
             if (impost.IsUniformSplit)
             {
-                if (!IsInSubtree(leaf, impost))
-                {
-                    continue;
-                }
-
+                // Как и для binary: сквозные оси соседней колонки/ряда режут текущую
+                // ячейку. Фильтр IsInSubtree отбрасывал бы горизонталь слева при
+                // установке вертикального профиля справа → высота 2200 вместо 1300.
                 ApplyUniformCrossCuttingGridAxes(impost, leaf, worldX, worldY, ref inner);
                 continue;
             }
@@ -2933,6 +2928,27 @@ internal static class SashGeometry
     }
 
     /// <summary>
+    /// Колонка/ячейка упирается в левую грань рамы (внешнюю или внутреннюю полку).
+    /// </summary>
+    internal static bool CellTouchesFrameLeft(FrameNode splitNode, double frameLeft, double frameInnerLeft)
+    {
+        for (var node = splitNode; ; node = node.Parent!)
+        {
+            if (OccupiesFrameLeftEdge(node, frameLeft, frameInnerLeft))
+            {
+                return true;
+            }
+
+            if (node.Parent is null)
+            {
+                break;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Допустимый остаточный зазор (мм) между top и внутренней полкой рамы,
     /// вызванный округлением сетки — при таком зазоре импост дотягивается до полки.
     /// </summary>
@@ -2960,12 +2976,21 @@ internal static class SashGeometry
             return true;
         }
 
+        for (var node = splitNode.Parent; node is not null; node = node.Parent)
+        {
+            if (CellTouchesFrameTop(node, frameTop, frameInnerTop))
+            {
+                return true;
+            }
+        }
+
         var residualGap = frameInnerTop - top;
         return residualGap > CadMath.MmPrecision
             && residualGap <= VerticalImpostTopSnapToleranceMm;
     }
 
     private const double HorizontalImpostRightSnapToleranceMm = 4.0;
+    private const double HorizontalImpostLeftSnapToleranceMm = 4.0;
 
     /// <summary>
     /// Ряд горизонтального импоста упирается в правую раму: impost-узел, смежная ячейка
@@ -3001,6 +3026,41 @@ internal static class SashGeometry
         var residualGap = frameInnerRight - right;
         return residualGap > CadMath.MmPrecision
             && residualGap <= HorizontalImpostRightSnapToleranceMm;
+    }
+
+    /// <summary>
+    /// Ряд горизонтального импоста упирается в левую раму (зеркало Right).
+    /// </summary>
+    internal static bool HorizontalImpostRowTouchesFrameLeft(
+        FrameNode splitNode,
+        double frameLeft,
+        double frameInnerLeft,
+        double left,
+        double? impostAxisY = null)
+    {
+        if (CellTouchesFrameLeft(splitNode, frameLeft, frameInnerLeft))
+        {
+            return true;
+        }
+
+        if (impostAxisY is double axisY
+            && TryGetHorizontalImpostRowCell(splitNode, axisY, out var rowCell)
+            && CellTouchesFrameLeft(rowCell, frameLeft, frameInnerLeft))
+        {
+            return true;
+        }
+
+        for (var node = splitNode.Parent; node is not null; node = node.Parent)
+        {
+            if (CellTouchesFrameLeft(node, frameLeft, frameInnerLeft))
+            {
+                return true;
+            }
+        }
+
+        var residualGap = left - frameInnerLeft;
+        return residualGap > CadMath.MmPrecision
+            && residualGap <= HorizontalImpostLeftSnapToleranceMm;
     }
 
     internal static bool TryGetVerticalImpostColumnCell(
