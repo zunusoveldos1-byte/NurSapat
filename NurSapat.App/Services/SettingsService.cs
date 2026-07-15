@@ -3,17 +3,29 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Diagnostics.CodeAnalysis;
+using NurSapat.App.Services.Persistence;
+using NurSapat.Core.Interfaces.Persistence;
 
 namespace NurSapat.App.Services;
 
+/// <summary>
+/// Application UI settings (RememberMe, etc.).
+/// When PostgreSQL persistence is active, values are stored in the app_settings table.
+/// Without a repository, falls back to %LocalAppData%\NurSapat\settings.json
+/// (machine-local only — not business/working data).
+/// Environment profiles/paths stay in local files via EnvironmentSettingsService.
+/// </summary>
 public sealed class SettingsService
 {
     private readonly string _settingsFilePath;
     private readonly Dictionary<string, string> _settings = new();
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly IAppSettingRepository? _repository;
 
-    public SettingsService()
+    public SettingsService(IAppSettingRepository? repository = null)
     {
+        _repository = repository;
+
         string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         string appFolderPath = Path.Combine(appDataPath, "NurSapat");
         if (!Directory.Exists(appFolderPath))
@@ -47,11 +59,30 @@ public sealed class SettingsService
     {
         string stringValue = value == null ? "" : JsonSerializer.Serialize(value, _jsonOptions);
         _settings[key] = stringValue;
-        SaveSettings();
+        SaveSettings(key, stringValue);
     }
 
     private void LoadSettings()
     {
+        if (_repository is not null)
+        {
+            try
+            {
+                var loaded = PersistenceSync.Run(() => _repository.GetAllAsync());
+                _settings.Clear();
+                foreach (var kvp in loaded)
+                {
+                    _settings[kvp.Key] = kvp.Value;
+                }
+
+                return;
+            }
+            catch
+            {
+                // Fall back to local JSON if the database is unavailable.
+            }
+        }
+
         if (File.Exists(_settingsFilePath))
         {
             string json = File.ReadAllText(_settingsFilePath);
@@ -67,8 +98,21 @@ public sealed class SettingsService
         }
     }
 
-    private void SaveSettings()
+    private void SaveSettings(string? changedKey = null, string? changedValue = null)
     {
+        if (_repository is not null && changedKey is not null)
+        {
+            try
+            {
+                PersistenceSync.Run(() => _repository.SetAsync(changedKey, changedValue ?? string.Empty));
+                return;
+            }
+            catch
+            {
+                // Fall back to local JSON.
+            }
+        }
+
         string json = JsonSerializer.Serialize(_settings, _jsonOptions);
         File.WriteAllText(_settingsFilePath, json);
     }

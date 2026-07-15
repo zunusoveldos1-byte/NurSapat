@@ -128,7 +128,7 @@ internal static class GlazingBeadBuilder
 
         var inner = SashGeometry.TryResolveInnerBounds(editor, sash, out var liveInner)
             ? liveInner
-            : SashGeometry.ResolveLeafInnerOpeningBounds(leaf, editor.FrameRoot, editor.FrameThickness);
+            : SashGeometry.ResolveLeafInnerOpeningBounds(editor, leaf);
         var outer = SashGeometry.ExpandInnerBoundsToOuter(inner, editor);
         SashGeometry.TryResolveGlassOpeningBounds(
             editor,
@@ -150,7 +150,7 @@ internal static class GlazingBeadBuilder
             return false;
         }
 
-        var inner = SashGeometry.ResolveLeafInnerOpeningBounds(leaf, editor.FrameRoot, editor.FrameThickness);
+        var inner = SashGeometry.ResolveLeafInnerOpeningBounds(editor, leaf);
         inner = SashGeometry.UpgradeInnerTopForArcGlazing(editor, inner);
         if (inner.Width <= CadMath.Epsilon || inner.Height <= CadMath.Epsilon)
         {

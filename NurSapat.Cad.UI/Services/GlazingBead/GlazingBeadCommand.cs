@@ -5,7 +5,7 @@ using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.Cad.UI.Services.GlazingBead;
 
-/// <summary>Одна операция установки штапика (Undo/Redo).</summary>
+/// <summary>Одна операция установки штапика (и опционально стеклопакета) — единый Undo/Redo.</summary>
 internal sealed class GlazingBeadCommand
 {
     public bool TryPrepare(
@@ -50,7 +50,22 @@ internal sealed class GlazingBeadCommand
 
         RemoveStandaloneGlazingInLeaf(editor, opening.Leaf, batch);
 
-        batch.ElementsToAdd.Add(beadModel.ToGeometryElement());
+        var beadElement = beadModel.ToGeometryElement();
+        batch.ElementsToAdd.Add(beadElement);
+
+        if (!options.IncludeGlass)
+        {
+            return true;
+        }
+
+        // Стеклопакет строго внутри штапика (ParentBeadId → одна транзакция с штапиком).
+        if (!GlassBuilder.TryBuildFromBead(beadModel, out var glassModel, out _)
+            || glassModel is null)
+        {
+            return false;
+        }
+
+        batch.ElementsToAdd.Add(glassModel.ToGeometryElement());
         return true;
     }
 
@@ -101,4 +116,5 @@ public sealed class GlazingBeadPlacementBatch
 
 public sealed record GlazingBeadPlacementOptions(
     Guid? BeadMaterialId,
-    Guid? ProfileSeriesId);
+    Guid? ProfileSeriesId,
+    bool IncludeGlass = false);

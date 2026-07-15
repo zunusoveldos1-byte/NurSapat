@@ -20,6 +20,9 @@ public interface IDocumentManager
 
     Task<bool> OpenOrderAsync(string? filePath = null, CancellationToken cancellationToken = default);
 
+    /// <summary>Opens an order from the persistent store (PostgreSQL) when no .nsp file is required.</summary>
+    Task<bool> OpenOrderFromDatabaseAsync(Guid orderId, CancellationToken cancellationToken = default);
+
     Task<bool> SaveOrderAsync(CancellationToken cancellationToken = default);
 
     Task<bool> SaveOrderToPathAsync(string path, CancellationToken cancellationToken = default);
@@ -29,6 +32,12 @@ public interface IDocumentManager
     Task<bool> CloseOrderAsync(CancellationToken cancellationToken = default);
 
     Task<bool> ExitToLoginAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Confirms discard/save of unsaved changes before the main window closes.
+    /// Returns true when the window may close.
+    /// </summary>
+    Task<bool> ConfirmCloseAsync(CancellationToken cancellationToken = default);
 
     Task<bool> TryRecoverAutoSaveAsync(CancellationToken cancellationToken = default);
 

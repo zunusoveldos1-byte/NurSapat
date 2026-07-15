@@ -1,7 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using NurSapat.App.Models.Dictionaries;
-using NurSapat.App.Services.Dictionaries;
 using NurSapat.App.ViewModels.Dialogs;
 using NurSapat.App.Views.Dialogs;
 using NurSapat.Core.Models;
@@ -14,8 +12,6 @@ public interface IOrderErpDialogService
 {
     Task<bool> ShowOrderSettingsAsync(Order order, bool isAdministrator);
 
-    Task<Customer?> ShowCustomerSelectAsync();
-
     Task<bool> ShowDealerSelectAsync(Order order);
 
     Task<bool> ShowPriceModeAsync(Order order);
@@ -23,35 +19,13 @@ public interface IOrderErpDialogService
     Task<bool> ShowConfirmDeleteAsync(string confirmationMessage, string? title = null);
 }
 
-public sealed class OrderErpDialogService(
-    ICustomersStore customersStore,
-    ICustomerEditorService customerEditorService,
-    IDealersCatalog dealersCatalog) : IOrderErpDialogService
+public sealed class OrderErpDialogService(IDealersCatalog dealersCatalog) : IOrderErpDialogService
 {
     public async Task<bool> ShowOrderSettingsAsync(Order order, bool isAdministrator)
     {
         var viewModel = new OrderSettingsDialogViewModel(order, isAdministrator, dealersCatalog);
         var window = new OrderSettingsDialogWindow { DataContext = viewModel };
         return await ShowAsync(window, viewModel) == true;
-    }
-
-    public async Task<Customer?> ShowCustomerSelectAsync()
-    {
-        var viewModel = new CustomerSelectDialogViewModel(customersStore);
-        var window = new CustomerSelectDialogWindow { DataContext = viewModel };
-        var owner = ResolveOwner(window);
-
-        window.AddCustomerHandler = async () =>
-        {
-            var item = await customerEditorService.ShowEditorAsync(owner, CustomerItem.CreateDefault(), isNew: true);
-            if (item is not null)
-            {
-                viewModel.ReloadCustomers();
-            }
-        };
-
-        var confirmed = await ShowAsync(window, viewModel) == true;
-        return confirmed ? viewModel.ToSelectedCustomer() : null;
     }
 
     public async Task<bool> ShowDealerSelectAsync(Order order)
@@ -80,10 +54,6 @@ public sealed class OrderErpDialogService(
         if (viewModel is OrderSettingsDialogViewModel orderSettings)
         {
             orderSettings.CloseRequested += result => window.Close(result);
-        }
-        else if (viewModel is CustomerSelectDialogViewModel customerSelect)
-        {
-            customerSelect.CloseRequested += result => window.Close(result);
         }
         else if (viewModel is DealerSelectDialogViewModel dealerSelect)
         {

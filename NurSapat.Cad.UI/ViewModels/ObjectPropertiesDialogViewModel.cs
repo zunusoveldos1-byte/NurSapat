@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NurSapat.Cad.UI.Helpers;
 using NurSapat.Cad.UI.Models;
+using NurSapat.Cad.UI.Services;
 using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.Cad.UI.ViewModels;
@@ -62,6 +63,17 @@ public sealed partial class ObjectPropertiesDialogViewModel : ObservableObject
     [ObservableProperty] private NamedGuidOption? _selectedSeries;
     [ObservableProperty] private SashOpeningType? _selectedOpeningType;
     [ObservableProperty] private SashHingeSide? _selectedHingeSide;
+
+    partial void OnSelectedOpeningTypeChanged(SashOpeningType? value)
+    {
+        if (value is not { } opening)
+        {
+            return;
+        }
+
+        // Сразу синхронизируем сторону петель с типом открывания (без второго клика).
+        SelectedHingeSide = SashOpeningState.Resolve(opening, SelectedHingeSide).HingeSide;
+    }
     [ObservableProperty] private bool _hasHardware;
     [ObservableProperty] private bool _hasHandle;
     [ObservableProperty] private bool _hasMosquitoNet;

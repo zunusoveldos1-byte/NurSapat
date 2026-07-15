@@ -200,6 +200,9 @@ public sealed class GeometryElementData
 
     public bool HasMosquitoNet { get; set; }
 
+    /// <summary>Штапик установлен — без диагональных стыков 45° на остеклении.</summary>
+    public bool HasBead { get; set; }
+
     public Guid? HostSashId { get; set; }
 
     public Guid? ProfileSeriesId { get; set; }

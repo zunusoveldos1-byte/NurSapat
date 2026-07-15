@@ -83,6 +83,38 @@ public sealed class InMemoryCurrencyRateRepository : ICurrencyRateRepository
         }
     }
 
+    public Task<IReadOnlyList<CurrencyRate>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_sync)
+        {
+            IReadOnlyList<CurrencyRate> copy = _rates
+                .OrderByDescending(rate => rate.RateDate)
+                .ThenBy(rate => rate.CurrencyCode)
+                .Select(rate => new CurrencyRate
+                {
+                    Id = rate.Id,
+                    CurrencyCode = rate.CurrencyCode,
+                    Rate = rate.Rate,
+                    RateDate = rate.RateDate,
+                    CreatedAt = rate.CreatedAt
+                })
+                .ToList();
+
+            return Task.FromResult(copy);
+        }
+    }
+
+    public Task DeleteRatesForDateAsync(DateTime rateDate, CancellationToken cancellationToken = default)
+    {
+        var date = rateDate.Date;
+        lock (_sync)
+        {
+            _rates.RemoveAll(rate => rate.RateDate.Date == date);
+        }
+
+        return Task.CompletedTask;
+    }
+
     private static List<CurrencyRate> CreateSeedRates()
     {
         var createdAt = DateTime.UtcNow;
@@ -91,10 +123,12 @@ public sealed class InMemoryCurrencyRateRepository : ICurrencyRateRepository
             Create("USD", 86.20m, new DateTime(2026, 1, 1), createdAt),
             Create("EUR", 98.10m, new DateTime(2026, 1, 1), createdAt),
             Create("CNY", 12.55m, new DateTime(2026, 1, 1), createdAt),
+            Create("UE", 86.20m, new DateTime(2026, 1, 1), createdAt),
             Create("RUB", 0.95m, new DateTime(2026, 1, 1), createdAt),
             Create("USD", 87.45m, new DateTime(2026, 7, 1), createdAt),
             Create("EUR", 99.62m, new DateTime(2026, 7, 1), createdAt),
             Create("CNY", 12.88m, new DateTime(2026, 7, 1), createdAt),
+            Create("UE", 87.45m, new DateTime(2026, 7, 1), createdAt),
             Create("RUB", 0.98m, new DateTime(2026, 7, 1), createdAt)
         ];
     }

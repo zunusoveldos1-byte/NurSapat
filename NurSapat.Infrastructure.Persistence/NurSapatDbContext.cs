@@ -42,6 +42,12 @@ public sealed class NurSapatDbContext : DbContext
 
     public DbSet<CurrencyRateEntity> CurrencyRates => Set<CurrencyRateEntity>();
 
+    public DbSet<UserEntity> Users => Set<UserEntity>();
+
+    public DbSet<OrderTemplateEntity> OrderTemplates => Set<OrderTemplateEntity>();
+
+    public DbSet<AppSettingEntity> AppSettings => Set<AppSettingEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(NurSapatDbContext).Assembly);

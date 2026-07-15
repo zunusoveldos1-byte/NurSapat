@@ -34,13 +34,18 @@ public enum GeometryElementKind
 public enum SashOpeningType
 {
     Fixed,
+    /// <summary>Поворотное (петли по HingeSide; для боковых — треугольник без откидной линии).</summary>
     Turn,
     Tilt,
     TiltTurn,
     SlideLeft,
     SlideRight,
     Suspended,
-    Folding
+    Folding,
+    /// <summary>Поворотное левое: петли слева, ручка справа, основание треугольника слева.</summary>
+    LeftTurn,
+    /// <summary>Поворотное правое: петли справа, ручка слева, основание треугольника справа.</summary>
+    RightTurn
 }
 
 public sealed class GeometryElement
@@ -69,6 +74,12 @@ public sealed class GeometryElement
 
     /// <summary>Москитная сетка установлена на створке.</summary>
     public bool HasMosquitoNet { get; set; }
+
+    /// <summary>
+    /// Штапик установлен на остеклении/в проёме.
+    /// Управляет отрисовкой угловых стыков 45°: при <c>true</c> косые линии не рисуются.
+    /// </summary>
+    public bool HasBead { get; set; }
 
     public Guid? HostSashId { get; set; }
 

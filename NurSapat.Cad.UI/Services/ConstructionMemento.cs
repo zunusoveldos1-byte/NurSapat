@@ -27,6 +27,7 @@ public sealed class ConstructionMemento
         HasHardware = source.HasHardware,
         HasHandle = source.HasHandle,
         HasMosquitoNet = source.HasMosquitoNet,
+        HasBead = source.HasBead,
         HostSashId = source.HostSashId,
         ParentGlazingId = source.ParentGlazingId,
         ParentBeadId = source.ParentBeadId,

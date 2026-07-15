@@ -88,6 +88,16 @@ internal static class ConstructionSelectionHelper
             }
         }
 
+        // Переходной профиль — после ручки/створки, чтобы фурнитура не перекрывалась объёмом хоста.
+        foreach (var element in canvasElements)
+        {
+            if (element.Kind == GeometryElementKind.TransitionFrame
+                && HitTestTransitionProfileBand(editor, element, worldPoint))
+            {
+                return CadSelectableItem.Frame();
+            }
+        }
+
         foreach (var element in canvasElements)
         {
             if (element.Kind == GeometryElementKind.Sill && SillRenderer.TryHitSill(editor, worldPoint))
@@ -314,6 +324,13 @@ internal static class ConstructionSelectionHelper
             return false;
         }
 
+        // Фиктивный контейнер не имеет собственного профильного объёма — попадание
+        // обрабатывается через вложенные Frame / TransitionFrame.
+        if (frame.IsFictitiousContainer)
+        {
+            return false;
+        }
+
         if (frame.Shape == ConstructionShape.Triangle)
         {
             var outer = FrameTriangleGeometry.BuildOuterTriangle(frame.X, frame.Y, frame.Width, frame.Height);
@@ -346,6 +363,33 @@ internal static class ConstructionSelectionHelper
             frame.Y + inset,
             frame.X + frame.Width - inset,
             frame.Y + frame.Height - inset,
+            worldPoint);
+    }
+
+    private static bool HitTestTransitionProfileBand(
+        CadEditorViewModel editor,
+        GeometryElement element,
+        CadPoint worldPoint)
+    {
+        if (!TransitionAdjacentFrameGeometry.TryResolveHostGeometry(
+                editor,
+                element,
+                editor.FrameRoot,
+                editor.FrameThickness,
+                out var host))
+        {
+            return false;
+        }
+
+        return ProfileBandHitTest.ContainsPointInRectangularBand(
+            host.OuterLeft,
+            host.OuterBottom,
+            host.OuterRight,
+            host.OuterTop,
+            host.InnerLeftFace((host.OuterBottom + host.OuterTop) / 2.0),
+            host.InnerBottomFace((host.OuterLeft + host.OuterRight) / 2.0),
+            host.InnerRightFace((host.OuterBottom + host.OuterTop) / 2.0),
+            host.InnerTopFace((host.OuterLeft + host.OuterRight) / 2.0),
             worldPoint);
     }
 

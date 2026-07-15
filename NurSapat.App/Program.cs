@@ -38,6 +38,7 @@ using NurSapat.Core.Settings;
 using NurSapat.Core.Services.Orders;
 using Microsoft.Extensions.Configuration;
 using NurSapat.App.Services.Persistence;
+using NurSapat.Core.Interfaces.Persistence;
 using NurSapat.Infrastructure.Persistence.DependencyInjection;
 using NurSapat.Data;
 using NurSapat.Data.Legacy;
@@ -94,9 +95,6 @@ class Program
 
         services.AddSingleton(environmentSettings);
         services.AddSingleton(new ProductionOptions());
-        services.AddSingleton<SettingsService>();
-        services.AddSingleton<IEnvironmentSettingsService, EnvironmentSettingsService>();
-        services.AddSingleton<TutorialService>();
         services.AddSingleton<IWorkspaceWindowService, WorkspaceWindowService>();
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<IProjectSerializer, ProjectSerializer>();
@@ -124,21 +122,18 @@ class Program
         services.AddSingleton<IGraphicSymbolsStore, GraphicSymbolsStore>();
         services.AddSingleton<IStandardStructuresStore, StandardStructuresStore>();
         services.AddSingleton<IStandardStructureEditorService, StandardStructureEditorService>();
-        services.AddSingleton<IUsersStore, UsersStore>();
         services.AddSingleton<IUserSessionService, UserSessionService>();
         services.AddSingleton<IUserService, UserService>();
         services.AddSingleton<IUserWindowService, UserWindowService>();
         services.AddSingleton<IUserEditorService, UserEditorService>();
         services.AddSingleton<IProfileSeriesStore, ProfileSeriesStore>();
         services.AddSingleton<ISeriesEditorService, SeriesEditorService>();
-        services.AddSingleton<IOrdersStore, OrdersStore>();
         services.AddSingleton<IOrderNumberService, OrderNumberService>();
         services.AddSingleton<IDealersCatalog, DealersCatalog>();
         services.AddSingleton<IOrderErpDialogService, OrderErpDialogService>();
         services.AddSingleton<ICustomerEditorService, CustomerEditorService>();
         services.AddSingleton<IManagerEditorService, ManagerEditorService>();
         services.AddSingleton<IManagersStore, ManagersStore>();
-        services.AddSingleton<IExchangeRatesStore, ExchangeRatesStore>();
         services.AddSingleton<IExchangeRateEditorService, ExchangeRateEditorService>();
         services.AddSingleton<ICurrencyRateImporter, CurrencyRateImporter>();
         services.AddSingleton<ICurrencySyncLogger, AppMessageCurrencySyncLogger>();
@@ -148,12 +143,27 @@ class Program
 
         if (!configuration.IsPostgreSqlPersistence())
         {
+            services.AddSingleton<SettingsService>();
+            services.AddSingleton<IEnvironmentSettingsService, EnvironmentSettingsService>();
+            services.AddSingleton<IUsersStore, UsersStore>();
+            services.AddSingleton<IOrdersStore, OrdersStore>();
             services.AddSingleton<ICustomersStore, CustomersStore>();
             services.AddSingleton<ISuppliersStore, SuppliersStore>();
             services.AddSingleton<IMaterialsDetailStore, MaterialsDetailStore>();
             services.AddSingleton<IStockMaterialsStore, StockMaterialsStore>();
             services.AddSingleton<IStockFinishedGoodsStore, StockFinishedGoodsStore>();
+            services.AddSingleton<IOrderTemplatesStore, OrderTemplatesStore>();
+            services.AddSingleton<IExchangeRatesStore, ExchangeRatesStore>();
+            services.AddSingleton<IConstructionElementsStore, ConstructionElementsStore>();
         }
+        else
+        {
+            services.AddSingleton<SettingsService>(sp =>
+                new SettingsService(sp.GetRequiredService<IAppSettingRepository>()));
+            services.AddSingleton<IEnvironmentSettingsService, EnvironmentSettingsService>();
+        }
+
+        services.AddSingleton<TutorialService>();
 
         services.AddSingleton<IMaterialCatalogResolver, MaterialCatalogResolver>();
         services.AddSingleton<IMaterialPriceCatalog, MaterialsDetailPriceCatalog>();
@@ -163,7 +173,6 @@ class Program
         services.AddSingleton<IManufacturersStore, ManufacturersStore>();
         services.AddSingleton<IManufacturerEditorService, ManufacturerEditorService>();
         services.AddSingleton<ISupplierEditorService, SupplierEditorService>();
-        services.AddSingleton<IOrderTemplatesStore, OrderTemplatesStore>();
         services.AddSingleton<IOrderTemplateEditorService, OrderTemplateEditorService>();
         services.AddSingleton<IStructureNamesStore, StructureNamesStore>();
         services.AddSingleton<IStructureNameEditorService, StructureNameEditorService>();
@@ -184,7 +193,6 @@ class Program
         services.AddSingleton<IUserGuideService, UserGuideService>();
         services.AddSingleton<IChangelogService, ChangelogService>();
         services.AddSingleton<IHelpWindowService, HelpWindowService>();
-        services.AddSingleton<IConstructionElementsStore, ConstructionElementsStore>();
         services.AddSingleton<IAppMessageService, AppMessageService>();
         services.AddSingleton<IDocumentManager, DocumentManager>();
         services.AddSingleton(new DatabaseService(ReadConnectionString()));

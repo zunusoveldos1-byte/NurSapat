@@ -30,6 +30,7 @@ public sealed record OrderBatchResult(bool Success, string Message, IReadOnlyLis
 
 public sealed class OrderBatchOperationsService : IOrderBatchOperationsService
 {
+    private readonly IOrdersStore _ordersStore;
     private readonly IProjectSerializer _projectSerializer;
     private readonly IExportService _exportService;
     private readonly IStockProfileCutsStore _profileCutsStore;
@@ -38,6 +39,7 @@ public sealed class OrderBatchOperationsService : IOrderBatchOperationsService
     private readonly EnvironmentSettings _environmentSettings;
 
     public OrderBatchOperationsService(
+        IOrdersStore ordersStore,
         IProjectSerializer projectSerializer,
         IExportService exportService,
         IStockProfileCutsStore profileCutsStore,
@@ -45,6 +47,7 @@ public sealed class OrderBatchOperationsService : IOrderBatchOperationsService
         IStockMaterialsStore stockMaterialsStore,
         EnvironmentSettings environmentSettings)
     {
+        _ordersStore = ordersStore;
         _projectSerializer = projectSerializer;
         _exportService = exportService;
         _profileCutsStore = profileCutsStore;
@@ -259,19 +262,24 @@ public sealed class OrderBatchOperationsService : IOrderBatchOperationsService
 
         foreach (var order in orders)
         {
-            if (string.IsNullOrWhiteSpace(order.FilePath) || !File.Exists(order.FilePath))
-            {
-                continue;
-            }
-
             try
             {
-                var project = await _projectSerializer.LoadAsync(order.FilePath, cancellationToken);
-                result.Add(project);
+                if (!string.IsNullOrWhiteSpace(order.FilePath) && File.Exists(order.FilePath))
+                {
+                    var project = await _projectSerializer.LoadAsync(order.FilePath, cancellationToken);
+                    result.Add(project);
+                    continue;
+                }
+
+                var fromStore = _ordersStore.TryLoadProject(order.Id);
+                if (fromStore is not null)
+                {
+                    result.Add(fromStore);
+                }
             }
             catch
             {
-                // Пропускаем повреждённые файлы.
+                // Пропускаем повреждённые файлы / недоступные записи БД.
             }
         }
 

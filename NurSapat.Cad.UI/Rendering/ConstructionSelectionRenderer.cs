@@ -354,14 +354,37 @@ public static class ConstructionSelectionRenderer
         }
 
         if (element.SourceToolId == "bead"
-            && Services.GlazingBead.GlazingBeadBuilder.TryResolveBeadContours(
-                element,
-                editor,
-                out var outerLoop,
-                out var innerLoop))
+            && Services.GlazingBead.GlazingBeadBuilder.TryRebuild(editor, element, out var beadModel)
+            && beadModel?.OuterContour is not null
+            && beadModel.InnerContour is not null)
         {
-            StrokeContourLoop(context, editor, outerLoop, SelectionPen);
-            StrokeContourLoop(context, editor, innerLoop, SelectionPen);
+            // Прямоугольный штапик: контуры + горизонтальные стыки 90°.
+            if (!beadModel.OuterContour.Edges.Any(e => e.Kind == ProfileEdgeKind.Arc)
+                && beadModel.Width > CadMath.Epsilon
+                && beadModel.WidthMm > beadModel.Width * 2
+                && beadModel.HeightMm > beadModel.Width * 2)
+            {
+                var beadW = beadModel.Width;
+                var left = beadModel.CenterX - beadModel.WidthMm / 2.0;
+                var right = beadModel.CenterX + beadModel.WidthMm / 2.0;
+                var bottom = beadModel.CenterY - beadModel.HeightMm / 2.0;
+                var top = beadModel.CenterY + beadModel.HeightMm / 2.0;
+                var innerLeft = left + beadW;
+                var innerRight = right - beadW;
+                var innerBottom = bottom + beadW;
+                var innerTop = top - beadW;
+
+                StrokeWorldRect(context, editor, left, bottom, right, top, SelectionPen);
+                StrokeWorldRect(context, editor, innerLeft, innerBottom, innerRight, innerTop, SelectionPen);
+                DrawWorldLine(context, editor, left, innerBottom, innerLeft, innerBottom, SelectionPen);
+                DrawWorldLine(context, editor, innerRight, innerBottom, right, innerBottom, SelectionPen);
+                DrawWorldLine(context, editor, left, innerTop, innerLeft, innerTop, SelectionPen);
+                DrawWorldLine(context, editor, innerRight, innerTop, right, innerTop, SelectionPen);
+                return;
+            }
+
+            StrokeContourLoop(context, editor, beadModel.OuterContour, SelectionPen);
+            StrokeContourLoop(context, editor, beadModel.InnerContour, SelectionPen);
             return;
         }
 
@@ -526,6 +549,34 @@ public static class ConstructionSelectionRenderer
         context.DrawLine(pen, bottomRight, bottomLeft);
         context.DrawLine(pen, bottomLeft, topLeft);
     }
+
+    private static void StrokeWorldRect(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        double left,
+        double bottom,
+        double right,
+        double top,
+        IPen pen)
+    {
+        DrawWorldLine(context, editor, left, bottom, right, bottom, pen);
+        DrawWorldLine(context, editor, right, bottom, right, top, pen);
+        DrawWorldLine(context, editor, right, top, left, top, pen);
+        DrawWorldLine(context, editor, left, top, left, bottom, pen);
+    }
+
+    private static void DrawWorldLine(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        double x0,
+        double y0,
+        double x1,
+        double y1,
+        IPen pen) =>
+        context.DrawLine(
+            pen,
+            WorldToScreen(editor, new CadPoint(x0, y0)),
+            WorldToScreen(editor, new CadPoint(x1, y1)));
 
     private static Point WorldToScreen(CadEditorViewModel editor, CadPoint worldPoint)
     {

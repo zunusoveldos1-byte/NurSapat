@@ -579,7 +579,7 @@ public sealed partial class CadEditorViewModel
         {
             var inner = SashGeometry.TryResolveInnerBounds(this, sash, out var liveInner)
                 ? liveInner
-                : SashGeometry.ResolveLeafInnerOpeningBounds(leaf, FrameRoot, FrameThickness);
+                : SashGeometry.ResolveLeafInnerOpeningBounds(this, leaf);
             var outer = SashGeometry.ExpandInnerBoundsToOuter(inner, this);
             SashGeometry.TryResolveGlassOpeningBounds(
                 this,
@@ -608,10 +608,7 @@ public sealed partial class CadEditorViewModel
 
         if (!SashGeometry.TryResolveFixedFrameGlassOpeningBounds(this, leaf, out var fixedGlass))
         {
-            var (innerX, innerY, innerW, innerH) = SashGeometry.ResolveLeafInnerOpening(
-                leaf,
-                FrameRoot,
-                FrameThickness);
+            var (innerX, innerY, innerW, innerH) = SashGeometry.ResolveLeafInnerOpening(this, leaf);
             if (innerW < 40 || innerH < 40)
             {
                 return null;

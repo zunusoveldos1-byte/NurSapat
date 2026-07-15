@@ -14,8 +14,6 @@ namespace NurSapat.Cad.UI.Rendering;
 /// </summary>
 public static class FrameVolumeRenderer
 {
-    public static readonly Color MiterColor = Color.Parse("#919191");
-    public static readonly Color ProfileStrokeColor = Color.Parse("#919191");
     public static readonly Color SelectionHighlightColor = Color.Parse("#FF0404");
     public static readonly Color DummySelectionHighlightColor = Color.Parse("#0078D7");
 
@@ -23,8 +21,12 @@ public static class FrameVolumeRenderer
 
     private static readonly IBrush InnerOpeningFill = Brushes.White;
     private static readonly IBrush ProfileFill = new SolidColorBrush(Color.FromArgb(48, 0xE5, 0xE5, 0xE5));
-    private static readonly IBrush ProfileStrokeBrush = new SolidColorBrush(ProfileStrokeColor);
-    private static readonly IBrush MiterBrush = new SolidColorBrush(MiterColor);
+
+    /// <summary>Контур профиля (рама/импост/створка/штапик) — общая тема цвета контура.</summary>
+    private static readonly IBrush ProfileStrokeBrush = CadContourTheme.Brush;
+
+    /// <summary>Линии стыков 45° профиля — тот же цвет, что и сам контур.</summary>
+    private static readonly IBrush MiterBrush = CadContourTheme.Brush;
     public static readonly IBrush SelectionHighlightBrush = new SolidColorBrush(SelectionHighlightColor);
     public static readonly IBrush DummySelectionHighlightBrush = new SolidColorBrush(DummySelectionHighlightColor);
     public static readonly IPen ProfilePen = new Pen(ProfileStrokeBrush, ProfileStrokeThickness);

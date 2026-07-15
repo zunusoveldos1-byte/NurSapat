@@ -10,6 +10,9 @@ namespace NurSapat.App.Services.Documents;
 
 public sealed class DocumentManager : IDocumentManager
 {
+    /// <summary>Default configuration display name shown in the window title.</summary>
+    public const string DefaultConfigurationName = "eldos";
+
     private readonly OrderWorkspaceViewModel _workspace;
     private readonly CadEditorViewModel _cadEditor;
     private readonly IProjectSerializer _serializer;
@@ -52,6 +55,7 @@ public sealed class DocumentManager : IDocumentManager
         _workspace.ProjectModified += OnProjectModified;
         _cadEditor.Commands.CommandExecuted += (_, _) => MarkModifiedIfAllowed();
         _cadEditor.SceneInvalidated += (_, _) => MarkModifiedIfAllowed();
+        _environmentSettingsService.ProfileChanged += (_, _) => RaiseStateChanged();
 
         _hasOpenDocument = true;
         _isModified = false;
@@ -62,6 +66,20 @@ public sealed class DocumentManager : IDocumentManager
     public bool IsModified => _isModified;
 
     public string? FilePath => _filePath;
+
+    /// <summary>
+    /// Active configuration name for the window title (falls back to <see cref="DefaultConfigurationName"/>).
+    /// </summary>
+    public string ConfigurationName
+    {
+        get
+        {
+            var profileName = _environmentSettingsService.ActiveProfile?.ProfileName;
+            return string.IsNullOrWhiteSpace(profileName)
+                ? DefaultConfigurationName
+                : profileName.Trim();
+        }
+    }
 
     public string WindowTitle
     {
@@ -75,9 +93,8 @@ public sealed class DocumentManager : IDocumentManager
             var name = _filePath is null
                 ? "Новый заказ"
                 : Path.GetFileName(_filePath);
-            return _isModified
-                ? $"NurSapat CAD — {name} *"
-                : $"NurSapat CAD — {name}";
+            var title = $"NurSapat CAD — {name} ({ConfigurationName})";
+            return _isModified ? $"{title} *" : title;
         }
     }
 
@@ -137,18 +154,50 @@ public sealed class DocumentManager : IDocumentManager
         return await LoadProjectFromFileAsync(path, cancellationToken);
     }
 
+    public async Task<bool> OpenOrderFromDatabaseAsync(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        if (!await ConfirmDiscardOrSaveAsync(
+                "Открыть заказ",
+                "Текущий заказ содержит несохранённые изменения.\n\nЧто необходимо сделать?",
+                cancellationToken))
+        {
+            return false;
+        }
+
+        var project = _ordersStore.TryLoadProject(orderId);
+        if (project is null)
+        {
+            await _dialogService.ShowErrorAsync("Заказ не найден в базе данных.", cancellationToken);
+            return false;
+        }
+
+        ApplyProject(project);
+        var header = _ordersStore.GetById(orderId);
+        _filePath = header?.FilePath is { Length: > 0 } path && File.Exists(path) ? path : null;
+        _isModified = false;
+        _hasOpenDocument = true;
+        _autoSaveService.ClearAutoSave();
+        RaiseStateChanged();
+        return true;
+    }
+
     public async Task<bool> SaveOrderAsync(CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_filePath))
         {
-            var suggested = BuildSuggestedFileName();
-            var path = await _dialogService.ShowSaveFileDialogAsync(suggested, cancellationToken);
-            if (string.IsNullOrWhiteSpace(path))
+            try
             {
+                var snapshot = CreateSnapshot();
+                _ordersStore.UpsertFromProject(snapshot, string.Empty);
+                _isModified = false;
+                RaiseStateChanged();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await _dialogService.ShowErrorAsync(ex.Message, cancellationToken);
                 return false;
             }
-
-            _filePath = path;
         }
 
         return await SaveToFileAsync(_filePath, cancellationToken);
@@ -203,6 +252,54 @@ public sealed class DocumentManager : IDocumentManager
         _hasOpenDocument = false;
         _workspaceWindowService.ReturnToLogin();
         return true;
+    }
+
+    public async Task<bool> ConfirmCloseAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_isModified)
+        {
+            StopAutoSave();
+            return true;
+        }
+
+        while (true)
+        {
+            var choice = await _dialogService.ShowUnsavedChangesDialogAsync(
+                "Выход",
+                "Проект содержит несохранённые изменения.\n\nЧто сделать?",
+                cancellationToken);
+
+            switch (choice)
+            {
+                case UnsavedChangesChoice.Cancel:
+                    return false;
+                case UnsavedChangesChoice.Discard:
+                    StopAutoSave();
+                    return true;
+                case UnsavedChangesChoice.Save:
+                {
+                    // Prefer .nsp file save: existing path, otherwise Save File dialog.
+                    var saved = string.IsNullOrWhiteSpace(_filePath)
+                        ? await SaveAsCopyAsync(cancellationToken)
+                        : await SaveOrderAsync(cancellationToken);
+                    if (saved)
+                    {
+                        StopAutoSave();
+                        return true;
+                    }
+
+                    break;
+                }
+                case UnsavedChangesChoice.SaveAsCopy:
+                    if (await SaveAsCopyAsync(cancellationToken))
+                    {
+                        StopAutoSave();
+                        return true;
+                    }
+
+                    break;
+            }
+        }
     }
 
     public async Task<bool> TryRecoverAutoSaveAsync(CancellationToken cancellationToken = default)

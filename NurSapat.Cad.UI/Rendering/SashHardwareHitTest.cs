@@ -1,6 +1,8 @@
+using System.Linq;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.UI.Models;
+using NurSapat.Cad.UI.Services;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Orders;
 
@@ -46,12 +48,17 @@ internal static class SashHardwareHitTest
             yield break;
         }
 
-        var hinge = sash.HingeSide ?? SashHingeSide.Left;
-        var opening = sash.OpeningType ?? SashOpeningType.TiltTurn;
+        var visual = SashOpeningState.Resolve(sash);
+        var mountHinge = visual.HingeMountSide;
+        var opening = visual.OpeningType;
 
-        if (sash.HasHandle)
+        if (sash.HasHandle && opening is not SashOpeningType.Tilt)
         {
-            foreach (var rect in ResolveHandleRects(editor, inner, glass, outer, hinge))
+            var handleElement = editor.CanvasElements.FirstOrDefault(item =>
+                item.Kind == GeometryElementKind.Handle && item.HostSashId == sash.Id);
+            var handleSide = handleElement?.HingeSide
+                ?? CadHostedElementHelper.ResolveDefaultHandleSide(mountHinge, opening);
+            foreach (var rect in ResolveHandleRects(editor, inner, glass, outer, handleSide))
             {
                 yield return new HardwareRegion(CadSelectableItem.SashHandle(sash.Id), rect);
             }
@@ -59,7 +66,7 @@ internal static class SashHardwareHitTest
 
         if (sash.HasHardware)
         {
-            foreach (var region in ResolveHingeRegions(editor, inner, outer, sash.Id, hinge, opening))
+            foreach (var region in ResolveHingeRegions(editor, inner, outer, sash.Id, mountHinge, opening))
             {
                 yield return region;
             }
@@ -121,21 +128,21 @@ internal static class SashHardwareHitTest
         SashGeometry.InnerOpeningBounds inner,
         SashGeometry.GlassOpeningBounds glass,
         SashGeometry.OuterBounds outer,
-        SashHingeSide hingeSide)
+        SashHingeSide handleSide)
     {
-        switch (hingeSide)
+        switch (handleSide)
         {
-            case SashHingeSide.Right:
+            case SashHingeSide.Left:
                 yield return BuildVerticalHandleRect(editor, inner, glass, outer, handleOnLeft: true);
                 break;
-            case SashHingeSide.Left:
+            case SashHingeSide.Right:
                 yield return BuildVerticalHandleRect(editor, inner, glass, outer, handleOnLeft: false);
                 break;
             case SashHingeSide.Top:
-                yield return BuildHorizontalHandleRect(editor, outer, glass, handleOnBottom: true);
+                yield return BuildHorizontalHandleRect(editor, outer, glass, handleOnBottom: false);
                 break;
             case SashHingeSide.Bottom:
-                yield return BuildHorizontalHandleRect(editor, outer, glass, handleOnBottom: false);
+                yield return BuildHorizontalHandleRect(editor, outer, glass, handleOnBottom: true);
                 break;
         }
     }

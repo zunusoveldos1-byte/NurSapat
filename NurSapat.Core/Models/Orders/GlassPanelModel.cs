@@ -54,6 +54,7 @@ public sealed class GlassPanelModel
         HeightMm = (decimal)HeightMm,
         MaterialId = MaterialId,
         ParentBeadId = ParentBeadId,
-        HostSashId = HostSashId
+        HostSashId = HostSashId,
+        HasBead = ParentBeadId is not null
     };
 }

@@ -14,28 +14,28 @@ public sealed class PostgreSqlMaterialsDetailStore : IMaterialsDetailStore
     }
 
     public IReadOnlyList<MaterialDetail> GetAll() =>
-        _repository.GetAllAsync().GetAwaiter().GetResult()
+        PersistenceSync.Run(() => _repository.GetAllAsync())
             .Select(AppPersistenceMappers.FromPersistence)
             .ToList();
 
     public MaterialDetail? GetById(Guid id)
     {
-        var material = _repository.GetByIdAsync(id).GetAwaiter().GetResult();
+        var material = PersistenceSync.Run(() => _repository.GetByIdAsync(id));
         return material is null ? null : AppPersistenceMappers.FromPersistence(material);
     }
 
     public MaterialDetail? GetByArticle(string article)
     {
-        var material = _repository.GetByArticleAsync(article).GetAwaiter().GetResult();
+        var material = PersistenceSync.Run(() => _repository.GetByArticleAsync(article));
         return material is null ? null : AppPersistenceMappers.FromPersistence(material);
     }
 
     public void Add(MaterialDetail material) =>
-        _repository.SaveAsync(AppPersistenceMappers.ToPersistence(material)).GetAwaiter().GetResult();
+        PersistenceSync.Run(() => _repository.SaveAsync(AppPersistenceMappers.ToPersistence(material)));
 
     public void Update(MaterialDetail material) =>
-        _repository.UpdateAsync(AppPersistenceMappers.ToPersistence(material)).GetAwaiter().GetResult();
+        PersistenceSync.Run(() => _repository.UpdateAsync(AppPersistenceMappers.ToPersistence(material)));
 
     public void Delete(Guid id) =>
-        _repository.DeleteAsync(id).GetAwaiter().GetResult();
+        PersistenceSync.Run(() => _repository.DeleteAsync(id));
 }

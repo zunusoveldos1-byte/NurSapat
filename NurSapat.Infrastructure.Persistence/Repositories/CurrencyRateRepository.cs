@@ -94,6 +94,35 @@ public sealed class CurrencyRateRepository : ICurrencyRateRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<CurrencyRate>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var entities = await dbContext.CurrencyRates
+            .AsNoTracking()
+            .OrderByDescending(rate => rate.RateDate)
+            .ThenBy(rate => rate.CurrencyCode)
+            .ToListAsync(cancellationToken);
+
+        return entities.Select(CurrencyRateMapper.ToDomain).ToList();
+    }
+
+    public async Task DeleteRatesForDateAsync(DateTime rateDate, CancellationToken cancellationToken = default)
+    {
+        var date = rateDate.Date;
+        await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var entities = await dbContext.CurrencyRates
+            .Where(rate => rate.RateDate == date)
+            .ToListAsync(cancellationToken);
+
+        if (entities.Count == 0)
+        {
+            return;
+        }
+
+        dbContext.CurrencyRates.RemoveRange(entities);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     private static string NormalizeCode(string currencyCode) =>
         string.IsNullOrWhiteSpace(currencyCode)
             ? "KGS"

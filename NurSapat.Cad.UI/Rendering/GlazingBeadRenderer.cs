@@ -8,7 +8,10 @@ using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.Cad.UI.Rendering;
 
-/// <summary>Отрисовка профиля штапика: серый контур, белое тело профиля.</summary>
+/// <summary>
+/// Отрисовка профиля штапика: серый контур, белое тело.
+/// Прямоугольный проём — стык 90° со сквозными горизонталями (без запила 45°).
+/// </summary>
 public static class GlazingBeadRenderer
 {
     private static readonly IBrush ProfileFaceFill = Brushes.White;
@@ -47,28 +50,126 @@ public static class GlazingBeadRenderer
         CadEditorViewModel editor,
         GeometryElement element)
     {
-        if (!Services.GlazingBead.GlazingBeadBuilder.TryResolveBeadContours(
-                element,
-                editor,
-                out var outerLoop,
-                out var innerLoop))
+        if (!Services.GlazingBead.GlazingBeadBuilder.TryRebuild(editor, element, out var model)
+            || model?.OuterContour is null
+            || model.InnerContour is null)
         {
             return;
         }
 
-        DrawProfileBand(context, editor, outerLoop, innerLoop, ProfileFaceFill, null);
-        StrokeContourLoop(context, editor, outerLoop, ProfileOutlinePen);
-        StrokeContourLoop(context, editor, innerLoop, ProfileOutlinePen);
-
-        for (var i = 0; i < outerLoop.Edges.Count && i < innerLoop.Edges.Count; i++)
+        // Прямоугольный световой проём: сквозные горизонтали + вертикали между ними.
+        if (!model.OuterContour.Edges.Any(e => e.Kind == ProfileEdgeKind.Arc)
+            && TryDrawRectangularButtJointBead(context, editor, model))
         {
-            FrameVolumeRenderer.DrawProfileMiter(
-                context,
-                editor,
-                outerLoop.Edges[i].Start,
-                innerLoop.Edges[i].Start);
+            return;
         }
+
+        // Арочные / непрямоугольные: сплошная полоса без запила 45°.
+        DrawProfileBand(context, editor, model.OuterContour, model.InnerContour, ProfileFaceFill, null);
+        StrokeContourLoop(context, editor, model.OuterContour, ProfileOutlinePen);
+        StrokeContourLoop(context, editor, model.InnerContour, ProfileOutlinePen);
     }
+
+    /// <summary>
+    /// Штапик как 4 сегмента:
+    /// горизонтали (верх/низ) на всю ширину проёма;
+    /// вертикали (лево/право) строго между горизонталями;
+    /// в углах — только горизонтальные линии стыка 90°.
+    /// </summary>
+    private static bool TryDrawRectangularButtJointBead(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        GlazingBeadModel model)
+    {
+        var beadW = model.Width;
+        if (beadW <= CadMath.Epsilon
+            || model.WidthMm <= beadW * 2 + CadMath.Epsilon
+            || model.HeightMm <= beadW * 2 + CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var left = model.CenterX - model.WidthMm / 2.0;
+        var right = model.CenterX + model.WidthMm / 2.0;
+        var bottom = model.CenterY - model.HeightMm / 2.0;
+        var top = model.CenterY + model.HeightMm / 2.0;
+
+        var innerLeft = left + beadW;
+        var innerRight = right - beadW;
+        var innerBottom = bottom + beadW;
+        var innerTop = top - beadW;
+
+        // 1) Тело профиля: горизонтали сквозные, вертикали укорочены.
+        FillWorldRect(context, editor, left, bottom, right, innerBottom);       // низ
+        FillWorldRect(context, editor, left, innerTop, right, top);             // верх
+        FillWorldRect(context, editor, left, innerBottom, innerLeft, innerTop); // лево
+        FillWorldRect(context, editor, innerRight, innerBottom, right, innerTop); // право
+
+        // 2) Внешний контур светового проёма.
+        StrokeWorldRect(context, editor, left, bottom, right, top);
+
+        // 3) Внутренний контур (граница стекла).
+        StrokeWorldRect(context, editor, innerLeft, innerBottom, innerRight, innerTop);
+
+        // 4) Горизонтальные стыки 90° в углах (только по толщине штапика).
+        // Вертикальных засечек вдоль горизонтальных штапиков нет.
+        DrawWorldLine(context, editor, left, innerBottom, innerLeft, innerBottom);
+        DrawWorldLine(context, editor, innerRight, innerBottom, right, innerBottom);
+        DrawWorldLine(context, editor, left, innerTop, innerLeft, innerTop);
+        DrawWorldLine(context, editor, innerRight, innerTop, right, innerTop);
+
+        return true;
+    }
+
+    private static void FillWorldRect(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        double left,
+        double bottom,
+        double right,
+        double top)
+    {
+        if (right - left <= CadMath.Epsilon || top - bottom <= CadMath.Epsilon)
+        {
+            return;
+        }
+
+        var topLeft = WorldToScreen(editor, new CadPoint(left, top));
+        var bottomRight = WorldToScreen(editor, new CadPoint(right, bottom));
+        var rect = new Rect(new Point(topLeft.X, topLeft.Y), new Point(bottomRight.X, bottomRight.Y));
+        if (rect.Width <= 0.5 || rect.Height <= 0.5)
+        {
+            return;
+        }
+
+        context.FillRectangle(ProfileFaceFill, rect);
+    }
+
+    private static void StrokeWorldRect(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        double left,
+        double bottom,
+        double right,
+        double top)
+    {
+        DrawWorldLine(context, editor, left, bottom, right, bottom);
+        DrawWorldLine(context, editor, right, bottom, right, top);
+        DrawWorldLine(context, editor, right, top, left, top);
+        DrawWorldLine(context, editor, left, top, left, bottom);
+    }
+
+    private static void DrawWorldLine(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        double x0,
+        double y0,
+        double x1,
+        double y1) =>
+        context.DrawLine(
+            ProfileOutlinePen,
+            WorldToScreen(editor, new CadPoint(x0, y0)),
+            WorldToScreen(editor, new CadPoint(x1, y1)));
 
     private static void DrawProfileBand(
         DrawingContext context,

@@ -21,4 +21,7 @@ public sealed class SashDragPreview
     public double Height { get; init; }
 
     public SashHingeSide HingeSide { get; init; }
+
+    /// <summary>Тип открывания ghost-превью — должен совпасть с создаваемой створкой.</summary>
+    public SashOpeningType OpeningType { get; init; } = SashOpeningType.LeftTurn;
 }

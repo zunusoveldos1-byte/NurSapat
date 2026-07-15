@@ -15,7 +15,7 @@ public sealed partial class CadEditorViewModel
 
     public bool TryPlaceCreationToolClick(CadPoint worldPoint)
     {
-        if (CurrentToolMode == WindowToolMode.BeadSystem)
+        if (CurrentToolMode is WindowToolMode.BeadSystem or WindowToolMode.GlassWithBead)
         {
             return TryPlaceGlazingBead(worldPoint, applyToAllOpenings: false);
         }
@@ -55,15 +55,19 @@ public sealed partial class CadEditorViewModel
 
     private bool TryPlaceFixedSash(CadPoint worldPoint)
     {
-        if (FrameRoot is null || !HasRealFrameOnCanvas)
+        if (FrameRoot is null || !HasConstructionHostOnCanvas)
         {
-            StatusText = "Сначала создайте коробку (рама)";
+            ConstructionHostResolver.LogSashPlacementDiagnostics(
+                this, null, "fixed", "нет Host Frame на холсте");
+            StatusText = "Сначала создайте коробку или переходной профиль";
             return false;
         }
 
-        var leaf = FrameRoot.FindLeafAt(worldPoint.X, worldPoint.Y);
-        if (leaf is null || !leaf.IsLeaf || !IsBillableConstructionLeaf(leaf))
+        var leaf = SashGeometry.ResolveSashPlacementLeafAtPoint(this, worldPoint.X, worldPoint.Y);
+        if (leaf is null || !IsBillableConstructionLeaf(leaf))
         {
+            ConstructionHostResolver.LogSashPlacementDiagnostics(
+                this, leaf, "fixed", "Host does not support sash");
             StatusText = "Кликните внутри свободной ячейки";
             return false;
         }
@@ -74,12 +78,16 @@ public sealed partial class CadEditorViewModel
             return false;
         }
 
-        var sash = CreateSashElementForTool(leaf, SashHingeSide.Left, 0);
+        var sash = CreateSashElementForTool(leaf, SashHingeSide.Left, 0, worldPoint.X, worldPoint.Y);
         if (sash is null)
         {
+            ConstructionHostResolver.LogSashPlacementDiagnostics(
+                this, leaf, "fixed-create", "SashBuilder вернул null");
             StatusText = "Не удалось создать створку";
             return false;
         }
+
+        sash.HostFrameNodeId = leaf.NodeId;
 
         if (!RecordPlacement("Створка глухая создана", () =>
             {
@@ -90,55 +98,85 @@ public sealed partial class CadEditorViewModel
             return false;
         }
 
+        ConstructionHostResolver.LogSashPlacementDiagnostics(this, leaf, "fixed-ok");
         StatusText = "Створка глухая создана";
         RequestSceneRefresh();
         return true;
     }
 
-    private GeometryElement? CreateSashElementForTool(FrameNode leaf, SashHingeSide hingeSide, double dragDeltaX)
+    private GeometryElement? CreateSashElementForTool(
+        FrameNode leaf,
+        SashHingeSide hingeSide,
+        double dragDeltaX,
+        double? probeX = null,
+        double? probeY = null)
     {
+        if (!leaf.IsTerminalLeaf || leaf.HasChildCells)
+        {
+            ConstructionHostResolver.LogSashPlacementDiagnostics(
+                this, leaf, "create", "целевой узел не является терминальным листом");
+            return null;
+        }
+
         var normalizedHinge = CadCreationToolCatalog.NormalizeHingeForTool(_activeToolKey, hingeSide);
         var openingType = CadCreationToolCatalog.ResolveOpeningType(_activeToolKey, normalizedHinge, dragDeltaX);
         var kind = CadCreationToolCatalog.ResolveSashKind(_activeToolKey);
 
-        var (innerX, innerY, innerW, innerH) = ResolveSashOpeningBounds(leaf);
+        var worldX = probeX ?? leaf.X + leaf.Width / 2.0;
+        var worldY = probeY ?? leaf.Y + leaf.Height / 2.0;
+        var (innerX, innerY, innerW, innerH) = ResolveSashOpeningBounds(leaf, worldX, worldY);
         if (innerW <= 40 || innerH <= 40)
         {
             return null;
         }
 
-        var enableHardware = CadCreationToolCatalog.ShouldEnableHardware(_activeToolKey, openingType);
-        var defaultHandleSide = CadHostedElementHelper.ResolveDefaultHandleSide(normalizedHinge, openingType);
-
+        // OpeningType + HingeSide только через единый Resolve (без раздельной записи).
+        var visual = SashOpeningState.Resolve(openingType, normalizedHinge);
         return new GeometryElement
         {
             Kind = kind,
             Label = CadCreationToolCatalog.ResolveSashLabel(_activeToolKey),
             SourceToolId = _activeToolKey,
+            HostFrameNodeId = leaf.NodeId,
             X = (decimal)(innerX + innerW / 2.0),
             Y = (decimal)(innerY + innerH / 2.0),
             WidthMm = (decimal)innerW,
             HeightMm = (decimal)innerH,
-            HingeSide = normalizedHinge,
-            OpeningType = openingType,
-            HasHardware = enableHardware,
-            HasHandle = enableHardware && openingType != SashOpeningType.Folding,
+            OpeningType = visual.OpeningType,
+            HingeSide = visual.HingeSide,
+            HasHardware = false,
+            HasHandle = false,
             ProfileSeriesId = SelectedProfileSeriesItem?.Id,
             MaterialId = SelectedConstructionMaterialOption?.MaterialId
                 ?? CadHostedElementHelper.ResolveDefaultMaterialId(kind)
         };
     }
 
-    private void FinalizeSashPlacement(GeometryElement sash)
+    /// <summary>
+    /// Атомарно применяет открывание + фурнитуру: OpeningType/HingeSide/HasHardware в одном шаге.
+    /// Ручка не создаётся — только инструментом «Ручка».
+    /// </summary>
+    private SashOpeningVisualState ApplySashOpeningAccessories(
+        GeometryElement sash,
+        SashOpeningType openingType,
+        SashHingeSide hingeSide)
     {
-        if (sash.HasHandle)
-        {
-            var handleSide = CadHostedElementHelper.ResolveDefaultHandleSide(
-                sash.HingeSide ?? SashHingeSide.Left,
-                sash.OpeningType ?? SashOpeningType.TiltTurn);
-            var handle = CreateHandleElement(sash, handleSide);
-            AddCanvasElement(handle);
-        }
+        var state = SashOpeningState.ApplyOpeningTypeChange(sash, openingType, hingeSide);
+
+        var enableHardware = CadCreationToolCatalog.ShouldEnableHardware(sash.SourceToolId, state.OpeningType);
+        sash.HasHardware = enableHardware;
+        // Ручка никогда не ставится автоматически вместе с петлями.
+        sash.HasHandle = false;
+        CadHostedElementHelper.RemoveHosted(CanvasElements, sash.Id, GeometryElementKind.Handle);
+        return state;
+    }
+
+    /// <summary>Снимает фурнитуру и ручку со створки, оставляя только контур профиля.</summary>
+    private void ClearSashOpeningAccessories(GeometryElement sash)
+    {
+        sash.HasHardware = false;
+        sash.HasHandle = false;
+        CadHostedElementHelper.RemoveHosted(CanvasElements, sash.Id, GeometryElementKind.Handle);
     }
 
     private static GeometryElement CreateHandleElement(GeometryElement sash, SashHingeSide handleSide) =>
@@ -171,7 +209,18 @@ public sealed partial class CadEditorViewModel
         }
 
         var existing = CadHostedElementHelper.FindHosted(CanvasElements, GeometryElementKind.Handle, sash.Id);
-        var cycle = new[] { SashHingeSide.Right, SashHingeSide.Left, SashHingeSide.Top, SashHingeSide.Bottom };
+        var opening = sash.OpeningType ?? SashOpeningType.TiltTurn;
+
+        // Фрамуга (Tilt): боковая ручка не ставится.
+        if (opening is SashOpeningType.Tilt && existing is null)
+        {
+            StatusText = "На фрамуге боковая ручка не нужна";
+            return true;
+        }
+
+        var cycle = opening is SashOpeningType.Suspended
+            ? new[] { SashHingeSide.Bottom, SashHingeSide.Top }
+            : new[] { SashHingeSide.Right, SashHingeSide.Left, SashHingeSide.Top, SashHingeSide.Bottom };
 
         RecordPlacement("Ручка", () =>
         {
@@ -179,7 +228,7 @@ public sealed partial class CadEditorViewModel
             {
                 var side = CadHostedElementHelper.ResolveDefaultHandleSide(
                     sash.HingeSide ?? SashHingeSide.Left,
-                    sash.OpeningType ?? SashOpeningType.TiltTurn);
+                    opening);
                 var handle = CreateHandleElement(sash, side);
                 AddCanvasElement(handle);
                 sash.HasHandle = true;
@@ -326,6 +375,7 @@ public sealed partial class CadEditorViewModel
 
         if (!RecordPlacement("Штапик установлен", () =>
             {
+                glazing.HasBead = true;
                 AddCanvasElement(bead);
                 return true;
             }))
@@ -356,6 +406,7 @@ public sealed partial class CadEditorViewModel
             Y = glazing.Y,
             WidthMm = glazing.WidthMm,
             HeightMm = glazing.HeightMm,
+            HasBead = true,
             MaterialId = SelectedConstructionMaterialOption?.MaterialId
                 ?? CadHostedElementHelper.ResolveDefaultMaterialId(GeometryElementKind.Bead)
         };
@@ -371,13 +422,20 @@ public sealed partial class CadEditorViewModel
                 CanvasElements.RemoveAt(i);
             }
         }
+
+        var glazing = CanvasElements.FirstOrDefault(e => e.Id == glazingId);
+        if (glazing is not null)
+        {
+            glazing.HasBead = false;
+            glazing.ParentBeadId = null;
+        }
     }
 
     private bool TryPlaceAdditionalElement(CadPoint worldPoint)
     {
-        if (FrameRoot is null || !HasRealFrameOnCanvas)
+        if (FrameRoot is null || !HasConstructionHostOnCanvas)
         {
-            StatusText = "Сначала создайте коробку (рама)";
+            StatusText = "Сначала создайте коробку или переходной профиль";
             return false;
         }
 
@@ -388,10 +446,7 @@ public sealed partial class CadEditorViewModel
             return false;
         }
 
-        var (innerX, innerY, innerW, innerH) = SashGeometry.ResolveLeafInnerOpening(
-            leaf,
-            FrameRoot,
-            FrameThickness);
+        var (innerX, innerY, innerW, innerH) = SashGeometry.ResolveLeafInnerOpening(this, leaf);
         if (innerW <= 40 || innerH <= 40)
         {
             StatusText = "Проём слишком мал";
@@ -499,9 +554,9 @@ public sealed partial class CadEditorViewModel
 
     private bool TryPlaceBlind(CadPoint worldPoint)
     {
-        if (FrameRoot is null || !HasRealFrameOnCanvas)
+        if (FrameRoot is null || !HasConstructionHostOnCanvas)
         {
-            StatusText = "Сначала создайте коробку (рама)";
+            StatusText = "Сначала создайте коробку или переходной профиль";
             return false;
         }
 
@@ -531,10 +586,7 @@ public sealed partial class CadEditorViewModel
             return true;
         }
 
-        var (innerX, innerY, innerW, innerH) = SashGeometry.ResolveLeafInnerOpening(
-            leaf,
-            FrameRoot,
-            FrameThickness);
+        var (innerX, innerY, innerW, innerH) = SashGeometry.ResolveLeafInnerOpening(this, leaf);
         if (innerW <= 40 || innerH <= 40)
         {
             StatusText = "Проём слишком мал";

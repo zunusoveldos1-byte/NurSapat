@@ -4,7 +4,7 @@ public sealed class PersistenceOptions
 {
     public const string SectionName = "Persistence";
 
-    public PersistenceProvider Provider { get; set; } = PersistenceProvider.Demo;
+    public PersistenceProvider Provider { get; set; } = PersistenceProvider.PostgreSql;
 
     public string ConnectionStringName { get; set; } = "Default";
 }

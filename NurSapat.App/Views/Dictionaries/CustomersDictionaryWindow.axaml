@@ -36,7 +36,7 @@
             </Border>
 
             <Border Grid.Row="1" Margin="12,0,12,0" Padding="0,0,0,10" Background="White">
-                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
                     <TextBox Grid.Column="0"
                              PlaceholderText="Поиск по наименованию, телефону, городу..."
                              Text="{Binding SearchText}"
@@ -56,7 +56,12 @@
                     <Button Grid.Column="4" Classes="mat-toolbar" Content="Изменить" Command="{Binding EditCommand}"/>
                     <Button Grid.Column="5" Classes="mat-toolbar" Content="Просмотр" Command="{Binding ViewSelectedCommand}"/>
                     <Button Grid.Column="6" Classes="mat-toolbar" Content="Удалить" Command="{Binding DeleteCommand}"/>
-                    <Button Grid.Column="7" Classes="mat-toolbar" Content="Закрыть" Command="{Binding CloseWindowCommand}"/>
+                    <Button Grid.Column="7"
+                            Classes="mat-primary"
+                            Content="Выбрать"
+                            Command="{Binding SelectForOrderCommand}"
+                            IsVisible="{Binding ShowSelectButton}"/>
+                    <Button Grid.Column="8" Classes="mat-toolbar" Content="Закрыть" Command="{Binding CloseWindowCommand}"/>
                 </Grid>
             </Border>
 
@@ -87,9 +92,17 @@
             </dg:DataGrid>
 
             <Border Grid.Row="3" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
-                <TextBlock VerticalAlignment="Center"
-                           Foreground="#64748B"
-                           Text="{Binding FilteredItems.Count, StringFormat=Показано заказчиков: {0}}"/>
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="4">
+                        <TextBlock VerticalAlignment="Center"
+                                   Foreground="#64748B"
+                                   Text="{Binding FilteredItems.Count, StringFormat=Показано заказчиков: {0}}"/>
+                        <TextBlock Text="{Binding SelectionWarning}"
+                                   Foreground="#DC2626"
+                                   FontWeight="SemiBold"
+                                   IsVisible="{Binding SelectionWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                    </StackPanel>
+                </Grid>
             </Border>
         </Grid>
     </Border>

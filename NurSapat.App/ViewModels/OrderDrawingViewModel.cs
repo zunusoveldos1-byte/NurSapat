@@ -292,7 +292,7 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
 
     private static SashOpeningType? ResolveOpeningType(GeometryElementKind kind, string toolId) => kind switch
     {
-        GeometryElementKind.Sash => SashOpeningType.TiltTurn,
+        GeometryElementKind.Sash => SashOpeningType.LeftTurn,
         GeometryElementKind.SlidingSash when toolId == "slide-left" => SashOpeningType.SlideLeft,
         GeometryElementKind.SlidingSash when toolId == "slide-right" => SashOpeningType.SlideRight,
         _ => null

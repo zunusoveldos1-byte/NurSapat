@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NurSapat.App.Models.Dictionaries;
 using NurSapat.App.Services;
 using NurSapat.App.Services.Dictionaries;
 using NurSapat.App.Services.Documents;
@@ -500,6 +501,8 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
             Payment.CurrencyCode = "KGS";
             Header.CurrencyCode = "KGS";
         }
+
+        InitializeConceptExtensions();
     }
 
     public void EnsureOrderNumber()
@@ -604,37 +607,36 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         ProjectModified?.Invoke(this, EventArgs.Empty);
     }
 
-    [RelayCommand]
-    private async Task BrowseCustomerAsync()
+    public void ApplySelectedCustomer(CustomerItem customer)
     {
-        var customer = await _orderErpDialogService.ShowCustomerSelectAsync();
-        if (customer is null)
-        {
-            return;
-        }
-
-        if (customer.IsBlocked || customer.IsDeleted)
+        if (!customer.CanSelectForOrder)
         {
             return;
         }
 
         ReloadCustomerLookups();
-        SelectedCustomer = AvailableCustomers.FirstOrDefault(c => c.Id == customer.Id)
-            ?? CustomerLookupItem.FromItem(
-                _customersStore.GetById(customer.Id)
-                ?? new Models.Dictionaries.CustomerItem
-                {
-                    Id = customer.Id,
-                    FullName = customer.FullName,
-                    Phone = customer.Phone,
-                    City = customer.City,
-                    Type = customer.Type
-                });
+        var lookup = AvailableCustomers.FirstOrDefault(c => c.Id == customer.Id)
+            ?? CustomerLookupItem.FromItem(customer);
 
-        if (SelectedCustomer is not null && AvailableCustomers.All(c => c.Id != SelectedCustomer.Id))
+        if (AvailableCustomers.All(c => c.Id != lookup.Id))
         {
-            AvailableCustomers.Add(SelectedCustomer);
+            AvailableCustomers.Add(lookup);
         }
+
+        SelectedCustomer = lookup;
+        ProjectModified?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private async Task BrowseCustomerAsync()
+    {
+        var customer = await _dictionaryWindowService.ShowCustomersForSelectionAsync(null);
+        if (customer is null)
+        {
+            return;
+        }
+
+        ApplySelectedCustomer(customer);
     }
 
     [RelayCommand]
@@ -1183,6 +1185,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         OnPropertyChanged(nameof(DiscountDisplay));
         OnPropertyChanged(nameof(TotalPriceDisplay));
         OnPropertyChanged(nameof(OrderNumberDisplay));
+        NotifyConceptProperties();
     }
 
     private void RebuildConstructionCards()
@@ -1403,6 +1406,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         DuplicateConstructionCommand.NotifyCanExecuteChanged();
         EditConstructionCommand.NotifyCanExecuteChanged();
         DeleteConstructionCommand.NotifyCanExecuteChanged();
+        NotifyConceptProperties();
     }
 
     private void OnDocumentStateChanged(object? sender, EventArgs e)
@@ -1453,6 +1457,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         OnPropertyChanged(nameof(PaymentTotalDisplay));
         OnPropertyChanged(nameof(PaymentPercent));
         RebuildMaterialLines();
+        NotifyConceptProperties();
     }
 }
 

@@ -17,18 +17,15 @@ public static class GeometryElementRenderer
     private const double FallbackSpanMm = 2000;
     private const double MarkerRadiusPx = 8;
 
-    private static readonly IBrush CadStrokeBrush = new SolidColorBrush(Color.Parse("#AEAEAE"));
+    /// <summary>Общий контур геометрии (рама, размеры, штапик-фолбэк) — единая тема цвета.</summary>
+    private static readonly IBrush CadStrokeBrush = CadContourTheme.Brush;
 
-    private static readonly IBrush DimensionColorBrush = new SolidColorBrush(Color.Parse("#C4C4C4"));
-    private static readonly IBrush DimensionTextBrush = new SolidColorBrush(Color.Parse("#696969"));
+    private static readonly IBrush DimensionColorBrush = CadContourTheme.Brush;
+    private static readonly IBrush DimensionTextBrush = CadContourTheme.Brush;
 
     private static readonly IBrush FrameBrush = CadStrokeBrush;
-    private static readonly IBrush GlazingFill = new SolidColorBrush(Color.FromArgb(24, 0xBF, 0xDB, 0xFE));
-    private static readonly IPen GlazingBeadPen = new Pen(new SolidColorBrush(Color.Parse("#9CA3AF")), 1);
-    private static readonly IPen GlazingReflectionPen = new Pen(
-        new SolidColorBrush(Color.Parse("#4169E1")) { Opacity = 0.9 },
-        1);
-    private const double GlazingInnerInsetPx = 6;
+    private static readonly IBrush GlazingFill = GlassRenderer.GlassFill;
+    private static readonly IPen GlazingBeadPen = new Pen(CadContourTheme.Brush, 1);
     private static readonly IBrush AccentFill = new SolidColorBrush(Color.FromArgb(30, 0x6B, 0x72, 0x80));
     private static readonly IBrush AccentBrush = CadStrokeBrush;
     private static readonly IPen FramePen = new Pen(FrameBrush, 1.5);
@@ -61,7 +58,13 @@ public static class GeometryElementRenderer
             return;
         }
 
-        var snapshot = elements.Count == 0 ? [] : elements.ToList();
+        // Порядок: рама → переходной профиль → прочие несущие элементы.
+        // Створки/остекление/фурнитура рисуются отдельными слоями после импостов.
+        var snapshot = elements.Count == 0
+            ? []
+            : elements
+                .OrderBy(GetStructuralDrawOrder)
+                .ToList();
         foreach (var element in snapshot)
         {
             try
@@ -74,6 +77,15 @@ public static class GeometryElementRenderer
             }
         }
     }
+
+    private static int GetStructuralDrawOrder(GeometryElement element) =>
+        element.Kind switch
+        {
+            GeometryElementKind.DummyFrame or GeometryElementKind.ArchDummyFrame => 0,
+            GeometryElementKind.Frame or GeometryElementKind.ArchFrame => 1,
+            GeometryElementKind.TransitionFrame => 2,
+            _ => 3
+        };
 
     /// <summary>Слой остекления: после профиля створки, до линий открывания и фурнитуры.</summary>
     public static void DrawGlazingLayer(
@@ -228,23 +240,8 @@ public static class GeometryElementRenderer
         };
     }
 
-    private static double ResolveTransitionProfileThickness(GeometryElement element)
-    {
-        var material = ConstructionMaterialCatalog.FindById(element.MaterialId);
-        if (material is { ProfileWidth: > 0 })
-        {
-            return material.ProfileWidth;
-        }
-
-        var series = ProfileSeriesCatalog.FindById(element.ProfileSeriesId);
-        if (series is { SystemDepth: > 0 })
-        {
-            return series.SystemDepth;
-        }
-
-        return ConstructionMaterialCatalog.ForKind(GeometryElementKind.TransitionFrame).FirstOrDefault()?.ProfileWidth
-            ?? 46;
-    }
+    private static double ResolveTransitionProfileThickness(GeometryElement element) =>
+        TransitionAdjacentFrameGeometry.ResolveTransitionProfileThickness(element);
 
     private static double RoundPreview(double value) =>
         Math.Round(value, 1, MidpointRounding.AwayFromZero);
@@ -2025,18 +2022,28 @@ public static class GeometryElementRenderer
         context.DrawRectangle(AccentFill, AccentPen, inner);
 
         var opening = element.OpeningType ?? SashOpeningType.Fixed;
-        if (opening is SashOpeningType.Turn or SashOpeningType.TiltTurn)
+        if (opening is SashOpeningType.Turn or SashOpeningType.LeftTurn or SashOpeningType.RightTurn
+            or SashOpeningType.TiltTurn)
         {
-            var hingeMid = new Point(inner.Left, inner.Center.Y);
-            context.DrawLine(DashedAccentPen, hingeMid, inner.TopRight);
-            context.DrawLine(DashedAccentPen, hingeMid, inner.BottomRight);
+            // Основание треугольника на стороне петель; вершина — на стороне открывания.
+            var hingeLeft = opening is SashOpeningType.LeftTurn
+                || (opening is not SashOpeningType.RightTurn
+                    && element.HingeSide == SashHingeSide.Left);
+            var apex = hingeLeft
+                ? new Point(inner.Right, inner.Center.Y)
+                : new Point(inner.Left, inner.Center.Y);
+            var fromTop = hingeLeft ? inner.TopLeft : inner.TopRight;
+            var fromBottom = hingeLeft ? inner.BottomLeft : inner.BottomRight;
+            context.DrawLine(DashedAccentPen, fromTop, apex);
+            context.DrawLine(DashedAccentPen, fromBottom, apex);
         }
 
-        if (opening == SashOpeningType.TiltTurn)
+        if (opening == SashOpeningType.Tilt || opening == SashOpeningType.TiltTurn)
         {
-            var bottomMid = new Point(inner.Center.X, inner.Bottom);
-            context.DrawLine(DashedAccentPen, bottomMid, inner.TopLeft);
-            context.DrawLine(DashedAccentPen, bottomMid, inner.TopRight);
+            // Фрамуга / откид: основание снизу, вершина сверху по центру.
+            var midTop = new Point(inner.Center.X, inner.Top);
+            context.DrawLine(DashedAccentPen, inner.BottomLeft, midTop);
+            context.DrawLine(DashedAccentPen, inner.BottomRight, midTop);
         }
     }
 
@@ -2072,32 +2079,38 @@ public static class GeometryElementRenderer
 
         if (glass.IsArched)
         {
-            DrawArchedGlazing(context, editor, glass, element);
+            DrawArchedGlazing(context, editor, glass, element, elements);
             return;
         }
 
-        DrawPlanarGlazingWithBead(context, editor, glass, element);
+        DrawPlanarGlazingWithBead(context, editor, glass, element, elements);
     }
 
     private static void DrawPlanarGlazingWithBead(
         DrawingContext context,
         CadEditorViewModel editor,
         SashGeometry.GlassOpeningBounds glass,
-        GeometryElement? element = null)
+        GeometryElement? element = null,
+        IReadOnlyList<GeometryElement>? allElements = null)
     {
-        var outerLoop = glass.BuildOuterContourLoop();
-        FillGlazingContour(context, editor, outerLoop, GlazingFill, null);
-
-        if (element?.ParentBeadId is not null)
+        // Со штапиком (отдельный слой GlazingBeadRenderer) — заливка только внутри внутренних граней.
+        if (GlazingBeadDrawRules.HasBead(element, allElements))
         {
-            var glassRect = ToScreenRectFromGlass(editor, glass, 0);
-            if (glassRect.Width > 1 && glassRect.Height > 1)
+            var insetMm = NurSapat.Cad.Core.GlazingBead.GlazingBeadSettings.DefaultBeadWidthMm
+                + NurSapat.Cad.Core.GlazingBead.GlazingBeadSettings.TechnologyGapMm;
+            var glassRect = ToScreenRectFromGlass(editor, glass, insetMm);
+            if (glassRect.Width <= 1 || glassRect.Height <= 1)
             {
-                DrawGlazingReflections(context, glassRect);
+                return;
             }
 
+            context.FillRectangle(GlazingFill, glassRect);
+            GlassRenderer.DrawDiagonalReflections(context, glassRect);
             return;
         }
+
+        var outerLoop = glass.BuildOuterContourLoop();
+        FillGlazingContour(context, editor, outerLoop, GlazingFill, null);
 
         var beadInsetMm = SashGeometry.BeadProfileDrawThicknessMm;
         if (!glass.TryBuildInnerContourLoop(beadInsetMm, out var innerLoop))
@@ -2122,7 +2135,7 @@ public static class GeometryElementRenderer
         var innerRect = ToScreenRectFromGlass(editor, glass, beadInsetMm);
         if (innerRect.Width > 1 && innerRect.Height > 1)
         {
-            DrawGlazingReflections(context, innerRect);
+            GlassRenderer.DrawDiagonalReflections(context, innerRect);
         }
     }
 
@@ -2149,16 +2162,23 @@ public static class GeometryElementRenderer
         DrawingContext context,
         CadEditorViewModel editor,
         SashGeometry.GlassOpeningBounds glass,
-        GeometryElement? element = null)
+        GeometryElement? element = null,
+        IReadOnlyList<GeometryElement>? allElements = null)
     {
+        if (GlazingBeadDrawRules.HasBead(element, allElements))
+        {
+            var insetMm = NurSapat.Cad.Core.GlazingBead.GlazingBeadSettings.DefaultBeadWidthMm
+                + NurSapat.Cad.Core.GlazingBead.GlazingBeadSettings.TechnologyGapMm;
+            if (glass.TryBuildInnerContourLoop(insetMm, out var beadInnerLoop))
+            {
+                FillGlazingContour(context, editor, beadInnerLoop, GlazingFill, null);
+                DrawArchedGlazingReflections(context, editor, glass, insetMm);
+                return;
+            }
+        }
+
         var outerLoop = glass.BuildOuterContourLoop();
         FillGlazingContour(context, editor, outerLoop, GlazingFill, null);
-
-        if (element?.ParentBeadId is not null)
-        {
-            DrawArchedGlazingReflections(context, editor, glass, 0);
-            return;
-        }
 
         var beadInsetMm = SashGeometry.BeadProfileDrawThicknessMm;
         if (!glass.TryBuildInnerContourLoop(beadInsetMm, out var innerLoop))
@@ -2336,7 +2356,7 @@ public static class GeometryElementRenderer
         var maxX = Math.Max(Math.Max(topLeft.X, topRight.X), Math.Max(bottomLeft.X, bottomRight.X));
         var minY = Math.Min(Math.Min(topLeft.Y, topRight.Y), Math.Min(bottomLeft.Y, bottomRight.Y));
         var maxY = Math.Max(Math.Max(topLeft.Y, topRight.Y), Math.Max(bottomLeft.Y, bottomRight.Y));
-        DrawGlazingReflections(context, new Rect(minX, minY, maxX - minX, maxY - minY));
+        GlassRenderer.DrawDiagonalReflections(context, new Rect(minX, minY, maxX - minX, maxY - minY));
     }
 
     /// <summary>Диагональные стыки штапика 45° от угла светового проёма к углу внутреннего контура.</summary>
@@ -2346,46 +2366,6 @@ public static class GeometryElementRenderer
         context.DrawLine(GlazingBeadPen, new Point(outer.Right, outer.Top), new Point(inner.Right, inner.Top));
         context.DrawLine(GlazingBeadPen, new Point(outer.Left, outer.Bottom), new Point(inner.Left, inner.Bottom));
         context.DrawLine(GlazingBeadPen, new Point(outer.Right, outer.Bottom), new Point(inner.Right, inner.Bottom));
-    }
-
-    private static void DrawGlazingReflections(DrawingContext context, Rect inner)
-    {
-        var centerX = inner.X + inner.Width / 2;
-        var centerY = inner.Y + inner.Height / 2;
-        var span = Math.Min(inner.Width, inner.Height);
-        var centerLength = Math.Clamp(span * 0.55, 28, 84);
-        var sideLength = Math.Clamp(span * 0.40, 20, 56);
-        var spacing = Math.Clamp(span * 0.12, 8, 14);
-
-        const double angle = Math.PI / 4;
-        var dirX = Math.Cos(angle);
-        var dirY = -Math.Sin(angle);
-        var perpX = -dirY;
-        var perpY = dirX;
-
-        DrawGlazingReflectionLine(context, centerX, centerY, perpX, perpY, -spacing, sideLength, dirX, dirY);
-        DrawGlazingReflectionLine(context, centerX, centerY, perpX, perpY, 0, centerLength, dirX, dirY);
-        DrawGlazingReflectionLine(context, centerX, centerY, perpX, perpY, spacing, sideLength, dirX, dirY);
-    }
-
-    private static void DrawGlazingReflectionLine(
-        DrawingContext context,
-        double centerX,
-        double centerY,
-        double perpX,
-        double perpY,
-        double perpOffset,
-        double length,
-        double dirX,
-        double dirY)
-    {
-        var originX = centerX + perpX * perpOffset;
-        var originY = centerY + perpY * perpOffset;
-        var half = length / 2;
-        context.DrawLine(
-            GlazingReflectionPen,
-            new Point(originX - dirX * half, originY - dirY * half),
-            new Point(originX + dirX * half, originY + dirY * half));
     }
 
     private static void DrawCorrugation(DrawingContext context, CadEditorViewModel editor, GeometryElement element)

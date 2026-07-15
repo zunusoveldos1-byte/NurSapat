@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using CommunityToolkit.Mvvm.Input;
 using NurSapat.App.Models.Dictionaries;
 using NurSapat.App.Services.Dictionaries;
+using System.ComponentModel;
 
 namespace NurSapat.App.ViewModels.Dictionaries;
 
@@ -11,19 +12,38 @@ public sealed partial class CustomersDictionaryViewModel : BaseDictionaryViewMod
     private readonly ICustomerEditorService _editorService;
     private string _typeFilter = "Все";
     private string _blockedFilter = "Все";
+    private bool _isRefreshingFromStore;
 
     public CustomersDictionaryViewModel(ICustomersStore store, ICustomerEditorService editorService)
     {
         _store = store;
         _editorService = editorService;
         _store.Changed += (_, _) => _ = RefreshFromStoreAsync();
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SelectedItem))
+            {
+                SelectForOrderCommand.NotifyCanExecuteChanged();
+                OnPropertyChanged(nameof(SelectionWarning));
+            }
+        };
     }
 
-    public override string Title => "Справочник заказчиков";
+    public override string Title => IsSelectionMode ? "Выбор заказчика" : "Справочник заказчиков";
 
     public Window? OwnerWindow { get; set; }
 
     public event Action? RequestClose;
+
+    public bool IsSelectionMode { get; private set; }
+
+    public bool ShowSelectButton => IsSelectionMode;
+
+    public CustomerItem? SelectedCustomerResult { get; private set; }
+
+    public string? SelectionWarning => SelectedItem?.IsBlocked == true
+        ? "Заблокированного заказчика нельзя выбрать для заказа."
+        : null;
 
     public IReadOnlyList<string> TypeFilters { get; } = ["Все", "Физ. лицо", "Юр. лицо", "Дилер"];
 
@@ -105,7 +125,22 @@ public sealed partial class CustomersDictionaryViewModel : BaseDictionaryViewMod
 
         EditCommand.NotifyCanExecuteChanged();
         DeleteCommand.NotifyCanExecuteChanged();
+        SelectForOrderCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(SelectionWarning));
     }
+
+    public void ConfigureForOrderSelection()
+    {
+        IsSelectionMode = true;
+        BlockedFilter = "Активные";
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(IsSelectionMode));
+        OnPropertyChanged(nameof(ShowSelectButton));
+        SelectForOrderCommand.NotifyCanExecuteChanged();
+    }
+
+    public bool CanSelectForOrder() =>
+        SelectedItem is not null && !SelectedItem.IsBlocked;
 
     protected override Task LoadItemsAsync()
     {
@@ -121,8 +156,27 @@ public sealed partial class CustomersDictionaryViewModel : BaseDictionaryViewMod
 
     private async Task RefreshFromStoreAsync()
     {
-        await LoadItemsAsync();
-        ApplyFilter();
+        if (_isRefreshingFromStore)
+        {
+            return;
+        }
+
+        _isRefreshingFromStore = true;
+        try
+        {
+            var selectedId = SelectedItem?.Id;
+            await LoadItemsAsync();
+            ApplyFilter();
+
+            if (selectedId is not null)
+            {
+                SelectedItem = AllItems.FirstOrDefault(x => x.Id == selectedId);
+            }
+        }
+        finally
+        {
+            _isRefreshingFromStore = false;
+        }
     }
 
     protected override async Task AddItemAsync()
@@ -134,9 +188,8 @@ public sealed partial class CustomersDictionaryViewModel : BaseDictionaryViewMod
         }
 
         _store.Add(saved);
-        var item = CustomerDictionaryItemViewModel.FromModel(saved, AllItems.Count + 1);
-        AllItems.Add(item);
-        SelectedItem = item;
+        await RefreshFromStoreAsync();
+        SelectedItem = AllItems.FirstOrDefault(x => x.Id == saved.Id);
     }
 
     protected override async Task EditItemAsync(CustomerDictionaryItemViewModel item)
@@ -149,7 +202,8 @@ public sealed partial class CustomersDictionaryViewModel : BaseDictionaryViewMod
         }
 
         _store.Update(saved);
-        item.RefreshFrom(saved);
+        await RefreshFromStoreAsync();
+        SelectedItem = AllItems.FirstOrDefault(x => x.Id == saved.Id);
     }
 
     protected override Task DeleteItemAsync(CustomerDictionaryItemViewModel item)
@@ -159,7 +213,23 @@ public sealed partial class CustomersDictionaryViewModel : BaseDictionaryViewMod
     }
 
     [RelayCommand]
-    private void CloseWindow() => RequestClose?.Invoke();
+    private void CloseWindow()
+    {
+        SelectedCustomerResult = null;
+        RequestClose?.Invoke();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSelectForOrder))]
+    private void SelectForOrder()
+    {
+        if (SelectedItem is null || SelectedItem.IsBlocked)
+        {
+            return;
+        }
+
+        SelectedCustomerResult = _store.GetById(SelectedItem.Id)?.Clone();
+        RequestClose?.Invoke();
+    }
 
     [RelayCommand(CanExecute = nameof(CanViewSelected))]
     private async Task ViewSelected()

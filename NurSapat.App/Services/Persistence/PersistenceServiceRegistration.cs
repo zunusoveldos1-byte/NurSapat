@@ -1,9 +1,12 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using NurSapat.App.Services.Config;
 using NurSapat.App.Services.Currency;
 using NurSapat.App.Services.Dictionaries;
 using NurSapat.App.Services.Materials;
+using NurSapat.App.Services.Orders;
 using NurSapat.App.Services.Stock;
+using NurSapat.App.Services.Users;
 using NurSapat.Core.Interfaces.Persistence;
 using NurSapat.Infrastructure.Persistence.DependencyInjection;
 
@@ -28,6 +31,11 @@ public static class PersistenceServiceRegistration
         services.AddSingleton<IMaterialsDetailStore, PostgreSqlMaterialsDetailStore>();
         services.AddSingleton<IStockMaterialsStore, PostgreSqlStockMaterialsStore>();
         services.AddSingleton<IStockFinishedGoodsStore, PostgreSqlStockFinishedGoodsStore>();
+        services.AddSingleton<IOrdersStore, PostgreSqlOrdersStore>();
+        services.AddSingleton<IUsersStore, PostgreSqlUsersStore>();
+        services.AddSingleton<IOrderTemplatesStore, PostgreSqlOrderTemplatesStore>();
+        services.AddSingleton<IConstructionElementsStore, PostgreSqlConstructionElementsStore>();
+        services.AddSingleton<IExchangeRatesStore, PostgreSqlExchangeRatesStore>();
 
         return services;
     }

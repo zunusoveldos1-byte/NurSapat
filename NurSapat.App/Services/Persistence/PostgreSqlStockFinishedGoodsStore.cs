@@ -14,22 +14,22 @@ public sealed class PostgreSqlStockFinishedGoodsStore : IStockFinishedGoodsStore
     }
 
     public IReadOnlyList<FinishedGoodItem> GetAll() =>
-        _repository.GetAllFinishedGoodsAsync().GetAwaiter().GetResult()
+        PersistenceSync.Run(() => _repository.GetAllFinishedGoodsAsync())
             .Select(AppPersistenceMappers.FromPersistence)
             .ToList();
 
     public FinishedGoodItem? GetById(Guid id)
     {
-        var item = _repository.GetFinishedGoodByIdAsync(id).GetAwaiter().GetResult();
+        var item = PersistenceSync.Run(() => _repository.GetFinishedGoodByIdAsync(id));
         return item is null ? null : AppPersistenceMappers.FromPersistence(item);
     }
 
     public void Add(FinishedGoodItem item) =>
-        _repository.SaveFinishedGoodAsync(AppPersistenceMappers.ToPersistence(item)).GetAwaiter().GetResult();
+        PersistenceSync.Run(() => _repository.SaveFinishedGoodAsync(AppPersistenceMappers.ToPersistence(item)));
 
     public void Update(FinishedGoodItem item) =>
-        _repository.UpdateFinishedGoodAsync(AppPersistenceMappers.ToPersistence(item)).GetAwaiter().GetResult();
+        PersistenceSync.Run(() => _repository.UpdateFinishedGoodAsync(AppPersistenceMappers.ToPersistence(item)));
 
     public void Delete(Guid id) =>
-        _repository.DeleteFinishedGoodAsync(id).GetAwaiter().GetResult();
+        PersistenceSync.Run(() => _repository.DeleteFinishedGoodAsync(id));
 }

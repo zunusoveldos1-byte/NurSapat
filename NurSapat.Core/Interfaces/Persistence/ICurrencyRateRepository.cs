@@ -14,4 +14,8 @@ public interface ICurrencyRateRepository
         CancellationToken cancellationToken = default);
 
     Task<DateTime?> GetLatestRateDateAsync(CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<CurrencyRate>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    Task DeleteRatesForDateAsync(DateTime rateDate, CancellationToken cancellationToken = default);
 }

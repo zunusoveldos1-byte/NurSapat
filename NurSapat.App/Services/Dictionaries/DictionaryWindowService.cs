@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Microsoft.Extensions.DependencyInjection;
+using NurSapat.App.Models.Dictionaries;
 using NurSapat.App.ViewModels;
 using NurSapat.App.ViewModels.Config;
 using NurSapat.App.ViewModels.Settings;
@@ -33,6 +34,8 @@ public interface IDictionaryWindowService
     Task ShowProfileSeriesAsync(Window? owner);
 
     Task ShowCustomersAsync(Window? owner);
+
+    Task<CustomerItem?> ShowCustomersForSelectionAsync(Window? owner);
 
     Task ShowManagersAsync(Window? owner);
 
@@ -119,6 +122,18 @@ public sealed class DictionaryWindowService(IServiceProvider serviceProvider) : 
         var viewModel = serviceProvider.GetRequiredService<CustomersDictionaryViewModel>();
         await viewModel.InitializeAsync();
         await ShowDialogSafeAsync(new CustomersDictionaryWindow(viewModel), owner);
+    }
+
+    public async Task<CustomerItem?> ShowCustomersForSelectionAsync(Window? owner)
+    {
+        var viewModel = serviceProvider.GetRequiredService<CustomersDictionaryViewModel>();
+        viewModel.ConfigureForOrderSelection();
+        await viewModel.InitializeAsync();
+
+        var window = new CustomersDictionaryWindow(viewModel);
+        viewModel.OwnerWindow = window;
+        await ShowDialogSafeAsync(window, owner);
+        return viewModel.SelectedCustomerResult;
     }
 
     public async Task ShowManagersAsync(Window? owner)

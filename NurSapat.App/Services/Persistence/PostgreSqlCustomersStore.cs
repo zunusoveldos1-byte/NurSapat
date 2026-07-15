@@ -17,7 +17,7 @@ public sealed class PostgreSqlCustomersStore : ICustomersStore
     public event EventHandler? Changed;
 
     public IReadOnlyList<CustomerItem> GetAll() =>
-        _repository.GetAllAsync().GetAwaiter().GetResult()
+        PersistenceSync.Run(() => _repository.GetAllAsync())
             .Where(customer => !customer.IsDeleted)
             .Select(ToItem)
             .OrderBy(item => item.FullName)
@@ -28,7 +28,7 @@ public sealed class PostgreSqlCustomersStore : ICustomersStore
 
     public CustomerItem? GetById(Guid id)
     {
-        var customer = _repository.GetByIdAsync(id).GetAwaiter().GetResult();
+        var customer = PersistenceSync.Run(() => _repository.GetByIdAsync(id));
         return customer is null ? null : ToItem(customer);
     }
 
@@ -40,14 +40,14 @@ public sealed class PostgreSqlCustomersStore : ICustomersStore
             item.CreatedAt = DateTime.Now;
         }
 
-        _repository.SaveAsync(item).GetAwaiter().GetResult();
+        PersistenceSync.Run(() => _repository.SaveAsync(item));
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
     public void Update(CustomerItem item)
     {
         item.ModifiedAt = DateTime.Now;
-        _repository.UpdateAsync(item).GetAwaiter().GetResult();
+        PersistenceSync.Run(() => _repository.UpdateAsync(item));
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -61,7 +61,7 @@ public sealed class PostgreSqlCustomersStore : ICustomersStore
 
         existing.IsDeleted = true;
         existing.ModifiedAt = DateTime.Now;
-        _repository.UpdateAsync(existing).GetAwaiter().GetResult();
+        PersistenceSync.Run(() => _repository.UpdateAsync(existing));
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -88,7 +88,7 @@ public sealed class PostgreSqlCustomersStore : ICustomersStore
                 item.Turnover = values.Turnover;
                 item.Debt = values.Debt;
                 item.ModifiedAt = DateTime.Now;
-                _repository.UpdateAsync(item).GetAwaiter().GetResult();
+                PersistenceSync.Run(() => _repository.UpdateAsync(item));
                 changed = true;
             }
             else if (item.Turnover != 0 || item.Debt != 0)
@@ -96,7 +96,7 @@ public sealed class PostgreSqlCustomersStore : ICustomersStore
                 item.Turnover = 0;
                 item.Debt = 0;
                 item.ModifiedAt = DateTime.Now;
-                _repository.UpdateAsync(item).GetAwaiter().GetResult();
+                PersistenceSync.Run(() => _repository.UpdateAsync(item));
                 changed = true;
             }
         }

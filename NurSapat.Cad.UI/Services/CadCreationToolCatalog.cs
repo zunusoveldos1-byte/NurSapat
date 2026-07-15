@@ -19,6 +19,7 @@ public static class CadCreationToolCatalog
     public const string DoorCloser = "door-closer";
     public const string Espagnolette = "espagnolette";
     public const string Bead = "bead";
+    public const string GlazingWithBead = "glazing-with-bead";
     public const string AdditionalElements = "additional-elements";
     public const string Cornice = "cornice";
     public const string BlindVertical = "blind-v";
@@ -40,16 +41,55 @@ public static class CadCreationToolCatalog
         return toolKey switch
         {
             SashFixed => SashOpeningType.Fixed,
-            SashTurn => SashOpeningType.Turn,
+            // Жест мыши задаёт сторону петель → чистое поворотное левое/правое (как в ghost-превью).
+            SashTurn => ResolveSideTurnOpening(hingeSide),
             SashTilt => SashOpeningType.Tilt,
             SashSuspended => SashOpeningType.Suspended,
-            SashTurnVertical => SashOpeningType.Turn,
+            SashTurnVertical => ResolveSideTurnOpening(hingeSide),
             SashTurnHorizontal => SashOpeningType.Turn,
             SashFolding => SashOpeningType.Folding,
             SashSliding => dragDeltaX < 0 ? SashOpeningType.SlideLeft : SashOpeningType.SlideRight,
-            _ => SashOpeningType.TiltTurn
+            // Универсальный инструмент «Створка»: по умолчанию простое поворотное, не поворотно-откидное.
+            "sash" or null => ResolveSideTurnOpening(hingeSide),
+            _ => ResolveSideTurnOpening(hingeSide)
         };
     }
+
+    /// <summary>
+    /// Сторона петель по жесту: левое открывание → петли слева, правое → справа.
+    /// </summary>
+    public static SashOpeningType ResolveSideTurnOpening(SashHingeSide hingeSide) =>
+        hingeSide switch
+        {
+            SashHingeSide.Left => SashOpeningType.LeftTurn,
+            SashHingeSide.Right => SashOpeningType.RightTurn,
+            _ => SashOpeningType.Turn
+        };
+
+    /// <summary>
+    /// Сторона петель строго по типу открывания.
+    /// LeftTurn → слева (основание треугольника слева); RightTurn → справа.
+    /// Делегирует в <see cref="SashOpeningState"/> — единый источник истины.
+    /// </summary>
+    public static SashHingeSide ResolveHingeSideForOpening(SashOpeningType openingType, SashHingeSide fallback) =>
+        SashOpeningState.ResolveHingeMountSide(openingType, fallback);
+
+    /// <summary>
+    /// Единый расчёт стороны петель для модели, призрака и отрисовки.
+    /// </summary>
+    public static SashHingeSide ResolveHingeMountSideForOpening(
+        SashOpeningType openingType,
+        SashHingeSide storedHingeSide) =>
+        SashOpeningState.ResolveHingeMountSide(openingType, storedHingeSide);
+
+    /// <summary>
+    /// Атомарно выставляет OpeningType и согласованный HingeSide на створке.
+    /// </summary>
+    public static SashOpeningVisualState SyncSashOpeningAndHinge(
+        GeometryElement sash,
+        SashOpeningType openingType,
+        SashHingeSide? preferredHinge = null) =>
+        SashOpeningState.ApplyOpeningTypeChange(sash, openingType, preferredHinge);
 
     public static SashHingeSide NormalizeHingeForTool(string? toolKey, SashHingeSide fromDrag)
     {
@@ -73,6 +113,12 @@ public static class CadCreationToolCatalog
     public static bool ShouldEnableHardware(string? toolKey, SashOpeningType openingType) =>
         openingType is not SashOpeningType.Fixed
         && openingType is not (SashOpeningType.SlideLeft or SashOpeningType.SlideRight);
+
+    /// <summary>Ручка ставится только инструментом «Ручка», не вместе с петлями.</summary>
+    public static bool ShouldCreateHandle(SashOpeningType openingType) => false;
+
+    public static bool IsPureSideTurn(SashOpeningType openingType) =>
+        openingType is SashOpeningType.Turn or SashOpeningType.LeftTurn or SashOpeningType.RightTurn;
 
     public static string ResolveSashLabel(string? toolKey) => toolKey switch
     {
@@ -125,6 +171,7 @@ public static class CadCreationToolCatalog
 
     public static bool IsClickPlacementMode(WindowToolMode mode) =>
         mode is WindowToolMode.BeadSystem
+            or WindowToolMode.GlassWithBead
             or WindowToolMode.AdditionalElement
             or WindowToolMode.Cornice
             or WindowToolMode.BlindVertical

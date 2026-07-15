@@ -45,6 +45,7 @@ public static class CadToolbarLayout
         Tool("corrugation-h", "Гофра горизонтальная", WindowToolMode.CorrugationHorizontal, "CadIcon.CorrugationHorizontal"),
         Tool("corrugation-slanted", "Гофра наклонная", WindowToolMode.CorrugationSlanted, "CadIcon.CorrugationSlanted"),
         Tool("glazing", "Остекление", WindowToolMode.Glassing, "CadIcon.Glassing"),
+        Tool("glazing-with-bead", "Остекление + штапик", WindowToolMode.GlassWithBead, "CadIcon.GlassWithBead"),
         Tool("sill", "Подоконник", WindowToolMode.Sill, "CadIcon.Sill"),
         Tool("bead", "Штапик", WindowToolMode.BeadSystem, "CadIcon.Bead"),
         Tool("lock", "Замок", WindowToolMode.Lock, "CadIcon.Lock"),

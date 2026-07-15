@@ -7,6 +7,10 @@ using CoreEnvironmentSettings = NurSapat.Core.Settings.EnvironmentSettings;
 
 namespace NurSapat.App.Services.Settings;
 
+/// <summary>
+/// Machine-local environment profiles, paths, and utilities under AppData.
+/// These are not business working data — PostgreSQL does not own them.
+/// </summary>
 public interface IEnvironmentSettingsService
 {
     Models.Settings.EnvironmentSettings Current { get; }

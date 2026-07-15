@@ -34,6 +34,9 @@ public sealed class FrameNode
     public double Height { get; set; }
 
     public bool IsLeaf { get; private set; } = true;
+    public bool HasChildCells =>
+        IsUniformSplit && _uniformCells.Count > 0 || ChildA is not null || ChildB is not null;
+    public bool IsTerminalLeaf => IsLeaf && !HasChildCells;
     public bool IsUniformSplit { get; private set; }
     public SplitOrientation SplitOrientation { get; private set; } = SplitOrientation.None;
     public ImpostLineStyle LineStyle { get; private set; } = ImpostLineStyle.Dashed;
@@ -137,6 +140,45 @@ public sealed class FrameNode
     public bool Contains(double x, double y) =>
         x >= X && x <= X + Width && y >= Y && y <= Y + Height;
 
+    /// <summary>Находит узел по идентификатору в поддереве (включая корень).</summary>
+    public FrameNode? FindNodeById(Guid nodeId)
+    {
+        if (NodeId == nodeId)
+        {
+            return this;
+        }
+
+        if (IsUniformSplit)
+        {
+            foreach (var cell in _uniformCells)
+            {
+                var found = cell.FindNodeById(nodeId);
+                if (found is not null)
+                {
+                    return found;
+                }
+            }
+
+            return null;
+        }
+
+        if (ChildA is not null)
+        {
+            var found = ChildA.FindNodeById(nodeId);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        if (ChildB is not null)
+        {
+            return ChildB.FindNodeById(nodeId);
+        }
+
+        return null;
+    }
+
     private bool IsPointInsideTriangleTopology(double x, double y)
     {
         var root = GetRoot();
@@ -191,21 +233,19 @@ public sealed class FrameNode
             return bestCell?.FindLeafAt(x, y);
         }
 
-        if (IsLeaf)
-        {
-            if (!IsPointInsideTriangleTopology(x, y))
-            {
-                return null;
-            }
-
-            return this;
-        }
-
-        // Логика для бинарного сплита (ChildA / ChildB)
+        // Логика для бинарного сплита (ChildA / ChildB) — всегда раньше проверки IsLeaf,
+        // чтобы контейнер после импоста не считался конечной ячейкой.
         if (ChildA != null && ChildB != null)
         {
-            if (ChildA.Contains(x, y)) return ChildA.FindLeafAt(x, y);
-            if (ChildB.Contains(x, y)) return ChildB.FindLeafAt(x, y);
+            if (ChildA.Contains(x, y))
+            {
+                return ChildA.FindLeafAt(x, y);
+            }
+
+            if (ChildB.Contains(x, y))
+            {
+                return ChildB.FindLeafAt(x, y);
+            }
 
             // Если точка зависла ровно на импосте, определяем по полуплоскостям
             if (SplitOrientation == SplitOrientation.Vertical)
@@ -214,7 +254,8 @@ public sealed class FrameNode
                     ? ChildA.FindLeafAt(x, y)
                     : ChildB.FindLeafAt(x, y);
             }
-            else if (SplitOrientation == SplitOrientation.Horizontal)
+
+            if (SplitOrientation == SplitOrientation.Horizontal)
             {
                 return y <= (ChildA.Y + ChildA.Height + ChildB.Y) / 2.0
                     ? ChildA.FindLeafAt(x, y)
@@ -222,7 +263,17 @@ public sealed class FrameNode
             }
         }
 
-        return IsLeaf ? this : null;
+        if (!IsTerminalLeaf)
+        {
+            return null;
+        }
+
+        if (!IsPointInsideTriangleTopology(x, y))
+        {
+            return null;
+        }
+
+        return this;
     }
 
     public bool AddSplit(

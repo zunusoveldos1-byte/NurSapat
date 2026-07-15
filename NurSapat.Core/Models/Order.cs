@@ -5,7 +5,7 @@ namespace NurSapat.Core.Models;
 
 public sealed class Order
 {
-    public Guid Id { get; init; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.NewGuid();
 
     public OrderHeader Header { get; set; } = new();
 
@@ -16,6 +16,9 @@ public sealed class Order
     public OrderPayment Payment { get; } = new();
 
     public decimal ProfitabilityPercent { get; set; } = 30m;
+
+    /// <summary>Optional path to the last .nsp export/backup file (not the system of record).</summary>
+    public string? ExportFilePath { get; set; }
 
     public OrderConstruction? SelectedConstruction { get; set; }
 

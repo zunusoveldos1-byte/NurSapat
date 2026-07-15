@@ -14,24 +14,24 @@ public sealed class PostgreSqlStockMaterialsStore : IStockMaterialsStore
     }
 
     public IReadOnlyList<StockDocumentHeader> GetAll() =>
-        _repository.GetAllDocumentsAsync().GetAwaiter().GetResult()
+        PersistenceSync.Run(() => _repository.GetAllDocumentsAsync())
             .Select(AppPersistenceMappers.FromPersistence)
             .ToList();
 
     public StockDocumentHeader? GetById(Guid id)
     {
-        var document = _repository.GetDocumentByIdAsync(id).GetAwaiter().GetResult();
+        var document = PersistenceSync.Run(() => _repository.GetDocumentByIdAsync(id));
         return document is null ? null : AppPersistenceMappers.FromPersistence(document);
     }
 
     public void Add(StockDocumentHeader document) =>
-        _repository.SaveDocumentAsync(AppPersistenceMappers.ToPersistence(document)).GetAwaiter().GetResult();
+        PersistenceSync.Run(() => _repository.SaveDocumentAsync(AppPersistenceMappers.ToPersistence(document)));
 
     public void Update(StockDocumentHeader document) =>
-        _repository.UpdateDocumentAsync(AppPersistenceMappers.ToPersistence(document)).GetAwaiter().GetResult();
+        PersistenceSync.Run(() => _repository.UpdateDocumentAsync(AppPersistenceMappers.ToPersistence(document)));
 
     public void Delete(Guid id) =>
-        _repository.DeleteDocumentAsync(id).GetAwaiter().GetResult();
+        PersistenceSync.Run(() => _repository.DeleteDocumentAsync(id));
 
     public StockDocumentHeader? GetMinStockLimitDocument() =>
         GetAll().FirstOrDefault(document => document.Type == StockDocumentType.MinStockLimit);

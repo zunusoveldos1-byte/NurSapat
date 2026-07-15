@@ -9,11 +9,19 @@ using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.Cad.UI.Rendering;
 
-/// <summary>Отрисовка стеклопакетов, связанных со штапиком (ParentBeadId).</summary>
+/// <summary>
+/// Единый визуальный стиль стеклопакета для всех инструментов
+/// (одиночное остекление и «Остекление + штапик»).
+/// Прозрачная голубая заливка + тонкие диагональные линии блика по центру.
+/// </summary>
 public static class GlassRenderer
 {
-    private static readonly IBrush GlassFill = new SolidColorBrush(Color.FromArgb(180, 0xB8, 0xD4, 0xE8));
-    private static readonly IPen GlassOutlinePen = new Pen(new SolidColorBrush(Color.Parse("#7EB3D4")), 0.5);
+    /// <summary>Лёгкая прозрачная заливка стекла — общий стандарт для всех инструментов.</summary>
+    public static readonly IBrush GlassFill = new SolidColorBrush(Color.FromArgb(24, 0xBF, 0xDB, 0xFE));
+
+    private static readonly IPen ReflectionPen = new Pen(
+        new SolidColorBrush(Color.Parse("#4169E1")) { Opacity = 0.9 },
+        1);
 
     public static void DrawBeadLinkedLayer(
         DrawingContext context,
@@ -55,6 +63,18 @@ public static class GlassRenderer
             return;
         }
 
+        DrawGlassPane(context, editor, glass);
+    }
+
+    /// <summary>
+    /// Общая отрисовка стеклопакета: лёгкая заливка + центральные диагональные блики.
+    /// Используется и одиночным остеклением, и комбинированным «Остекление + штапик».
+    /// </summary>
+    internal static void DrawGlassPane(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        SashGeometry.GlassOpeningBounds glass)
+    {
         if (glass.Width <= 2 || glass.Height <= 2)
         {
             return;
@@ -62,48 +82,76 @@ public static class GlassRenderer
 
         if (glass.IsArched)
         {
-            DrawArchedGlass(context, editor, glass);
+            var outerLoop = glass.BuildOuterContourLoop();
+            FillContourLoop(context, editor, outerLoop, GlassFill);
+            DrawDiagonalReflections(context, ToScreenRect(editor, glass));
             return;
         }
 
-        var outerLoop = glass.BuildOuterContourLoop();
-        FillContourLoop(context, editor, outerLoop, GlassFill, GlassOutlinePen);
-        DrawReflections(context, editor, glass);
-    }
-
-    private static void DrawArchedGlass(
-        DrawingContext context,
-        CadEditorViewModel editor,
-        SashGeometry.GlassOpeningBounds glass)
-    {
-        var outerLoop = glass.BuildOuterContourLoop();
-        FillContourLoop(context, editor, outerLoop, GlassFill, GlassOutlinePen);
-        DrawReflections(context, editor, glass);
-    }
-
-    private static void DrawReflections(
-        DrawingContext context,
-        CadEditorViewModel editor,
-        SashGeometry.GlassOpeningBounds glass)
-    {
         var rect = ToScreenRect(editor, glass);
         if (rect.Width <= 1 || rect.Height <= 1)
         {
             return;
         }
 
-        var highlight = new SolidColorBrush(Color.FromArgb(64, 255, 255, 255));
-        var stripeWidth = Math.Max(2, rect.Width * 0.04);
-        var stripe = new Rect(rect.X + rect.Width * 0.08, rect.Y + rect.Height * 0.1, stripeWidth, rect.Height * 0.55);
-        context.FillRectangle(highlight, stripe);
+        context.FillRectangle(GlassFill, rect);
+        DrawDiagonalReflections(context, rect);
+    }
+
+    /// <summary>
+    /// Три тонкие параллельные диагонали-блика по центру стеклопакета
+    /// (стандартный вид одиночного остекления).
+    /// </summary>
+    public static void DrawDiagonalReflections(DrawingContext context, Rect glassRect)
+    {
+        if (glassRect.Width <= 1 || glassRect.Height <= 1)
+        {
+            return;
+        }
+
+        var centerX = glassRect.X + glassRect.Width / 2;
+        var centerY = glassRect.Y + glassRect.Height / 2;
+        var span = Math.Min(glassRect.Width, glassRect.Height);
+        var centerLength = Math.Clamp(span * 0.55, 28, 84);
+        var sideLength = Math.Clamp(span * 0.40, 20, 56);
+        var spacing = Math.Clamp(span * 0.12, 8, 14);
+
+        const double angle = Math.PI / 4;
+        var dirX = Math.Cos(angle);
+        var dirY = -Math.Sin(angle);
+        var perpX = -dirY;
+        var perpY = dirX;
+
+        DrawReflectionLine(context, centerX, centerY, perpX, perpY, -spacing, sideLength, dirX, dirY);
+        DrawReflectionLine(context, centerX, centerY, perpX, perpY, 0, centerLength, dirX, dirY);
+        DrawReflectionLine(context, centerX, centerY, perpX, perpY, spacing, sideLength, dirX, dirY);
+    }
+
+    private static void DrawReflectionLine(
+        DrawingContext context,
+        double centerX,
+        double centerY,
+        double perpX,
+        double perpY,
+        double perpOffset,
+        double length,
+        double dirX,
+        double dirY)
+    {
+        var originX = centerX + perpX * perpOffset;
+        var originY = centerY + perpY * perpOffset;
+        var half = length / 2;
+        context.DrawLine(
+            ReflectionPen,
+            new Point(originX - dirX * half, originY - dirY * half),
+            new Point(originX + dirX * half, originY + dirY * half));
     }
 
     private static void FillContourLoop(
         DrawingContext context,
         CadEditorViewModel editor,
         ProfileContourLoop loop,
-        IBrush fill,
-        IPen? pen)
+        IBrush fill)
     {
         var points = loop.Tessellate();
         if (points.Count < 3)
@@ -123,7 +171,7 @@ public static class GlassRenderer
             ctx.EndFigure(true);
         }
 
-        context.DrawGeometry(fill, pen, geometry);
+        context.DrawGeometry(fill, null, geometry);
     }
 
     private static Rect ToScreenRect(CadEditorViewModel editor, SashGeometry.GlassOpeningBounds glass)

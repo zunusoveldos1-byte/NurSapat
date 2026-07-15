@@ -272,6 +272,26 @@
                         </Button>
                     </StackPanel>
 
+                    <StackPanel Grid.Row="0"
+                                Grid.Column="5"
+                                Orientation="Horizontal"
+                                Spacing="6"
+                                Margin="5"
+                                VerticalAlignment="Center">
+                        <TextBlock Classes="paramLabel" Text="Цвет контура"/>
+                        <ComboBox Width="110"
+                                  MinWidth="100"
+                                  ToolTip.Tip="Цвет контура рамы, импостов, створок и размерных линий"
+                                  ItemsSource="{Binding ContourColorOptions}"
+                                  SelectedItem="{Binding SelectedContourColorOption}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate DataType="models:ContourColorOption">
+                                    <TextBlock Text="{Binding Label}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
                     <StackPanel Grid.Row="1"
                                 Grid.Column="2"
                                 Orientation="Horizontal"

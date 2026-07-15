@@ -129,6 +129,16 @@ public static class CadHostedElementHelper
             return SashHingeSide.Right;
         }
 
+        if (openingType == SashOpeningType.LeftTurn)
+        {
+            return SashHingeSide.Right; // петли слева → ручка справа
+        }
+
+        if (openingType == SashOpeningType.RightTurn)
+        {
+            return SashHingeSide.Left; // петли справа → ручка слева
+        }
+
         return hingeSide is SashHingeSide.Left or SashHingeSide.Right
             ? ResolveOppositeSide(hingeSide)
             : hingeSide == SashHingeSide.Bottom

@@ -220,4 +220,32 @@ public static class AppPersistenceMappers
         }).ToList(),
         Notes = element.Notes
     };
+
+    public static ConstructionElement FromPersistence(ConstructionElementModel model) => new()
+    {
+        Id = model.Id,
+        MaterialId = model.MaterialId,
+        Name = model.Name,
+        ManufacturerId = model.ManufacturerId,
+        Section = (ConstructionSectionType)model.Section,
+        AssociatedSeriesIds = [.. model.AssociatedSeriesIds],
+        WidthMm = model.WidthMm,
+        HeightMm = model.HeightMm,
+        WallThicknessMm = model.WallThicknessMm,
+        Article = model.Article,
+        WeightKg = model.WeightKg,
+        GlassFormula = model.GlassFormula,
+        GlassThicknessMm = model.GlassThicknessMm,
+        GlassStructure = model.GlassStructure,
+        HardwareRules = model.HardwareRules.Select(rule => new HardwareAutoPickRule
+        {
+            MinWidthFalzMm = rule.MinWidthFalzMm,
+            MaxWidthFalzMm = rule.MaxWidthFalzMm,
+            MinHeightFalzMm = rule.MinHeightFalzMm,
+            MaxHeightFalzMm = rule.MaxHeightFalzMm,
+            ScissorsCount = rule.ScissorsCount,
+            MiddleLockCount = rule.MiddleLockCount
+        }).ToList(),
+        Notes = model.Notes
+    };
 }

@@ -14,24 +14,24 @@ public sealed class PostgreSqlSuppliersStore : ISuppliersStore
     }
 
     public IReadOnlyList<SupplierItem> GetAll() =>
-        _repository.GetAllAsync().GetAwaiter().GetResult()
+        PersistenceSync.Run(() => _repository.GetAllAsync())
             .Select(supplier => ToItem(supplier))
             .ToList();
 
     public SupplierItem? GetById(Guid id)
     {
-        var supplier = _repository.GetByIdAsync(id).GetAwaiter().GetResult();
+        var supplier = PersistenceSync.Run(() => _repository.GetByIdAsync(id));
         return supplier is null ? null : ToItem(supplier);
     }
 
     public void Add(SupplierItem item) =>
-        _repository.SaveAsync(item).GetAwaiter().GetResult();
+        PersistenceSync.Run(() => _repository.SaveAsync(item));
 
     public void Update(SupplierItem item) =>
-        _repository.UpdateAsync(item).GetAwaiter().GetResult();
+        PersistenceSync.Run(() => _repository.UpdateAsync(item));
 
     public void Delete(Guid id) =>
-        _repository.DeleteAsync(id).GetAwaiter().GetResult();
+        PersistenceSync.Run(() => _repository.DeleteAsync(id));
 
     private static SupplierItem ToItem(Core.Models.Orders.Supplier supplier) => new()
     {

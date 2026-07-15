@@ -255,24 +255,35 @@ public sealed partial class OrdersDictionaryViewModel : BaseDictionaryViewModel<
             _messageService.LogWarning("Выберите заказ в списке.");
             return;
         }
-        var model = _store.GetById(order.Id);
-        if (model?.FilePath is not { Length: > 0 } filePath || !File.Exists(filePath))
-        {
-            var picked = await _dialogService.ShowOpenFileDialogAsync();
-            if (string.IsNullOrWhiteSpace(picked))
-            {
-                _messageService.LogWarning("Файл заказа не выбран.");
-                return;
-            }
 
-            filePath = picked;
-            model ??= order.ToModel();
-            model.FilePath = filePath;
-            _store.Update(model);
-            order.RefreshFrom(model);
+        var model = _store.GetById(order.Id);
+        var opened = false;
+
+        if (model?.FilePath is { Length: > 0 } existingPath && File.Exists(existingPath))
+        {
+            opened = await _documentManager.OpenOrderAsync(existingPath);
+        }
+        else
+        {
+            opened = await _documentManager.OpenOrderFromDatabaseAsync(order.Id);
+            if (!opened)
+            {
+                var picked = await _dialogService.ShowOpenFileDialogAsync();
+                if (string.IsNullOrWhiteSpace(picked))
+                {
+                    _messageService.LogWarning("Файл заказа не выбран.");
+                    return;
+                }
+
+                model ??= order.ToModel();
+                model.FilePath = picked;
+                _store.Update(model);
+                order.RefreshFrom(model);
+                opened = await _documentManager.OpenOrderAsync(picked);
+            }
         }
 
-        if (!await _documentManager.OpenOrderAsync(filePath))
+        if (!opened)
         {
             return;
         }

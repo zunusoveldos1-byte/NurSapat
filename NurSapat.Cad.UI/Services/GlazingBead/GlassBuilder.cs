@@ -7,7 +7,7 @@ using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.Cad.UI.Services.GlazingBead;
 
-/// <summary>Строит стеклопакет внутри контура штапика.</summary>
+/// <summary>Строит стеклопакет строго внутри контура штапика.</summary>
 internal static class GlassBuilder
 {
     public static bool TryBuildFromBead(
@@ -28,6 +28,7 @@ internal static class GlassBuilder
             return false;
         }
 
+        // Стекло = внутренняя грань штапика минус технологический зазор.
         glassBounds = ShrinkBounds(beadInnerBounds, GlazingBeadSettings.TechnologyGapMm);
         if (glassBounds.Width < 20 || glassBounds.Height < 20)
         {
@@ -65,19 +66,58 @@ internal static class GlassBuilder
             return false;
         }
 
-        if (!GlazingBeadBuilder.TryRebuild(editor, beadElement, out var beadModel)
-            || beadModel?.InnerContour is null)
+        if (!GlazingBeadBuilder.TryRebuild(editor, beadElement, out var beadModel) || beadModel is null)
         {
             return false;
         }
 
-        if (!TryConvertInnerContourToGlassBounds(beadModel.InnerContour, out var beadInner))
+        // Тот же прямоугольник, что у GlazingBeadRenderer (внутренняя грань штапика).
+        if (TryResolveRectangularBeadInner(beadModel, out var beadInner))
+        {
+            bounds = ShrinkBounds(beadInner, GlazingBeadSettings.TechnologyGapMm);
+            return bounds.Width > 0 && bounds.Height > 0;
+        }
+
+        if (beadModel.InnerContour is null
+            || !TryConvertInnerContourToGlassBounds(beadModel.InnerContour, out var contourInner))
         {
             return false;
         }
 
-        bounds = ShrinkBounds(beadInner, GlazingBeadSettings.TechnologyGapMm);
+        bounds = ShrinkBounds(contourInner, GlazingBeadSettings.TechnologyGapMm);
         return bounds.Width > 0 && bounds.Height > 0;
+    }
+
+    /// <summary>Внутренний прямоугольник штапика — как в отрисовке с стыком 90°.</summary>
+    private static bool TryResolveRectangularBeadInner(
+        GlazingBeadModel model,
+        out SashGeometry.GlassOpeningBounds bounds)
+    {
+        bounds = default;
+        var beadW = model.Width;
+        if (beadW <= CadMath.Epsilon
+            || model.WidthMm <= beadW * 2 + CadMath.Epsilon
+            || model.HeightMm <= beadW * 2 + CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        if (model.OuterContour?.Edges.Any(e => e.Kind == ProfileEdgeKind.Arc) == true)
+        {
+            return false;
+        }
+
+        var left = model.CenterX - model.WidthMm / 2.0 + beadW;
+        var right = model.CenterX + model.WidthMm / 2.0 - beadW;
+        var bottom = model.CenterY - model.HeightMm / 2.0 + beadW;
+        var top = model.CenterY + model.HeightMm / 2.0 - beadW;
+        if (right <= left || top <= bottom)
+        {
+            return false;
+        }
+
+        bounds = SashGeometry.GlassOpeningBounds.FromRect(left, bottom, right, top);
+        return true;
     }
 
     private static SashGeometry.GlassOpeningBounds ShrinkBounds(

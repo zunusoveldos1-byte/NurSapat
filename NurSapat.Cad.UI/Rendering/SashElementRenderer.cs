@@ -11,16 +11,24 @@ namespace NurSapat.Cad.UI.Rendering;
 
 public static class SashElementRenderer
 {
-    private static readonly IBrush OpeningLineBrush = new SolidColorBrush(Color.Parse("#696969"));
+    /// <summary>Линии индикатора открывания створки — общая тема цвета контура.</summary>
+    private static readonly IBrush OpeningLineBrush = CadContourTheme.Brush;
     private static readonly IPen OpeningIndicatorPen = new Pen(
         OpeningLineBrush,
         1.0,
         new DashStyle(new double[] { 4, 4 }, 0));
+    /// <summary>Пунктир линии фурнитуры (откид вверх) — поверх линии створки, отдельный стиль.</summary>
+    private static readonly IPen HardwareOpeningPen = new Pen(
+        OpeningLineBrush,
+        1.0,
+        new DashStyle(new double[] { 6, 3 }, 0));
     private static readonly IPen PreviewPen = new Pen(new SolidColorBrush(Color.Parse("#0078D7")), 1, new DashStyle(new double[] { 4, 3 }, 0));
-    private static readonly IPen HingePen = new Pen(new SolidColorBrush(Color.Parse("#969696")), 2.0);
+    /// <summary>Контур петель — та же глобальная тема, что у рамы/створки.</summary>
+    private static readonly IPen HingePen = new Pen(CadContourTheme.Brush, 2.0);
     private static readonly IBrush HandleBackgroundBrush = Brushes.White;
     private static readonly IBrush HandlePreviewFillBrush = new SolidColorBrush(Color.FromArgb(48, 0, 120, 215));
-    private static readonly IPen HandleOutlinePen = new Pen(new SolidColorBrush(Color.Parse("#969696")), 1.8);
+    /// <summary>Контур ручки — та же глобальная тема, что у рамы/створки.</summary>
+    private static readonly IPen HandleOutlinePen = new Pen(CadContourTheme.Brush, 1.8);
 
     /// <summary>Ширина розетки вдоль профиля створки (мм).</summary>
     private const double HandleBaseWidthMm = 24.0;
@@ -177,6 +185,14 @@ public static class SashElementRenderer
             return;
         }
 
+        // Пока висит ghost следующего состояния — не рисуем старый треугольник створки:
+        // иначе в одном кадре «новый» синий треугольник и «старые» линии/петли.
+        if (editor.SashHardwarePreview is { WillClear: false } preview
+            && preview.SashId == element.Id)
+        {
+            return;
+        }
+
         var inner = SashGeometry.TryResolveInnerBounds(editor, element, out var liveInner)
             ? liveInner
             : SashGeometry.InnerOpeningBoundsFromElement(element);
@@ -185,19 +201,22 @@ public static class SashElementRenderer
             return;
         }
 
-        if (!element.HasHardware)
+        // Линия открывания створки (боковой треугольник) — из единого SashOpeningState.
+        if (element.OpeningType is not { } opening
+            || opening == SashOpeningType.Fixed
+            || !SashOpeningGeometry.ShouldDrawSash(opening))
         {
             return;
         }
 
-        var opening = element.OpeningType ?? SashOpeningType.TiltTurn;
-        if (!ShouldDrawOpeningDirectionLines(opening))
-        {
-            return;
-        }
-
-        var hinge = element.HingeSide ?? SashHingeSide.Left;
-        DrawOpeningDirectionLines(context, editor, inner, opening, hinge, OpeningIndicatorPen);
+        var visual = SashOpeningState.Resolve(element);
+        DrawSashOpeningDirectionLines(
+            context,
+            editor,
+            inner,
+            visual.OpeningType,
+            visual.TriangleSide,
+            OpeningIndicatorPen);
     }
 
     private static void DrawHardwareOverlay(
@@ -219,12 +238,38 @@ public static class SashElementRenderer
             return;
         }
 
-        var hinge = element.HingeSide ?? SashHingeSide.Left;
-        var opening = element.OpeningType ?? SashOpeningType.TiltTurn;
+        var visual = SashOpeningState.Resolve(element);
+        var opening = visual.OpeningType;
+        var hinge = visual.HingeMountSide;
+
+        // Ghost следующего OpeningType полностью заменяет committed-фурнитуру в кадре.
+        var ghostReplacesHardware = editor.SashHardwarePreview is { WillClear: false } preview
+            && preview.SashId == element.Id;
+
+        // Треугольник фурнитуры вверх — в том же кадре, что и петли (без отложенного шага).
+        if (!ghostReplacesHardware
+            && opening != SashOpeningType.Fixed
+            && ShouldDrawHardwareOpeningNow(opening, element.HasHardware))
+        {
+            DrawHardwareOpeningDirectionLines(
+                context,
+                editor,
+                inner,
+                opening,
+                HardwareOpeningPen);
+        }
+
         var outer = SashGeometry.ExpandInnerBoundsToOuter(inner, editor);
         if (outer.Width <= 0 || outer.Height <= 0)
         {
             return;
+        }
+
+        if (!ghostReplacesHardware
+            && element.HasHardware
+            && opening != SashOpeningType.Fixed)
+        {
+            DrawSashHinges(context, editor, inner, outer, hinge, opening, preview: false);
         }
 
         SashGeometry.TryResolveGlassOpeningBounds(
@@ -233,31 +278,27 @@ public static class SashElementRenderer
             outer,
             ResolveSashDrawProfileThickness(),
             out var glass);
-        if (glass.Width <= CadMath.Epsilon || glass.Height <= CadMath.Epsilon)
+        if (glass.Width > CadMath.Epsilon && glass.Height > CadMath.Epsilon)
         {
-            return;
-        }
+            var handleElement = allElements.FirstOrDefault(item =>
+                item.Kind == GeometryElementKind.Handle && item.HostSashId == element.Id);
+            var handleSide = handleElement?.HingeSide
+                ?? CadHostedElementHelper.ResolveDefaultHandleSide(hinge, opening);
 
-        var handleElement = allElements.FirstOrDefault(item =>
-            item.Kind == GeometryElementKind.Handle && item.HostSashId == element.Id);
-        var handleSide = handleElement?.HingeSide
-            ?? CadHostedElementHelper.ResolveDefaultHandleSide(hinge, opening);
-
-        if (element.HasHandle)
-        {
-            DrawHandleOnGlass(
-                context,
-                editor,
-                inner,
-                glass,
-                outer,
-                handleSide,
-                preview: false);
-        }
-
-        if (element.HasHardware)
-        {
-            DrawSashHinges(context, editor, inner, outer, hinge, opening, preview: false);
+            // Ручка не блокирует линии створки/фурнитуры — рисуется только при HasHandle.
+            if (element.HasHandle
+                && opening is not SashOpeningType.Tilt
+                && IsHandleSideDrawable(handleSide, opening))
+            {
+                DrawHandleOnGlass(
+                    context,
+                    editor,
+                    inner,
+                    glass,
+                    outer,
+                    handleSide,
+                    preview: false);
+            }
         }
 
         foreach (var accessory in allElements.Where(item =>
@@ -300,30 +341,116 @@ public static class SashElementRenderer
             Top = preview.OriginY + preview.Height
         };
 
+        var visual = SashOpeningState.Resolve(preview.OpeningType, preview.HingeSide);
+
         DrawSashBody(
             context,
             editor,
             inner,
-            preview.HingeSide,
-            SashOpeningType.TiltTurn,
+            visual.HingeSide,
+            visual.OpeningType,
             hasHardware: false,
             hasHandle: false,
             preview: true);
 
-        DrawOpeningDirectionLines(
+        DrawSashOpeningDirectionLines(
             context,
             editor,
             inner,
-            SashOpeningType.Turn,
-            preview.HingeSide,
+            visual.OpeningType,
+            visual.TriangleSide,
             PreviewPen);
+
+        // Откид вверх в ghost создания — только если инструмент/тип уже Tilt/TiltTurn/Suspended.
+        if (SashOpeningGeometry.ShouldDrawHardware(visual.OpeningType))
+        {
+            DrawHardwareOpeningDirectionLines(
+                context,
+                editor,
+                inner,
+                visual.OpeningType,
+                HardwareOpeningPen);
+        }
+    }
+
+    /// <summary>
+    /// Призрак фурнитуры: боковая линия створки + треугольник вверх + петли — в одном кадре.
+    /// Сторона всегда из <see cref="SashOpeningState.Resolve"/> (не из отдельного кэша).
+    /// </summary>
+    public static void DrawHardwarePreview(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        SashHardwareDragPreview preview)
+    {
+        if (editor?.Viewport == null || preview.Width <= 0 || preview.Height <= 0)
+        {
+            return;
+        }
+
+        var inner = new SashGeometry.InnerOpeningBounds
+        {
+            Left = preview.OriginX,
+            Bottom = preview.OriginY,
+            Right = preview.OriginX + preview.Width,
+            Top = preview.OriginY + preview.Height
+        };
+
+        var visual = SashOpeningState.Resolve(preview.OpeningType, preview.HingeSide);
+        var pen = preview.WillClear
+            ? new Pen(new SolidColorBrush(Color.FromArgb(120, 180, 60, 60)), 1.0, new DashStyle(new double[] { 3, 3 }, 0))
+            : PreviewPen;
+
+        if (!preview.WillClear)
+        {
+            // Боковой треугольник + верхний треугольник фурнитуры — в одном кадре призрака.
+            if (SashOpeningGeometry.ShouldDrawSash(visual.OpeningType))
+            {
+                DrawSashOpeningDirectionLines(
+                    context,
+                    editor,
+                    inner,
+                    visual.OpeningType,
+                    visual.TriangleSide,
+                    pen);
+            }
+
+            if (ShouldDrawHardwareOpeningNow(visual.OpeningType, hasHardware: true))
+            {
+                DrawHardwareOpeningDirectionLines(
+                    context,
+                    editor,
+                    inner,
+                    visual.OpeningType,
+                    pen);
+            }
+        }
+
+        if (preview.WillClear)
+        {
+            return;
+        }
+
+        var outer = SashGeometry.ExpandInnerBoundsToOuter(inner, editor);
+        if (outer.Width <= 0 || outer.Height <= 0)
+        {
+            return;
+        }
+
+        DrawSashHinges(
+            context,
+            editor,
+            inner,
+            outer,
+            visual.GhostHingeSide,
+            visual.OpeningType,
+            preview: true);
     }
 
     public static void DrawHandleMarker(
         DrawingContext context,
         CadEditorViewModel editor,
         GeometryElement sash,
-        SashHingeSide hingeSide,
+        SashHingeSide handleSide,
         bool preview)
     {
         if (editor?.Viewport == null)
@@ -357,7 +484,7 @@ public static class SashElementRenderer
             inner,
             glass,
             outer,
-            hingeSide,
+            handleSide,
             preview);
     }
 
@@ -404,13 +531,14 @@ public static class SashElementRenderer
 
         if (hasHandle)
         {
+            var handleSide = CadHostedElementHelper.ResolveDefaultHandleSide(hingeSide, openingType);
             DrawHandleOnGlass(
                 context,
                 editor,
                 inner,
                 glass,
                 outer,
-                hingeSide,
+                handleSide,
                 preview);
         }
 
@@ -433,11 +561,8 @@ public static class SashElementRenderer
         return (glass.Left, glass.Bottom, glass.Right, glass.Top, outer);
     }
 
-    /// <summary>
-    /// Пунктирные линии направления открывания по световому проёму створки.
-    /// Один треугольник на створку: поворотный или откидной — в зависимости от OpeningType и HingeSide.
-    /// </summary>
-    private static void DrawOpeningDirectionLines(
+    /// <summary>Боковой пунктирный треугольник створки.</summary>
+    private static void DrawSashOpeningDirectionLines(
         DrawingContext context,
         CadEditorViewModel editor,
         SashGeometry.InnerOpeningBounds inner,
@@ -445,100 +570,24 @@ public static class SashElementRenderer
         SashHingeSide hingeSide,
         IPen pen)
     {
-        switch (opening)
+        foreach (var segment in SashOpeningGeometry.BuildSashSegments(editor, inner, opening, hingeSide))
         {
-            case SashOpeningType.Turn:
-            case SashOpeningType.TiltTurn:
-            case SashOpeningType.Suspended:
-                if (IsSideHungHinge(hingeSide))
-                {
-                    DrawSideTurnOpeningLines(context, editor, pen, hingeSide, inner);
-                }
-                else
-                {
-                    DrawTiltOpeningLines(context, editor, pen, hingeSide, inner);
-                }
-
-                if (opening is SashOpeningType.TiltTurn or SashOpeningType.Suspended)
-                {
-                    DrawTiltOpeningLines(context, editor, pen, SashHingeSide.Bottom, inner);
-                }
-
-                break;
-            case SashOpeningType.Tilt:
-                DrawTiltOpeningLines(context, editor, pen, hingeSide, inner);
-                break;
-            case SashOpeningType.Folding:
-                DrawSideTurnOpeningLines(context, editor, pen, SashHingeSide.Left, inner);
-                DrawSideTurnOpeningLines(context, editor, pen, SashHingeSide.Right, inner);
-                break;
+            DrawOpeningLine(context, editor, pen, segment.From, segment.To);
         }
     }
 
-    private static bool ShouldDrawOpeningDirectionLines(SashOpeningType opening) =>
-        opening is SashOpeningType.Turn or SashOpeningType.TiltTurn or SashOpeningType.Tilt
-            or SashOpeningType.Suspended or SashOpeningType.Folding;
-
-    private static bool IsSideHungHinge(SashHingeSide hingeSide) =>
-        hingeSide is SashHingeSide.Left or SashHingeSide.Right;
-
-    /// <summary>Поворотное: линии от углов стороны петель к середине стороны ручки.</summary>
-    private static void DrawSideTurnOpeningLines(
+    /// <summary>Линия фурнитуры (откид строго вверх) — отдельная коллекция поверх створки.</summary>
+    private static void DrawHardwareOpeningDirectionLines(
         DrawingContext context,
         CadEditorViewModel editor,
-        IPen pen,
-        SashHingeSide hingeSide,
-        SashGeometry.InnerOpeningBounds inner)
+        SashGeometry.InnerOpeningBounds inner,
+        SashOpeningType opening,
+        IPen pen)
     {
-        var topLeft = SashGeometry.ResolveInnerCorner(editor, inner, inner.Left, inner.Top);
-        var bottomLeft = new CadPoint(inner.Left, inner.Bottom);
-        var topRight = SashGeometry.ResolveInnerCorner(editor, inner, inner.Right, inner.Top);
-        var bottomRight = new CadPoint(inner.Right, inner.Bottom);
-        var midLeft = new CadPoint(inner.Left, (inner.Bottom + inner.Top) / 2.0);
-        var midRight = new CadPoint(inner.Right, (inner.Bottom + inner.Top) / 2.0);
-
-        switch (hingeSide)
+        _ = opening;
+        foreach (var segment in SashOpeningGeometry.BuildUpwardHardwareSegments(editor, inner))
         {
-            case SashHingeSide.Left:
-                DrawOpeningLine(context, editor, pen, topLeft, midRight);
-                DrawOpeningLine(context, editor, pen, bottomLeft, midRight);
-                break;
-            case SashHingeSide.Right:
-                DrawOpeningLine(context, editor, pen, topRight, midLeft);
-                DrawOpeningLine(context, editor, pen, bottomRight, midLeft);
-                break;
-        }
-    }
-
-    /// <summary>Откидное / фрамужное: линии к нижней или верхней стороне (без бокового треугольника).</summary>
-    private static void DrawTiltOpeningLines(
-        DrawingContext context,
-        CadEditorViewModel editor,
-        IPen pen,
-        SashHingeSide hingeSide,
-        SashGeometry.InnerOpeningBounds inner)
-    {
-        var topLeft = SashGeometry.ResolveInnerCorner(editor, inner, inner.Left, inner.Top);
-        var bottomLeft = new CadPoint(inner.Left, inner.Bottom);
-        var topRight = SashGeometry.ResolveInnerCorner(editor, inner, inner.Right, inner.Top);
-        var bottomRight = new CadPoint(inner.Right, inner.Bottom);
-        var midTop = new CadPoint(
-            (inner.Left + inner.Right) / 2.0,
-            (SashGeometry.TryResolveInnerArcTopY(editor, inner, (inner.Left + inner.Right) / 2.0, out var arcMidTop)
-                ? arcMidTop
-                : inner.Top));
-        var midBottom = new CadPoint((inner.Left + inner.Right) / 2.0, inner.Bottom);
-
-        switch (hingeSide)
-        {
-            case SashHingeSide.Bottom:
-                DrawOpeningLine(context, editor, pen, topLeft, midBottom);
-                DrawOpeningLine(context, editor, pen, topRight, midBottom);
-                break;
-            case SashHingeSide.Top:
-                DrawOpeningLine(context, editor, pen, bottomLeft, midTop);
-                DrawOpeningLine(context, editor, pen, bottomRight, midTop);
-                break;
+            DrawOpeningLine(context, editor, pen, segment.From, segment.To);
         }
     }
 
@@ -560,7 +609,8 @@ public static class SashElementRenderer
         bool preview)
     {
         var pen = preview ? PreviewPen : HingePen;
-        var effectiveSide = ResolveHingeMountSide(hingeSide, openingType);
+        // Никогда не доверяем «сырой» стороне: всегда OpeningType → mount side.
+        var effectiveSide = SashOpeningState.ResolveHingeMountSide(openingType, hingeSide);
 
         switch (effectiveSide)
         {
@@ -578,9 +628,12 @@ public static class SashElementRenderer
     }
 
     /// <summary>
-    /// Петли на стороне HingeSide (противоположной ручке — куда сходятся линии открывания).
+    /// Верхний треугольник фурнитуры рисуется сразу с петлями:
+    /// при Tilt/TiltTurn/Suspended или при установленном hardware на поворотной створке.
     /// </summary>
-    private static SashHingeSide ResolveHingeMountSide(SashHingeSide hingeSide, SashOpeningType _) => hingeSide;
+    private static bool ShouldDrawHardwareOpeningNow(SashOpeningType opening, bool hasHardware) =>
+        SashOpeningGeometry.ShouldDrawHardware(opening)
+        || (hasHardware && CadCreationToolCatalog.IsPureSideTurn(opening));
 
     private static void DrawVerticalSashHinges(
         DrawingContext context,
@@ -716,13 +769,17 @@ public static class SashElementRenderer
         return new Rect(new Point(topLeft.X, topLeft.Y), new Point(bottomRight.X, bottomRight.Y));
     }
 
+    /// <summary>
+    /// Рисует ручку на указанной стороне створки (<paramref name="handleSide"/> — сторона ручки,
+    /// не сторона петель: Left → слева, Right → справа).
+    /// </summary>
     private static void DrawHandleOnGlass(
         DrawingContext context,
         CadEditorViewModel editor,
         SashGeometry.InnerOpeningBounds inner,
         SashGeometry.GlassOpeningBounds glass,
         SashGeometry.OuterBounds outer,
-        SashHingeSide hingeSide,
+        SashHingeSide handleSide,
         bool preview)
     {
         if (glass.Width <= CadMath.Epsilon || glass.Height <= CadMath.Epsilon)
@@ -733,21 +790,41 @@ public static class SashElementRenderer
         var fill = preview ? HandlePreviewFillBrush : HandleBackgroundBrush;
         var pen = preview ? PreviewPen : HandleOutlinePen;
 
-        switch (hingeSide)
+        switch (handleSide)
         {
-            case SashHingeSide.Right:
+            case SashHingeSide.Left:
                 DrawVerticalSashHandle(context, editor, inner, glass, outer, handleOnLeft: true, fill, pen);
                 break;
-            case SashHingeSide.Left:
+            case SashHingeSide.Right:
                 DrawVerticalSashHandle(context, editor, inner, glass, outer, handleOnLeft: false, fill, pen);
                 break;
             case SashHingeSide.Top:
-                DrawHorizontalSashHandle(context, editor, outer, glass, handleOnBottom: true, fill, pen);
-                break;
-            case SashHingeSide.Bottom:
                 DrawHorizontalSashHandle(context, editor, outer, glass, handleOnBottom: false, fill, pen);
                 break;
+            case SashHingeSide.Bottom:
+                DrawHorizontalSashHandle(context, editor, outer, glass, handleOnBottom: true, fill, pen);
+                break;
         }
+    }
+
+    /// <summary>
+    /// Для чистой фрамуги (Tilt) боковая ручка не нужна.
+    /// Для поворотно-откидного — боковая ручка напротив петель допустима.
+    /// </summary>
+    private static bool IsHandleSideDrawable(SashHingeSide handleSide, SashOpeningType? opening)
+    {
+        if (opening is SashOpeningType.Tilt)
+        {
+            return false;
+        }
+
+        if (opening is SashOpeningType.Suspended)
+        {
+            // Подвесное: ручка снизу (противоположно верхним петлям), не сбоку.
+            return handleSide is SashHingeSide.Bottom or SashHingeSide.Top;
+        }
+
+        return true;
     }
 
     private static void DrawVerticalSashHandle(

@@ -85,7 +85,8 @@ internal static class OrderMapper
         var order = new Order
         {
             Id = entity.Id,
-            ProfitabilityPercent = entity.ProfitabilityPercent
+            ProfitabilityPercent = entity.ProfitabilityPercent,
+            ExportFilePath = entity.ExportFilePath
         };
 
         order.Header.OrderNumber = entity.OrderNumber;
@@ -147,6 +148,7 @@ internal static class OrderMapper
         {
             Id = domain.Id,
             ProfitabilityPercent = domain.ProfitabilityPercent,
+            ExportFilePath = domain.ExportFilePath,
             OrderNumber = domain.Header.OrderNumber,
             OrderDate = domain.Header.OrderDate,
             Status = (int)domain.Header.Status,

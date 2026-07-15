@@ -15,7 +15,9 @@ public static class ExtremeImpostRenderer
     private static readonly IPen PreviewPen = new Pen(new SolidColorBrush(Color.FromArgb(200, 255, 4, 4)), 2);
 
     private static readonly IBrush ProfileFillBrush = Brushes.White;
-    private static readonly IPen ProfilePen = new Pen(Brushes.Black, FrameVolumeRenderer.ProfileStrokeThickness);
+
+    /// <summary>Контур крайнего импоста — та же общая тема цвета, что и у остального профиля.</summary>
+    private static readonly IPen ProfilePen = new Pen(CadContourTheme.Brush, FrameVolumeRenderer.ProfileStrokeThickness);
 
     public static void DrawHoverPreview(DrawingContext context, CadEditorViewModel editor, ExtremeImpostHoverPreview preview)
     {

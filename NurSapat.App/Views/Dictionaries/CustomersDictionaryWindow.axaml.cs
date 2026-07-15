@@ -39,6 +39,16 @@ public partial class CustomersDictionaryWindow : Window
 
     private async void OnGridDoubleTapped(object? sender, TappedEventArgs e)
     {
+        if (_viewModel.IsSelectionMode)
+        {
+            if (_viewModel.CanSelectForOrder())
+            {
+                _viewModel.SelectForOrderCommand.Execute(null);
+            }
+
+            return;
+        }
+
         if (_viewModel.SelectedItem is not null)
         {
             await _viewModel.OpenEditorForItemAsync(_viewModel.SelectedItem);

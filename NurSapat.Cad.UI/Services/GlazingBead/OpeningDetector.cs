@@ -19,7 +19,7 @@ internal static class OpeningDetector
 {
     public static IReadOnlyList<LightOpeningCandidate> FindFreeLightOpenings(CadEditorViewModel editor)
     {
-        if (editor.FrameRoot is null || !editor.HasRealFrameOnCanvas)
+        if (editor.FrameRoot is null || !ConstructionHostResolver.HasConstructionHostOnCanvas(editor))
         {
             return [];
         }
@@ -27,7 +27,7 @@ internal static class OpeningDetector
         var result = new List<LightOpeningCandidate>();
         foreach (var leaf in SashGeometry.EnumerateFrameLeaves(editor.FrameRoot))
         {
-            if (!leaf.IsLeaf || !IsBillableLeaf(editor, leaf))
+            if (!leaf.IsTerminalLeaf || !ConstructionHostResolver.CanHostOpeningFillings(editor, leaf))
             {
                 continue;
             }
@@ -64,7 +64,7 @@ internal static class OpeningDetector
         }
 
         var leaf = editor.FrameRoot.FindLeafAt(worldPoint.X, worldPoint.Y);
-        if (leaf is null || !leaf.IsLeaf || !IsBillableLeaf(editor, leaf))
+        if (leaf is null || !leaf.IsTerminalLeaf || !ConstructionHostResolver.CanHostOpeningFillings(editor, leaf))
         {
             return null;
         }
@@ -106,36 +106,7 @@ internal static class OpeningDetector
     }
 
     private static bool IsBillableLeaf(CadEditorViewModel editor, FrameNode leaf) =>
-        editor.FrameRoot?.IsFictitiousContainer != true
-        || FindFrameInLeaf(editor, leaf) is not null;
-
-    private static GeometryElement? FindFrameInLeaf(CadEditorViewModel editor, FrameNode leaf)
-    {
-        GeometryElement? best = null;
-        var bestArea = 0.0;
-
-        foreach (var element in editor.CanvasElements)
-        {
-            if (element.Kind is not (GeometryElementKind.Frame or GeometryElementKind.ArchFrame))
-            {
-                continue;
-            }
-
-            if (!leaf.Contains((double)element.X, (double)element.Y))
-            {
-                continue;
-            }
-
-            var area = (double)element.WidthMm * (double)element.HeightMm;
-            if (area > bestArea)
-            {
-                bestArea = area;
-                best = element;
-            }
-        }
-
-        return best;
-    }
+        ConstructionHostResolver.CanHostOpeningFillings(editor, leaf);
 
     private static bool HasCorrugation(CadEditorViewModel editor, FrameNode leaf) =>
         editor.CanvasElements.Any(e =>

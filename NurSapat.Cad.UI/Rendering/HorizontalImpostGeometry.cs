@@ -1,5 +1,7 @@
+using System.Linq;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
+using NurSapat.Cad.UI.Services;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Orders;
 
@@ -16,7 +18,15 @@ internal static class HorizontalImpostGeometry
             return (splitNode.X, splitNode.X + splitNode.Width);
         }
 
-        var inner = TransitionAdjacentFrameGeometry.ResolveImpostHostInnerOpeningBounds(
+        if (editor.FrameRoot.IsFictitiousContainer)
+        {
+            return ResolveFictitiousHorizontalImpostSpan(
+                editor,
+                splitNode,
+                SashGeometry.ResolveHorizontalImpostCenterY(splitNode));
+        }
+
+        var inner = TransitionAdjacentFrameGeometry.ResolveHostInnerOpeningBounds(
             editor,
             splitNode,
             editor.FrameRoot,
@@ -27,9 +37,177 @@ internal static class HorizontalImpostGeometry
             return (splitNode.X, splitNode.X + splitNode.Width);
         }
 
+        var left = Math.Clamp(inner.Left, splitNode.X, splitNode.X + splitNode.Width);
+        var right = Math.Clamp(inner.Right, splitNode.X, splitNode.X + splitNode.Width);
+        var axisY = SashGeometry.ResolveHorizontalImpostCenterY(splitNode);
+        TransitionAdjacentFrameGeometry.ClipHorizontalSpanAtTransitionShelves(
+            editor,
+            splitNode,
+            axisY,
+            ref left,
+            ref right);
+        TransitionAdjacentFrameGeometry.ClipHorizontalImpostSpanAtTransitionHosts(
+            editor,
+            splitNode,
+            axisY,
+            ref left,
+            ref right);
+        FrameNodeRenderer.PinHorizontalImpostRightToNestedFrameInnerShelf(
+            editor,
+            splitNode,
+            axisY,
+            ref right);
+        TransitionAdjacentFrameGeometry.PinHorizontalImpostRightToTransitionHostInnerShelf(
+            editor,
+            splitNode,
+            axisY,
+            ref right);
+
         return (
-            CadMath.RoundMm(Math.Clamp(inner.Left, splitNode.X, splitNode.X + splitNode.Width)),
-            CadMath.RoundMm(Math.Clamp(inner.Right, splitNode.X, splitNode.X + splitNode.Width)));
+            CadMath.RoundMm(left),
+            CadMath.RoundMm(right));
+    }
+
+    /// <summary>
+    /// Горизонтальный пролёт в фиктивном контейнере: по внутренним граням
+    /// светового проёма с T-стыком у переходного профиля / нащельника справа.
+    /// </summary>
+    private static (double Left, double Right) ResolveFictitiousHorizontalImpostSpan(
+        CadEditorViewModel editor,
+        FrameNode splitNode,
+        double impostAxisY)
+    {
+        // T-Joint справа: правая точка останавливается на внутренней полке рамы до черной линии стыка.
+        var boundsLeaf = SashGeometry.TryGetHorizontalImpostRowCell(splitNode, impostAxisY, out var rowCell)
+            ? rowCell
+            : splitNode;
+        var probeX = boundsLeaf.X + boundsLeaf.Width / 2.0;
+        var cellAxes = SashGeometry.ResolveLeafCellAxisBoundsAtPoint(
+            boundsLeaf,
+            editor.FrameRoot!,
+            editor.FrameThickness,
+            probeX,
+            impostAxisY);
+        var hostInner = TransitionAdjacentFrameGeometry.ResolveImpostHostInnerOpeningBounds(
+            editor,
+            boundsLeaf,
+            editor.FrameRoot!,
+            editor.FrameThickness,
+            impostAxisY);
+
+        var left = Math.Max(boundsLeaf.X, Math.Max(cellAxes.Left, hostInner.Left));
+        var right = Math.Min(boundsLeaf.X + boundsLeaf.Width, Math.Min(cellAxes.Right, hostInner.Right));
+        SashGeometry.ClipHorizontalImpostSpanAtVerticalAncestors(splitNode, ref left, ref right);
+
+        FrameNodeRenderer.ClipHorizontalImpostSpanAtNestedFrames(
+            editor,
+            splitNode,
+            impostAxisY,
+            ref left,
+            ref right);
+        TransitionAdjacentFrameGeometry.ClipHorizontalImpostSpanAtTransitionHosts(
+            editor,
+            splitNode,
+            impostAxisY,
+            ref left,
+            ref right);
+        TransitionAdjacentFrameGeometry.ClipHorizontalSpanAtTransitionShelves(
+            editor,
+            splitNode,
+            impostAxisY,
+            ref left,
+            ref right);
+        ClipHorizontalImpostSpanAtExtremeImposts(
+            editor,
+            splitNode,
+            impostAxisY,
+            ref left,
+            ref right);
+        FrameNodeRenderer.PinHorizontalImpostRightToNestedFrameInnerShelf(
+            editor,
+            splitNode,
+            impostAxisY,
+            ref right);
+        // Финальный snap к переходнику — строго после nested-frame, чтобы дотянуть торец до InnerLeftFace.
+        TransitionAdjacentFrameGeometry.PinHorizontalImpostRightToTransitionHostInnerShelf(
+            editor,
+            splitNode,
+            impostAxisY,
+            ref right);
+
+        return (
+            CadMath.RoundMm(left),
+            CadMath.RoundMm(Math.Max(left, right)));
+    }
+
+    /// <summary>
+    /// Подрезка ригеля по внутренним граням вертикального нащельника (крайних импостов).
+    /// </summary>
+    private static void ClipHorizontalImpostSpanAtExtremeImposts(
+        CadEditorViewModel editor,
+        FrameNode splitNode,
+        double impostAxisY,
+        ref double left,
+        ref double right)
+    {
+        if (editor.FrameRoot is null)
+        {
+            return;
+        }
+
+        var cellAxes = SashGeometry.ResolveLeafCellAxisBounds(
+            splitNode,
+            editor.FrameRoot,
+            editor.FrameThickness);
+
+        for (var node = splitNode; node is not null; node = node.Parent)
+        {
+            var nodeLeft = node.X;
+            var nodeRight = node.X + node.Width;
+
+            foreach (var slot in node.ExtremeImposts)
+            {
+                if (slot.Orientation != SplitOrientation.Vertical)
+                {
+                    continue;
+                }
+
+                ExtremeImpostGeometry.ResolveSpan(
+                    splitNode,
+                    editor.FrameRoot,
+                    editor.FrameThickness,
+                    cellAxes,
+                    slot.EdgeAlignment,
+                    slot.ThicknessMm,
+                    out var spanStart,
+                    out var spanEnd,
+                    slot);
+
+                if (impostAxisY < spanStart - CadMath.MmPrecision
+                    || impostAxisY > spanEnd + CadMath.MmPrecision)
+                {
+                    continue;
+                }
+
+                var junction = SashGeometry.ResolveExtremeImpostInnerFaceWorld(cellAxes, slot);
+
+                if (slot.EdgeAlignment == ImpostEdgeAlignment.Right
+                    && CadMath.NearlyEqual(splitNode.X + splitNode.Width, nodeRight))
+                {
+                    right = Math.Min(right, junction);
+                }
+                else if (slot.EdgeAlignment == ImpostEdgeAlignment.Left
+                         && CadMath.NearlyEqual(splitNode.X, nodeLeft))
+                {
+                    left = Math.Max(left, junction);
+                }
+            }
+        }
+
+        if (right < left)
+        {
+            right = left;
+        }
     }
 
     public static (double Left, double Right) ResolveSpanAtY(

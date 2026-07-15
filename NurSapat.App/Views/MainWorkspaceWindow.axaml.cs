@@ -11,6 +11,8 @@ namespace NurSapat.App.Views;
 
 public partial class MainWorkspaceWindow : Window
 {
+    private bool _forceClose;
+
     public MainWorkspaceWindow()
     {
         InitializeComponent();
@@ -30,8 +32,28 @@ public partial class MainWorkspaceWindow : Window
         }
     }
 
-    private void OnClosing(object? sender, WindowClosingEventArgs e)
+    private async void OnClosing(object? sender, WindowClosingEventArgs e)
     {
+        if (_forceClose)
+        {
+            return;
+        }
+
+        if (DataContext is not MainWorkspaceViewModel viewModel)
+        {
+            return;
+        }
+
+        // Cancel first — Closing cannot await dialogs synchronously.
+        e.Cancel = true;
+
+        if (!await viewModel.ConfirmCloseAsync())
+        {
+            return;
+        }
+
+        _forceClose = true;
+        Close();
     }
 
     private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)

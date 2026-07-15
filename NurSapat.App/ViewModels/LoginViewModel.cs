@@ -3,8 +3,6 @@ using CommunityToolkit.Mvvm.Input;
 using NurSapat.App.Models.Users;
 using NurSapat.App.Services;
 using NurSapat.App.Services.Users;
-using NurSapat.Core.Interfaces;
-using NurSapat.Core.Models;
 using System;
 using System.Threading.Tasks;
 
@@ -12,7 +10,6 @@ namespace NurSapat.App.ViewModels;
 
 public partial class LoginViewModel : ObservableObject
 {
-    private readonly IUserRepository _userRepo;
     private readonly IUsersStore _usersStore;
     private readonly IUserSessionService _sessionService;
     private readonly SettingsService _settings;
@@ -50,14 +47,12 @@ public partial class LoginViewModel : ObservableObject
     public event Action? RequestClose;
 
     public LoginViewModel(
-        IUserRepository userRepo,
         IUsersStore usersStore,
         IUserSessionService sessionService,
         SettingsService settings,
         IWorkspaceWindowService workspaceWindowService,
         MainWindowViewModel mainWindowViewModel)
     {
-        _userRepo = userRepo;
         _usersStore = usersStore;
         _sessionService = sessionService;
         _settings = settings;
@@ -87,7 +82,6 @@ public partial class LoginViewModel : ObservableObject
     [ObservableProperty]
     private bool _isContactModalOpen;
 
-    // ✅ ДОБАВЛЕНО: свойство для управления видимостью кнопки "Выйти"
     [ObservableProperty]
     private bool _isLoggedIn;
 
@@ -122,17 +116,11 @@ public partial class LoginViewModel : ObservableObject
         ErrorMessage = "";
         try
         {
+            await Task.Yield();
             var account = _usersStore.GetByUsername(Username);
             if (account is not null && account.VerifyPassword(Password))
             {
                 CompleteLogin(account);
-                return;
-            }
-
-            var user = await _userRepo.GetByUsernameAsync(Username);
-            if (user is not null && user.VerifyPassword(Password))
-            {
-                CompleteLogin(MapFromCoreUser(user));
                 return;
             }
 
@@ -163,7 +151,6 @@ public partial class LoginViewModel : ObservableObject
     [RelayCommand]
     private void CloseContact() => IsContactModalOpen = false;
 
-    // ✅ ДОБАВЛЕНО: команда для кнопки "Выйти"
     [RelayCommand]
     private void Logout()
     {
@@ -192,15 +179,4 @@ public partial class LoginViewModel : ObservableObject
         _workspaceWindowService.OpenWorkspace();
         IsLoggedIn = true;
     }
-
-    private static UserAccountItem MapFromCoreUser(User user) => new()
-    {
-        Id = user.Id,
-        Username = user.Username,
-        PasswordHash = user.PasswordHash,
-        GroupNumber = 1,
-        Permissions = user.Role == UserRole.Admin
-            ? UserPermissions.CreateAdmin()
-            : UserPermissions.CreateOperator()
-    };
 }

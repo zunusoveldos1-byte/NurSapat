@@ -9,13 +9,22 @@ public sealed partial class CadEditorViewModel
 {
     private readonly GlazingBeadTool _glazingBeadTool = new();
 
-    public GlazingBeadPlacementOptions ResolveGlazingBeadPlacementOptions() =>
+    public GlazingBeadPlacementOptions ResolveGlazingBeadPlacementOptions(bool includeGlass = false) =>
         new(
             SelectedConstructionMaterialOption?.MaterialId,
-            SelectedProfileSeriesItem?.Id);
+            SelectedProfileSeriesItem?.Id,
+            includeGlass);
 
+    /// <summary>
+    /// Установка штапика (BeadSystem) или остекления со штапиком (GlassWithBead).
+    /// Режим берётся из <see cref="CurrentToolMode"/>.
+    /// </summary>
     public bool TryPlaceGlazingBead(CadPoint worldPoint, bool applyToAllOpenings) =>
-        _glazingBeadTool.TryPlace(this, worldPoint, applyToAllOpenings);
+        _glazingBeadTool.TryPlace(
+            this,
+            worldPoint,
+            applyToAllOpenings,
+            includeGlass: CurrentToolMode == WindowToolMode.GlassWithBead);
 
     public bool RecordGlazingBeadPlacement(string description, GlazingBeadPlacementBatch batch) =>
         RecordPlacement(description, () =>
@@ -24,6 +33,12 @@ public sealed partial class CadEditorViewModel
             {
                 if (batch.GlazingIdsToRemove.Contains(CanvasElements[i].Id))
                 {
+                    var removed = CanvasElements[i];
+                    if (removed.Kind == GeometryElementKind.Glazing)
+                    {
+                        RemoveSpokesForGlazing(removed.Id);
+                    }
+
                     CanvasElements.RemoveAt(i);
                 }
             }
@@ -95,13 +110,20 @@ public sealed partial class CadEditorViewModel
         glassElement.HeightMm = (decimal)glassModel.HeightMm;
     }
 
+    /// <summary>Удаляет штапик и все связанные с ним стеклопакеты (и шпросы на них).</summary>
     private void RemoveBeadWithLinkedGlass(Guid beadId)
     {
         for (var i = CanvasElements.Count - 1; i >= 0; i--)
         {
             var element = CanvasElements[i];
-            if (element.Id == beadId
-                || (element.Kind == GeometryElementKind.Glazing && element.ParentBeadId == beadId))
+            if (element.Kind == GeometryElementKind.Glazing && element.ParentBeadId == beadId)
+            {
+                RemoveSpokesForGlazing(element.Id);
+                CanvasElements.RemoveAt(i);
+                continue;
+            }
+
+            if (element.Id == beadId)
             {
                 CanvasElements.RemoveAt(i);
             }

@@ -39,13 +39,15 @@ public sealed class CadCanvasControl : Control
         mode is WindowToolMode.RealVerticalImpost or WindowToolMode.RealHorizontalImpost;
 
     private static readonly IBrush CanvasBrush = Brushes.White;
-    private static readonly IBrush CadStrokeBrush = new SolidColorBrush(Color.Parse("#AEAEAE"));
+
+    /// <summary>Контур превью/выбранной рамы — общая тема цвета контура чертежа.</summary>
+    private static readonly IBrush CadStrokeBrush = CadContourTheme.Brush;
     private static readonly Pen FramePen = new(CadStrokeBrush, 1.5);
     private static readonly Pen MullionPreviewPen = new(
         new SolidColorBrush(Color.FromArgb(200, 255, 4, 4)),
         2);
     private static readonly IBrush MullionPreviewFill = new SolidColorBrush(Color.FromArgb(128, 255, 4, 4));
-    private static readonly Pen MiterPreviewPen = new(new SolidColorBrush(FrameVolumeRenderer.MiterColor), 1.2);
+    private static readonly Pen MiterPreviewPen = new(CadContourTheme.Brush, 1.2);
     private static readonly Pen SelectedFramePen = new(CadStrokeBrush, 2);
     private static readonly Pen DummySelectedFramePen = new(
         new SolidColorBrush(FrameVolumeRenderer.DummySelectionHighlightColor),
@@ -152,6 +154,15 @@ public sealed class CadCanvasControl : Control
         {
             _isDrawingFrame = false;
             UpdateInteractionCursor(_isPanning);
+        }
+
+        // Призрак створки/фурнитуры и смена открывания — мгновенная перерисовка.
+        if (e.PropertyName is nameof(CadEditorViewModel.SashHardwarePreview)
+            or nameof(CadEditorViewModel.SashDragPreview)
+            or nameof(CadEditorViewModel.HandlePreviewSashId)
+            or nameof(CadEditorViewModel.StatusText))
+        {
+            ScheduleInvalidateVisual();
         }
     }
 
@@ -296,9 +307,10 @@ public sealed class CadCanvasControl : Control
         if (!suppressCommittedFrame && canvasElements.Count > 0)
         {
             SashElementRenderer.DrawAll(context, Editor, canvasElements);
-            GlazingBeadRenderer.DrawAll(context, Editor, canvasElements);
+            // Стекло под штапиком: сначала заливка внутри проёма, затем белый профиль штапика поверх.
             GlassRenderer.DrawBeadLinkedLayer(context, Editor, canvasElements);
             GeometryElementRenderer.DrawGlazingLayer(context, Editor, canvasElements);
+            GlazingBeadRenderer.DrawAll(context, Editor, canvasElements);
             DecorativeSpokeRenderer.DrawLayer(context, Editor, canvasElements);
             SashElementRenderer.DrawOpeningIndicators(context, Editor, canvasElements);
             SashElementRenderer.DrawHardwareOverlays(context, Editor, canvasElements);
@@ -318,6 +330,11 @@ public sealed class CadCanvasControl : Control
         if (Editor.SashDragPreview is { } sashPreview)
         {
             SashElementRenderer.DrawPreview(context, Editor, sashPreview);
+        }
+
+        if (Editor.SashHardwarePreview is { } hardwarePreview)
+        {
+            SashElementRenderer.DrawHardwarePreview(context, Editor, hardwarePreview);
         }
 
         if (Editor.RealFramePreview is CadRect framePreview && Editor.IsShapePlacementActive)
@@ -477,7 +494,14 @@ public sealed class CadCanvasControl : Control
         }
 
         var hingeSide = sash.HingeSide ?? SashHingeSide.Left;
-        SashElementRenderer.DrawHandleMarker(context, Editor, sash, hingeSide, preview: true);
+        var opening = sash.OpeningType ?? SashOpeningType.TiltTurn;
+        if (opening is SashOpeningType.Tilt)
+        {
+            return;
+        }
+
+        var handleSide = CadHostedElementHelper.ResolveDefaultHandleSide(hingeSide, opening);
+        SashElementRenderer.DrawHandleMarker(context, Editor, sash, handleSide, preview: true);
     }
 
     /// <summary>
@@ -703,7 +727,7 @@ public sealed class CadCanvasControl : Control
         }
 
         if (Editor != null
-            && Editor.CurrentToolMode == WindowToolMode.BeadSystem
+            && Editor.CurrentToolMode is WindowToolMode.BeadSystem or WindowToolMode.GlassWithBead
             && properties.IsLeftButtonPressed)
         {
             if (Editor.TryPlaceGlazingBead(cadEvent.WorldPoint, cadEvent.IsAltDown))
@@ -717,7 +741,8 @@ public sealed class CadCanvasControl : Control
         if (Editor != null
             && CadCreationToolCatalog.IsClickPlacementMode(Editor.CurrentToolMode)
             && properties.IsLeftButtonPressed
-            && Editor.CurrentToolMode is not (WindowToolMode.Glassing or WindowToolMode.MosquitoNet or WindowToolMode.BeadSystem))
+            && Editor.CurrentToolMode is not (WindowToolMode.Glassing or WindowToolMode.MosquitoNet
+                or WindowToolMode.BeadSystem or WindowToolMode.GlassWithBead))
         {
             if (Editor.TryPlaceCreationToolClick(cadEvent.WorldPoint))
             {

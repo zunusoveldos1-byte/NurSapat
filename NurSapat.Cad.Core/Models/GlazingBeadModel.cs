@@ -80,6 +80,7 @@ public sealed class GlazingBeadModel
         HostFrameNodeId = OwnerId == Guid.Empty ? null : OwnerId,
         HostSashId = HostSashId,
         BeadOffsetMm = Offset,
-        CreatedAt = CreatedAt
+        CreatedAt = CreatedAt,
+        HasBead = true
     };
 }

@@ -20,6 +20,9 @@ public interface IOrdersStore
 
     void UpsertFromProject(ProjectDocumentData project, string filePath);
 
+    /// <summary>Loads a full project snapshot from the store when supported (PostgreSQL); otherwise null.</summary>
+    ProjectDocumentData? TryLoadProject(Guid id);
+
     Task RefreshAsync();
 
     void Save();
@@ -91,6 +94,8 @@ public sealed class OrdersStore : IOrdersStore
         existing.FilePath = filePath;
         Save();
     }
+
+    public ProjectDocumentData? TryLoadProject(Guid id) => null;
 
     public Task RefreshAsync()
     {

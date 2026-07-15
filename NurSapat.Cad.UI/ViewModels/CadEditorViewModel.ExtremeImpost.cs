@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.UI.Models;
+using NurSapat.Cad.UI.Rendering;
 using NurSapat.Cad.UI.Services;
 using NurSapat.Core.Models.Construction;
 using NurSapat.Core.Models.Orders;
@@ -306,6 +307,10 @@ public sealed partial class CadEditorViewModel
             return;
         }
 
+        // После вертикального/горизонтального сплита центр хоста может попасть
+        // в щель импоста — ребинд/клонирование по AABB-перекрытию с листьями.
+        SyncHostFrameTopologyAfterSplit();
+
         foreach (var leaf in EnumerateFrameLayoutLeaves(FrameRoot))
         {
             if (FindFrameInLeaf(leaf) is not null)
@@ -315,9 +320,121 @@ public sealed partial class CadEditorViewModel
         }
     }
 
+    /// <summary>
+    /// Если рама/переходной профиль после деления импостом внутри своей ячейки
+    /// перекрывает несколько дочерних листьев — клонируем только внутри поддерева HostFrameNodeId.
+    /// TransitionFrame исключён: нащельник на стыке должен оставаться единым сквозным элементом.
+    /// </summary>
+    // === CRITICAL GUARDRAIL: DO NOT TOUCH THIS SECTION ===
+    // Этот блок отвечает за генерацию ЕДИНОГО сквозного нащельника на стыке секций.
+    // Любое изменение логики фильтрации или ребинда хостов ломает отрисовку линии стыка!
+    // ======================================================
+    private void SyncHostFrameTopologyAfterSplit()
+    {
+        if (FrameRoot is null || !FrameRoot.IsFictitiousContainer)
+        {
+            return;
+        }
+
+        foreach (var host in CanvasElements
+                     .Where(e => ConstructionHostResolver.IsHostFrameElement(e)
+                                 && e.Kind != GeometryElementKind.TransitionFrame)
+                     .ToList())
+        {
+            if (host.HostFrameNodeId is not Guid boundId)
+            {
+                continue;
+            }
+
+            var boundNode = FrameRoot.FindNodeById(boundId);
+            if (boundNode is null)
+            {
+                continue;
+            }
+
+            // Хост, привязанный к корневому контейнеру, нельзя клонировать во все листья.
+            if (boundId == FrameRoot.NodeId)
+            {
+                var targetLeaf = SashGeometry.ResolveSashPlacementLeafAtPoint(this, (double)host.X, (double)host.Y)
+                    ?? EnumerateFrameLayoutLeaves(boundNode).FirstOrDefault();
+                if (targetLeaf is not null)
+                {
+                    RebindHostElementToLeaf(host, targetLeaf);
+                }
+
+                continue;
+            }
+
+            if (boundNode.IsTerminalLeaf)
+            {
+                RebindHostElementToLeaf(host, boundNode);
+                continue;
+            }
+
+            var descendantLeaves = EnumerateFrameLayoutLeaves(boundNode).ToList();
+            if (descendantLeaves.Count == 0)
+            {
+                continue;
+            }
+
+            if (descendantLeaves.Count == 1)
+            {
+                RebindHostElementToLeaf(host, descendantLeaves[0]);
+                continue;
+            }
+
+            CanvasElements.Remove(host);
+            foreach (var leaf in descendantLeaves)
+            {
+                if (CanvasElements.Any(e => ConstructionHostResolver.IsHostFrameElement(e)
+                                            && e.HostFrameNodeId == leaf.NodeId))
+                {
+                    continue;
+                }
+
+                var clone = ConstructionMemento.CloneElement(host);
+                clone.Id = Guid.NewGuid();
+                RebindHostElementToLeaf(clone, leaf);
+                AddCanvasElement(clone);
+            }
+        }
+    }
+    // === END CRITICAL GUARDRAIL ===
+
+    private void RebindHostElementToLeaf(GeometryElement host, FrameNode leaf)
+    {
+        if (FrameRoot is null)
+        {
+            return;
+        }
+
+        var probeX = leaf.X + leaf.Width / 2.0;
+        var probeY = leaf.Y + leaf.Height / 2.0;
+        var material = ConstructionMaterialCatalog.FindById(host.MaterialId);
+        var (originX, originY, width, height) = host.Kind == GeometryElementKind.TransitionFrame
+            ? ResolveTransitionPlacementBounds(leaf, material, probeX, probeY)
+            : Rendering.SashGeometry.ResolvePlacementBoundsAtPoint(
+                leaf,
+                FrameRoot,
+                FrameThickness,
+                probeX,
+                probeY);
+
+        if (width <= CadMath.Epsilon || height <= CadMath.Epsilon)
+        {
+            return;
+        }
+
+        host.X = (decimal)RoundMm(originX + width / 2.0);
+        host.Y = (decimal)RoundMm(originY + height / 2.0);
+        host.WidthMm = (decimal)width;
+        host.HeightMm = (decimal)height;
+        host.HostFrameNodeId = leaf.NodeId;
+    }
+
     private static IEnumerable<FrameNode> EnumerateFrameLayoutLeaves(FrameNode node)
     {
-        if (node.IsLeaf)
+        if (node.IsTerminalLeaf)
         {
             yield return node;
             yield break;

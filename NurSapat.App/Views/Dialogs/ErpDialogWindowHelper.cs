@@ -18,9 +18,6 @@ internal static class ErpDialogWindowHelper
             case OrderSettingsDialogViewModel orderSettings:
                 orderSettings.CancelCommand.Execute(null);
                 break;
-            case CustomerSelectDialogViewModel customerSelect:
-                customerSelect.CancelCommand.Execute(null);
-                break;
             case DealerSelectDialogViewModel dealerSelect:
                 dealerSelect.CancelCommand.Execute(null);
                 break;

@@ -5,6 +5,9 @@ public static class CatalogMaterialIds
 {
     public static readonly Guid ProfileRehau70 = Guid.Parse("a1000001-0000-4000-8000-000000000001");
     public static readonly Guid HardwareMacoEgress = Guid.Parse("a1000002-0000-4000-8000-000000000002");
+    public static readonly Guid HardwareHingeWindowWhite = Guid.Parse("a1000022-0000-4000-8000-000000000022");
+    public static readonly Guid HardwareHingeDoorReinforced = Guid.Parse("a1000023-0000-4000-8000-000000000023");
+    public static readonly Guid HardwareHandleWindowStd = Guid.Parse("a1000024-0000-4000-8000-000000000024");
     public static readonly Guid Glazing4_16_4 = Guid.Parse("a1000003-0000-4000-8000-000000000003");
     public static readonly Guid SealantEpdm = Guid.Parse("a1000004-0000-4000-8000-000000000004");
     public static readonly Guid Reinforcement12 = Guid.Parse("a1000005-0000-4000-8000-000000000005");
@@ -30,6 +33,9 @@ public static class CatalogMaterialIds
         {
             [CatalogMaterialArticles.ProfileRehau70] = ProfileRehau70,
             [CatalogMaterialArticles.HardwareMacoEgress] = HardwareMacoEgress,
+            [CatalogMaterialArticles.HardwareHingeWindowWhite] = HardwareHingeWindowWhite,
+            [CatalogMaterialArticles.HardwareHingeDoorReinforced] = HardwareHingeDoorReinforced,
+            [CatalogMaterialArticles.HardwareHandleWindowStd] = HardwareHandleWindowStd,
             [CatalogMaterialArticles.Glazing4_16_4] = Glazing4_16_4,
             [CatalogMaterialArticles.SealantEpdm] = SealantEpdm,
             [CatalogMaterialArticles.Reinforcement12] = Reinforcement12,
@@ -61,6 +67,9 @@ public static class CatalogMaterialArticles
 {
     public const string ProfileRehau70 = "RH-70-WHT";
     public const string HardwareMacoEgress = "MACO-EGRESS";
+    public const string HardwareHingeWindowWhite = "HINGE-WIN-WHT";
+    public const string HardwareHingeDoorReinforced = "HINGE-DOOR-REINF";
+    public const string HardwareHandleWindowStd = "HANDLE-WIN-STD";
     public const string Glazing4_16_4 = "GL-4-16-4";
     public const string SealantEpdm = "SEAL-EPDM";
     public const string Reinforcement12 = "ARM-1.2";

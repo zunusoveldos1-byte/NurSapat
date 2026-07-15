@@ -22,6 +22,11 @@ public static class OrderProjectMapper
 
     public static void ApplyData(Order order, OrderProjectData data)
     {
+        if (data.Id != Guid.Empty)
+        {
+            order.Id = data.Id;
+        }
+
         order.Constructions.Clear();
         order.Header = FromHeaderData(data.Header);
         order.ProfitabilityPercent = data.ProfitabilityPercent;
@@ -229,6 +234,7 @@ public static class OrderProjectMapper
         HasHardware = element.HasHardware,
         HasHandle = element.HasHandle,
         HasMosquitoNet = element.HasMosquitoNet,
+        HasBead = element.HasBead,
         HostSashId = element.HostSashId,
         ProfileSeriesId = element.ProfileSeriesId,
         MaterialId = element.MaterialId,
@@ -319,6 +325,7 @@ public static class OrderProjectMapper
             HasHardware = data.HasHardware,
             HasHandle = data.HasHandle,
             HasMosquitoNet = data.HasMosquitoNet,
+            HasBead = data.HasBead,
             HostSashId = data.HostSashId,
             ProfileSeriesId = data.ProfileSeriesId,
             MaterialId = data.MaterialId,

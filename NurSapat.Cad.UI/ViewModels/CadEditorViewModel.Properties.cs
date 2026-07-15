@@ -529,11 +529,51 @@ public sealed partial class CadEditorViewModel
 
         if (kind == CadSelectableKind.Sash)
         {
-            element.OpeningType = result.OpeningType;
-            element.HingeSide = result.HingeSide;
-            element.HasHardware = result.HasHardware;
-            element.HasHandle = result.HasHandle;
+            if (result.OpeningType is { } opening)
+            {
+                SashOpeningState.ApplyOpeningTypeChange(
+                    element,
+                    opening,
+                    result.HingeSide);
+            }
+            else
+            {
+                element.OpeningType = result.OpeningType;
+                element.HingeSide = result.HingeSide;
+            }
+
             element.HasMosquitoNet = result.HasMosquitoNet;
+
+            if (result.HasHardware
+                && result.OpeningType is { } openingForHardware
+                && openingForHardware != SashOpeningType.Fixed)
+            {
+                ApplySashOpeningAccessories(
+                    element,
+                    openingForHardware,
+                    element.HingeSide ?? SashHingeSide.Left);
+                // Ручка — только по явному флагу диалога, не вместе с петлями.
+                if (result.HasHandle)
+                {
+                    element.HasHandle = true;
+                    var handleSide = CadHostedElementHelper.ResolveDefaultHandleSide(
+                        element.HingeSide ?? SashHingeSide.Left,
+                        openingForHardware);
+                    AddCanvasElement(CreateHandleElement(element, handleSide));
+                }
+            }
+            else
+            {
+                ClearSashOpeningAccessories(element);
+                if (result.HasHandle && result.OpeningType is { } handleOpening)
+                {
+                    element.HasHandle = true;
+                    var handleSide = CadHostedElementHelper.ResolveDefaultHandleSide(
+                        element.HingeSide ?? SashHingeSide.Left,
+                        handleOpening);
+                    AddCanvasElement(CreateHandleElement(element, handleSide));
+                }
+            }
         }
 
         if (kind == CadSelectableKind.Glazing)

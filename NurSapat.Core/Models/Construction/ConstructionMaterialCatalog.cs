@@ -24,13 +24,25 @@ public static class ConstructionMaterialCatalog
                 string.Equals(material.CatalogArticle, article, StringComparison.OrdinalIgnoreCase));
 
     public static IEnumerable<ConstructionMaterial> ForKind(GeometryElementKind kind) =>
-        kind == GeometryElementKind.EdgeMullion
-            // Крайняя стойка/ригель ставится обычным импостным профилем либо
-            // специальным накладным (нащельник, 65 рама НИЗ).
-            ? All.Where(material => material.ApplicableKind
-                is GeometryElementKind.EdgeMullion
-                or GeometryElementKind.Mullion)
-            : All.Where(material => material.ApplicableKind == kind);
+        kind switch
+        {
+            GeometryElementKind.EdgeMullion =>
+                // Крайняя стойка/ригель ставится обычным импостным профилем либо
+                // специальным накладным (нащельник, 65 рама НИЗ).
+                All.Where(material => material.ApplicableKind
+                    is GeometryElementKind.EdgeMullion
+                    or GeometryElementKind.Mullion),
+            // Фурнитура: петли, механизмы и ручки в одном отфильтрованном списке.
+            GeometryElementKind.Hardware =>
+                All.Where(material => material.ApplicableKind
+                    is GeometryElementKind.Hardware
+                    or GeometryElementKind.Handle),
+            GeometryElementKind.Handle =>
+                All.Where(material => material.ApplicableKind
+                    is GeometryElementKind.Handle
+                    or GeometryElementKind.Hardware),
+            _ => All.Where(material => material.ApplicableKind == kind)
+        };
 
     /// <summary>Проверяет, что у всех материалов каталога задан артикул.</summary>
     public static void EnsureAllHaveArticles()
@@ -70,6 +82,12 @@ public static class ConstructionMaterialCatalog
         // Створка
         Material("b1000030-0000-4000-8000-000000000030", CatalogMaterialArticles.ProfileRehau70, "Профиль створочный Z-образный", GeometryElementKind.Sash, 68, 0, EndCutType.Mitre45),
         Material("b1000031-0000-4000-8000-000000000031", CatalogMaterialArticles.ProfileRehau70, "Профиль створочный Т-образный", GeometryElementKind.Sash, 70, 0, EndCutType.Mitre45),
+
+        // Фурнитура (петли / ручки)
+        Material("b1000100-0000-4000-8000-000000000100", CatalogMaterialArticles.HardwareHingeWindowWhite, "Петля оконная ПВХ (Белая)", GeometryElementKind.Hardware, 0, 0, EndCutType.ButtJoint0),
+        Material("b1000101-0000-4000-8000-000000000101", CatalogMaterialArticles.HardwareHingeDoorReinforced, "Петля усиленная дверная", GeometryElementKind.Hardware, 0, 0, EndCutType.ButtJoint0),
+        Material("b1000102-0000-4000-8000-000000000102", CatalogMaterialArticles.HardwareHandleWindowStd, "Ручка оконная стандартная", GeometryElementKind.Handle, 0, 0, EndCutType.ButtJoint0),
+        Material("b1000103-0000-4000-8000-000000000103", CatalogMaterialArticles.HardwareMacoEgress, "Фурнитура MACO Egress", GeometryElementKind.Hardware, 0, 0, EndCutType.ButtJoint0),
 
         // Штапик
         Material("b1000040-0000-4000-8000-000000000040", CatalogMaterialArticles.Bead24, "Штапик под 24 мм стеклопакет", GeometryElementKind.Bead, 18, 0, EndCutType.Mitre45),

@@ -78,7 +78,9 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
 
     public string DocumentTitle => _documentManager.WindowTitle;
 
-    public string ActiveProfileName { get; private set; } = "Admin";
+    public string ActiveProfileName { get; private set; } = DocumentManager.DefaultConfigurationName;
+
+    public Task<bool> ConfirmCloseAsync() => _documentManager.ConfirmCloseAsync();
 
     public string CompanyDisplayName { get; private set; } = "—";
 
@@ -148,30 +150,13 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     [RelayCommand]
     private async Task SelectOrderCustomerAsync()
     {
-        var customer = await _orderErpDialogService.ShowCustomerSelectAsync();
-        if (customer is null || customer.IsBlocked || customer.IsDeleted)
+        var customer = await _dictionaryWindowService.ShowCustomersForSelectionAsync(ResolveOwnerWindow());
+        if (customer is null)
         {
             return;
         }
 
-        var sheet = _orderWorkspace.Sheet;
-        sheet.ReloadCustomerLookups();
-        sheet.SelectedCustomer = sheet.AvailableCustomers.FirstOrDefault(c => c.Id == customer.Id);
-        if (sheet.SelectedCustomer is null)
-        {
-            var lookup = CustomerLookupItem.FromItem(
-                new Models.Dictionaries.CustomerItem
-                {
-                    Id = customer.Id,
-                    FullName = customer.FullName,
-                    Phone = customer.Phone,
-                    City = customer.City,
-                    Type = customer.Type
-                });
-            sheet.AvailableCustomers.Add(lookup);
-            sheet.SelectedCustomer = lookup;
-        }
-
+        _orderWorkspace.Sheet.ApplySelectedCustomer(customer);
         _orderWorkspace.NotifyModified();
     }
 
@@ -621,7 +606,8 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     private void RefreshConfigurationDisplay()
     {
         var settings = _environmentSettingsService.Current;
-        ActiveProfileName = _environmentSettingsService.ActiveProfile?.ProfileName ?? ConfigurationProfile.AdminProfileName;
+        ActiveProfileName = _environmentSettingsService.ActiveProfile?.ProfileName
+            ?? DocumentManager.DefaultConfigurationName;
         CompanyDisplayName = string.IsNullOrWhiteSpace(settings.CompanyName) ? "—" : settings.CompanyName.Trim();
         CurrencyDisplay = string.IsNullOrWhiteSpace(settings.NationalCurrency) ? "KGS" : settings.NationalCurrency.Trim();
         ConfigurationStatusText = $"{ActiveProfileName} · {CompanyDisplayName} · {CurrencyDisplay}";
@@ -630,6 +616,7 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         OnPropertyChanged(nameof(CompanyDisplayName));
         OnPropertyChanged(nameof(CurrencyDisplay));
         OnPropertyChanged(nameof(ConfigurationStatusText));
+        OnPropertyChanged(nameof(DocumentTitle));
     }
 
     public void InitializeDocumentLifecycle()

@@ -43,6 +43,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IErpMaterialRepository, ErpMaterialRepository>();
         services.AddSingleton<IWarehouseRepository, WarehouseRepository>();
         services.AddSingleton<ICurrencyRateRepository, CurrencyRateRepository>();
+        services.AddSingleton<IUserAccountRepository, UserAccountRepository>();
+        services.AddSingleton<IOrderTemplateRepository, OrderTemplateRepository>();
+        services.AddSingleton<IAppSettingRepository, AppSettingRepository>();
         services.AddSingleton<InitialDataSeeder>();
         services.AddSingleton<PersistenceIntegrityVerifier>();
 
