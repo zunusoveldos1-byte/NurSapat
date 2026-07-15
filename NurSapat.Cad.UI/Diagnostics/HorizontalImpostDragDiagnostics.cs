@@ -64,39 +64,13 @@ internal static class HorizontalImpostDragDiagnostics
             return null;
         }
 
-        if (splitNode.IsUniformSplit && uniformGapIndex is int gapIndex)
+        if (splitNode.IsUniformSplit && uniformGapIndex is int gapIndex
+            && splitNode.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, gapIndex, out var uniformAxis))
         {
-            var cells = splitNode.UniformCells;
-            if (gapIndex < 0 || gapIndex >= cells.Count - 1)
-            {
-                return null;
-            }
-
-            var gapBottom = cells[gapIndex].Y + cells[gapIndex].Height;
-            var gapTop = cells[gapIndex + 1].Y;
-            if (gapTop - gapBottom <= 0)
-            {
-                return null;
-            }
-
-            var half = splitNode.GetResolvedImpostThicknessMm() / 2.0;
-            return gapBottom + half;
+            return uniformAxis;
         }
 
-        if (splitNode.ChildA is null || splitNode.ChildB is null)
-        {
-            return null;
-        }
-
-        var binaryGapBottom = splitNode.ChildA.Y + splitNode.ChildA.Height;
-        var binaryGapTop = splitNode.ChildB.Y;
-        if (binaryGapTop - binaryGapBottom <= 0)
-        {
-            return null;
-        }
-
-        var binaryHalf = splitNode.GetResolvedImpostThicknessMm() / 2.0;
-        return binaryGapBottom + binaryHalf;
+        return splitNode.TryGetHorizontalImpostAxisWorldY(out var axisY) ? axisY : null;
     }
 
     private static string Fmt(double? value) =>

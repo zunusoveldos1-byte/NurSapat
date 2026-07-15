@@ -250,12 +250,8 @@ internal static class ImpostProfileHitTest
             return false;
         }
 
-        if (!TryResolveHorizontalImpostBounds(
-                cells[gapIndex].Y + cells[gapIndex].Height,
-                cells[gapIndex + 1].Y,
-                ResolveImpostThickness(node),
-                out var bottom,
-                out var top))
+        if (!node.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, gapIndex, out var centerY)
+            || !TryResolveHorizontalImpostRenderBounds(centerY, ResolveImpostThickness(node), out var bottom, out var top))
         {
             return false;
         }
@@ -398,9 +394,7 @@ internal static class ImpostProfileHitTest
         new(footprint.Left, footprint.Top, footprint.Right - footprint.Left, footprint.Top - footprint.Bottom);
 
     private static double ResolveImpostThickness(FrameNode node) =>
-        node.ImpostThicknessMm > CadMath.Epsilon
-            ? node.ImpostThicknessMm
-            : FrameNode.DefaultImpostProfileMm;
+        node.GetResolvedImpostThicknessMm();
 
     private static bool TryResolveVerticalImpostRenderBounds(
         double centerX,
@@ -418,6 +412,24 @@ internal static class ImpostProfileHitTest
         left = CadMath.RoundMm(centerX - half);
         right = CadMath.RoundMm(centerX + half);
         return right - left > CadMath.Epsilon;
+    }
+
+    private static bool TryResolveHorizontalImpostRenderBounds(
+        double centerY,
+        double thickness,
+        out double bottom,
+        out double top)
+    {
+        bottom = top = 0;
+        if (thickness <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var half = thickness / 2.0;
+        bottom = CadMath.RoundMm(centerY - half);
+        top = CadMath.RoundMm(centerY + half);
+        return top - bottom > CadMath.Epsilon;
     }
 
     private static (double Bottom, double Top) ResolveVerticalImpostSpan(
@@ -495,38 +507,13 @@ internal static class ImpostProfileHitTest
 
     private static bool TryResolveHorizontalImpostBounds(FrameNode node, out double bottom, out double top)
     {
-        if (node.ChildA is null || node.ChildB is null)
+        bottom = top = 0;
+        if (!node.TryGetHorizontalImpostAxisWorldY(out var centerY))
         {
-            bottom = top = 0;
             return false;
         }
 
-        return TryResolveHorizontalImpostBounds(
-            node.ChildA.Y + node.ChildA.Height,
-            node.ChildB.Y,
-            ResolveImpostThickness(node),
-            out bottom,
-            out top);
-    }
-
-    private static bool TryResolveHorizontalImpostBounds(
-        double gapBottom,
-        double gapTop,
-        double thickness,
-        out double bottom,
-        out double top)
-    {
-        if (gapTop - gapBottom <= CadMath.Epsilon || thickness <= CadMath.Epsilon)
-        {
-            bottom = top = 0;
-            return false;
-        }
-
-        var centerY = gapBottom + (gapTop - gapBottom) / 2.0;
-        var half = thickness / 2.0;
-        bottom = centerY - half;
-        top = centerY + half;
-        return top - bottom > CadMath.Epsilon;
+        return TryResolveHorizontalImpostRenderBounds(centerY, ResolveImpostThickness(node), out bottom, out top);
     }
 
     private static bool TryResolveVerticalImpostArcTrim(

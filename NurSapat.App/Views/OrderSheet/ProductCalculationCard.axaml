@@ -1,0 +1,337 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             x:Class="NurSapat.App.Views.OrderSheet.ProductCalculationCard"
+             x:DataType="vm:OrderSheetViewModel"
+             FontFamily="Inter, Segoe UI">
+
+    <UserControl.Styles>
+        <StyleInclude Source="/Styles/OrderSheetStyles.axaml"/>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="10,8">
+        <Grid RowDefinitions="Auto,*">
+            <TextBlock Grid.Row="0" Classes="cardTitle" Text="Параметры и расчёт изделия" Margin="0,0,0,6"/>
+
+            <StackPanel Grid.Row="1"
+                        Spacing="4"
+                        VerticalAlignment="Center"
+                        IsVisible="{Binding ShowConstructionNotSelected}">
+                <TextBlock Text="Конструкция не выбрана"
+                           FontSize="13" FontWeight="SemiBold" Foreground="#0F172A"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Text="Выберите конструкцию в списке слева."
+                           FontSize="12" Foreground="#94A3B8"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+
+            <ScrollViewer Grid.Row="1"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto"
+                          IsVisible="{Binding !ShowConstructionNotSelected}">
+                <StackPanel Spacing="6">
+
+                    <!-- Профиль · Стеклование · Герметики — одна компактная строка -->
+                    <Grid ColumnSpacing="6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Classes="fieldLabel" Text="Профиль"/>
+                            <ComboBox Classes="field" SelectedIndex="0">
+                                <ComboBoxItem Content="{Binding ProfileType}"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Classes="fieldLabel" Text="Стеклование"/>
+                            <ComboBox Classes="field" SelectedIndex="0">
+                                <ComboBoxItem Content="{Binding GlassPacket}"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Classes="fieldLabel" Text="Герметики"/>
+                            <ComboBox Classes="field" SelectedIndex="0">
+                                <ComboBoxItem Content="{Binding SealantDisplay}"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3" VerticalAlignment="Bottom">
+                            <Button Classes="ref"
+                                    Command="{Binding OpenReferenceCommand}"
+                                    ToolTip.Tip="Открыть справочник">
+                                <TextBlock Text="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="#475569"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Размер изделия -->
+                    <Grid ColumnDefinitions="*,Auto,*" ColumnSpacing="6">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Classes="fieldLabel" Text="Ширина (мм)"/>
+                            <TextBox Classes="field"
+                                     Text="{Binding SelectedConstructionModel.Width, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" Text="×" FontSize="14" Foreground="#94A3B8"
+                                   VerticalAlignment="Bottom" Margin="0,0,0,6"/>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Classes="fieldLabel" Text="Высота (мм)"/>
+                            <TextBox Classes="field"
+                                     Text="{Binding SelectedConstructionModel.Height, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Арка -->
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="6"
+                          IsVisible="{Binding SelectedConstructionModel.HasArcTopProfile}">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Classes="fieldLabel" Text="Радиус арки (мм)"/>
+                            <TextBox Classes="field"
+                                     Text="{Binding SelectedConstructionModel.ArcRadius, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Classes="fieldLabel" Text="Высота стрелы (мм)"/>
+                            <TextBox Classes="field"
+                                     Text="{Binding SelectedConstructionModel.ArcHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Реквизиты и сроки -->
+                    <Expander Classes="section" IsExpanded="False">
+                        <Expander.Header>
+                            <TextBlock Classes="sectionTitle" Text="Реквизиты и сроки"/>
+                        </Expander.Header>
+                        <StackPanel Margin="8,2,8,8" Spacing="6">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Classes="fieldLabel" Text="Наименование"/>
+                                    <TextBox Classes="field"
+                                             Text="{Binding SelectedConstructionModel.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Width="100">
+                                    <TextBlock Classes="fieldLabel" Text="Площадь"/>
+                                    <TextBox Classes="field-readonly" IsReadOnly="True"
+                                             Text="{Binding SelectedConstructionModel.AreaDisplay}"/>
+                                </StackPanel>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Classes="fieldLabel" Text="Дата изготовления"/>
+                                    <DatePicker Classes="field"
+                                                SelectedDate="{Binding SelectedConstructionModel.ManufactureDate, Mode=TwoWay}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Classes="fieldLabel" Text="Срок поставки"/>
+                                    <DatePicker Classes="field"
+                                                SelectedDate="{Binding SelectedConstructionModel.DeliveryDate, Mode=TwoWay}"/>
+                                </StackPanel>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Classes="fieldLabel" Text="Менеджер"/>
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                                        <ComboBox Classes="field"
+                                                  ItemsSource="{Binding ManagerNames}"
+                                                  SelectedItem="{Binding SelectedConstructionModel.Manager, Mode=TwoWay}"
+                                                  IsTextSearchEnabled="True"/>
+                                        <Button Grid.Column="1" Classes="ref" Content="..."
+                                                Command="{Binding BrowseManagerCommand}"
+                                                ToolTip.Tip="Справочник менеджеров"/>
+                                    </Grid>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Classes="fieldLabel" Text="Ответственный"/>
+                                    <ComboBox Classes="field"
+                                              ItemsSource="{Binding ManagerNames}"
+                                              SelectedItem="{Binding SelectedConstructionModel.Supervisor, Mode=TwoWay}"
+                                              IsTextSearchEnabled="True"/>
+                                </StackPanel>
+                            </Grid>
+                            <StackPanel>
+                                <TextBlock Classes="fieldLabel" Text="Примечание"/>
+                                <TextBox Classes="field"
+                                         Height="52" MinHeight="52" MaxHeight="52"
+                                         AcceptsReturn="True" TextWrapping="Wrap"
+                                         VerticalContentAlignment="Top"
+                                         PlaceholderText="Введите примечание..."
+                                         Text="{Binding SelectedConstructionModel.Notes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Expander>
+
+                    <!-- Спецификация -->
+                    <Expander Classes="section" IsExpanded="True">
+                        <Expander.Header>
+                            <TextBlock Classes="sectionTitle" Text="Спецификация"/>
+                        </Expander.Header>
+                        <StackPanel Margin="8,2,8,8" Spacing="2">
+                            <Border Classes="tableHeader">
+                                <Grid ColumnDefinitions="*,1.4*,Auto">
+                                    <TextBlock Grid.Column="0" Classes="th" Text="Наименование"/>
+                                    <TextBlock Grid.Column="1" Classes="th" Text="Детали"/>
+                                    <TextBlock Grid.Column="2" Classes="th" Text="Кол-во" Width="90" TextAlignment="Right"/>
+                                </Grid>
+                            </Border>
+                            <TextBlock Text="Нет данных расчёта. Задайте габариты и нажмите «Пересчитать»."
+                                       FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap" Margin="2,2"
+                                       IsVisible="{Binding ShowMaterialsEmptyState}"/>
+                            <ItemsControl ItemsSource="{Binding MaterialLines}"
+                                          IsVisible="{Binding !ShowMaterialsEmptyState}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:MaterialQuantityLine">
+                                        <Border Classes="tableRow">
+                                            <Grid ColumnDefinitions="*,1.4*,Auto">
+                                                <TextBlock Grid.Column="0" Classes="td" Text="{Binding Name}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Grid.Column="1" Classes="td" Text="{Binding Detail}"
+                                                           Foreground="#667085" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Grid.Column="2" Classes="td" Text="{Binding Quantity}"
+                                                           Width="90" TextAlignment="Right"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Expander>
+
+                    <!-- Материалы -->
+                    <Expander Classes="section" IsExpanded="False">
+                        <Expander.Header>
+                            <TextBlock Classes="sectionTitle" Text="Материалы"/>
+                        </Expander.Header>
+                        <StackPanel Margin="8,2,8,8" Spacing="1">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="td" Text="Профиль" Foreground="#667085"/>
+                                <TextBlock Grid.Column="1" Classes="td" Text="{Binding Cost.ProfileCost, StringFormat='{}{0:N2}'}"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="td" Text="Компоненты" Foreground="#667085"/>
+                                <TextBlock Grid.Column="1" Classes="td" Text="{Binding Cost.ComponentsCost, StringFormat='{}{0:N2}'}"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="td" Text="Стеклопакет" Foreground="#667085"/>
+                                <TextBlock Grid.Column="1" Classes="td" Text="{Binding Cost.GlazingCost, StringFormat='{}{0:N2}'}"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="td" Text="Герметики" Foreground="#667085"/>
+                                <TextBlock Grid.Column="1" Classes="td" Text="{Binding Cost.SealantCost, StringFormat='{}{0:N2}'}"/>
+                            </Grid>
+                            <Border Classes="tableRow" BorderThickness="0,1,0,0" Margin="0,2,0,0" Padding="0,4,0,0">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Classes="td" Text="Итого материалы" FontWeight="SemiBold"/>
+                                    <TextBlock Grid.Column="1" Classes="td" FontWeight="SemiBold"
+                                               Text="{Binding Cost.MaterialsTotal, StringFormat='{}{0:N2}'}"/>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Expander>
+
+                    <!-- Фурнитура и петли -->
+                    <Expander Classes="section" IsExpanded="False">
+                        <Expander.Header>
+                            <TextBlock Classes="sectionTitle" Text="Фурнитура и петли"/>
+                        </Expander.Header>
+                        <StackPanel Margin="8,2,8,8" Spacing="1">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="td" Text="{Binding Hardware}" Foreground="#667085" TextWrapping="Wrap"/>
+                                <TextBlock Grid.Column="1" Classes="td" Text="{Binding Cost.HardwareCost, StringFormat='{}{0:N2}'}"/>
+                            </Grid>
+                        </StackPanel>
+                    </Expander>
+
+                    <!-- Установочные материалы -->
+                    <Expander Classes="section" IsExpanded="False">
+                        <Expander.Header>
+                            <TextBlock Classes="sectionTitle" Text="Установочные материалы"/>
+                        </Expander.Header>
+                        <StackPanel Margin="8,2,8,8" Spacing="1">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="td" Text="Материалы монтажа" Foreground="#667085"/>
+                                <TextBlock Grid.Column="1" Classes="td" Text="{Binding Cost.InstallationMaterialsCost, StringFormat='{}{0:N2}'}"/>
+                            </Grid>
+                        </StackPanel>
+                    </Expander>
+
+                    <!-- Производство и монтаж -->
+                    <Expander Classes="section" IsExpanded="True">
+                        <Expander.Header>
+                            <TextBlock Classes="sectionTitle" Text="Производство и монтаж"/>
+                        </Expander.Header>
+                        <StackPanel Margin="8,2,8,8" Spacing="2">
+                            <Border Classes="tableHeader">
+                                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
+                                    <TextBlock Grid.Column="0" Classes="th" Text="Вид расчёта"/>
+                                    <TextBlock Grid.Column="1" Classes="th" Text="Цена" Width="70" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="2" Classes="th" Text="Ед." Width="36" TextAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Classes="th" Text="Кол-во" Width="44" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="4" Classes="th" Text="Коэф." Width="44" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="5" Classes="th" Text="Сумма" Width="70" TextAlignment="Right"/>
+                                </Grid>
+                            </Border>
+
+                            <Border Classes="tableRow">
+                                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
+                                    <TextBlock Grid.Column="0" Classes="td" Text="Изделие"/>
+                                    <TextBlock Grid.Column="1" Classes="td" Text="{Binding ProductLineItemPrice}" Width="70" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="2" Classes="td" Text="шт" Width="36" TextAlignment="Center" Foreground="#94A3B8"/>
+                                    <TextBlock Grid.Column="3" Classes="td" Text="{Binding SelectedConstructionModel.Quantity}" Width="44" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="4" Classes="td" Text="1" Width="44" TextAlignment="Right" Foreground="#94A3B8"/>
+                                    <TextBlock Grid.Column="5" Classes="td" Text="{Binding ProductLineItemSum}" Width="70" TextAlignment="Right" FontWeight="SemiBold"/>
+                                </Grid>
+                            </Border>
+                            <Border Classes="tableRow">
+                                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
+                                    <TextBlock Grid.Column="0" Classes="td" Text="Доставка"/>
+                                    <TextBlock Grid.Column="1" Classes="td" Text="{Binding ProductLineDeliveryPrice}" Width="70" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="2" Classes="td" Text="шт" Width="36" TextAlignment="Center" Foreground="#94A3B8"/>
+                                    <TextBlock Grid.Column="3" Classes="td" Text="1" Width="44" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="4" Classes="td" Text="1" Width="44" TextAlignment="Right" Foreground="#94A3B8"/>
+                                    <TextBlock Grid.Column="5" Classes="td" Text="{Binding ProductLineDeliveryPrice}" Width="70" TextAlignment="Right" FontWeight="SemiBold"/>
+                                </Grid>
+                            </Border>
+                            <Border Classes="tableRow">
+                                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
+                                    <TextBlock Grid.Column="0" Classes="td" Text="Монтаж"/>
+                                    <TextBlock Grid.Column="1" Classes="td" Text="{Binding ProductLineInstallPrice}" Width="70" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="2" Classes="td" Text="шт" Width="36" TextAlignment="Center" Foreground="#94A3B8"/>
+                                    <TextBlock Grid.Column="3" Classes="td" Text="1" Width="44" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="4" Classes="td" Text="1" Width="44" TextAlignment="Right" Foreground="#94A3B8"/>
+                                    <TextBlock Grid.Column="5" Classes="td" Text="{Binding ProductLineInstallPrice}" Width="70" TextAlignment="Right" FontWeight="SemiBold"/>
+                                </Grid>
+                            </Border>
+                            <Border Classes="tableRow" BorderThickness="0">
+                                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
+                                    <TextBlock Grid.Column="0" Classes="td" Text="Демонтаж"/>
+                                    <TextBlock Grid.Column="1" Classes="td" Text="{Binding ProductLineDemolitionPrice}" Width="70" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="2" Classes="td" Text="шт" Width="36" TextAlignment="Center" Foreground="#94A3B8"/>
+                                    <TextBlock Grid.Column="3" Classes="td" Text="1" Width="44" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="4" Classes="td" Text="1" Width="44" TextAlignment="Right" Foreground="#94A3B8"/>
+                                    <TextBlock Grid.Column="5" Classes="td" Text="{Binding ProductLineDemolitionPrice}" Width="70" TextAlignment="Right" FontWeight="SemiBold"/>
+                                </Grid>
+                            </Border>
+
+                            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6" Margin="0,2,0,0">
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Classes="fieldLabel" Text="Количество"/>
+                                    <TextBox Classes="field"
+                                             Text="{Binding SelectedConstructionModel.Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Classes="fieldLabel" Text="Трудозатраты"/>
+                                    <TextBox Classes="field-readonly" IsReadOnly="True" Text="{Binding LaborCostDisplay}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Classes="fieldLabel" Text="Время"/>
+                                    <TextBox Classes="field-readonly" IsReadOnly="True" Text="{Binding ManufacturingTimeDisplay}"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Expander>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Border>
+</UserControl>

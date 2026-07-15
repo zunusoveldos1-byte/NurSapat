@@ -150,7 +150,6 @@ public static class FrameNodeRenderer
             return;
         }
 
-        var thickness = ResolveImpostThickness(node);
         var container = node.GetRoot();
         var isRoundContainer = CurvedContainerImpostGeometry.IsRoundContainer(editor, container);
 
@@ -180,12 +179,7 @@ public static class FrameNodeRenderer
         {
             for (var i = 0; i < cells.Count - 1; i++)
             {
-                if (!TryResolveHorizontalImpostBounds(
-                        cells[i].Y + cells[i].Height,
-                        cells[i + 1].Y,
-                        thickness,
-                        out var bottom,
-                        out var top))
+                if (!TryResolveUniformHorizontalImpostBounds(node, i, out var bottom, out var top))
                 {
                     continue;
                 }
@@ -387,10 +381,12 @@ public static class FrameNodeRenderer
             new CadPoint(axisX, topY));
     }
 
+    /// <summary>
+    /// Толщина профиля импоста для отрисовки: тот же источник, что и у модели
+    /// (<see cref="FrameNode.GetResolvedImpostThicknessMm"/>).
+    /// </summary>
     private static double ResolveImpostThickness(FrameNode node) =>
-        node.ImpostThicknessMm > CadMath.Epsilon
-            ? node.ImpostThicknessMm
-            : FrameNode.DefaultImpostProfileMm;
+        node.GetResolvedImpostThicknessMm();
 
     private static IPen ResolveImpostPen(CadEditorViewModel editor, FrameNode node, int uniformGapIndex = 0)
     {
@@ -459,42 +455,39 @@ public static class FrameNodeRenderer
         return right - left > CadMath.Epsilon;
     }
 
+    /// <summary>
+    /// Горизонтальный импост: ось = <see cref="FrameNode.TryGetHorizontalImpostAxisWorldY"/>
+    /// (та же координата, что у размерной сетки и пунктира), профиль симметричен относительно оси.
+    /// </summary>
     private static bool TryResolveHorizontalImpostBounds(FrameNode node, out double bottom, out double top)
     {
-        if (node.ChildA is null || node.ChildB is null)
+        bottom = top = 0;
+        if (!node.TryGetHorizontalImpostAxisWorldY(out var centerY))
         {
-            bottom = top = 0;
             return false;
         }
 
-        return TryResolveHorizontalImpostBounds(
-            node.ChildA.Y + node.ChildA.Height,
-            node.ChildB.Y,
-            ResolveImpostThickness(node),
-            out bottom,
-            out top);
+        return TryResolveHorizontalImpostRenderBounds(centerY, ResolveImpostThickness(node), out bottom, out top);
     }
 
-    private static bool TryResolveHorizontalImpostBounds(
-        double gapBottom,
-        double gapTop,
-        double thickness,
+    private static bool TryResolveUniformHorizontalImpostBounds(
+        FrameNode node,
+        int gapIndex,
         out double bottom,
         out double top)
     {
-        if (gapTop - gapBottom <= CadMath.Epsilon || thickness <= CadMath.Epsilon)
+        bottom = top = 0;
+        if (!node.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, gapIndex, out var centerY))
         {
-            bottom = top = 0;
             return false;
         }
 
-        var centerY = gapBottom + (gapTop - gapBottom) / 2.0;
-        var half = thickness / 2.0;
-        bottom = centerY - half;
-        top = centerY + half;
-        return top - bottom > CadMath.Epsilon;
+        return TryResolveHorizontalImpostRenderBounds(centerY, ResolveImpostThickness(node), out bottom, out top);
     }
 
+    /// <summary>
+    /// Ось импоста = засечка размера; профиль симметричен относительно оси (как у вертикального).
+    /// </summary>
     private static bool TryResolveHorizontalImpostRenderBounds(
         double centerY,
         double thickness,
@@ -680,15 +673,36 @@ public static class FrameNodeRenderer
         FrameNode splitNode,
         double impostAxisX)
     {
-        var inner = TransitionAdjacentFrameGeometry.ResolveImpostHostInnerOpeningBounds(
+        var boundsLeaf = SashGeometry.TryGetVerticalImpostColumnCell(splitNode, impostAxisX, out var columnCell)
+            ? columnCell
+            : splitNode;
+        var inner = TransitionAdjacentFrameGeometry.ResolveHostInnerOpeningBounds(
             editor,
-            splitNode,
+            boundsLeaf,
             editor.FrameRoot!,
             editor.FrameThickness);
 
         var bottom = inner.Bottom;
         var top = inner.Top;
-        ClipVerticalImpostSpanAtNestedFrames(editor, impostAxisX, ref bottom, ref top);
+        ClipVerticalImpostSpanAtNestedFrames(editor, splitNode, impostAxisX, ref bottom, ref top);
+        TransitionAdjacentFrameGeometry.ClipVerticalImpostSpanAtTransitionHosts(
+            editor,
+            splitNode,
+            impostAxisX,
+            ref bottom,
+            ref top);
+        TransitionAdjacentFrameGeometry.ClipVerticalSpanAtTransitionShelves(
+            editor,
+            splitNode,
+            impostAxisX,
+            ref bottom,
+            ref top);
+        PinVerticalImpostTopToNestedFrameInnerShelf(editor, splitNode, impostAxisX, ref top);
+        TransitionAdjacentFrameGeometry.PinVerticalImpostTopToTransitionHostInnerShelf(
+            editor,
+            splitNode,
+            impostAxisX,
+            ref top);
 
         return (
             CadMath.RoundMm(bottom),
@@ -702,6 +716,7 @@ public static class FrameNodeRenderer
     /// </summary>
     internal static void ClipVerticalImpostSpanAtNestedFrames(
         CadEditorViewModel editor,
+        FrameNode splitNode,
         double impostAxisX,
         ref double bottom,
         ref double top)
@@ -738,8 +753,219 @@ public static class FrameNodeRenderer
             }
 
             var inset = FrameProfileGeometry.ResolveInnerInset(width, height, editor.FrameThickness);
-            bottom = Math.Max(bottom, CadMath.RoundMm(frameBottom + inset));
-            top = Math.Min(top, CadMath.RoundMm(frameTop - inset));
+            var frameInnerBottom = CadMath.RoundMm(frameBottom + inset);
+            var frameInnerTop = CadMath.RoundMm(frameTop - inset);
+            bottom = Math.Max(bottom, frameInnerBottom);
+
+            ApplyNestedFrameVerticalImpostTopJoint(
+                splitNode,
+                impostAxisX,
+                frameTop,
+                frameInnerTop,
+                ref top);
+        }
+    }
+
+    /// <summary>
+    /// Т-стык верха вертикального импоста с внутренней полкой вложенной коробки:
+    /// при касании верхней рамы (в т.ч. смежной ячейкой) — точный snap, иначе — подрезка.
+    /// </summary>
+    private static void ApplyNestedFrameVerticalImpostTopJoint(
+        FrameNode splitNode,
+        double impostAxisX,
+        double frameTop,
+        double frameInnerTop,
+        ref double top)
+    {
+        if (SashGeometry.VerticalImpostColumnTouchesFrameTop(
+                splitNode,
+                impostAxisX,
+                frameTop,
+                frameInnerTop,
+                top))
+        {
+            top = frameInnerTop;
+            return;
+        }
+
+        top = Math.Min(top, frameInnerTop);
+    }
+
+    /// <summary>
+    /// Финальный snap верха к физической внутренней полке вложенных коробок
+    /// (после transition-clipping, который может сузить top через Math.Min).
+    /// </summary>
+    private static void PinVerticalImpostTopToNestedFrameInnerShelf(
+        CadEditorViewModel editor,
+        FrameNode splitNode,
+        double impostAxisX,
+        ref double top)
+    {
+        foreach (var element in editor.CanvasElements)
+        {
+            if (element.Kind is not (GeometryElementKind.Frame or GeometryElementKind.ArchFrame))
+            {
+                continue;
+            }
+
+            var width = (double)element.WidthMm;
+            var height = (double)element.HeightMm;
+            if (width <= CadMath.Epsilon || height <= CadMath.Epsilon)
+            {
+                continue;
+            }
+
+            var frameLeft = (double)element.X - width / 2.0;
+            var frameRight = frameLeft + width;
+            var frameBottom = (double)element.Y - height / 2.0;
+            var frameTop = frameBottom + height;
+
+            if (impostAxisX <= frameLeft + CadMath.MmPrecision
+                || impostAxisX >= frameRight - CadMath.MmPrecision)
+            {
+                continue;
+            }
+
+            var inset = FrameProfileGeometry.ResolveInnerInset(width, height, editor.FrameThickness);
+            var frameInnerTop = CadMath.RoundMm(frameTop - inset);
+
+            if (SashGeometry.VerticalImpostColumnTouchesFrameTop(
+                    splitNode,
+                    impostAxisX,
+                    frameTop,
+                    frameInnerTop,
+                    top))
+            {
+                top = frameInnerTop;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Т-образная подрезка горизонтального импоста: правый конец упирается
+    /// во внутреннюю вертикальную полку вложенной коробки.
+    /// </summary>
+    internal static void ClipHorizontalImpostSpanAtNestedFrames(
+        CadEditorViewModel editor,
+        FrameNode splitNode,
+        double impostAxisY,
+        ref double left,
+        ref double right)
+    {
+        foreach (var element in editor.CanvasElements)
+        {
+            if (element.Kind is not (GeometryElementKind.Frame or GeometryElementKind.ArchFrame))
+            {
+                continue;
+            }
+
+            var width = (double)element.WidthMm;
+            var height = (double)element.HeightMm;
+            if (width <= CadMath.Epsilon || height <= CadMath.Epsilon)
+            {
+                continue;
+            }
+
+            var frameLeft = (double)element.X - width / 2.0;
+            var frameRight = frameLeft + width;
+            var frameBottom = (double)element.Y - height / 2.0;
+            var frameTop = frameBottom + height;
+
+            if (impostAxisY <= frameBottom + CadMath.MmPrecision
+                || impostAxisY >= frameTop - CadMath.MmPrecision)
+            {
+                continue;
+            }
+
+            if (frameRight <= left + CadMath.Epsilon || frameLeft >= right - CadMath.Epsilon)
+            {
+                continue;
+            }
+
+            var inset = FrameProfileGeometry.ResolveInnerInset(width, height, editor.FrameThickness);
+            var frameInnerLeft = CadMath.RoundMm(frameLeft + inset);
+            var frameInnerRight = CadMath.RoundMm(frameRight - inset);
+            left = Math.Max(left, frameInnerLeft);
+
+            ApplyNestedFrameHorizontalImpostRightJoint(
+                splitNode,
+                impostAxisY,
+                frameRight,
+                frameInnerRight,
+                ref right);
+        }
+    }
+
+    /// <summary>
+    /// Т-стык правого конца горизонтального импоста с внутренней полкой вложенной коробки.
+    /// </summary>
+    private static void ApplyNestedFrameHorizontalImpostRightJoint(
+        FrameNode splitNode,
+        double impostAxisY,
+        double frameRight,
+        double frameInnerRight,
+        ref double right)
+    {
+        if (SashGeometry.HorizontalImpostRowTouchesFrameRight(
+                splitNode,
+                frameRight,
+                frameInnerRight,
+                right,
+                impostAxisY))
+        {
+            right = frameInnerRight;
+            return;
+        }
+
+        right = Math.Min(right, frameInnerRight);
+    }
+
+    /// <summary>
+    /// Финальный snap правого конца к внутренней полке вложенных коробок.
+    /// </summary>
+    internal static void PinHorizontalImpostRightToNestedFrameInnerShelf(
+        CadEditorViewModel editor,
+        FrameNode splitNode,
+        double impostAxisY,
+        ref double right)
+    {
+        foreach (var element in editor.CanvasElements)
+        {
+            if (element.Kind is not (GeometryElementKind.Frame or GeometryElementKind.ArchFrame))
+            {
+                continue;
+            }
+
+            var width = (double)element.WidthMm;
+            var height = (double)element.HeightMm;
+            if (width <= CadMath.Epsilon || height <= CadMath.Epsilon)
+            {
+                continue;
+            }
+
+            var frameLeft = (double)element.X - width / 2.0;
+            var frameRight = frameLeft + width;
+            var frameBottom = (double)element.Y - height / 2.0;
+            var frameTop = frameBottom + height;
+
+            if (impostAxisY <= frameBottom + CadMath.MmPrecision
+                || impostAxisY >= frameTop - CadMath.MmPrecision)
+            {
+                continue;
+            }
+
+            var inset = FrameProfileGeometry.ResolveInnerInset(width, height, editor.FrameThickness);
+            var frameInnerRight = CadMath.RoundMm(frameRight - inset);
+
+            if (SashGeometry.HorizontalImpostRowTouchesFrameRight(
+                    splitNode,
+                    frameRight,
+                    frameInnerRight,
+                    right,
+                    impostAxisY))
+            {
+                right = frameInnerRight;
+            }
         }
     }
 

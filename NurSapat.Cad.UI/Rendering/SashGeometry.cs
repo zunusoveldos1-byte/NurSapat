@@ -246,7 +246,7 @@ internal static class SashGeometry
     }
 
     /// <summary>
-    /// Внешний контур: 8 мм на импост, 18 мм на внешнюю раму (если край привязан к frameInner).
+    /// Внешний контур: 8 мм на импост, 18 мм на внешнюю раму / переходной профиль (Host Frame).
     /// </summary>
     public static OuterBounds ExpandInnerBoundsToOuter(in InnerOpeningBounds inner, CadEditorViewModel? editor = null)
     {
@@ -257,34 +257,92 @@ internal static class SashGeometry
 
         if (editor?.FrameRoot is not null)
         {
-            var inset = FrameProfileGeometry.ResolveInnerInset(
-                editor.FrameRoot.Width,
-                editor.FrameRoot.Height,
-                editor.FrameThickness);
+            var leaf = editor.FrameRoot.FindLeafAt(
+                (inner.Left + inner.Right) / 2.0,
+                (inner.Bottom + inner.Top) / 2.0);
 
-            var frameInnerLeft = editor.FrameRoot.X + inset;
-            var frameInnerBottom = editor.FrameRoot.Y + inset;
-            var frameInnerRight = editor.FrameRoot.X + editor.FrameRoot.Width - inset;
-            var frameInnerTop = editor.FrameRoot.Y + editor.FrameRoot.Height - inset;
-
-            if (!inner.PinsFrameLeft && CadMath.NearlyEqual(inner.Left, frameInnerLeft))
+            if (editor.FrameRoot.IsFictitiousContainer && leaf is not null)
             {
-                overlapLeft = FrameOverlapMm;
+                // Переходной профиль — неподвижное основание: створка не выходит за внутреннюю полку.
+                if (TransitionAdjacentFrameGeometry.IsTransitionHostEdge(editor, leaf, left: true, right: false, bottom: false, top: false))
+                {
+                    overlapLeft = 0;
+                }
+
+                if (TransitionAdjacentFrameGeometry.IsTransitionHostEdge(editor, leaf, left: false, right: true, bottom: false, top: false))
+                {
+                    overlapRight = 0;
+                }
+
+                if (TransitionAdjacentFrameGeometry.IsTransitionHostEdge(editor, leaf, left: false, right: false, bottom: true, top: false))
+                {
+                    overlapBottom = 0;
+                }
+
+                if (TransitionAdjacentFrameGeometry.IsTransitionHostEdge(editor, leaf, left: false, right: false, bottom: false, top: true))
+                {
+                    overlapTop = 0;
+                }
             }
 
-            if (!inner.PinsFrameRight && CadMath.NearlyEqual(inner.Right, frameInnerRight))
+            if (!editor.FrameRoot.IsFictitiousContainer)
             {
-                overlapRight = FrameOverlapMm;
-            }
+                var inset = FrameProfileGeometry.ResolveInnerInset(
+                    editor.FrameRoot.Width,
+                    editor.FrameRoot.Height,
+                    editor.FrameThickness);
 
-            if (!inner.PinsFrameBottom && CadMath.NearlyEqual(inner.Bottom, frameInnerBottom))
-            {
-                overlapBottom = FrameOverlapMm;
-            }
+                var frameInnerLeft = editor.FrameRoot.X + inset;
+                var frameInnerBottom = editor.FrameRoot.Y + inset;
+                var frameInnerRight = editor.FrameRoot.X + editor.FrameRoot.Width - inset;
+                var frameInnerTop = editor.FrameRoot.Y + editor.FrameRoot.Height - inset;
 
-            if (!inner.PinsFrameTop && CadMath.NearlyEqual(inner.Top, frameInnerTop))
+                if (!inner.PinsFrameLeft && CadMath.NearlyEqual(inner.Left, frameInnerLeft))
+                {
+                    overlapLeft = FrameOverlapMm;
+                }
+
+                if (!inner.PinsFrameRight && CadMath.NearlyEqual(inner.Right, frameInnerRight))
+                {
+                    overlapRight = FrameOverlapMm;
+                }
+
+                if (!inner.PinsFrameBottom && CadMath.NearlyEqual(inner.Bottom, frameInnerBottom))
+                {
+                    overlapBottom = FrameOverlapMm;
+                }
+
+                if (!inner.PinsFrameTop && CadMath.NearlyEqual(inner.Top, frameInnerTop))
+                {
+                    overlapTop = FrameOverlapMm;
+                }
+            }
+            else if (leaf is not null)
             {
-                overlapTop = FrameOverlapMm;
+                // Края, совпадающие с внутренней полкой переходного профиля (без pin-флага).
+                if (!inner.PinsFrameLeft
+                    && TransitionAdjacentFrameGeometry.IsTransitionHostEdge(editor, leaf, left: true, right: false, bottom: false, top: false))
+                {
+                    overlapLeft = 0;
+                }
+
+                if (!inner.PinsFrameRight
+                    && TransitionAdjacentFrameGeometry.IsTransitionHostEdge(editor, leaf, left: false, right: true, bottom: false, top: false))
+                {
+                    overlapRight = 0;
+                }
+
+                if (!inner.PinsFrameBottom
+                    && TransitionAdjacentFrameGeometry.IsTransitionHostEdge(editor, leaf, left: false, right: false, bottom: true, top: false))
+                {
+                    overlapBottom = 0;
+                }
+
+                if (!inner.PinsFrameTop
+                    && TransitionAdjacentFrameGeometry.IsTransitionHostEdge(editor, leaf, left: false, right: false, bottom: false, top: true))
+                {
+                    overlapTop = 0;
+                }
             }
         }
 
@@ -320,21 +378,153 @@ internal static class SashGeometry
         out InnerOpeningBounds inner)
     {
         inner = default;
-        if (editor.FrameRoot is null || element.Kind != GeometryElementKind.Sash)
+        if (editor.FrameRoot is null
+            || element.Kind is not (GeometryElementKind.Sash or GeometryElementKind.SlidingSash))
         {
             return false;
         }
 
-        var leaf = FindLeafForSash(editor, element)
-            ?? editor.FrameRoot.FindLeafAt((double)element.X, (double)element.Y);
-        if (leaf is null)
+        var leaf = ResolveSashHostLeaf(editor, element);
+        if (leaf is { IsTerminalLeaf: true })
         {
-            return false;
+            inner = ResolveSashPlacementInnerBounds(editor, leaf, (double)element.X, (double)element.Y);
+            if (inner.Width <= CadMath.Epsilon || inner.Height <= CadMath.Epsilon)
+            {
+                inner = InnerOpeningBoundsFromElement(element);
+            }
+
+            inner = UpgradeInnerTopForArcGlazing(editor, inner);
+            return inner.Width > 0 && inner.Height > 0;
         }
 
-        inner = ResolveLeafInnerOpeningBounds(leaf, editor.FrameRoot, editor.FrameThickness);
+        inner = InnerOpeningBoundsFromElement(element);
         inner = UpgradeInnerTopForArcGlazing(editor, inner);
         return inner.Width > 0 && inner.Height > 0;
+    }
+
+    /// <summary>
+    /// Терминальная ячейка для створки: тот же overlap-поиск, что у ghost-превью.
+    /// </summary>
+    public static FrameNode? ResolveSashPlacementLeafAtPoint(
+        CadEditorViewModel editor,
+        double worldX,
+        double worldY)
+    {
+        var leaf = editor.FrameRoot?.FindLeafAt(worldX, worldY);
+        return leaf is { IsTerminalLeaf: true } ? leaf : null;
+    }
+
+    /// <summary>
+    /// Лист-хост створки: приоритет HostFrameNodeId терминальной ячейки, затем FindLeafAt по центру.
+    /// </summary>
+    public static FrameNode? ResolveSashHostLeaf(CadEditorViewModel editor, GeometryElement sash)
+    {
+        if (editor.FrameRoot is null)
+        {
+            return null;
+        }
+
+        if (sash.HostFrameNodeId is Guid hostId
+            && editor.FrameRoot.FindNodeById(hostId) is FrameNode boundLeaf
+            && boundLeaf.IsTerminalLeaf)
+        {
+            return boundLeaf;
+        }
+
+        return ResolveSashPlacementLeafAtPoint(editor, (double)sash.X, (double)sash.Y);
+    }
+
+    /// <summary>
+    /// Внутренний проём створки в терминальной ячейке (квадрант сетки + рама), как у ghost-превью.
+    /// </summary>
+    public static InnerOpeningBounds ResolveSashPlacementInnerBounds(
+        CadEditorViewModel editor,
+        FrameNode leaf,
+        double probeX,
+        double probeY)
+    {
+        if (!leaf.IsTerminalLeaf)
+        {
+            return default;
+        }
+
+        var leafRight = leaf.X + leaf.Width;
+        var leafTop = leaf.Y + leaf.Height;
+
+        if (editor.FrameRoot?.Shape == ConstructionShape.Triangle)
+        {
+            return ResolveLeafCellAxisBoundsAtPoint(
+                leaf,
+                editor.FrameRoot,
+                editor.FrameThickness,
+                probeX,
+                probeY);
+        }
+
+        if (editor.FrameRoot?.IsFictitiousContainer == true)
+        {
+            var cell = ResolveLeafCellAxisBoundsAtPoint(
+                leaf,
+                editor.FrameRoot,
+                editor.FrameThickness,
+                probeX,
+                probeY);
+            var hostInner = ResolveLeafInnerOpeningBounds(editor, leaf);
+
+            var left = Math.Max(leaf.X, Math.Max(cell.Left, hostInner.Left));
+            var bottom = Math.Max(leaf.Y, Math.Max(cell.Bottom, hostInner.Bottom));
+            var right = Math.Min(leafRight, Math.Min(cell.Right, hostInner.Right));
+            var top = Math.Min(leafTop, Math.Min(cell.Top, hostInner.Top));
+
+            // Подрезка по телу переходного профиля в той же/соседней ячейке:
+            // световой проём никогда не заходит на внутреннюю рабочую грань переходника.
+            var pinsLeft = hostInner.PinsFrameLeft;
+            var pinsRight = hostInner.PinsFrameRight;
+            var pinsBottom = hostInner.PinsFrameBottom;
+            var pinsTop = hostInner.PinsFrameTop;
+            TransitionAdjacentFrameGeometry.ClipPlacementOpeningAtTransitionHosts(
+                editor,
+                leaf,
+                probeX,
+                probeY,
+                ref left,
+                ref bottom,
+                ref right,
+                ref top,
+                ref pinsLeft,
+                ref pinsBottom,
+                ref pinsRight,
+                ref pinsTop);
+
+            if (right <= left + CadMath.Epsilon || top <= bottom + CadMath.Epsilon)
+            {
+                return default;
+            }
+
+            return RoundBounds(new InnerOpeningBounds
+            {
+                Left = left,
+                Bottom = bottom,
+                Right = right,
+                Top = top,
+                PinsFrameLeft = pinsLeft,
+                PinsFrameRight = pinsRight,
+                PinsFrameBottom = pinsBottom,
+                PinsFrameTop = pinsTop
+            });
+        }
+
+        return ResolveLeafInnerOpeningBounds(editor, leaf);
+    }
+
+    public static (double X, double Y, double Width, double Height) ResolveSashPlacementBounds(
+        CadEditorViewModel editor,
+        FrameNode leaf,
+        double probeX,
+        double probeY)
+    {
+        var inner = ResolveSashPlacementInnerBounds(editor, leaf, probeX, probeY);
+        return (inner.Left, inner.Bottom, inner.Width, inner.Height);
     }
 
     public static (double X, double Y, double Width, double Height) ResolveLeafInnerOpening(
@@ -346,12 +536,44 @@ internal static class SashGeometry
         return (inner.Left, inner.Bottom, inner.Width, inner.Height);
     }
 
+    /// <summary>
+    /// Внутренний проём листа с учётом переходных профилей как Host Frame.
+    /// </summary>
+    public static (double X, double Y, double Width, double Height) ResolveLeafInnerOpening(
+        CadEditorViewModel editor,
+        FrameNode leaf)
+    {
+        var inner = ResolveLeafInnerOpeningBounds(editor, leaf);
+        return (inner.Left, inner.Bottom, inner.Width, inner.Height);
+    }
+
     public static InnerOpeningBounds ResolveLeafInnerOpeningBounds(
         FrameNode leaf,
         FrameNode? frameRoot,
         double frameThickness,
         bool includeExtremeImposts = true) =>
         ResolveNodeInnerOpeningBounds(leaf, frameRoot, frameThickness, includeExtremeImposts);
+
+    /// <summary>
+    /// Внутренний проём с учётом примыкающих переходных профилей (Host Frame).
+    /// </summary>
+    public static InnerOpeningBounds ResolveLeafInnerOpeningBounds(
+        CadEditorViewModel editor,
+        FrameNode leaf,
+        bool includeExtremeImposts = true)
+    {
+        if (editor.FrameRoot is null)
+        {
+            return ResolveLeafInnerOpeningBounds(leaf, null, editor.FrameThickness, includeExtremeImposts);
+        }
+
+        return TransitionAdjacentFrameGeometry.ResolveHostInnerOpeningBounds(
+            editor,
+            leaf,
+            editor.FrameRoot,
+            editor.FrameThickness,
+            includeExtremeImposts);
+    }
 
     /// <summary>
     /// Границы ячейки по осям сетки конструкции (без объёма фиктивной коробки).
@@ -677,19 +899,19 @@ internal static class SashGeometry
 
         var probeY = outerBottom + halfThickness;
         var probeX = outerLeft + halfThickness;
-        var gridAtBottom = ResolveLeafCellAxisBoundsAtPoint(leaf, frameRoot, frameThickness, probeX, probeY);
+        var gridAtBottom = ResolveLeafCellAxisBounds(leaf, frameRoot, frameThickness);
         innerLeftBottom = Math.Min(innerLeftBottom, gridAtBottom.Left + halfThickness);
         innerRightBottom = Math.Max(innerRightBottom, gridAtBottom.Right - halfThickness);
         innerBottomLeft = Math.Min(innerBottomLeft, gridAtBottom.Bottom + halfThickness);
 
         probeY = outerTop - halfThickness;
-        var gridAtTop = ResolveLeafCellAxisBoundsAtPoint(leaf, frameRoot, frameThickness, probeX, probeY);
+        var gridAtTop = ResolveLeafCellAxisBounds(leaf, frameRoot, frameThickness);
         innerLeftTop = Math.Min(innerLeftTop, gridAtTop.Left + halfThickness);
         innerRightTop = Math.Max(innerRightTop, gridAtTop.Right - halfThickness);
         innerTopLeft = Math.Max(innerTopLeft, gridAtTop.Top - halfThickness);
 
         probeX = outerRight - halfThickness;
-        var gridAtRight = ResolveLeafCellAxisBoundsAtPoint(leaf, frameRoot, frameThickness, probeX, probeY);
+        var gridAtRight = ResolveLeafCellAxisBounds(leaf, frameRoot, frameThickness);
         innerBottomRight = Math.Min(innerBottomRight, gridAtRight.Bottom + halfThickness);
         innerTopRight = Math.Max(innerTopRight, gridAtRight.Top - halfThickness);
 
@@ -963,7 +1185,7 @@ internal static class SashGeometry
             return false;
         }
 
-        var inner = ResolveLeafInnerOpeningBounds(leaf, editor.FrameRoot, editor.FrameThickness);
+        var inner = ResolveLeafInnerOpeningBounds(editor, leaf);
         inner = UpgradeInnerTopForArcGlazing(editor, inner);
         if (inner.Width <= CadMath.Epsilon || inner.Height <= CadMath.Epsilon)
         {
@@ -1209,7 +1431,7 @@ internal static class SashGeometry
         }
 
         GetStandaloneGlazingOverlapBounds(glazing, out var gLeft, out var gBottom, out var gRight, out var gTop);
-        var inner = ResolveLeafInnerOpeningBounds(leaf, editor.FrameRoot, editor.FrameThickness);
+        var inner = ResolveLeafInnerOpeningBounds(editor, leaf);
         var iLeft = Math.Max(inner.Left, gLeft);
         var iRight = Math.Min(inner.Right, gRight);
         var iBottom = Math.Max(inner.Bottom, gBottom);
@@ -1300,17 +1522,18 @@ internal static class SashGeometry
         out double overlapArea)
     {
         overlapArea = 0;
-        if (editor.FrameRoot is null || sash.Kind != GeometryElementKind.Sash)
+        if (editor.FrameRoot is null
+            || sash.Kind is not (GeometryElementKind.Sash or GeometryElementKind.SlidingSash)
+            || !leaf.IsTerminalLeaf)
         {
             return false;
         }
 
         GetSashOverlapBounds(sash, out var sLeft, out var sBottom, out var sRight, out var sTop);
-        var inner = ResolveLeafInnerOpeningBounds(leaf, editor.FrameRoot, editor.FrameThickness);
-        var iLeft = Math.Max(inner.Left, sLeft);
-        var iRight = Math.Min(inner.Right, sRight);
-        var iBottom = Math.Max(inner.Bottom, sBottom);
-        var iTop = Math.Min(inner.Top, sTop);
+        var iLeft = Math.Max(leaf.X, sLeft);
+        var iRight = Math.Min(leaf.X + leaf.Width, sRight);
+        var iBottom = Math.Max(leaf.Y, sBottom);
+        var iTop = Math.Min(leaf.Y + leaf.Height, sTop);
         if (iRight <= iLeft + CadMath.Epsilon || iTop <= iBottom + CadMath.Epsilon)
         {
             return false;
@@ -1324,15 +1547,21 @@ internal static class SashGeometry
         CadEditorViewModel editor,
         GeometryElement sash)
     {
-        if (editor.FrameRoot is null || sash.Kind != GeometryElementKind.Sash)
+        if (editor.FrameRoot is null
+            || sash.Kind is not (GeometryElementKind.Sash or GeometryElementKind.SlidingSash))
         {
             return [];
+        }
+
+        if (ResolveSashHostLeaf(editor, sash) is { IsTerminalLeaf: true } boundLeaf)
+        {
+            return [boundLeaf];
         }
 
         var matches = new List<FrameNode>();
         foreach (var leaf in EnumerateLeaves(editor.FrameRoot))
         {
-            if (!leaf.IsLeaf)
+            if (!leaf.IsTerminalLeaf)
             {
                 continue;
             }
@@ -1348,9 +1577,15 @@ internal static class SashGeometry
 
     public static FrameNode? FindLeafForSash(CadEditorViewModel editor, GeometryElement sash)
     {
-        if (editor.FrameRoot is null || sash.Kind != GeometryElementKind.Sash)
+        if (editor.FrameRoot is null
+            || sash.Kind is not (GeometryElementKind.Sash or GeometryElementKind.SlidingSash))
         {
             return null;
+        }
+
+        if (ResolveSashHostLeaf(editor, sash) is { IsTerminalLeaf: true } boundLeaf)
+        {
+            return boundLeaf;
         }
 
         FrameNode? bestLeaf = null;
@@ -1369,7 +1604,7 @@ internal static class SashGeometry
             }
         }
 
-        return bestLeaf ?? editor.FrameRoot.FindLeafAt((double)sash.X, (double)sash.Y);
+        return bestLeaf;
     }
 
     private static IEnumerable<FrameNode> EnumerateLeaves(FrameNode node)
@@ -1504,6 +1739,46 @@ internal static class SashGeometry
         }
 
         return Math.Min(ProfileThicknessMm, maxInset);
+    }
+
+    /// <summary>
+    /// Внутренние углы профиля створки (стыки 45°) — координаты для линий открывания.
+    /// Совпадает с внутренней гранью, которую рисует <see cref="FrameVolumeRenderer"/>.
+    /// </summary>
+    public static InnerOpeningBounds ResolveSashProfileInnerFaceBounds(
+        CadEditorViewModel editor,
+        in InnerOpeningBounds placementInner)
+    {
+        var outer = ExpandInnerBoundsToOuter(placementInner, editor);
+        if (outer.Width <= CadMath.Epsilon || outer.Height <= CadMath.Epsilon)
+        {
+            return placementInner;
+        }
+
+        var half = FrameProfileGeometry.ResolveInnerInset(
+            outer.Width,
+            outer.Height,
+            SashDrawProfileThicknessMm);
+        if (half <= CadMath.Epsilon || outer.Width <= half * 2 || outer.Height <= half * 2)
+        {
+            return placementInner;
+        }
+
+        return RoundBounds(new InnerOpeningBounds
+        {
+            Left = outer.Left + half,
+            Bottom = outer.Bottom + half,
+            Right = outer.Right - half,
+            Top = outer.Top - half,
+            PinsFrameLeft = placementInner.PinsFrameLeft,
+            PinsFrameRight = placementInner.PinsFrameRight,
+            PinsFrameBottom = placementInner.PinsFrameBottom,
+            PinsFrameTop = placementInner.PinsFrameTop,
+            IsTriangular = placementInner.IsTriangular,
+            TriangleBl = placementInner.TriangleBl,
+            TriangleBr = placementInner.TriangleBr,
+            TriangleTop = placementInner.TriangleTop
+        });
     }
 
     public static bool ContainsOuterBounds(GeometryElement element, double worldX, double worldY, CadEditorViewModel? editor = null)
@@ -2274,6 +2549,11 @@ internal static class SashGeometry
         {
             if (impost.IsUniformSplit)
             {
+                if (!IsInSubtree(leaf, impost))
+                {
+                    continue;
+                }
+
                 ApplyUniformCrossCuttingGridAxes(impost, leaf, worldX, worldY, ref inner);
                 continue;
             }
@@ -2282,6 +2562,10 @@ internal static class SashGeometry
             {
                 continue;
             }
+
+            // Сквозные оси: физический сплит в соседней колонке/ряду всё равно делит
+            // координатное пространство текущей ячейки (виртуальная граница).
+            // Фильтр — пересечение оси с габаритом листа, а не принадлежность поддереву.
 
             if (impost.SplitOrientation == SplitOrientation.Horizontal)
             {
@@ -2609,7 +2893,7 @@ internal static class SashGeometry
         return false;
     }
 
-    private static bool CellTouchesFrameTop(FrameNode splitNode, double frameTop, double frameInnerTop)
+    internal static bool CellTouchesFrameTop(FrameNode splitNode, double frameTop, double frameInnerTop)
     {
         for (var node = splitNode; ; node = node.Parent!)
         {
@@ -2625,6 +2909,211 @@ internal static class SashGeometry
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Колонка/ячейка упирается в правую грань рамы (внешнюю или внутреннюю полку).
+    /// </summary>
+    internal static bool CellTouchesFrameRight(FrameNode splitNode, double frameRight, double frameInnerRight)
+    {
+        for (var node = splitNode; ; node = node.Parent!)
+        {
+            if (OccupiesFrameRightEdge(node, frameRight, frameInnerRight))
+            {
+                return true;
+            }
+
+            if (node.Parent is null)
+            {
+                break;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Допустимый остаточный зазор (мм) между top и внутренней полкой рамы,
+    /// вызванный округлением сетки — при таком зазоре импост дотягивается до полки.
+    /// </summary>
+    private const double VerticalImpostTopSnapToleranceMm = 4.0;
+
+    /// <summary>
+    /// Колонка вертикального импоста упирается в верхнюю раму: impost-узел, смежная ячейка
+    /// или микрозазор от промежуточных расчётов сетки в пределах допуска.
+    /// </summary>
+    internal static bool VerticalImpostColumnTouchesFrameTop(
+        FrameNode splitNode,
+        double impostAxisX,
+        double frameTop,
+        double frameInnerTop,
+        double top)
+    {
+        if (CellTouchesFrameTop(splitNode, frameTop, frameInnerTop))
+        {
+            return true;
+        }
+
+        if (TryGetVerticalImpostColumnCell(splitNode, impostAxisX, out var columnCell)
+            && CellTouchesFrameTop(columnCell, frameTop, frameInnerTop))
+        {
+            return true;
+        }
+
+        var residualGap = frameInnerTop - top;
+        return residualGap > CadMath.MmPrecision
+            && residualGap <= VerticalImpostTopSnapToleranceMm;
+    }
+
+    private const double HorizontalImpostRightSnapToleranceMm = 4.0;
+
+    /// <summary>
+    /// Ряд горизонтального импоста упирается в правую раму: impost-узел, смежная ячейка
+    /// или микрозазор от промежуточных расчётов сетки в пределах допуска.
+    /// </summary>
+    internal static bool HorizontalImpostRowTouchesFrameRight(
+        FrameNode splitNode,
+        double frameRight,
+        double frameInnerRight,
+        double right,
+        double? impostAxisY = null)
+    {
+        if (CellTouchesFrameRight(splitNode, frameRight, frameInnerRight))
+        {
+            return true;
+        }
+
+        if (impostAxisY is double axisY
+            && TryGetHorizontalImpostRowCell(splitNode, axisY, out var rowCell)
+            && CellTouchesFrameRight(rowCell, frameRight, frameInnerRight))
+        {
+            return true;
+        }
+
+        for (var node = splitNode.Parent; node is not null; node = node.Parent)
+        {
+            if (CellTouchesFrameRight(node, frameRight, frameInnerRight))
+            {
+                return true;
+            }
+        }
+
+        var residualGap = frameInnerRight - right;
+        return residualGap > CadMath.MmPrecision
+            && residualGap <= HorizontalImpostRightSnapToleranceMm;
+    }
+
+    internal static bool TryGetVerticalImpostColumnCell(
+        FrameNode impostNode,
+        double impostAxisX,
+        out FrameNode columnCell)
+    {
+        columnCell = impostNode;
+        if (impostNode.ChildA is null || impostNode.ChildB is null)
+        {
+            return false;
+        }
+
+        if (impostAxisX <= impostNode.ChildA.X + impostNode.ChildA.Width + CadMath.MmPrecision)
+        {
+            columnCell = impostNode.ChildA;
+            return true;
+        }
+
+        columnCell = impostNode.ChildB;
+        return true;
+    }
+
+    /// <summary>
+    /// Ячейка ряда горизонтального импоста (ChildA — низ, ChildB — верх).
+    /// Используется для локализации пролёта ригеля в пределах колонки/секции.
+    /// </summary>
+    internal static bool TryGetHorizontalImpostRowCell(
+        FrameNode impostNode,
+        double impostAxisY,
+        out FrameNode rowCell)
+    {
+        rowCell = impostNode;
+        if (impostNode.ChildA is null || impostNode.ChildB is null)
+        {
+            return false;
+        }
+
+        if (impostAxisY <= impostNode.ChildA.Y + impostNode.ChildA.Height + CadMath.MmPrecision)
+        {
+            rowCell = impostNode.ChildA;
+            return true;
+        }
+
+        rowCell = impostNode.ChildB;
+        return true;
+    }
+
+    /// <summary>
+    /// Обрезка горизонтального пролёта по вертикальным импостам-предкам (изоляция колонок).
+    /// </summary>
+    public static void ClipHorizontalImpostSpanAtVerticalAncestors(
+        FrameNode splitNode,
+        ref double left,
+        ref double right)
+    {
+        for (var current = splitNode.Parent; current is not null; current = current.Parent)
+        {
+            if (current.IsUniformSplit)
+            {
+                ClipHorizontalImpostSpanAtUniformVerticalParent(current, splitNode, ref left, ref right);
+                continue;
+            }
+
+            if (current.IsLeaf || current.ChildA is null || current.ChildB is null
+                || current.SplitOrientation != SplitOrientation.Vertical)
+            {
+                continue;
+            }
+
+            var half = current.GetResolvedImpostThicknessMm() / 2.0;
+            var centerX = ResolveVerticalImpostCenterX(current);
+
+            if (IsInSubtree(splitNode, current.ChildA))
+            {
+                right = Math.Min(right, centerX - half);
+            }
+            else if (IsInSubtree(splitNode, current.ChildB))
+            {
+                left = Math.Max(left, centerX + half);
+            }
+        }
+    }
+
+    private static void ClipHorizontalImpostSpanAtUniformVerticalParent(
+        FrameNode parent,
+        FrameNode splitNode,
+        ref double left,
+        ref double right)
+    {
+        if (parent.SplitOrientation != SplitOrientation.Vertical)
+        {
+            return;
+        }
+
+        var cells = parent.UniformCells;
+        for (var i = 0; i < cells.Count - 1; i++)
+        {
+            if (!parent.TryGetUniformImpostAxisWorld(SplitOrientation.Vertical, i, out var axisX))
+            {
+                axisX = cells[i].X + cells[i].Width;
+            }
+
+            var half = parent.GetResolvedImpostThicknessMm() / 2.0;
+            if (IsInSubtree(splitNode, cells[i]))
+            {
+                right = Math.Min(right, axisX - half);
+            }
+            else if (cells[i + 1] is not null && IsInSubtree(splitNode, cells[i + 1]))
+            {
+                left = Math.Max(left, axisX + half);
+            }
+        }
     }
 
     private static void ClipVerticalImpostSpanAtHorizontalAncestors(
