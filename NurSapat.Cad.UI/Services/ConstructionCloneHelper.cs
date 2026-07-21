@@ -1,6 +1,9 @@
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
+using NurSapat.Cad.Core.Models.Assembly;
+using NurSapat.Cad.Core.Models.Grid;
 using NurSapat.Core.Models.Orders;
+using NurSapat.Core.Models.Project;
 
 namespace NurSapat.Cad.UI.Services;
 
@@ -36,14 +39,15 @@ public static class ConstructionCloneHelper
 
         var nodeIdMap = new Dictionary<Guid, Guid>();
         var slotIdMap = new Dictionary<Guid, Guid>();
-        var frameRoot = source.FrameRootSnapshot is null
-            ? null
-            : RemapTreeSnapshot(
-                source.FrameRootSnapshot,
-                nodeIdMap,
-                slotIdMap,
-                offsetX,
-                offsetY);
+        var assemblyData = CloneAssemblyData(
+            source.AssemblyData,
+            elementIdMap,
+            nodeIdMap,
+            slotIdMap,
+            offsetX,
+            offsetY,
+            out var subFrameIdMap,
+            out var gridLineIdMap);
 
         foreach (var element in elements)
         {
@@ -55,6 +59,18 @@ public static class ConstructionCloneHelper
             if (element.ExtremeImpostSlotId is Guid slotId && slotIdMap.TryGetValue(slotId, out var mappedSlot))
             {
                 element.ExtremeImpostSlotId = mappedSlot;
+            }
+
+            if (element.SubFrameId is Guid subFrameId
+                && subFrameIdMap.TryGetValue(subFrameId, out var mappedSubFrame))
+            {
+                element.SubFrameId = mappedSubFrame;
+            }
+
+            if (element.HostGridLineId is Guid gridLineId
+                && gridLineIdMap.TryGetValue(gridLineId, out var mappedGridLine))
+            {
+                element.HostGridLineId = mappedGridLine;
             }
         }
 
@@ -71,10 +87,117 @@ public static class ConstructionCloneHelper
 
         return new ConstructionMemento
         {
-            FrameRootSnapshot = frameRoot,
+            AssemblyData = assemblyData,
             Elements = elements,
             DocumentRect = documentRect
         };
+    }
+
+    private static ConstructionAssemblyData? CloneAssemblyData(
+        ConstructionAssemblyData? source,
+        IReadOnlyDictionary<Guid, Guid> elementIdMap,
+        Dictionary<Guid, Guid> nodeIdMap,
+        Dictionary<Guid, Guid> slotIdMap,
+        double offsetX,
+        double offsetY,
+        out Dictionary<Guid, Guid> subFrameIdMap,
+        out Dictionary<Guid, Guid> gridLineIdMap)
+    {
+        subFrameIdMap = new Dictionary<Guid, Guid>();
+        gridLineIdMap = new Dictionary<Guid, Guid>();
+        if (source?.GlobalFrame is null)
+        {
+            return null;
+        }
+
+        var copy = ConstructionAssemblyMapper.ToData(
+            ConstructionAssemblyMapper.FromData(source));
+        copy.GlobalFrame!.X = CadMath.RoundMm(copy.GlobalFrame.X + offsetX);
+        copy.GlobalFrame.Y = CadMath.RoundMm(copy.GlobalFrame.Y + offsetY);
+
+        foreach (var subFrame in copy.SubFrames)
+        {
+            var oldId = subFrame.Id;
+            var newId = Guid.NewGuid();
+            subFrameIdMap[oldId] = newId;
+            subFrame.Id = newId;
+            subFrame.OriginWorldX = CadMath.RoundMm(subFrame.OriginWorldX + offsetX);
+            subFrame.OriginWorldY = CadMath.RoundMm(subFrame.OriginWorldY + offsetY);
+
+            if (subFrame.FrameRoot is not null
+                && FrameNodeMapper.FromData(subFrame.FrameRoot) is FrameNode localRoot)
+            {
+                var remapped = RemapTreeSnapshot(
+                    localRoot.CaptureTreeSnapshot(),
+                    nodeIdMap,
+                    slotIdMap,
+                    0,
+                    0);
+                subFrame.FrameRoot = FrameNodeMapper.ToData(FrameNode.RestoreTree(remapped)!);
+            }
+        }
+
+        foreach (var transition in copy.TransitionProfiles)
+        {
+            if (elementIdMap.TryGetValue(transition.Id, out var mappedTransition))
+            {
+                transition.Id = mappedTransition;
+            }
+
+            transition.AxisCoordinate = CadMath.RoundMm(
+                transition.AxisCoordinate
+                + (string.Equals(transition.Orientation, "Horizontal", StringComparison.OrdinalIgnoreCase)
+                    ? offsetY
+                    : offsetX));
+            if (transition.LeftSubFrameId is Guid left
+                && subFrameIdMap.TryGetValue(left, out var mappedLeft))
+            {
+                transition.LeftSubFrameId = mappedLeft;
+            }
+            if (transition.RightSubFrameId is Guid right
+                && subFrameIdMap.TryGetValue(right, out var mappedRight))
+            {
+                transition.RightSubFrameId = mappedRight;
+            }
+            if (transition.PartitionNodeId is Guid partition
+                && nodeIdMap.TryGetValue(partition, out var mappedPartition))
+            {
+                transition.PartitionNodeId = mappedPartition;
+            }
+        }
+
+        var sourceAssembly = ConstructionAssemblyMapper.FromData(source);
+        var clonedAssembly = ConstructionAssemblyMapper.FromData(copy);
+        foreach (var sourceOwner in sourceAssembly.SubFrames)
+        {
+            if (!subFrameIdMap.TryGetValue(sourceOwner.Id, out var clonedOwnerId)
+                || clonedAssembly.SubFrames.FirstOrDefault(owner => owner.Id == clonedOwnerId)
+                    is not { } clonedOwner)
+            {
+                continue;
+            }
+
+            var clonedLines = FrameNodeGridLineProjector.Project(clonedOwner.Root).All;
+            foreach (var sourceLine in FrameNodeGridLineProjector.Project(sourceOwner.Root).All)
+            {
+                if (sourceLine.SourceNodeId is not Guid sourceNodeId
+                    || !nodeIdMap.TryGetValue(sourceNodeId, out var clonedNodeId))
+                {
+                    continue;
+                }
+
+                var clonedLine = clonedLines.FirstOrDefault(candidate =>
+                    candidate.SourceNodeId == clonedNodeId
+                    && candidate.Orientation == sourceLine.Orientation
+                    && candidate.UniformGapIndex == sourceLine.UniformGapIndex);
+                if (clonedLine is not null)
+                {
+                    gridLineIdMap[sourceLine.Id.Value] = clonedLine.Id.Value;
+                }
+            }
+        }
+
+        return copy;
     }
 
     private static FrameNode.TreeSnapshot RemapTreeSnapshot(
@@ -114,6 +237,7 @@ public static class ConstructionCloneHelper
             SplitRelativeCenter = source.SplitRelativeCenter,
             IsDummy = source.IsDummy,
             NodeId = newNodeId,
+            SeparatorKind = source.SeparatorKind,
             ExtremeImposts = source.ExtremeImposts
                 .Select(slot =>
                 {

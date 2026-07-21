@@ -6,6 +6,7 @@ using NurSapat.Cad.Core.Commands;
 using NurSapat.Cad.Core.Document;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
+using NurSapat.Cad.Core.Models.Assembly;
 using NurSapat.Cad.Core.Snapping;
 using NurSapat.Cad.Core.Viewport;
 using NurSapat.Cad.Tools;
@@ -2206,12 +2207,18 @@ public sealed partial class CadEditorViewModel : ObservableObject
         return true;
     }
 
-    private ConstructionMemento CaptureConstructionMemento() => new()
+    private ConstructionMemento CaptureConstructionMemento()
     {
-        FrameRootSnapshot = FrameRoot?.CaptureTreeSnapshot(),
-        Elements = CanvasElements.Select(ConstructionMemento.CloneElement).ToList(),
-        DocumentRect = Document.Rectangles.Count > 0 ? Document.Rectangles[0] : null
-    };
+        ValidateConstructionOwnershipOrThrow();
+        return new ConstructionMemento
+        {
+            AssemblyData = ConstructionAssembly is null
+                ? null
+                : ConstructionAssemblyMapper.ToData(ConstructionAssembly),
+            Elements = CanvasElements.Select(ConstructionMemento.CloneElement).ToList(),
+            DocumentRect = Document.Rectangles.Count > 0 ? Document.Rectangles[0] : null
+        };
+    }
 
     private void ApplyConstructionMemento(ConstructionMemento memento)
     {
@@ -2228,10 +2235,6 @@ public sealed partial class CadEditorViewModel : ObservableObject
                 detail: "ApplyConstructionMemento — дерево будет заменено");
         }
 
-        FrameRoot = memento.FrameRootSnapshot is null
-            ? null
-            : FrameNode.RestoreTree(memento.FrameRootSnapshot);
-
         Document.ClearRectangles();
         if (memento.DocumentRect is CadRect rect)
         {
@@ -2247,6 +2250,17 @@ public sealed partial class CadEditorViewModel : ObservableObject
         foreach (var element in memento.Elements)
         {
             CanvasElements.Add(ConstructionMemento.CloneElement(element));
+        }
+
+        if (memento.AssemblyData is { } assemblyData)
+        {
+            AdoptConstructionAssembly(ConstructionAssemblyMapper.FromData(assemblyData));
+        }
+        else
+        {
+            ConstructionAssembly = null;
+            FrameRoot = null;
+            _subFrameGrids.Clear();
         }
     }
 

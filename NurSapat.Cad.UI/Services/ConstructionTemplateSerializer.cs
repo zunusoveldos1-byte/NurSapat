@@ -3,12 +3,16 @@ using System.Text.Json.Serialization;
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
 using NurSapat.Core.Models.Orders;
+using NurSapat.Core.Models.Project;
 
 namespace NurSapat.Cad.UI.Services;
 
 public sealed class ConstructionTemplatePayload
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public FrameNode.TreeSnapshot? FrameRoot { get; set; }
+
+    public ConstructionAssemblyData? Assembly { get; set; }
 
     public List<GeometryElement> Elements { get; set; } = [];
 
@@ -27,7 +31,7 @@ public static class ConstructionTemplateSerializer
     public static string Serialize(ConstructionMemento memento) =>
         JsonSerializer.Serialize(new ConstructionTemplatePayload
         {
-            FrameRoot = memento.FrameRootSnapshot,
+            Assembly = memento.AssemblyData,
             Elements = memento.Elements.Select(ConstructionMemento.CloneElement).ToList(),
             DocumentRect = memento.DocumentRect
         }, Options);
@@ -42,14 +46,7 @@ public static class ConstructionTemplateSerializer
         try
         {
             var payload = JsonSerializer.Deserialize<ConstructionTemplatePayload>(json, Options);
-            return payload is null
-                ? null
-                : new ConstructionMemento
-                {
-                    FrameRootSnapshot = payload.FrameRoot,
-                    Elements = payload.Elements,
-                    DocumentRect = payload.DocumentRect
-                };
+            return payload is null ? null : LegacyTemplateMigration.ToMemento(payload);
         }
         catch (JsonException)
         {

@@ -255,6 +255,10 @@ public sealed class GeometryElementData
 
     public Guid? HostFrameNodeId { get; set; }
 
+    public Guid? HostGridLineId { get; set; }
+
+    public Guid? SubFrameId { get; set; }
+
     public Guid? ExtremeImpostSlotId { get; set; }
 
     public string? FillType { get; set; }
@@ -347,6 +351,71 @@ public sealed class CadProjectData
     public double ViewportPanY { get; set; } = 350;
 
     public FrameNodeData? FrameRoot { get; set; }
+
+    /// <summary>Schema v3: агрегат ConstructionAssembly.</summary>
+    public ConstructionAssemblyData? Assembly { get; set; }
+}
+
+public sealed class ConstructionAssemblyData
+{
+    public GlobalFrameData? GlobalFrame { get; set; }
+
+    public List<TransitionProfileData> TransitionProfiles { get; set; } = [];
+
+    public List<SubFrameData> SubFrames { get; set; } = [];
+}
+
+public sealed class GlobalFrameData
+{
+    public double X { get; set; }
+
+    public double Y { get; set; }
+
+    public double Width { get; set; }
+
+    public double Height { get; set; }
+}
+
+public sealed class TransitionProfileData
+{
+    public Guid Id { get; set; }
+
+    public Guid? PartitionNodeId { get; set; }
+
+    public string Orientation { get; set; } = "Vertical";
+
+    public double AxisCoordinate { get; set; }
+
+    public double ThicknessMm { get; set; }
+
+    public Guid? MaterialId { get; set; }
+
+    public Guid? HostGridLineId { get; set; }
+
+    public Guid? LeftSubFrameId { get; set; }
+
+    public Guid? RightSubFrameId { get; set; }
+}
+
+public sealed class SubFrameData
+{
+    public Guid Id { get; set; }
+
+    public double OriginWorldX { get; set; }
+
+    public double OriginWorldY { get; set; }
+
+    public double OuterWidth { get; set; }
+
+    public double OuterHeight { get; set; }
+
+    public double TransitionCoverStripMm { get; set; }
+
+    public double OuterCoverStripMm { get; set; }
+
+    public int OrderIndex { get; set; }
+
+    public FrameNodeData? FrameRoot { get; set; }
 }
 
 public sealed class FrameNodeData
@@ -379,7 +448,57 @@ public sealed class FrameNodeData
 
     public FrameNodeData? ChildB { get; set; }
 
+    public Guid NodeId { get; set; }
+
+    public double? SplitRelativeCenter { get; set; }
+
+    public string SeparatorKind { get; set; } = "None";
+
     public ProfileSegmentData? TopProfile { get; set; }
+
+    public string Shape { get; set; } = "Rectangle";
+
+    public SillElementData? Sill { get; set; }
+
+    public List<ExtremeImpostSlotData> ExtremeImposts { get; set; } = [];
+}
+
+public sealed class ExtremeImpostSlotData
+{
+    public Guid Id { get; set; }
+
+    public string Orientation { get; set; } = "None";
+
+    public string EdgeAlignment { get; set; } = "None";
+
+    public double OffsetMm { get; set; }
+
+    public double ThicknessMm { get; set; }
+
+    public double SpanStartMm { get; set; }
+
+    public double SpanEndMm { get; set; }
+
+    public double LightOpeningInsetMm { get; set; }
+}
+
+public sealed class SillElementData
+{
+    public Guid Id { get; set; }
+
+    public double WidthMm { get; set; }
+
+    public double DepthMm { get; set; }
+
+    public double ThicknessMm { get; set; }
+
+    public double LeftOverhangMm { get; set; }
+
+    public double RightOverhangMm { get; set; }
+
+    public Guid? MaterialId { get; set; }
+
+    public string? Color { get; set; }
 }
 
 public sealed class ProfileSegmentData

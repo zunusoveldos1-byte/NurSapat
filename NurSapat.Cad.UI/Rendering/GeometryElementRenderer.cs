@@ -2558,4 +2558,406 @@ public static class GeometryElementRenderer
         context.DrawLine(pen, to, left);
         context.DrawLine(pen, to, right);
     }
+
+    internal static bool TryBuildOpeningSegmentsForGrid(
+        CadEditorViewModel editor,
+        FrameNode root,
+        List<double> rawBoundaries,
+        bool alongX,
+        out IReadOnlyList<double> segmentSizesMm,
+        out IReadOnlyList<double> boundaryWorld) =>
+        TryBuildOpeningSegmentsExcludingProfileBodies(
+            editor,
+            root,
+            rawBoundaries,
+            alongX,
+            out segmentSizesMm,
+            out boundaryWorld);
+
+    /// <summary>
+    /// Строит размерную цепочку световых/ячеечных сегментов, исключая толщины
+    /// импостов, переходных и соединительных профилей (единый алгоритм для X и Y).
+    /// </summary>
+    private static bool TryBuildOpeningSegmentsExcludingProfileBodies(
+        CadEditorViewModel editor,
+        FrameNode root,
+        List<double> rawBoundaries,
+        bool alongX,
+        out IReadOnlyList<double> segmentSizesMm,
+        out IReadOnlyList<double> boundaryWorld)
+    {
+        var filteredBoundaries = new List<double>();
+        var sizes = new List<double>();
+        double? lastBoundary = null;
+
+        for (var i = 0; i < rawBoundaries.Count - 1; i++)
+        {
+            var a = rawBoundaries[i];
+            var b = rawBoundaries[i + 1];
+            if (b - a <= CadMath.Epsilon)
+            {
+                continue;
+            }
+
+            if (IsStructuralProfileBodySpan(editor, root, a, b, alongX))
+            {
+                continue;
+            }
+
+            var size = alongX
+                ? ResolveBottomSegmentWidth(root, a, b)
+                : ResolveLeftSegmentHeight(root, a, b);
+            if (size <= CadMath.Epsilon)
+            {
+                continue;
+            }
+
+            if (lastBoundary is null)
+            {
+                filteredBoundaries.Add(a);
+                lastBoundary = a;
+            }
+            else if (Math.Abs(lastBoundary.Value - a) > CadMath.MmPrecision)
+            {
+                filteredBoundaries.Add(a);
+                lastBoundary = a;
+            }
+
+            sizes.Add(size);
+            filteredBoundaries.Add(b);
+            lastBoundary = b;
+        }
+
+        if (sizes.Count == 0)
+        {
+            segmentSizesMm = Array.Empty<double>();
+            boundaryWorld = Array.Empty<double>();
+            return false;
+        }
+
+        if (filteredBoundaries.Count == sizes.Count + 1)
+        {
+            segmentSizesMm = sizes;
+            boundaryWorld = filteredBoundaries;
+            return true;
+        }
+
+        return TryRebuildSegmentChainAcrossGaps(
+            rawBoundaries,
+            editor,
+            root,
+            alongX,
+            out segmentSizesMm,
+            out boundaryWorld);
+    }
+
+    private static bool TryRebuildSegmentChainAcrossGaps(
+        List<double> rawBoundaries,
+        CadEditorViewModel editor,
+        FrameNode root,
+        bool alongX,
+        out IReadOnlyList<double> segmentSizesMm,
+        out IReadOnlyList<double> boundaryWorld)
+    {
+        var sizes = new List<double>();
+        var boundaries = new List<double>();
+        var started = false;
+
+        for (var i = 0; i < rawBoundaries.Count - 1; i++)
+        {
+            var a = rawBoundaries[i];
+            var b = rawBoundaries[i + 1];
+            if (b - a <= CadMath.Epsilon || IsStructuralProfileBodySpan(editor, root, a, b, alongX))
+            {
+                continue;
+            }
+
+            var size = alongX
+                ? ResolveBottomSegmentWidth(root, a, b)
+                : ResolveLeftSegmentHeight(root, a, b);
+            if (size <= CadMath.Epsilon)
+            {
+                continue;
+            }
+
+            if (!started)
+            {
+                boundaries.Add(a);
+                started = true;
+            }
+
+            sizes.Add(size);
+            boundaries.Add(b);
+        }
+
+        if (sizes.Count == 0 || boundaries.Count != sizes.Count + 1)
+        {
+            segmentSizesMm = Array.Empty<double>();
+            boundaryWorld = Array.Empty<double>();
+            return false;
+        }
+
+        segmentSizesMm = sizes;
+        boundaryWorld = boundaries;
+        return true;
+    }
+
+    private static bool IsStructuralProfileBodySpan(
+        CadEditorViewModel editor,
+        FrameNode root,
+        double spanMin,
+        double spanMax,
+        bool alongX)
+    {
+        var span = spanMax - spanMin;
+        if (span <= CadMath.Epsilon)
+        {
+            return true;
+        }
+
+        var mid = (spanMin + spanMax) / 2.0;
+
+        if (IsImpostBodySpan(root, spanMin, spanMax, mid, alongX))
+        {
+            return true;
+        }
+
+        foreach (var element in editor.CanvasElements)
+        {
+            if (element.Kind is not (GeometryElementKind.TransitionFrame
+                or GeometryElementKind.Frame
+                or GeometryElementKind.ArchFrame))
+            {
+                continue;
+            }
+
+            if (DummyFrame.IsDummyElement(element))
+            {
+                continue;
+            }
+
+            if (element.Kind == GeometryElementKind.TransitionFrame
+                && IsTransitionProfileWallSpan(editor, element, spanMin, spanMax, mid, alongX))
+            {
+                return true;
+            }
+
+            if (element.Kind is GeometryElementKind.Frame or GeometryElementKind.ArchFrame
+                && IsNestedFrameWallSpan(editor, element, spanMin, spanMax, mid, alongX))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsTransitionProfileWallSpan(
+        CadEditorViewModel editor,
+        GeometryElement element,
+        double spanMin,
+        double spanMax,
+        double mid,
+        bool alongX)
+    {
+        if (!TransitionAdjacentFrameGeometry.TryResolveHostGeometry(
+                editor,
+                element,
+                editor.FrameRoot,
+                editor.FrameThickness,
+                out var host))
+        {
+            return false;
+        }
+
+        var span = spanMax - spanMin;
+        var tol = FrameNode.DefaultImpostProfileMm;
+
+        if (alongX)
+        {
+            var probeY = (host.OuterBottom + host.OuterTop) / 2.0;
+            var leftInner = host.InnerLeftFace(probeY);
+            var rightInner = host.InnerRightFace(probeY);
+
+            if (host.OuterWidth <= host.ProfileThickness + tol
+                && mid >= host.OuterLeft - CadMath.MmPrecision
+                && mid <= host.OuterRight + CadMath.MmPrecision
+                && span <= host.OuterWidth + CadMath.MmPrecision
+                && Math.Abs(spanMin - host.OuterLeft) <= tol
+                && Math.Abs(spanMax - host.OuterRight) <= tol)
+            {
+                return true;
+            }
+
+            if (IsWallSpan(spanMin, spanMax, mid, host.OuterLeft, leftInner, tol)
+                || IsWallSpan(spanMin, spanMax, mid, rightInner, host.OuterRight, tol))
+            {
+                return true;
+            }
+        }
+        else
+        {
+            var probeX = (host.OuterLeft + host.OuterRight) / 2.0;
+            var bottomInner = host.InnerBottomFace(probeX);
+            var topInner = host.InnerTopFace(probeX);
+
+            if (host.OuterHeight <= host.ProfileThickness + tol
+                && mid >= host.OuterBottom - CadMath.MmPrecision
+                && mid <= host.OuterTop + CadMath.MmPrecision
+                && span <= host.OuterHeight + CadMath.MmPrecision
+                && Math.Abs(spanMin - host.OuterBottom) <= tol
+                && Math.Abs(spanMax - host.OuterTop) <= tol)
+            {
+                return true;
+            }
+
+            if (IsWallSpan(spanMin, spanMax, mid, host.OuterBottom, bottomInner, tol)
+                || IsWallSpan(spanMin, spanMax, mid, topInner, host.OuterTop, tol))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsNestedFrameWallSpan(
+        CadEditorViewModel editor,
+        GeometryElement element,
+        double spanMin,
+        double spanMax,
+        double mid,
+        bool alongX)
+    {
+        var (originX, originY, width, height) = GetWorldOriginBounds(element);
+        if (width <= CadMath.Epsilon || height <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var inset = FrameProfileGeometry.ResolveInnerInset(width, height, editor.FrameThickness);
+        if (inset <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var tol = FrameNode.DefaultImpostProfileMm;
+        if (alongX)
+        {
+            return IsWallSpan(spanMin, spanMax, mid, originX, originX + inset, tol)
+                   || IsWallSpan(spanMin, spanMax, mid, originX + width - inset, originX + width, tol);
+        }
+
+        return IsWallSpan(spanMin, spanMax, mid, originY, originY + inset, tol)
+               || IsWallSpan(spanMin, spanMax, mid, originY + height - inset, originY + height, tol);
+    }
+
+    private static bool IsWallSpan(
+        double spanMin,
+        double spanMax,
+        double mid,
+        double wallMin,
+        double wallMax,
+        double tol)
+    {
+        if (wallMax - wallMin <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        return mid >= wallMin - CadMath.MmPrecision
+               && mid <= wallMax + CadMath.MmPrecision
+               && Math.Abs(spanMin - wallMin) <= tol
+               && Math.Abs(spanMax - wallMax) <= tol;
+    }
+
+    private static bool IsImpostBodySpan(
+        FrameNode node,
+        double spanMin,
+        double spanMax,
+        double mid,
+        bool alongX)
+    {
+        var span = spanMax - spanMin;
+        if (node.IsUniformSplit)
+        {
+            var cells = node.UniformCells;
+            var thickness = node.GetResolvedImpostThicknessMm();
+            if (thickness > CadMath.Epsilon
+                && ((alongX && node.SplitOrientation == SplitOrientation.Vertical)
+                    || (!alongX && node.SplitOrientation == SplitOrientation.Horizontal)))
+            {
+                for (var i = 0; i < cells.Count - 1; i++)
+                {
+                    double gapStart;
+                    double gapEnd;
+                    if (alongX)
+                    {
+                        gapStart = cells[i].X + cells[i].Width;
+                        gapEnd = cells[i + 1].X;
+                    }
+                    else
+                    {
+                        gapStart = cells[i].Y + cells[i].Height;
+                        gapEnd = cells[i + 1].Y;
+                    }
+
+                    if (mid >= gapStart - CadMath.MmPrecision
+                        && mid <= gapEnd + CadMath.MmPrecision
+                        && span <= Math.Max(thickness, gapEnd - gapStart) + CadMath.MmPrecision)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            foreach (var cell in cells)
+            {
+                if (IsImpostBodySpan(cell, spanMin, spanMax, mid, alongX))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (!node.IsLeaf && node.ChildA is not null && node.ChildB is not null)
+        {
+            var thickness = node.GetResolvedImpostThicknessMm();
+            if (thickness > CadMath.Epsilon)
+            {
+                if (alongX && node.SplitOrientation == SplitOrientation.Vertical)
+                {
+                    var gapStart = node.ChildA.X + node.ChildA.Width;
+                    var gapEnd = node.ChildB.X;
+                    if (mid >= gapStart - CadMath.MmPrecision
+                        && mid <= gapEnd + CadMath.MmPrecision
+                        && spanMax - spanMin <= Math.Max(thickness, gapEnd - gapStart) + CadMath.MmPrecision)
+                    {
+                        return true;
+                    }
+                }
+                else if (!alongX && node.SplitOrientation == SplitOrientation.Horizontal)
+                {
+                    var gapStart = node.ChildA.Y + node.ChildA.Height;
+                    var gapEnd = node.ChildB.Y;
+                    if (mid >= gapStart - CadMath.MmPrecision
+                        && mid <= gapEnd + CadMath.MmPrecision
+                        && spanMax - spanMin <= Math.Max(thickness, gapEnd - gapStart) + CadMath.MmPrecision)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            if (IsImpostBodySpan(node.ChildA, spanMin, spanMax, mid, alongX)
+                || IsImpostBodySpan(node.ChildB, spanMin, spanMax, mid, alongX))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

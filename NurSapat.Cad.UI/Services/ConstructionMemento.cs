@@ -1,13 +1,13 @@
 using NurSapat.Cad.Core.Geometry;
-using NurSapat.Cad.Core.Models;
 using NurSapat.Core.Models.Orders;
+using NurSapat.Core.Models.Project;
 
 namespace NurSapat.Cad.UI.Services;
 
 /// <summary>Снимок состояния конструкции на холсте для отмены/повтора размещения.</summary>
 public sealed class ConstructionMemento
 {
-    public FrameNode.TreeSnapshot? FrameRootSnapshot { get; init; }
+    public ConstructionAssemblyData? AssemblyData { get; init; }
 
     public IReadOnlyList<GeometryElement> Elements { get; init; } = [];
 
@@ -54,6 +54,8 @@ public sealed class ConstructionMemento
         EdgeAlignment = source.EdgeAlignment,
         ExtremeImpostOffsetMm = source.ExtremeImpostOffsetMm,
         HostFrameNodeId = source.HostFrameNodeId,
+        HostGridLineId = source.HostGridLineId,
+        SubFrameId = source.SubFrameId,
         ExtremeImpostSlotId = source.ExtremeImpostSlotId,
         FillType = source.FillType,
         Shape = source.Shape

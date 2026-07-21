@@ -2,7 +2,7 @@ namespace NurSapat.Core.Models.Project;
 
 public static class ProjectFormat
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     public const string Extension = ".nsp";
 

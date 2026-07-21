@@ -261,6 +261,8 @@ public static class OrderProjectMapper
         EdgeAlignment = element.EdgeAlignment?.ToString(),
         ExtremeImpostOffsetMm = element.ExtremeImpostOffsetMm,
         HostFrameNodeId = element.HostFrameNodeId,
+        HostGridLineId = element.HostGridLineId,
+        SubFrameId = element.SubFrameId,
         ExtremeImpostSlotId = element.ExtremeImpostSlotId,
         FillType = element.FillType?.ToString(),
         Shape = element.Shape?.ToString()
@@ -352,6 +354,8 @@ public static class OrderProjectMapper
             EdgeAlignment = edgeAlignment,
             ExtremeImpostOffsetMm = data.ExtremeImpostOffsetMm,
             HostFrameNodeId = data.HostFrameNodeId,
+            HostGridLineId = data.HostGridLineId,
+            SubFrameId = data.SubFrameId,
             ExtremeImpostSlotId = data.ExtremeImpostSlotId,
             FillType = fillType,
             Shape = shape

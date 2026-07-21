@@ -341,6 +341,8 @@ internal static class OrderMapper
         EdgeAlignment = entity.EdgeAlignment.HasValue ? (ImpostEdgeAlignment)entity.EdgeAlignment.Value : null,
         ExtremeImpostOffsetMm = entity.ExtremeImpostOffsetMm,
         HostFrameNodeId = entity.HostFrameNodeId,
+        HostGridLineId = entity.HostGridLineId,
+        SubFrameId = entity.SubFrameId,
         ExtremeImpostSlotId = entity.ExtremeImpostSlotId,
         FillType = entity.FillType.HasValue ? (GlazingType)entity.FillType.Value : null,
         Shape = entity.Shape.HasValue ? (ConstructionShape)entity.Shape.Value : null
@@ -381,6 +383,8 @@ internal static class OrderMapper
         EdgeAlignment = domain.EdgeAlignment.HasValue ? (int)domain.EdgeAlignment.Value : null,
         ExtremeImpostOffsetMm = domain.ExtremeImpostOffsetMm,
         HostFrameNodeId = domain.HostFrameNodeId,
+        HostGridLineId = domain.HostGridLineId,
+        SubFrameId = domain.SubFrameId,
         ExtremeImpostSlotId = domain.ExtremeImpostSlotId,
         FillType = domain.FillType.HasValue ? (int)domain.FillType.Value : null,
         Shape = domain.Shape.HasValue ? (int)domain.Shape.Value : null

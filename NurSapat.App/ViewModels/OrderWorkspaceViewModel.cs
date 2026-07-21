@@ -510,6 +510,10 @@ public sealed class OrderWorkspaceViewModel
         SpokeIsArched = source.SpokeIsArched,
         SpokeArcCenterX = source.SpokeArcCenterX,
         SpokeArcCenterY = source.SpokeArcCenterY,
-        SpokeArcRadius = source.SpokeArcRadius
+        SpokeArcRadius = source.SpokeArcRadius,
+        HostFrameNodeId = source.HostFrameNodeId,
+        HostGridLineId = source.HostGridLineId,
+        SubFrameId = source.SubFrameId,
+        ExtremeImpostSlotId = source.ExtremeImpostSlotId
     };
 }

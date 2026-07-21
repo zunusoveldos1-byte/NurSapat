@@ -70,6 +70,10 @@ public sealed class GeometryElementEntity
 
     public Guid? HostFrameNodeId { get; set; }
 
+    public Guid? HostGridLineId { get; set; }
+
+    public Guid? SubFrameId { get; set; }
+
     public Guid? ExtremeImpostSlotId { get; set; }
 
     public int? FillType { get; set; }

@@ -1,4 +1,5 @@
 using NurSapat.Cad.Core.Geometry;
+using NurSapat.Cad.Core.Models.Assembly;
 using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.Cad.Core.Models;
@@ -65,6 +66,15 @@ public sealed class FrameNode
     /// <summary>Уникальный идентификатор узла (для крайних импостов и сериализации).</summary>
     public Guid NodeId { get; private set; } = Guid.NewGuid();
 
+    /// <summary>Роль разделителя: Impost или Transition между подрамами.</summary>
+    public SeparatorKind SeparatorKind { get; private set; } = SeparatorKind.None;
+
+    /// <summary>
+    /// Владелец локального дерева. Для runtime-узлов Schema v3 обязателен;
+    /// null допустим только у legacy/global view до миграции.
+    /// </summary>
+    public Guid? OwnerSubFrameId { get; private set; }
+
     public IReadOnlyList<ExtremeImpostSlot> ExtremeImposts => _extremeImposts;
 
     /// <summary>Верхний профиль коробки (только у корневого узла).</summary>
@@ -95,6 +105,46 @@ public sealed class FrameNode
         }
 
         return node;
+    }
+
+    public void AssignOwnerSubFrame(Guid ownerSubFrameId)
+    {
+        OwnerSubFrameId = ownerSubFrameId;
+        foreach (var cell in _uniformCells)
+        {
+            cell.AssignOwnerSubFrame(ownerSubFrameId);
+        }
+
+        ChildA?.AssignOwnerSubFrame(ownerSubFrameId);
+        ChildB?.AssignOwnerSubFrame(ownerSubFrameId);
+    }
+
+    public IEnumerable<FrameNode> EnumerateAllNodes()
+    {
+        yield return this;
+        foreach (var cell in _uniformCells)
+        {
+            foreach (var descendant in cell.EnumerateAllNodes())
+            {
+                yield return descendant;
+            }
+        }
+
+        if (ChildA is not null)
+        {
+            foreach (var descendant in ChildA.EnumerateAllNodes())
+            {
+                yield return descendant;
+            }
+        }
+
+        if (ChildB is not null)
+        {
+            foreach (var descendant in ChildB.EnumerateAllNodes())
+            {
+                yield return descendant;
+            }
+        }
     }
 
     /// <summary>
@@ -573,6 +623,7 @@ public sealed class FrameNode
         SplitOrientation = SplitOrientation.Vertical;
         LineStyle = lineStyle;
         SplitRelativeCenter = Width > CadMath.Epsilon ? centerLocal / Width : 0.5;
+        SeparatorKind = SeparatorKind.Impost;
         return true;
     }
 
@@ -600,6 +651,7 @@ public sealed class FrameNode
         SplitOrientation = SplitOrientation.Horizontal;
         LineStyle = lineStyle;
         SplitRelativeCenter = splitExtent > CadMath.Epsilon ? centerLocal / splitExtent : 0.5;
+        SeparatorKind = SeparatorKind.Impost;
         return true;
     }
 
@@ -1488,7 +1540,8 @@ public sealed class FrameNode
             Width = width,
             Height = height,
             Parent = this,
-            IsLeaf = true
+            IsLeaf = true,
+            OwnerSubFrameId = OwnerSubFrameId
         };
 
     public static FrameNode CreateRoot(double x, double y, double width, double height, bool isFictitiousContainer = false)
@@ -1559,6 +1612,8 @@ public sealed class FrameNode
                 UniformImpostCount = UniformImpostCount,
                 UniformCells = UniformCells.Select(cell => cell.CaptureTreeSnapshot()).ToList(),
                 IsDummy = IsDummy,
+                NodeId = NodeId,
+                SeparatorKind = SeparatorKind,
                 TopProfile = Parent is null ? TopProfile?.CaptureSnapshot() : null
             };
         }
@@ -1581,6 +1636,8 @@ public sealed class FrameNode
                 ChildB = ChildB.CaptureTreeSnapshot(),
                 SplitRelativeCenter = SplitRelativeCenter,
                 IsDummy = IsDummy,
+                NodeId = NodeId,
+                SeparatorKind = SeparatorKind,
                 TopProfile = Parent is null ? TopProfile?.CaptureSnapshot() : null
             };
         }
@@ -1598,6 +1655,7 @@ public sealed class FrameNode
             ImpostThicknessMm = ImpostThicknessMm,
             UniformImpostCount = UniformImpostCount,
             NodeId = NodeId,
+            SeparatorKind = SeparatorKind,
             IsDummy = IsDummy,
             ExtremeImposts = CaptureExtremeImpostSnapshots(),
             TopProfile = Parent is null ? TopProfile?.CaptureSnapshot() : null,
@@ -1653,6 +1711,7 @@ public sealed class FrameNode
         public double? SplitRelativeCenter { get; init; }
         public bool IsDummy { get; init; }
         public Guid NodeId { get; init; }
+        public SeparatorKind SeparatorKind { get; init; } = SeparatorKind.None;
         public IReadOnlyList<ExtremeImpostSlotSnapshot> ExtremeImposts { get; init; } = [];
         public ProfileSegmentSnapshot? TopProfile { get; init; }
         public ConstructionShape Shape { get; init; } = ConstructionShape.Rectangle;
@@ -1736,6 +1795,7 @@ public sealed class FrameNode
             NodeId = snapshot.NodeId;
         }
 
+        SeparatorKind = snapshot.SeparatorKind;
         RestoreExtremeImposts(snapshot.ExtremeImposts);
 
         _uniformCells.Clear();
@@ -2043,6 +2103,7 @@ public sealed class FrameNode
         ImpostThicknessMm = 0;
         LineStyle = ImpostLineStyle.Dashed;
         SplitRelativeCenter = null;
+        SeparatorKind = SeparatorKind.None;
         ClearExtremeImposts();
     }
 
