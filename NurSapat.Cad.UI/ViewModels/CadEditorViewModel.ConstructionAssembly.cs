@@ -43,7 +43,10 @@ public sealed partial class CadEditorViewModel
 
     private void InitializeNewConstructionAssembly(FrameNode newRoot)
     {
-        AdoptConstructionAssembly(ConstructionAssemblyBuilder.Build(newRoot, []));
+        FrameRoot = newRoot;
+        ConstructionAssembly = null;
+        _subFrameGrids.Clear();
+        EnsureConstructionAssemblyFromFrameRoot();
     }
 
     private void AdoptConstructionAssembly(ConstructionAssembly assembly)
@@ -70,8 +73,17 @@ public sealed partial class CadEditorViewModel
 
     private static FrameNode CreateFrameRootView(ConstructionAssembly assembly)
     {
+        var primary = assembly.SubFrames.OrderBy(owner => owner.OrderIndex).First();
+
+        // Одна подрама без переходов: FrameRoot = SubFrame.Root (тот же объект),
+        // чтобы TrySplit* на холсте попадал в дерево, сохраняемое в memento.
+        if (assembly.SubFrames.Count == 1 && assembly.TransitionProfiles.Count == 0)
+        {
+            return primary.Root;
+        }
+
         var global = assembly.GlobalFrame;
-        var metadataRoot = assembly.SubFrames.OrderBy(owner => owner.OrderIndex).First().Root;
+        var metadataRoot = primary.Root;
         var view = FrameNode.CreateRoot(
             global.X,
             global.Y,
@@ -244,11 +256,88 @@ public sealed partial class CadEditorViewModel
         OnPropertyChanged(nameof(GridLines));
     }
 
+    /// <summary>
+    /// Гарантирует, что живое дерево <see cref="FrameRoot"/> отражено в
+    /// <see cref="ConstructionAssembly"/> (один SubFrame, тот же экземпляр Root).
+    /// Нужно для RecordPlacement / undo: иначе CaptureConstructionMemento падает
+    /// или сохраняет пустое дерево.
+    /// </summary>
+    private void EnsureConstructionAssemblyFromFrameRoot()
+    {
+        if (FrameRoot is null)
+        {
+            return;
+        }
+
+        if (ConstructionAssembly is { SubFrames.Count: 1 } existing
+            && ReferenceEquals(existing.SubFrames[0].Root, FrameRoot))
+        {
+            existing.GlobalFrame.X = FrameRoot.X;
+            existing.GlobalFrame.Y = FrameRoot.Y;
+            existing.GlobalFrame.Width = FrameRoot.Width;
+            existing.GlobalFrame.Height = FrameRoot.Height;
+            var sub = existing.SubFrames[0];
+            // FrameRoot в мировых координатах: Origin=0, иначе SubFrameGrid дважды сдвинет оси.
+            sub.OriginWorldX = 0;
+            sub.OriginWorldY = 0;
+            sub.OuterWidth = FrameRoot.X + FrameRoot.Width;
+            sub.OuterHeight = FrameRoot.Y + FrameRoot.Height;
+            RebuildOwnerGridLines(sub);
+            return;
+        }
+
+        if (ConstructionAssembly is not null)
+        {
+            // Уже есть multi-subframe / загруженная сборка — не перетираем.
+            return;
+        }
+
+        var root = FrameRoot;
+        var subFrameId = root.OwnerSubFrameId ?? Guid.NewGuid();
+        root.AssignOwnerSubFrame(subFrameId);
+
+        // Root остаётся в мировых координатах редактора; Origin совпадает с Root.X/Y,
+        // а SubFrameGrid.OffsetToWorld даёт нулевой сдвиг только если Origin=0.
+        // Поэтому Origin = 0, а габарит берём из GlobalFrame / Root.
+        var assembly = new ConstructionAssembly
+        {
+            GlobalFrame = GlobalFrame.FromBounds(root.X, root.Y, root.Width, root.Height),
+            TransitionProfiles = [],
+            SubFrames =
+            [
+                new SubFrame
+                {
+                    Id = subFrameId,
+                    OriginWorldX = 0,
+                    OriginWorldY = 0,
+                    OuterWidth = root.X + root.Width,
+                    OuterHeight = root.Y + root.Height,
+                    OrderIndex = 0,
+                    Root = root
+                }
+            ]
+        };
+
+        ConstructionAssembly = assembly;
+        _subFrameGrids.Clear();
+        _subFrameGrids[subFrameId] = new SubFrameGrid(assembly.SubFrames[0]);
+        OnPropertyChanged(nameof(ConstructionAssembly));
+        OnPropertyChanged(nameof(SubFrameGrids));
+        OnPropertyChanged(nameof(GridLines));
+    }
+
     public void ValidateConstructionOwnershipOrThrow()
     {
+        // Редактор historically держит геометрию в FrameRoot; assembly может
+        // появиться позже. Перед снимком истории поднимаем assembly из FrameRoot.
+        if (ConstructionAssembly is null && FrameRoot is not null)
+        {
+            EnsureConstructionAssemblyFromFrameRoot();
+        }
+
         if (ConstructionAssembly is not { } assembly)
         {
-            if (CanvasElements.Count == 0)
+            if (CanvasElements.Count == 0 || FrameRoot is not null)
             {
                 return;
             }

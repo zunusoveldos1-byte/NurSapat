@@ -1,7 +1,9 @@
 namespace NurSapat.Cad.Tools.Tools.Geometry;
 
 /// <summary>
-/// Делит выбранный профиль (ячейку или импост) пополам перпендикулярным разрезом.
+/// «Разбить профиль пополам»: мгновенное действие тулбара.
+/// Делит выбранный профиль рамы (или ячейку/импост) перпендикулярным разрезом
+/// через середину; стык моделируется импостом с <c>SplitRelativeCenter = 0.5</c>.
 /// </summary>
 public sealed class SplitProfileTool : InstantCadToolBase
 {

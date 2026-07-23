@@ -27,7 +27,7 @@ public static class CadToolMetadata
             Info(CadToolKind.AlignGlazingUnits, "align-glazing", "Выравнивание стеклопакетов", CadToolGroup.DimensionsAndFill, CadToolInteraction.InstantAction, true),
             Info(CadToolKind.AlignDeadLights, "align-dead-lights", "Выравнивание глухих просветов", CadToolGroup.DimensionsAndFill, CadToolInteraction.InstantAction, true),
             Info(CadToolKind.SetVertexCoordinates, "set-vertex-coordinates", "Установить координаты вершины", CadToolGroup.GeometryAndImposts, CadToolInteraction.Persistent, true),
-            Info(CadToolKind.SplitProfile, "split-profile", "Разбить профиль надвое", CadToolGroup.GeometryAndImposts, CadToolInteraction.InstantAction, true),
+            Info(CadToolKind.SplitProfile, "split-profile", "Разбить профиль пополам", CadToolGroup.GeometryAndImposts, CadToolInteraction.InstantAction, true),
             Info(CadToolKind.OffsetImpostVertical, "offset-impost-v", "Сместить импост верт.", CadToolGroup.GeometryAndImposts, CadToolInteraction.Persistent, true),
             Info(CadToolKind.OffsetImpostHorizontal, "offset-impost-h", "Сместить импост гориз.", CadToolGroup.GeometryAndImposts, CadToolInteraction.Persistent, true),
             Info(CadToolKind.AlignImposts, "align-imposts", "Выравнивание импостов", CadToolGroup.GeometryAndImposts, CadToolInteraction.InstantAction, true),

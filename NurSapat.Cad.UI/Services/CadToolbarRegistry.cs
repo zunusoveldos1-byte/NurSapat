@@ -48,7 +48,7 @@ public static class CadToolbarRegistry
         Add(0, "SpeedButton69", "Выравнивание стеклопакетов", WindowToolMode.Other, "\uE8A8", "align-glazing", CadToolKind.AlignGlazingUnits, instant: true);
         Add(0, "SpeedButton50", "Выравнивание глухих просветов", WindowToolMode.Other, "\uE8A8", "align-dead-lights", CadToolKind.AlignDeadLights, instant: true);
         Add(0, "SpeedButton27", "Установить координаты вершины", WindowToolMode.Other, "\uE8B7", "set-vertex-coordinates", CadToolKind.SetVertexCoordinates);
-        Add(0, "SpeedButton39", "Разбить профиль надвое", WindowToolMode.Other, "\uE8A6", "split-profile", CadToolKind.SplitProfile);
+        Add(0, "SpeedButton39", "Разбить профиль пополам", WindowToolMode.Other, "\uE8A6", "split-profile", CadToolKind.SplitProfile);
         Add(0, "SpeedButton17", "Сместить импост вертикально", WindowToolMode.Other, "\uE8AC", "offset-impost-v", CadToolKind.OffsetImpostVertical);
         Add(0, "SpeedButton16", "Сместить импост горизонтально", WindowToolMode.Other, "\uE8AB", "offset-impost-h", CadToolKind.OffsetImpostHorizontal);
         Add(0, "SpeedButton33", "Выравнивание импостов", WindowToolMode.Other, "\uE8A7", "align-imposts", CadToolKind.AlignImposts, instant: true);
