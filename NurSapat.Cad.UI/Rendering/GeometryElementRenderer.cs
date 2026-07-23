@@ -51,6 +51,11 @@ public static class GeometryElementRenderer
     private const double RadiusDimensionArcOffsetFactor = 0.65;
     public const double DimensionLabelFontSize = 11;
     private const double DimensionHitPadding = 6;
+    /// <summary>Смещение центра подписи от оси размерной линии (px), чтобы цифры не пересекались с линией.</summary>
+    private const double DimensionLabelClearancePx = 9;
+    private const double DimensionLabelBackdropPadX = 3;
+    private const double DimensionLabelBackdropPadY = 1;
+    private static readonly IBrush DimensionLabelBackdropBrush = Brushes.White;
 
     public static void DrawAll(DrawingContext context, CadEditorViewModel editor, IReadOnlyList<GeometryElement> elements)
     {
@@ -505,6 +510,28 @@ public static class GeometryElementRenderer
         {
             try
             {
+                if (TryDrawDeformedOuterDimensions(
+                        context,
+                        editor,
+                        root!,
+                        rect,
+                        width,
+                        height))
+                {
+                    return;
+                }
+
+                if (TryDrawProfileRailOuterDimensions(
+                        context,
+                        editor,
+                        root!,
+                        rect,
+                        width,
+                        height))
+                {
+                    return;
+                }
+
                 var hasBottomSegments = TryCollectBottomWidthSegments(
                     editor,
                     root!,
@@ -647,7 +674,7 @@ public static class GeometryElementRenderer
             xDimInner);
         DrawVerticalDimensionSegment(context, editor, xDimInner, screenBottomLeft.Y, screenSpringingLeft.Y);
 
-        var rectHeightCenter = new Point(xDimInner - 3, (screenBottomLeft.Y + screenSpringingLeft.Y) / 2);
+        var rectHeightCenter = new Point(xDimInner, (screenBottomLeft.Y + screenSpringingLeft.Y) / 2);
         var rectHeightLabel = $"{boxHeight:0}";
         if (!IsDimensionLabelHidden(editor, DimensionHitKind.OverallHeight))
         {
@@ -668,7 +695,7 @@ public static class GeometryElementRenderer
             xDimOuter);
         DrawVerticalDimensionSegment(context, editor, xDimOuter, screenBottomLeft.Y, screenApexCenter.Y);
 
-        var totalHeightCenter = new Point(xDimOuter - 3, (screenBottomLeft.Y + screenApexCenter.Y) / 2);
+        var totalHeightCenter = new Point(xDimOuter, (screenBottomLeft.Y + screenApexCenter.Y) / 2);
         var totalHeightLabel = $"{totalHeight:0}";
         DrawVerticalTextAlongSide(context, totalHeightLabel, totalHeightCenter, DimensionTextBrush);
 
@@ -687,7 +714,7 @@ public static class GeometryElementRenderer
             yExtStart,
             yDim);
         DrawHorizontalDimensionSegment(context, editor, yDim, screenBottomLeft.X, screenBottomRight.X);
-        DrawCenteredText(context, $"{width:0}", new Point((screenBottomLeft.X + screenBottomRight.X) / 2, yDim + 4), DimensionTextBrush);
+        DrawCenteredText(context, $"{width:0}", new Point((screenBottomLeft.X + screenBottomRight.X) / 2, yDim + DimensionLabelClearancePx), DimensionTextBrush);
 
         var radialEndWorld = ResolveOffsetRadiusDimensionEndPoint(topProfile, outerRadius);
         var centerScreen = ToScreenPoint(editor, center.X, center.Y);
@@ -754,7 +781,7 @@ public static class GeometryElementRenderer
         DrawHorizontalExtensionToVerticalDimension(context, editor, blScreen.X, topScreen.Y, xDim);
         DrawHorizontalExtensionToVerticalDimension(context, editor, blScreen.X, blScreen.Y, xDim);
         DrawVerticalDimensionSegment(context, editor, xDim, topScreen.Y, blScreen.Y);
-        DrawVerticalTextAlongSide(context, $"{heightMm:0}", new Point(xDim - 3, (topScreen.Y + blScreen.Y) / 2), DimensionTextBrush);
+        DrawVerticalTextAlongSide(context, $"{heightMm:0}", new Point(xDim, (topScreen.Y + blScreen.Y) / 2), DimensionTextBrush);
 
         var yExtStart = blScreen.Y + frameGap;
         var ySeg = blScreen.Y + segOffset;
@@ -764,15 +791,15 @@ public static class GeometryElementRenderer
         DrawHorizontalDimensionSegment(context, editor, ySeg, blScreen.X, topScreen.X);
         DrawHorizontalDimensionSegment(context, editor, ySeg, topScreen.X, brScreen.X);
 
-        DrawCenteredText(context, $"{half:0}", new Point((blScreen.X + topScreen.X) / 2, ySeg - 4), DimensionTextBrush);
-        DrawCenteredText(context, $"{half:0}", new Point((topScreen.X + brScreen.X) / 2, ySeg - 4), DimensionTextBrush);
+        DrawCenteredText(context, $"{half:0}", new Point((blScreen.X + topScreen.X) / 2, ySeg - DimensionLabelClearancePx), DimensionTextBrush);
+        DrawCenteredText(context, $"{half:0}", new Point((topScreen.X + brScreen.X) / 2, ySeg - DimensionLabelClearancePx), DimensionTextBrush);
 
         var yOverall = blScreen.Y + overallOffset;
         DrawVerticalExtensionToHorizontalDimension(context, editor, blScreen.X, yExtStart, yOverall);
         DrawVerticalExtensionToHorizontalDimension(context, editor, brScreen.X, yExtStart, yOverall);
         DrawHorizontalDimensionSegment(context, editor, yOverall, blScreen.X, brScreen.X);
 
-        DrawCenteredText(context, $"{widthMm:0}", new Point((blScreen.X + brScreen.X) / 2, yOverall + 4), DimensionTextBrush);
+        DrawCenteredText(context, $"{widthMm:0}", new Point((blScreen.X + brScreen.X) / 2, yOverall + DimensionLabelClearancePx), DimensionTextBrush);
     }
 
     private static void DrawCircleDimensions(DrawingContext context, CadEditorViewModel editor, GeometryElement element)
@@ -824,7 +851,7 @@ public static class GeometryElementRenderer
             yDim);
         DrawHorizontalDimensionSegment(context, editor, yDim, rect.Left, rect.Right);
 
-        var widthCenter = new Point(rect.Center.X, yDim + 4);
+        var widthCenter = new Point(rect.Center.X, yDim + DimensionLabelClearancePx);
         if (!IsDimensionLabelHidden(editor, DimensionHitKind.OverallWidth))
         {
             DrawCenteredText(context, widthLabel, widthCenter, DimensionTextBrush);
@@ -858,7 +885,7 @@ public static class GeometryElementRenderer
             xDim);
         DrawVerticalDimensionSegment(context, editor, xDim, rect.Top, rect.Bottom);
 
-        var heightCenter = new Point(xDim - 3, rect.Center.Y);
+        var heightCenter = new Point(xDim, rect.Center.Y);
         if (!IsDimensionLabelHidden(editor, DimensionHitKind.OverallHeight))
         {
             DrawVerticalTextAlongSide(context, heightLabel, heightCenter, DimensionTextBrush);
@@ -981,7 +1008,7 @@ public static class GeometryElementRenderer
         DrawVerticalDimensionSegment(context, editor, xDim, rect.Top, rect.Bottom);
 
         var label = $"{heightMm:0}";
-        var heightCenter = new Point(xDim - 3, rect.Center.Y);
+        var heightCenter = new Point(xDim, rect.Center.Y);
         if (!IsDimensionLabelHidden(editor, DimensionHitKind.OverallHeight))
         {
             DrawVerticalTextAlongSide(context, label, heightCenter, DimensionTextBrush);
@@ -1032,7 +1059,7 @@ public static class GeometryElementRenderer
             DrawVerticalDimensionSegment(context, editor, xSeg, y1, y2);
 
             var label = $"{segmentHeightsMm[i]:0}";
-            var center = new Point(xSeg - 3, (y1 + y2) / 2);
+            var center = new Point(xSeg, (y1 + y2) / 2);
             if (!IsDimensionLabelHidden(editor, DimensionHitKind.SegmentHeight, i))
             {
                 DrawVerticalTextAlongSide(context, label, center, DimensionTextBrush);
@@ -1065,7 +1092,7 @@ public static class GeometryElementRenderer
         DrawVerticalDimensionSegment(context, editor, xOverall, top, bottom);
 
         var overallLabel = $"{totalHeightMm:0}";
-        var overallCenter = new Point(xOverall - 3, (top + bottom) / 2);
+        var overallCenter = new Point(xOverall, (top + bottom) / 2);
         if (!IsDimensionLabelHidden(editor, DimensionHitKind.OverallHeight))
         {
             DrawVerticalTextAlongSide(context, overallLabel, overallCenter, DimensionTextBrush);
@@ -1104,7 +1131,7 @@ public static class GeometryElementRenderer
         DrawHorizontalDimensionSegment(context, editor, yDim, rect.Left, rect.Right);
 
         var overallLabel = $"{totalWidthMm:0}";
-        var overallCenter = new Point(rect.Center.X, yDim + 4);
+        var overallCenter = new Point(rect.Center.X, yDim + DimensionLabelClearancePx);
         if (!IsDimensionLabelHidden(editor, DimensionHitKind.OverallWidth))
         {
             DrawCenteredText(context, overallLabel, overallCenter, DimensionTextBrush);
@@ -1153,7 +1180,7 @@ public static class GeometryElementRenderer
             DrawHorizontalDimensionSegment(context, editor, ySeg, x1, x2);
 
             var label = $"{segmentWidthsMm[i]:0}";
-            var center = new Point((x1 + x2) / 2, ySeg - 4);
+            var center = new Point((x1 + x2) / 2, ySeg - DimensionLabelClearancePx);
             if (!IsDimensionLabelHidden(editor, DimensionHitKind.SegmentWidth, i))
             {
                 DrawCenteredText(context, label, center, DimensionTextBrush);
@@ -1187,7 +1214,7 @@ public static class GeometryElementRenderer
         DrawHorizontalDimensionSegment(context, editor, yOverall, left, right);
 
         var overallLabel = $"{totalWidthMm:0}";
-        var overallCenter = new Point((left + right) / 2, yOverall + 4);
+        var overallCenter = new Point((left + right) / 2, yOverall + DimensionLabelClearancePx);
         if (!IsDimensionLabelHidden(editor, DimensionHitKind.OverallWidth))
         {
             DrawCenteredText(context, overallLabel, overallCenter, DimensionTextBrush);
@@ -1204,6 +1231,321 @@ public static class GeometryElementRenderer
                 ScreenRect = hitRect,
                 IsVertical = false
             });
+        }
+    }
+
+    /// <summary>
+    /// Размеры по внешним стыкам реек профиля.
+    /// Цепочки split-рейки и импостов независимы: разбиение верха не сбрасывает низ по импостам.
+    /// </summary>
+    private static bool TryDrawDeformedOuterDimensions(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameNode root,
+        Rect rect,
+        double totalWidthMm,
+        double totalHeightMm)
+    {
+        if (!root.HasDeformedOuterContour())
+        {
+            return false;
+        }
+
+        var corners = root.GetOuterCorners();
+
+        // Высота слева: уникальные Y углов левой стороны + габарит AABB.
+        var leftYs = new SortedSet<double>(CadMathComparer.Instance)
+        {
+            CadMath.RoundMm(corners.BottomLeft.Y),
+            CadMath.RoundMm(corners.TopLeft.Y),
+            CadMath.RoundMm(root.Y),
+            CadMath.RoundMm(root.Y + root.Height)
+        };
+
+        if (root.HasProfileRailJoints(FrameProfileRail.Left))
+        {
+            foreach (var y in root.GetOuterRailBoundaryCoordinates(FrameProfileRail.Left))
+            {
+                leftYs.Add(CadMath.RoundMm(y));
+            }
+        }
+
+        var leftBounds = leftYs.ToList();
+        if (leftBounds.Count >= 2)
+        {
+            var leftLengths = new List<double>();
+            for (var i = 0; i < leftBounds.Count - 1; i++)
+            {
+                leftLengths.Add(CadMath.RoundMm(leftBounds[i + 1] - leftBounds[i]));
+            }
+
+            if (leftLengths.Count > 1)
+            {
+                var screenY = leftBounds
+                    .Select(worldY => WorldYToScreenY(editor, worldY, root.X))
+                    .ToList();
+                DrawLeftHeightDimensionChain(
+                    context,
+                    editor,
+                    rect,
+                    screenY,
+                    leftBounds,
+                    leftLengths,
+                    totalHeightMm,
+                    registerHits: true);
+            }
+            else
+            {
+                DrawLeftHeightDimension(context, rect, totalHeightMm, editor, registerHits: true);
+            }
+        }
+        else
+        {
+            DrawLeftHeightDimension(context, rect, totalHeightMm, editor, registerHits: true);
+        }
+
+        // Верх: ортогональная проекция скошенного верхнего профиля.
+        var topProjections = root.GetOuterRailSegmentProjectionsMm(FrameProfileRail.Top);
+        var topBounds = root.GetOuterRailBoundaryCoordinates(FrameProfileRail.Top);
+        // Если стыков нет — границы по X углов TL/TR.
+        if (topBounds.Count < 2)
+        {
+            topBounds =
+            [
+                CadMath.RoundMm(corners.TopLeft.X),
+                CadMath.RoundMm(corners.TopRight.X)
+            ];
+            topProjections =
+            [
+                CadMath.RoundMm(Math.Abs(corners.TopRight.X - corners.TopLeft.X))
+            ];
+        }
+
+        if (topProjections.Count > 0 && topBounds.Count >= topProjections.Count + 1)
+        {
+            var topWorldY = Math.Max(corners.TopLeft.Y, corners.TopRight.Y);
+            var screenX = topBounds
+                .Select(worldX => WorldXToScreenX(editor, worldX, topWorldY))
+                .ToList();
+            var topScreenY = WorldYToScreenY(editor, topWorldY, corners.TopLeft.X);
+            DrawTopWidthDimensionChain(
+                context,
+                editor,
+                screenX,
+                topProjections,
+                topScreenY);
+        }
+
+        // Низ: проекция / стыки нижней рейки, иначе габарит.
+        if (root.HasProfileRailJoints(FrameProfileRail.Bottom))
+        {
+            var bottomProjections = root.GetOuterRailSegmentProjectionsMm(FrameProfileRail.Bottom);
+            var bottomBounds = root.GetOuterRailBoundaryCoordinates(FrameProfileRail.Bottom);
+            if (bottomProjections.Count > 1 && bottomBounds.Count >= 3)
+            {
+                var screenX = bottomBounds
+                    .Select(worldX => WorldXToScreenX(editor, worldX, root.Y))
+                    .ToList();
+                DrawBottomWidthDimensionChain(
+                    context,
+                    editor,
+                    screenX,
+                    bottomBounds,
+                    bottomProjections,
+                    totalWidthMm,
+                    ResolveBottomDimensionAnchorScreenY(editor, rect.Bottom),
+                    registerHits: true);
+            }
+            else
+            {
+                DrawBottomOverallWidthDimension(context, editor, rect, totalWidthMm, registerHits: true);
+            }
+        }
+        else
+        {
+            DrawBottomOverallWidthDimension(context, editor, rect, totalWidthMm, registerHits: true);
+        }
+
+        return true;
+    }
+
+    private sealed class CadMathComparer : IComparer<double>
+    {
+        public static readonly CadMathComparer Instance = new();
+
+        public int Compare(double x, double y)
+        {
+            if (Math.Abs(x - y) <= CadMath.MmPrecision)
+            {
+                return 0;
+            }
+
+            return x.CompareTo(y);
+        }
+    }
+
+    private static bool TryDrawProfileRailOuterDimensions(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameNode root,
+        Rect rect,
+        double totalWidthMm,
+        double totalHeightMm)
+    {
+        var hasTop = root.HasProfileRailJoints(FrameProfileRail.Top);
+        var hasBottom = root.HasProfileRailJoints(FrameProfileRail.Bottom);
+        var hasLeft = root.HasProfileRailJoints(FrameProfileRail.Left);
+        if (!hasTop && !hasBottom && !hasLeft && !root.HasProfileRailJoints(FrameProfileRail.Right))
+        {
+            return false;
+        }
+
+        // Высота слева: стыки левой рейки, иначе цепь по горизонтальным импостам, иначе габарит.
+        if (hasLeft)
+        {
+            var lengths = root.GetOuterRailSegmentLengthsMm(FrameProfileRail.Left);
+            var bounds = root.GetOuterRailBoundaryCoordinates(FrameProfileRail.Left);
+            if (lengths.Count > 1 && bounds.Count >= 3)
+            {
+                var screenY = bounds
+                    .Select(worldY => WorldYToScreenY(editor, worldY, root.X))
+                    .ToList();
+                DrawLeftHeightDimensionChain(
+                    context,
+                    editor,
+                    rect,
+                    screenY,
+                    bounds,
+                    lengths,
+                    totalHeightMm,
+                    registerHits: true);
+            }
+            else
+            {
+                DrawLeftHeightDimension(context, rect, totalHeightMm, editor, registerHits: true);
+            }
+        }
+        else if (TryCollectLeftHeightSegments(editor, root, out var segmentHeights, out var boundaryWorldY)
+                 && segmentHeights.Count > 1
+                 && boundaryWorldY.Count >= 3)
+        {
+            var screenBoundariesY = boundaryWorldY
+                .Select(worldY => WorldYToScreenY(editor, worldY, root.X))
+                .ToList();
+            DrawLeftHeightDimensionChain(
+                context,
+                editor,
+                rect,
+                screenBoundariesY,
+                boundaryWorldY,
+                segmentHeights,
+                totalHeightMm,
+                registerHits: true);
+        }
+        else
+        {
+            DrawLeftHeightDimension(context, rect, totalHeightMm, editor, registerHits: true);
+        }
+
+        // Верх: только стыки верхней рейки (отдельная цепь, не заменяет низ).
+        if (hasTop)
+        {
+            var topLengths = root.GetOuterRailSegmentProjectionsMm(FrameProfileRail.Top);
+            var topBounds = root.GetOuterRailBoundaryCoordinates(FrameProfileRail.Top);
+            if (topLengths.Count > 1 && topBounds.Count >= 3)
+            {
+                var screenX = topBounds
+                    .Select(worldX => WorldXToScreenX(editor, worldX, root.Y + root.Height))
+                    .ToList();
+                DrawTopWidthDimensionChain(
+                    context,
+                    editor,
+                    screenX,
+                    topLengths,
+                    rect.Top);
+            }
+        }
+
+        // Низ: стыки нижней рейки, иначе цепь по вертикальным импостам, иначе габарит.
+        if (hasBottom)
+        {
+            var bottomLengths = root.GetOuterRailSegmentLengthsMm(FrameProfileRail.Bottom);
+            var bottomBounds = root.GetOuterRailBoundaryCoordinates(FrameProfileRail.Bottom);
+            if (bottomLengths.Count > 1 && bottomBounds.Count >= 3)
+            {
+                var screenX = bottomBounds
+                    .Select(worldX => WorldXToScreenX(editor, worldX, root.Y))
+                    .ToList();
+                DrawBottomWidthDimensionChain(
+                    context,
+                    editor,
+                    screenX,
+                    bottomBounds,
+                    bottomLengths,
+                    totalWidthMm,
+                    ResolveBottomDimensionAnchorScreenY(editor, rect.Bottom),
+                    registerHits: true);
+            }
+            else
+            {
+                DrawBottomOverallWidthDimension(context, editor, rect, totalWidthMm, registerHits: true);
+            }
+        }
+        else if (TryCollectBottomWidthSegments(editor, root, out var segmentWidths, out var boundaryWorldX)
+                 && segmentWidths.Count > 1
+                 && boundaryWorldX.Count >= 3)
+        {
+            var screenBoundariesX = boundaryWorldX
+                .Select(worldX => WorldXToScreenX(editor, worldX, root.Y))
+                .ToList();
+            DrawBottomWidthDimensionChain(
+                context,
+                editor,
+                screenBoundariesX,
+                boundaryWorldX,
+                segmentWidths,
+                totalWidthMm,
+                ResolveBottomDimensionAnchorScreenY(editor, rect.Bottom),
+                registerHits: true);
+        }
+        else
+        {
+            DrawBottomOverallWidthDimension(context, editor, rect, totalWidthMm, registerHits: true);
+        }
+
+        return true;
+    }
+
+    private static void DrawTopWidthDimensionChain(
+        DrawingContext context,
+        CadEditorViewModel? editor,
+        IReadOnlyList<double> screenBoundaries,
+        IReadOnlyList<double> segmentWidthsMm,
+        double outerTopScreenY)
+    {
+        const double frameGap = DimensionFrameGap;
+        const double segOffset = DimensionExtensionOffset;
+
+        var yExtStart = outerTopScreenY - frameGap;
+        var ySeg = outerTopScreenY - segOffset;
+
+        foreach (var boundaryX in screenBoundaries)
+        {
+            DrawVerticalExtensionToHorizontalDimension(context, editor, boundaryX, yExtStart, ySeg);
+        }
+
+        for (var i = 0; i < segmentWidthsMm.Count; i++)
+        {
+            var x1 = screenBoundaries[i];
+            var x2 = screenBoundaries[i + 1];
+            DrawHorizontalDimensionSegment(context, editor, ySeg, x1, x2);
+
+            var label = $"{segmentWidthsMm[i]:0}";
+            var center = new Point((x1 + x2) / 2, ySeg + DimensionLabelClearancePx);
+            if (!IsDimensionLabelHidden(editor, DimensionHitKind.SegmentWidth, i))
+            {
+                DrawCenteredText(context, label, center, DimensionTextBrush);
+            }
         }
     }
 
@@ -1258,8 +1600,9 @@ public static class GeometryElementRenderer
             out boundaryWorld);
 
     /// <summary>
-    /// Строит размерную цепочку световых/ячеечных сегментов, исключая толщины
-    /// импостов, переходных и соединительных профилей (единый алгоритм для X и Y).
+    /// Строит размерную цепочку Outer→Axis→Outer по абсолютным границам,
+    /// исключая только тела переходных/вложенных профилей (не импостные «грани»).
+    /// Длины сегментов — по осям/внешним краям, без вычета светового проёма.
     /// </summary>
     private static bool TryBuildOpeningSegmentsExcludingProfileBodies(
         CadEditorViewModel editor,
@@ -1782,62 +2125,18 @@ public static class GeometryElementRenderer
 
     private static double ResolveBottomSegmentWidth(FrameNode root, double leftWorldX, double rightWorldX)
     {
+        // Внешняя размерная цепь: Outer Edge → Impost Center Axis (без вычета фальца).
+        _ = root;
         var width = rightWorldX - leftWorldX;
-        if (width <= CadMath.Epsilon)
-        {
-            return 0;
-        }
-
-        var probeX = (leftWorldX + rightWorldX) / 2.0;
-        var probeY = root.Y + Math.Min(1.0, Math.Max(0, root.Height / 2.0));
-        var leaf = root.FindLeafAt(probeX, probeY);
-        if (leaf is null)
-        {
-            return CadMath.RoundMm(width);
-        }
-
-        var insets = leaf.ResolveEdgeLightOpeningInsets();
-        if (CadMath.NearlyEqual(leftWorldX, leaf.X))
-        {
-            width -= insets.Left;
-        }
-
-        if (CadMath.NearlyEqual(rightWorldX, leaf.X + leaf.Width))
-        {
-            width -= insets.Right;
-        }
-
-        return CadMath.RoundMm(Math.Max(0, width));
+        return width <= CadMath.Epsilon ? 0 : CadMath.RoundMm(width);
     }
 
     private static double ResolveLeftSegmentHeight(FrameNode root, double bottomWorldY, double topWorldY)
     {
+        // Внешняя размерная цепь: Outer Edge → Impost Center Axis (без вычета фальца).
+        _ = root;
         var height = topWorldY - bottomWorldY;
-        if (height <= CadMath.Epsilon)
-        {
-            return 0;
-        }
-
-        var probeX = root.X + Math.Min(1.0, Math.Max(0, root.Width / 2.0));
-        var probeY = (bottomWorldY + topWorldY) / 2.0;
-        var leaf = root.FindLeafAt(probeX, probeY);
-        if (leaf is null)
-        {
-            return CadMath.RoundMm(height);
-        }
-
-        var insets = leaf.ResolveEdgeLightOpeningInsets();
-        if (CadMath.NearlyEqual(bottomWorldY, leaf.Y))
-        {
-            height -= insets.Bottom;
-        }
-
-        if (CadMath.NearlyEqual(topWorldY, leaf.Y + leaf.Height))
-        {
-            height -= insets.Top;
-        }
-
-        return CadMath.RoundMm(Math.Max(0, height));
+        return height <= CadMath.Epsilon ? 0 : CadMath.RoundMm(height);
     }
 
     private static void CollectHorizontalImpostAxes(FrameNode node, List<double> axes)
@@ -2321,7 +2620,7 @@ public static class GeometryElementRenderer
     private static (Rect TextBounds, Rect HitRect) MeasureVerticalTextBounds(string text, Point centerOnDimLine)
     {
         var formatted = CreateDimensionFormattedText(text, vertical: true);
-        var targetX = centerOnDimLine.X - 5;
+        var targetX = centerOnDimLine.X - DimensionLabelClearancePx;
         var targetY = centerOnDimLine.Y;
         var textBounds = new Rect(
             targetX - formatted.Height / 2,
@@ -2339,12 +2638,14 @@ public static class GeometryElementRenderer
     private static void DrawVerticalTextAlongSide(DrawingContext context, string text, Point centerOnDimLine, IBrush brush)
     {
         var formatted = CreateDimensionFormattedText(text, vertical: true, brush);
-        var midPoint = new Point(centerOnDimLine.X - 5, centerOnDimLine.Y);
+        // Смещение влево от вертикальной размерной линии.
+        var midPoint = new Point(centerOnDimLine.X - DimensionLabelClearancePx, centerOnDimLine.Y);
 
         using (context.PushTransform(Matrix.CreateTranslation(midPoint.X, midPoint.Y)))
         {
             using (context.PushTransform(Matrix.CreateRotation(-Math.PI / 2)))
             {
+                DrawDimensionLabelBackdrop(context, formatted);
                 context.DrawText(
                     formatted,
                     new Point(-formatted.Width / 2, -formatted.Height / 2));
@@ -2378,6 +2679,7 @@ public static class GeometryElementRenderer
         {
             using (context.PushTransform(Matrix.CreateRotation(angle)))
             {
+                DrawDimensionLabelBackdrop(context, formatted);
                 context.DrawText(
                     formatted,
                     new Point(-formatted.Width / 2, -formatted.Height / 2));
@@ -2387,14 +2689,41 @@ public static class GeometryElementRenderer
 
     private static void DrawCenteredText(DrawingContext context, string text, Point center, IBrush brush)
     {
-        var formatted = new FormattedText(
-            text,
-            System.Globalization.CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            Typeface.Default,
-            DimensionLabelFontSize,
-            brush);
-        context.DrawText(formatted, new Point(center.X - formatted.Width / 2, center.Y - formatted.Height / 2));
+        var formatted = CreateDimensionFormattedText(text, brush: brush);
+        DrawDimensionLabelBackdrop(context, formatted, center);
+        context.DrawText(
+            formatted,
+            new Point(center.X - formatted.Width / 2, center.Y - formatted.Height / 2));
+    }
+
+    /// <summary>
+    /// Белая подложка под цифрой — размерная линия визуально разрывается под текстом.
+    /// </summary>
+    private static void DrawDimensionLabelBackdrop(
+        DrawingContext context,
+        FormattedText formatted,
+        Point? center = null)
+    {
+        Rect backdrop;
+        if (center is { } c)
+        {
+            backdrop = new Rect(
+                c.X - formatted.Width / 2 - DimensionLabelBackdropPadX,
+                c.Y - formatted.Height / 2 - DimensionLabelBackdropPadY,
+                formatted.Width + DimensionLabelBackdropPadX * 2,
+                formatted.Height + DimensionLabelBackdropPadY * 2);
+        }
+        else
+        {
+            // В локальных координатах после Rotate/Translate (центр в 0,0).
+            backdrop = new Rect(
+                -formatted.Width / 2 - DimensionLabelBackdropPadX,
+                -formatted.Height / 2 - DimensionLabelBackdropPadY,
+                formatted.Width + DimensionLabelBackdropPadX * 2,
+                formatted.Height + DimensionLabelBackdropPadY * 2);
+        }
+
+        context.DrawRectangle(DimensionLabelBackdropBrush, null, backdrop);
     }
 
     private static Rect MeasureCenteredTextRect(string text, Point center, double padding = 6)

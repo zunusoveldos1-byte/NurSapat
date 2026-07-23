@@ -7,7 +7,8 @@ using NurSapat.Core.Models.Orders;
 namespace NurSapat.Cad.UI.Rendering;
 
 /// <summary>
-/// Размерные опоры только из абсолютного контейнера, GridLine и граней TransitionProfile.
+/// Размерные опоры внешней цепи: края контейнера + оси импостов (Center Line).
+/// Грани толщины профиля в цепочку не входят — сегменты Outer→Axis→Outer.
 /// </summary>
 internal static class DimensionChainFromGridLines
 {
@@ -38,18 +39,13 @@ internal static class DimensionChainFromGridLines
         {
             if (TryResolveAttachedTransitionFaces(editor, root, line, out var face1, out var face2))
             {
-                // GridLine заменяется гранями профиля; толщина не даёт отдельный размер.
+                // Переходной профиль: по-прежнему грани (толщина не даёт отдельный размер).
                 AddInterior(raw, face1, axisMin, axisMax);
                 AddInterior(raw, face2, axisMin, axisMax);
             }
-            else if (line.Kind == GridLineKind.Physical && line.ThicknessMm > CadMath.Epsilon)
-            {
-                var (f1, f2, _) = AxisMath.ResolveFaces(line);
-                AddInterior(raw, f1, axisMin, axisMax);
-                AddInterior(raw, f2, axisMin, axisMax);
-            }
             else
             {
+                // Импост / виртуальная линия: засечка на оси (Center Line), не на InnerEdge.
                 AddInterior(raw, line.Coordinate, axisMin, axisMax);
             }
         }

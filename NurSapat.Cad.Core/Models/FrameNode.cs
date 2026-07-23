@@ -67,6 +67,22 @@ public sealed class FrameNode
 
     public IReadOnlyList<ExtremeImpostSlot> ExtremeImposts => _extremeImposts;
 
+    /// <summary>
+    /// Стыки физического деления профилей коробки (рейки). Хранятся только на корне.
+    /// Не создают импост в световом проёме.
+    /// </summary>
+    public IReadOnlyList<FrameProfileRailJoint> ProfileRailJoints =>
+        Parent is null ? _profileRailJoints : GetRoot()._profileRailJoints;
+
+    /// <summary>
+    /// Внешние углы коробки (только корень). null = совпадает с AABB.
+    /// При деформации хранятся все четыре явно.
+    /// </summary>
+    private CadPoint? _outerBottomLeft;
+    private CadPoint? _outerBottomRight;
+    private CadPoint? _outerTopLeft;
+    private CadPoint? _outerTopRight;
+
     /// <summary>Верхний профиль коробки (только у корневого узла).</summary>
     public ProfileSegment? TopProfile { get; set; }
 
@@ -84,6 +100,7 @@ public sealed class FrameNode
 
     private readonly List<FrameNode> _uniformCells = [];
     private readonly List<ExtremeImpostSlot> _extremeImposts = [];
+    private readonly List<FrameProfileRailJoint> _profileRailJoints = [];
 
     /// <summary>Корневой узел дерева рамы (узел без родителя).</summary>
     public FrameNode GetRoot()
@@ -1040,6 +1057,10 @@ public sealed class FrameNode
 
         Width = CadMath.RoundMm(newWidth);
         Height = CadMath.RoundMm(newHeight);
+        if (Parent is null)
+        {
+            ClearOuterCorners();
+        }
 
         if (!IsLeaf)
         {
@@ -1522,6 +1543,7 @@ public sealed class FrameNode
 
         X = CadMath.RoundMm(X + deltaX);
         Y = CadMath.RoundMm(Y + deltaY);
+        TranslateOuterCorners(deltaX, deltaY);
 
         if (IsUniformSplit)
         {
@@ -1537,6 +1559,34 @@ public sealed class FrameNode
         {
             ChildA?.TranslateSubtree(deltaX, deltaY);
             ChildB?.TranslateSubtree(deltaX, deltaY);
+        }
+    }
+
+    private void TranslateOuterCorners(double deltaX, double deltaY)
+    {
+        if (Parent is not null)
+        {
+            return;
+        }
+
+        if (_outerBottomLeft is { } bl)
+        {
+            _outerBottomLeft = new CadPoint(CadMath.RoundMm(bl.X + deltaX), CadMath.RoundMm(bl.Y + deltaY));
+        }
+
+        if (_outerBottomRight is { } br)
+        {
+            _outerBottomRight = new CadPoint(CadMath.RoundMm(br.X + deltaX), CadMath.RoundMm(br.Y + deltaY));
+        }
+
+        if (_outerTopLeft is { } tl)
+        {
+            _outerTopLeft = new CadPoint(CadMath.RoundMm(tl.X + deltaX), CadMath.RoundMm(tl.Y + deltaY));
+        }
+
+        if (_outerTopRight is { } tr)
+        {
+            _outerTopRight = new CadPoint(CadMath.RoundMm(tr.X + deltaX), CadMath.RoundMm(tr.Y + deltaY));
         }
     }
 
@@ -1559,7 +1609,9 @@ public sealed class FrameNode
                 UniformImpostCount = UniformImpostCount,
                 UniformCells = UniformCells.Select(cell => cell.CaptureTreeSnapshot()).ToList(),
                 IsDummy = IsDummy,
-                TopProfile = Parent is null ? TopProfile?.CaptureSnapshot() : null
+                TopProfile = Parent is null ? TopProfile?.CaptureSnapshot() : null,
+                ProfileRailJoints = Parent is null ? CaptureProfileRailJointSnapshots() : [],
+                OuterCorners = Parent is null ? CaptureOuterCornerSnapshot() : null
             };
         }
 
@@ -1581,7 +1633,9 @@ public sealed class FrameNode
                 ChildB = ChildB.CaptureTreeSnapshot(),
                 SplitRelativeCenter = SplitRelativeCenter,
                 IsDummy = IsDummy,
-                TopProfile = Parent is null ? TopProfile?.CaptureSnapshot() : null
+                TopProfile = Parent is null ? TopProfile?.CaptureSnapshot() : null,
+                ProfileRailJoints = Parent is null ? CaptureProfileRailJointSnapshots() : [],
+                OuterCorners = Parent is null ? CaptureOuterCornerSnapshot() : null
             };
         }
 
@@ -1602,7 +1656,9 @@ public sealed class FrameNode
             ExtremeImposts = CaptureExtremeImpostSnapshots(),
             TopProfile = Parent is null ? TopProfile?.CaptureSnapshot() : null,
             Shape = Parent is null ? Shape : ConstructionShape.Rectangle,
-            Sill = Parent is null ? CaptureSillSnapshot() : null
+            Sill = Parent is null ? CaptureSillSnapshot() : null,
+            ProfileRailJoints = Parent is null ? CaptureProfileRailJointSnapshots() : [],
+            OuterCorners = Parent is null ? CaptureOuterCornerSnapshot() : null
         };
     }
 
@@ -1634,6 +1690,36 @@ public sealed class FrameNode
             LightOpeningInsetMm = slot.LightOpeningInsetMm
         }).ToList();
 
+    private IReadOnlyList<FrameProfileRailJointSnapshot> CaptureProfileRailJointSnapshots() =>
+        _profileRailJoints.Select(joint => new FrameProfileRailJointSnapshot
+        {
+            Id = joint.Id,
+            Rail = joint.Rail,
+            RelativeT = joint.RelativeT,
+            Kind = joint.Kind
+        }).ToList();
+
+    private OuterCornerSnapshot? CaptureOuterCornerSnapshot()
+    {
+        if (!HasStoredOuterCorners())
+        {
+            return null;
+        }
+
+        var corners = GetOuterCorners();
+        return new OuterCornerSnapshot
+        {
+            BottomLeftX = corners.BottomLeft.X,
+            BottomLeftY = corners.BottomLeft.Y,
+            BottomRightX = corners.BottomRight.X,
+            BottomRightY = corners.BottomRight.Y,
+            TopLeftX = corners.TopLeft.X,
+            TopLeftY = corners.TopLeft.Y,
+            TopRightX = corners.TopRight.X,
+            TopRightY = corners.TopRight.Y
+        };
+    }
+
     /// <summary>Снимок узла рамы для восстановления дерева из сериализованного состояния.</summary>
     public sealed class TreeSnapshot
     {
@@ -1657,6 +1743,20 @@ public sealed class FrameNode
         public ProfileSegmentSnapshot? TopProfile { get; init; }
         public ConstructionShape Shape { get; init; } = ConstructionShape.Rectangle;
         public SillElementSnapshot? Sill { get; init; }
+        public IReadOnlyList<FrameProfileRailJointSnapshot> ProfileRailJoints { get; init; } = [];
+        public OuterCornerSnapshot? OuterCorners { get; init; }
+    }
+
+    public sealed class OuterCornerSnapshot
+    {
+        public double BottomLeftX { get; init; }
+        public double BottomLeftY { get; init; }
+        public double BottomRightX { get; init; }
+        public double BottomRightY { get; init; }
+        public double TopLeftX { get; init; }
+        public double TopLeftY { get; init; }
+        public double TopRightX { get; init; }
+        public double TopRightY { get; init; }
     }
 
     public sealed class SillElementSnapshot
@@ -1699,6 +1799,8 @@ public sealed class FrameNode
         }
 
         root.Shape = snapshot.Shape;
+        root.RestoreProfileRailJoints(snapshot.ProfileRailJoints);
+        root.RestoreOuterCorners(snapshot.OuterCorners);
         if (snapshot.Sill is { } sillSnapshot)
         {
             root.AttachedSill = new SillElement
@@ -1786,6 +1888,286 @@ public sealed class FrameNode
                 LightOpeningInsetMm = snapshot.LightOpeningInsetMm
             });
         }
+    }
+
+    private void RestoreProfileRailJoints(IReadOnlyList<FrameProfileRailJointSnapshot> snapshots)
+    {
+        _profileRailJoints.Clear();
+        foreach (var snapshot in snapshots)
+        {
+            _profileRailJoints.Add(new FrameProfileRailJoint
+            {
+                Id = snapshot.Id == Guid.Empty ? Guid.NewGuid() : snapshot.Id,
+                Rail = snapshot.Rail,
+                RelativeT = snapshot.RelativeT,
+                Kind = snapshot.Kind
+            });
+        }
+    }
+
+    private void RestoreOuterCorners(OuterCornerSnapshot? snapshot)
+    {
+        if (snapshot is null)
+        {
+            ClearOuterCorners();
+            return;
+        }
+
+        _outerBottomLeft = new CadPoint(snapshot.BottomLeftX, snapshot.BottomLeftY);
+        _outerBottomRight = new CadPoint(snapshot.BottomRightX, snapshot.BottomRightY);
+        _outerTopLeft = new CadPoint(snapshot.TopLeftX, snapshot.TopLeftY);
+        _outerTopRight = new CadPoint(snapshot.TopRightX, snapshot.TopRightY);
+    }
+
+    public bool HasStoredOuterCorners() =>
+        Parent is null
+        && (_outerBottomLeft is not null
+            || _outerBottomRight is not null
+            || _outerTopLeft is not null
+            || _outerTopRight is not null);
+
+    public bool HasDeformedOuterContour()
+    {
+        var root = GetRoot();
+        if (!root.HasStoredOuterCorners())
+        {
+            return false;
+        }
+
+        var aabb = FrameProfileRailGeometry.ResolveAabbCorners(root.X, root.Y, root.Width, root.Height);
+        var corners = root.GetOuterCorners();
+        const double tol = CadMath.MmPrecision;
+        return !corners.BottomLeft.IsNear(aabb.BottomLeft, tol)
+               || !corners.BottomRight.IsNear(aabb.BottomRight, tol)
+               || !corners.TopLeft.IsNear(aabb.TopLeft, tol)
+               || !corners.TopRight.IsNear(aabb.TopRight, tol);
+    }
+
+    public FrameProfileRailGeometry.OuterCorners GetOuterCorners()
+    {
+        var root = GetRoot();
+        var aabb = FrameProfileRailGeometry.ResolveAabbCorners(root.X, root.Y, root.Width, root.Height);
+        if (!root.HasStoredOuterCorners())
+        {
+            return aabb;
+        }
+
+        return new FrameProfileRailGeometry.OuterCorners(
+            root._outerBottomLeft ?? aabb.BottomLeft,
+            root._outerBottomRight ?? aabb.BottomRight,
+            root._outerTopLeft ?? aabb.TopLeft,
+            root._outerTopRight ?? aabb.TopRight);
+    }
+
+    public CadPoint GetOuterCorner(FrameOuterCornerKind kind)
+    {
+        var corners = GetOuterCorners();
+        return kind switch
+        {
+            FrameOuterCornerKind.BottomLeft => corners.BottomLeft,
+            FrameOuterCornerKind.BottomRight => corners.BottomRight,
+            FrameOuterCornerKind.TopLeft => corners.TopLeft,
+            _ => corners.TopRight
+        };
+    }
+
+    public void ClearOuterCorners()
+    {
+        var root = GetRoot();
+        root._outerBottomLeft = null;
+        root._outerBottomRight = null;
+        root._outerTopLeft = null;
+        root._outerTopRight = null;
+    }
+
+    /// <summary>
+    /// Задаёт позицию внешнего угла. Габаритный AABB расширяется, если точка выходит за него;
+    /// при опускании угла внутрь габарит сохраняется (перепад высоты).
+    /// </summary>
+    public bool TrySetOuterCorner(FrameOuterCornerKind kind, CadPoint point, double minSizeMm = 40)
+    {
+        var root = GetRoot();
+        if (root.Shape != ConstructionShape.Rectangle
+            || root.TopProfile?.SegmentType == SegmentType.Arc
+               && root.TopProfile.ArcHeight > ProfileSegment.MinFlatArcHeightMm + CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var corners = root.GetOuterCorners();
+        var next = kind switch
+        {
+            FrameOuterCornerKind.BottomLeft => corners with
+            {
+                BottomLeft = new CadPoint(CadMath.RoundMm(point.X), CadMath.RoundMm(point.Y))
+            },
+            FrameOuterCornerKind.BottomRight => corners with
+            {
+                BottomRight = new CadPoint(CadMath.RoundMm(point.X), CadMath.RoundMm(point.Y))
+            },
+            FrameOuterCornerKind.TopLeft => corners with
+            {
+                TopLeft = new CadPoint(CadMath.RoundMm(point.X), CadMath.RoundMm(point.Y))
+            },
+            _ => corners with
+            {
+                TopRight = new CadPoint(CadMath.RoundMm(point.X), CadMath.RoundMm(point.Y))
+            }
+        };
+
+        if (!IsValidOuterQuad(next, minSizeMm))
+        {
+            return false;
+        }
+
+        // Расширяем AABB только наружу; внутрь — сохраняем полномерный габарит.
+        var minX = Math.Min(
+            Math.Min(next.BottomLeft.X, next.BottomRight.X),
+            Math.Min(next.TopLeft.X, next.TopRight.X));
+        var maxX = Math.Max(
+            Math.Max(next.BottomLeft.X, next.BottomRight.X),
+            Math.Max(next.TopLeft.X, next.TopRight.X));
+        var minY = Math.Min(
+            Math.Min(next.BottomLeft.Y, next.BottomRight.Y),
+            Math.Min(next.TopLeft.Y, next.TopRight.Y));
+        var maxY = Math.Max(
+            Math.Max(next.BottomLeft.Y, next.BottomRight.Y),
+            Math.Max(next.TopLeft.Y, next.TopRight.Y));
+
+        root.X = CadMath.RoundMm(Math.Min(root.X, minX));
+        root.Y = CadMath.RoundMm(Math.Min(root.Y, minY));
+        var right = Math.Max(root.X + root.Width, maxX);
+        var top = Math.Max(root.Y + root.Height, maxY);
+        root.Width = CadMath.RoundMm(right - root.X);
+        root.Height = CadMath.RoundMm(top - root.Y);
+
+        root._outerBottomLeft = next.BottomLeft;
+        root._outerBottomRight = next.BottomRight;
+        root._outerTopLeft = next.TopLeft;
+        root._outerTopRight = next.TopRight;
+        return true;
+    }
+
+    private static bool IsValidOuterQuad(FrameProfileRailGeometry.OuterCorners corners, double minSizeMm)
+    {
+        var widthBottom = corners.BottomLeft.DistanceTo(corners.BottomRight);
+        var widthTop = corners.TopLeft.DistanceTo(corners.TopRight);
+        var heightLeft = corners.BottomLeft.DistanceTo(corners.TopLeft);
+        var heightRight = corners.BottomRight.DistanceTo(corners.TopRight);
+        if (widthBottom < minSizeMm || widthTop < minSizeMm || heightLeft < minSizeMm || heightRight < minSizeMm)
+        {
+            return false;
+        }
+
+        return QuadAreaPositive(corners);
+    }
+
+    private static bool QuadAreaPositive(FrameProfileRailGeometry.OuterCorners c)
+    {
+        // Shoelace CCW: BL→BR→TR→TL
+        var area =
+            c.BottomLeft.X * c.BottomRight.Y - c.BottomRight.X * c.BottomLeft.Y
+            + c.BottomRight.X * c.TopRight.Y - c.TopRight.X * c.BottomRight.Y
+            + c.TopRight.X * c.TopLeft.Y - c.TopLeft.X * c.TopRight.Y
+            + c.TopLeft.X * c.BottomLeft.Y - c.BottomLeft.X * c.TopLeft.Y;
+        return area > CadMath.Epsilon;
+    }
+
+    public IEnumerable<(FrameOuterCornerKind Kind, CadPoint Point)> EnumerateOuterCorners()
+    {
+        yield return (FrameOuterCornerKind.BottomLeft, GetOuterCorner(FrameOuterCornerKind.BottomLeft));
+        yield return (FrameOuterCornerKind.BottomRight, GetOuterCorner(FrameOuterCornerKind.BottomRight));
+        yield return (FrameOuterCornerKind.TopLeft, GetOuterCorner(FrameOuterCornerKind.TopLeft));
+        yield return (FrameOuterCornerKind.TopRight, GetOuterCorner(FrameOuterCornerKind.TopRight));
+    }
+
+    public FrameProfileRailGeometry.RailBand GetRailBand(FrameProfileRail rail, double profileThickness)
+    {
+        var root = GetRoot();
+        return FrameProfileRailGeometry.ResolveRailBand(
+            root.GetOuterCorners(),
+            root.Width,
+            root.Height,
+            profileThickness,
+            rail);
+    }
+
+    /// <summary>
+    /// Делит выбранную рейку коробки пополам (стык 90° на середине внешней длины).
+    /// Не затрагивает дерево ячеек / импосты.
+    /// </summary>
+    public bool TrySplitProfileRailInHalf(FrameProfileRail rail)
+    {
+        var root = GetRoot();
+        var (start, end) = FrameProfileRailGeometry.ResolveOuterEdge(root.GetOuterCorners(), rail);
+        var span = start.DistanceTo(end);
+        if (span < MinSplitSizeMm * 2)
+        {
+            return false;
+        }
+
+        const double halfT = 0.5;
+        if (root._profileRailJoints.Any(j =>
+                j.Rail == rail && Math.Abs(j.RelativeT - halfT) <= CadMath.Epsilon))
+        {
+            return false;
+        }
+
+        root._profileRailJoints.Add(new FrameProfileRailJoint
+        {
+            Rail = rail,
+            RelativeT = halfT,
+            Kind = FrameRailJointKind.Butt90
+        });
+        return true;
+    }
+
+    public IReadOnlyList<FrameProfileRailJoint> GetProfileRailJoints(FrameProfileRail rail) =>
+        GetRoot()._profileRailJoints
+            .Where(j => j.Rail == rail)
+            .OrderBy(j => j.RelativeT)
+            .ToList();
+
+    public bool HasProfileRailJoints(FrameProfileRail rail) =>
+        GetRoot()._profileRailJoints.Any(j => j.Rail == rail);
+
+    public IReadOnlyList<double> GetOuterRailSegmentLengthsMm(FrameProfileRail rail)
+    {
+        var root = GetRoot();
+        var ts = root.GetProfileRailJoints(rail).Select(j => j.RelativeT).ToList();
+        return FrameProfileRailGeometry.ResolveOuterSegmentLengthsMm(root.GetOuterCorners(), rail, ts);
+    }
+
+    public IReadOnlyList<double> GetOuterRailSegmentProjectionsMm(FrameProfileRail rail)
+    {
+        var root = GetRoot();
+        var ts = root.GetProfileRailJoints(rail).Select(j => j.RelativeT).ToList();
+        return FrameProfileRailGeometry.ResolveOuterSegmentProjectionsMm(root.GetOuterCorners(), rail, ts);
+    }
+
+    public IReadOnlyList<double> GetOuterRailBoundaryCoordinates(FrameProfileRail rail)
+    {
+        var root = GetRoot();
+        var ts = root.GetProfileRailJoints(rail).Select(j => j.RelativeT).ToList();
+        return FrameProfileRailGeometry.ResolveOuterBoundaryCoordinates(root.GetOuterCorners(), rail, ts);
+    }
+
+    public bool TrySetProfileRailJointT(Guid jointId, double relativeT)
+    {
+        var root = GetRoot();
+        var joint = root._profileRailJoints.FirstOrDefault(j => j.Id == jointId);
+        if (joint is null)
+        {
+            return false;
+        }
+
+        joint.RelativeT = Math.Clamp(relativeT, 0.05, 0.95);
+        return true;
+    }
+
+    private void BecomingSplitParent()
+    {
+        // Крайние импосты (нащельник) остаются на узле-родителе и наследуются дочерними ячейками.
     }
 
     public bool TryUpsertExtremeImpost(
@@ -2028,11 +2410,6 @@ public sealed class FrameNode
 
     private void ClearExtremeImposts() => _extremeImposts.Clear();
 
-    private void BecomingSplitParent()
-    {
-        // Крайние импосты (нащельник) остаются на узле-родителе и наследуются дочерними ячейками.
-    }
-
     public void ClearSplits()
     {
         ChildA = null;
@@ -2056,6 +2433,7 @@ public sealed class FrameNode
     public void ResetGeometry(double x, double y, double width, double height)
     {
         ClearSplits();
+        ClearOuterCorners();
         X = x;
         Y = y;
         Width = width;

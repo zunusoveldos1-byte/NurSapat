@@ -109,7 +109,7 @@ public sealed partial class CadEditorViewModel
 
         ParametricVertexHit? bestCorner = null;
         var bestCornerDistance = double.MaxValue;
-        foreach (var (corner, point) in EnumerateFrameCorners(FrameRoot))
+        foreach (var (corner, point) in FrameRoot.EnumerateOuterCorners())
         {
             var distance = Distance(worldPoint, point);
             if (distance > tolerance || distance >= bestCornerDistance)
@@ -118,8 +118,15 @@ public sealed partial class CadEditorViewModel
             }
 
             bestCornerDistance = distance;
+            var kind = corner switch
+            {
+                FrameOuterCornerKind.BottomLeft => FrameCornerKind.BottomLeft,
+                FrameOuterCornerKind.BottomRight => FrameCornerKind.BottomRight,
+                FrameOuterCornerKind.TopLeft => FrameCornerKind.TopLeft,
+                _ => FrameCornerKind.TopRight
+            };
             bestCorner = new ParametricVertexHit(
-                corner switch
+                kind switch
                 {
                     FrameCornerKind.BottomLeft => "FrameCornerBL",
                     FrameCornerKind.BottomRight => "FrameCornerBR",
@@ -128,18 +135,28 @@ public sealed partial class CadEditorViewModel
                 },
                 "Угол коробки",
                 point,
-                Corner: corner);
+                Corner: kind);
+        }
+
+        // Стыки разделённых профилей.
+        foreach (var joint in FrameRoot.GetConstructionRoot().ProfileRailJoints)
+        {
+            var band = FrameRoot.GetRailBand(joint.Rail, FrameThickness);
+            var (outer, _) = FrameProfileRailGeometry.ResolveJointPoints(band, joint.RelativeT);
+            var distance = Distance(worldPoint, outer);
+            if (distance > tolerance || distance >= bestCornerDistance)
+            {
+                continue;
+            }
+
+            bestCornerDistance = distance;
+            bestCorner = new ParametricVertexHit(
+                $"RailJoint:{joint.Id}",
+                "Стык профиля",
+                outer);
         }
 
         return bestCorner;
-    }
-
-    private static IEnumerable<(FrameCornerKind Corner, CadPoint Point)> EnumerateFrameCorners(FrameNode root)
-    {
-        yield return (FrameCornerKind.BottomLeft, new CadPoint(root.X, root.Y));
-        yield return (FrameCornerKind.BottomRight, new CadPoint(root.X + root.Width, root.Y));
-        yield return (FrameCornerKind.TopLeft, new CadPoint(root.X, root.Y + root.Height));
-        yield return (FrameCornerKind.TopRight, new CadPoint(root.X + root.Width, root.Y + root.Height));
     }
 
     private static bool TryReadImpostAxisPoint(
@@ -261,51 +278,18 @@ public sealed partial class CadEditorViewModel
             return false;
         }
 
-        var root = FrameRoot;
-        var left = root.X;
-        var bottom = root.Y;
-        var right = root.X + root.Width;
-        var top = root.Y + root.Height;
-
-        double newLeft = left, newBottom = bottom, newRight = right, newTop = top;
-        switch (corner)
+        // Деформация внешнего контура (не resize AABB).
+        var mapped = corner switch
         {
-            case FrameCornerKind.BottomLeft:
-                newLeft = x;
-                newBottom = y;
-                break;
-            case FrameCornerKind.BottomRight:
-                newRight = x;
-                newBottom = y;
-                break;
-            case FrameCornerKind.TopLeft:
-                newLeft = x;
-                newTop = y;
-                break;
-            case FrameCornerKind.TopRight:
-                newRight = x;
-                newTop = y;
-                break;
-        }
+            FrameCornerKind.BottomLeft => FrameOuterCornerKind.BottomLeft,
+            FrameCornerKind.BottomRight => FrameOuterCornerKind.BottomRight,
+            FrameCornerKind.TopLeft => FrameOuterCornerKind.TopLeft,
+            _ => FrameOuterCornerKind.TopRight
+        };
 
-        var newWidth = CadMath.RoundMm(newRight - newLeft);
-        var newHeight = CadMath.RoundMm(newTop - newBottom);
-        if (newWidth < MinEditableOpeningMm || newHeight < MinEditableOpeningMm)
+        if (!FrameRoot.TrySetOuterCorner(mapped, new CadPoint(CadMath.RoundMm(x), CadMath.RoundMm(y)), MinEditableOpeningMm))
         {
             return false;
-        }
-
-        var thickness = root.IsFictitiousContainer ? 0 : FrameThickness;
-        if (!root.TryResizeOuter(newWidth, newHeight, thickness))
-        {
-            return false;
-        }
-
-        var deltaX = CadMath.RoundMm(newLeft) - root.X;
-        var deltaY = CadMath.RoundMm(newBottom) - root.Y;
-        if (Math.Abs(deltaX) > CadMath.Epsilon || Math.Abs(deltaY) > CadMath.Epsilon)
-        {
-            root.TranslateSubtree(deltaX, deltaY);
         }
 
         RecalculateFrameGeometry();

@@ -1,7 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using Microsoft.Extensions.DependencyInjection;
 using NurSapat.App.Services.Help;
 using NurSapat.Infrastructure.Updates.Abstractions;
 
@@ -12,6 +11,7 @@ public sealed class UpdateStartupCoordinator
     private readonly IAppUpdateService _appUpdateService;
     private readonly IUpdateWindowService _updateWindowService;
     private readonly IUpdateSettingsService _settingsService;
+    private int _promptInFlight;
 
     public UpdateStartupCoordinator(
         IAppUpdateService appUpdateService,
@@ -70,14 +70,33 @@ public sealed class UpdateStartupCoordinator
             return;
         }
 
-        var owner = GetActiveWindow();
-        await _updateWindowService.ShowAvailableUpdateAsync(owner, result);
+        // Уже открыто или показ в процессе — не плодим окна (Alt+Tab).
+        if (_updateWindowService.IsUpdateWindowOpen
+            || Interlocked.CompareExchange(ref _promptInFlight, 1, 0) != 0)
+        {
+            if (_updateWindowService.IsUpdateWindowOpen)
+            {
+                await _updateWindowService.ShowAvailableUpdateAsync(GetActiveWindow(), result);
+            }
+
+            return;
+        }
+
+        try
+        {
+            var owner = GetActiveWindow() ?? await WaitForMainWindowAsync(TimeSpan.FromSeconds(10));
+            await _updateWindowService.ShowAvailableUpdateAsync(owner, result);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _promptInFlight, 0);
+        }
     }
 
     private async Task ShowSuccessPromptAsync(string version)
     {
         await Task.Delay(500);
-        var owner = GetActiveWindow();
+        var owner = GetActiveWindow() ?? await WaitForMainWindowAsync(TimeSpan.FromSeconds(10));
         await _updateWindowService.ShowSuccessPromptAsync(owner, version);
     }
 
@@ -89,6 +108,23 @@ public sealed class UpdateStartupCoordinator
         }
 
         return null;
+    }
+
+    private static async Task<Window?> WaitForMainWindowAsync(TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            var main = GetActiveWindow();
+            if (main is not null)
+            {
+                return main;
+            }
+
+            await Task.Delay(100);
+        }
+
+        return GetActiveWindow();
     }
 
     private static string? ParseSuccessArgument(string[] args)

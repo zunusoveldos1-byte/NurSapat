@@ -8,7 +8,7 @@ public abstract class HelpDialogViewModelBase : ViewModelBase
 {
     protected HelpDialogViewModelBase()
     {
-        CloseCommand = new RelayCommand(() => RequestClose?.Invoke());
+        CloseCommand = new RelayCommand(RaiseRequestClose);
     }
 
     public IRelayCommand CloseCommand { get; }
@@ -16,4 +16,6 @@ public abstract class HelpDialogViewModelBase : ViewModelBase
     public Window? OwnerWindow { get; set; }
 
     public event Action? RequestClose;
+
+    protected void RaiseRequestClose() => RequestClose?.Invoke();
 }

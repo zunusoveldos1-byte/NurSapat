@@ -14,7 +14,9 @@ public static class ConstructionSelectionRenderer
 {
     private static readonly IPen SelectionPen = new Pen(
         FrameVolumeRenderer.SelectionHighlightBrush,
-        2.5);
+        3.0,
+        lineCap: PenLineCap.Round,
+        lineJoin: PenLineJoin.Round);
 
     public static void DrawHighlights(
         DrawingContext context,
@@ -83,7 +85,7 @@ public static class ConstructionSelectionRenderer
 
         if (profileRail is FrameProfileRail rail)
         {
-            DrawRectangularFrameRailHighlight(context, editor, frame, rail);
+            DrawFrameRailHighlight(context, editor, frame, rail);
             return;
         }
 
@@ -99,7 +101,7 @@ public static class ConstructionSelectionRenderer
                     frame.Height,
                     frame.TopProfile,
                     editor.FrameThickness);
-            StrokeProfileBand(context, editor, contours.OuterLoop, contours.InnerLoop, SelectionPen);
+                StrokeProfileBand(context, editor, contours.OuterLoop, contours.InnerLoop, SelectionPen);
                 if (ConstructionSelectionHelper.GetFrameBounds(editor) is { } archedBounds)
                 {
                     DrawEdgeResizeHandles(context, editor, archedBounds);
@@ -112,43 +114,62 @@ public static class ConstructionSelectionRenderer
             }
         }
 
-        if (ConstructionSelectionHelper.GetFrameBounds(editor) is not { } bounds)
+        // Вся коробка: четыре трапеции реек с диагональными митрами 45°.
+        DrawAllFrameRailsHighlight(context, editor, frame);
+        if (ConstructionSelectionHelper.GetFrameBounds(editor) is { } bounds)
         {
-            return;
+            DrawEdgeResizeHandles(context, editor, bounds);
         }
-
-        var inset = FrameProfileGeometry.ResolveInnerInset(
-            frame.Width,
-            frame.Height,
-            editor.FrameThickness);
-        DrawRectangularBandHighlight(
-            context,
-            editor,
-            frame.X,
-            frame.Y,
-            frame.X + frame.Width,
-            frame.Y + frame.Height,
-            frame.X + inset,
-            frame.Y + inset,
-            frame.X + frame.Width - inset,
-            frame.Y + frame.Height - inset,
-            SelectionPen);
-        DrawEdgeResizeHandles(context, editor, bounds);
     }
 
-    private static void DrawRectangularFrameRailHighlight(
+    private static void DrawAllFrameRailsHighlight(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameNode frame)
+    {
+        foreach (var rail in new[]
+                 {
+                     FrameProfileRail.Top,
+                     FrameProfileRail.Bottom,
+                     FrameProfileRail.Left,
+                     FrameProfileRail.Right
+                 })
+        {
+            DrawFrameRailHighlight(context, editor, frame, rail);
+        }
+    }
+
+    private static void DrawFrameRailHighlight(
         DrawingContext context,
         CadEditorViewModel editor,
         FrameNode frame,
         FrameProfileRail rail)
     {
-        var band = FrameProfileRailGeometry.ResolveRailBand(
-            frame.X,
-            frame.Y,
-            frame.Width,
-            frame.Height,
-            editor.FrameThickness,
-            rail);
+        var root = frame.GetConstructionRoot();
+        var band = root.GetRailBand(rail, editor.FrameThickness);
+        var joints = root.GetProfileRailJoints(rail);
+        if (joints.Count > 0)
+        {
+            var segments = FrameProfileRailGeometry.SplitRailBand(
+                band,
+                joints.Select(j => j.RelativeT).ToList());
+            foreach (var segment in segments)
+            {
+                StrokeRailBandHighlight(context, editor, segment, SelectionPen);
+            }
+
+            foreach (var joint in joints)
+            {
+                var (outer, inner) = FrameProfileRailGeometry.ResolveJointPoints(band, joint.RelativeT);
+                context.DrawLine(
+                    SelectionPen,
+                    WorldToScreen(editor, outer),
+                    WorldToScreen(editor, inner));
+            }
+
+            return;
+        }
+
         StrokeRailBandHighlight(context, editor, band, SelectionPen);
     }
 
@@ -158,12 +179,19 @@ public static class ConstructionSelectionRenderer
         FrameProfileRailGeometry.RailBand band,
         IPen pen)
     {
-        StrokePolygon(
-            context,
-            editor,
-            [band.OuterStart, band.OuterEnd, band.InnerEnd, band.InnerStart],
-            close: true,
-            pen);
+        // Трапеция профиля: OuterStart → OuterEnd → InnerEnd → InnerStart
+        // (боковые рёбра = диагональные срезы 45° / митры).
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(WorldToScreen(editor, band.OuterStart), isFilled: false);
+            ctx.LineTo(WorldToScreen(editor, band.OuterEnd));
+            ctx.LineTo(WorldToScreen(editor, band.InnerEnd));
+            ctx.LineTo(WorldToScreen(editor, band.InnerStart));
+            ctx.EndFigure(true);
+        }
+
+        context.DrawGeometry(null, pen, geometry);
     }
 
     private static void DrawTriangularFrameHighlight(

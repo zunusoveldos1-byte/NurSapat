@@ -317,14 +317,16 @@ public sealed class CadCanvasControl : Control
             SillRenderer.DrawAttachedSill(context, Editor, Editor.FrameRoot);
         }
 
-        if (!suppressCommittedFrame && constructionSelection.Count > 0)
-        {
-            ConstructionSelectionRenderer.DrawHighlights(context, Editor, constructionSelection);
-        }
-
         if (!suppressCommittedFrame)
         {
+            // Чёрный AABB-overlay до красной подсветки профиля, иначе перекрывает внешние грани.
             DrawSelectedRectangleOverlay(context);
+        }
+
+        if (!suppressCommittedFrame && constructionSelection.Count > 0)
+        {
+            // SelectionOverlay поверх основной геометрии и чёрных контуров рамы.
+            ConstructionSelectionRenderer.DrawHighlights(context, Editor, constructionSelection);
         }
 
         if (Editor.SashDragPreview is { } sashPreview)
@@ -373,6 +375,11 @@ public sealed class CadCanvasControl : Control
         if (Editor.ShowArcVertexHandles && Editor.FrameRoot?.TopProfile is { } arcTopProfile)
         {
             FrameVolumeRenderer.DrawArcVertexHandles(context, Editor, arcTopProfile);
+        }
+
+        if (Editor.ShowVertexHandles)
+        {
+            FrameVolumeRenderer.DrawVertexHandles(context, Editor);
         }
 
         // RectangleTool: призрак + размеры
@@ -644,7 +651,9 @@ public sealed class CadCanvasControl : Control
             return;
         }
 
-        if (properties.IsMiddleButtonPressed || e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        if (properties.IsMiddleButtonPressed
+            || (e.KeyModifiers.HasFlag(KeyModifiers.Control)
+                && !ShouldSuppressCtrlPanForMultiSelect(point)))
         {
             _isPanning = true;
             _lastPanPoint = point;
@@ -810,6 +819,24 @@ public sealed class CadCanvasControl : Control
         }
 
         if (Editor != null
+            && Editor.CurrentToolMode == WindowToolMode.SelectVertex
+            && properties.IsLeftButtonPressed)
+        {
+            e.Handled = true;
+            if (Editor.TryPressVertexDrag(cadEvent.WorldPoint))
+            {
+                e.Pointer.Capture(this);
+            }
+            else
+            {
+                Editor.ActiveTool?.OnMouseDown(Editor.CreateToolContext(), cadEvent);
+            }
+
+            InvalidateVisual();
+            return;
+        }
+
+        if (Editor != null
             && Editor.CurrentToolMode == WindowToolMode.Sash
             && Editor.ActiveDesignToolId == CadCreationToolCatalog.SashFixed
             && properties.IsLeftButtonPressed)
@@ -945,6 +972,7 @@ public sealed class CadCanvasControl : Control
 
         Editor.UpdatePointerInteraction(worldPoint);
         Editor.UpdateRadiusVertexHover(worldPoint);
+        Editor.UpdateVertexHandleHover(worldPoint);
 
         if (Editor.CurrentToolMode == WindowToolMode.ExtremeImpost)
         {
@@ -981,6 +1009,13 @@ public sealed class CadCanvasControl : Control
         if (Editor.IsArcVertexDragging)
         {
             Editor.UpdateArcVertexDrag(worldPoint);
+            InvalidateVisual();
+            return;
+        }
+
+        if (Editor.IsVertexDragging)
+        {
+            Editor.UpdateVertexDrag(worldPoint, e.KeyModifiers.HasFlag(KeyModifiers.Control));
             InvalidateVisual();
             return;
         }
@@ -1096,6 +1131,15 @@ public sealed class CadCanvasControl : Control
                 return;
             }
 
+            if (Editor.IsVertexDragging)
+            {
+                Editor.UpdateVertexDrag(worldPoint, e.KeyModifiers.HasFlag(KeyModifiers.Control));
+                Editor.ReleaseVertexDrag();
+                e.Pointer.Capture(null);
+                InvalidateVisual();
+                return;
+            }
+
             if (Editor.TryEndPointerInteraction(worldPoint))
             {
                 e.Pointer.Capture(null);
@@ -1152,6 +1196,36 @@ public sealed class CadCanvasControl : Control
         }
     }
 
+    private bool ShouldSuppressCtrlPanForMultiSelect(Point screenPoint)
+    {
+        if (Editor?.Viewport is null)
+        {
+            return false;
+        }
+
+        // Ctrl+drag вершины: орто-режим, не pan.
+        if (Editor.CurrentToolMode == WindowToolMode.SelectVertex)
+        {
+            if (Editor.IsVertexDragging)
+            {
+                return true;
+            }
+
+            var world = Editor.Viewport.ScreenToWorld(new ScreenPoint(screenPoint.X, screenPoint.Y));
+            return Editor.TryHitVertexHandle(world);
+        }
+
+        // Ctrl+клик в режимах выделения: toggle multi-select, не pan.
+        if (Editor.CurrentToolMode is WindowToolMode.SelectProfile
+            or WindowToolMode.SelectElement
+            or WindowToolMode.Select)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     private ToolPointerEvent ToCadEvent(Point point, KeyModifiers modifiers)
     {
         var screen = new ScreenPoint(point.X, point.Y);
@@ -1197,6 +1271,13 @@ public sealed class CadCanvasControl : Control
 
     private void DrawSelectedRectangleOverlay(DrawingContext context)
     {
+        // Красная подсветка реек (в т.ч. мультивыбор) заменяет чёрный AABB-контур.
+        if (Editor?.ConstructionSelection.Any(item =>
+                item.Kind == CadSelectableKind.Frame && item.ProfileRail is not null) == true)
+        {
+            return;
+        }
+
         if (Editor?.FrameRoot is FrameNode frame
             && frame.Shape == ConstructionShape.Triangle
             && !frame.IsDummy

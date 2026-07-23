@@ -188,12 +188,53 @@ internal static class ConstructionSelectionHelper
             }
         }
 
+        if (editor.FrameRoot is not null
+            && editor.CurrentToolMode == WindowToolMode.SelectProfile)
+        {
+            foreach (var rail in new[]
+                     {
+                         FrameProfileRail.Top,
+                         FrameProfileRail.Bottom,
+                         FrameProfileRail.Left,
+                         FrameProfileRail.Right
+                     })
+            {
+                var band = editor.FrameRoot.GetRailBand(rail, editor.FrameThickness);
+                if (RailBandIntersectsRect(band, selectionBounds))
+                {
+                    results.Add(CadSelectableItem.FrameRail(rail));
+                }
+            }
+
+            return results.ToList();
+        }
+
         if (editor.FrameRoot is not null && FrameProfileIntersectsRect(editor, selectionBounds))
         {
             results.Add(CadSelectableItem.Frame());
         }
 
         return results.ToList();
+    }
+
+    private static bool RailBandIntersectsRect(
+        FrameProfileRailGeometry.RailBand band,
+        CadRect selectionBounds)
+    {
+        var minX = Math.Min(
+            Math.Min(band.OuterStart.X, band.OuterEnd.X),
+            Math.Min(band.InnerStart.X, band.InnerEnd.X));
+        var maxX = Math.Max(
+            Math.Max(band.OuterStart.X, band.OuterEnd.X),
+            Math.Max(band.InnerStart.X, band.InnerEnd.X));
+        var minY = Math.Min(
+            Math.Min(band.OuterStart.Y, band.OuterEnd.Y),
+            Math.Min(band.InnerStart.Y, band.InnerEnd.Y));
+        var maxY = Math.Max(
+            Math.Max(band.OuterStart.Y, band.OuterEnd.Y),
+            Math.Max(band.InnerStart.Y, band.InnerEnd.Y));
+        var railBounds = new CadRect(minX, maxY, maxX - minX, maxY - minY);
+        return selectionBounds.Intersects(railBounds);
     }
 
     public static bool TryGetElementBounds(CadEditorViewModel editor, GeometryElement element, out CadRect bounds)
@@ -444,9 +485,8 @@ internal static class ConstructionSelectionHelper
             return false;
         }
 
-        return FrameProfileRailGeometry.TryHitRectangularFrameRail(
-            frame.X,
-            frame.Y,
+        return FrameProfileRailGeometry.TryHitFrameRail(
+            frame.GetOuterCorners(),
             frame.Width,
             frame.Height,
             editor.FrameThickness,

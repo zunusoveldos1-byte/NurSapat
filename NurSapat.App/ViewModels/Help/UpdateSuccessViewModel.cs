@@ -10,9 +10,9 @@ public sealed partial class UpdateSuccessViewModel : HelpDialogViewModelBase
         RestartCommand = new RelayCommand(() =>
         {
             RestartRequested = true;
-            CloseCommand.Execute(null);
+            CloseWindow();
         });
-        LaterCommand = CloseCommand;
+        LaterCommand = new RelayCommand(CloseWindow);
     }
 
     public string Version { get; }
@@ -22,4 +22,19 @@ public sealed partial class UpdateSuccessViewModel : HelpDialogViewModelBase
     public IRelayCommand LaterCommand { get; }
 
     public bool RestartRequested { get; private set; }
+
+    private void CloseWindow()
+    {
+        if (OwnerWindow is { } window)
+        {
+            if (window.IsVisible)
+            {
+                window.Close();
+            }
+
+            return;
+        }
+
+        CloseCommand.Execute(null);
+    }
 }

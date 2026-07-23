@@ -1,4 +1,6 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using NurSapat.App.ViewModels.Help;
@@ -8,57 +10,150 @@ namespace NurSapat.App.Services.Help;
 
 public interface IUpdateWindowService
 {
+    bool IsUpdateWindowOpen { get; }
+
     Task ShowAvailableUpdateAsync(Window? owner, UpdateCheckResult result);
 
     Task<bool> ShowSuccessPromptAsync(Window? owner, string version);
 }
 
-public sealed class UpdateWindowService(IServiceProvider serviceProvider) : IUpdateWindowService
+public sealed class UpdateWindowService(
+    IServiceProvider serviceProvider,
+    IAppUpdateService appUpdateService) : IUpdateWindowService
 {
-    public async Task ShowAvailableUpdateAsync(Window? owner, UpdateCheckResult result)
+    private readonly object _sync = new();
+    private Window? _updateWindow;
+
+    public bool IsUpdateWindowOpen
     {
-        await Dispatcher.UIThread.InvokeAsync(async () =>
+        get
         {
-            var viewModel = serviceProvider.GetRequiredService<UpdateViewModel>();
+            lock (_sync)
+            {
+                return _updateWindow is { IsVisible: true };
+            }
+        }
+    }
+
+    public async Task ShowAvailableUpdateAsync(Window? owner, UpdateCheckResult result) =>
+        await Dispatcher.UIThread.InvokeAsync(() => ShowAvailableUpdateCoreAsync(owner, result));
+
+    public async Task<bool> ShowSuccessPromptAsync(Window? owner, string version) =>
+        await Dispatcher.UIThread.InvokeAsync(() => ShowSuccessPromptCoreAsync(owner, version));
+
+    private async Task ShowAvailableUpdateCoreAsync(Window? owner, UpdateCheckResult result)
+    {
+        Window window;
+        UpdateViewModel viewModel;
+
+        lock (_sync)
+        {
+            if (_updateWindow is { IsVisible: true } existingWindow)
+            {
+                if (existingWindow.DataContext is UpdateViewModel existingVm)
+                {
+                    existingVm.ApplyCheckResult(result);
+                }
+
+                existingWindow.Activate();
+                return;
+            }
+
+            appUpdateService.StopPeriodicChecks();
+
+            viewModel = serviceProvider.GetRequiredService<UpdateViewModel>();
+            viewModel.SuppressAutoCheckOnLoad = true;
             viewModel.ApplyCheckResult(result);
-            var window = new UpdateWindow(viewModel);
-            await ShowDialogSafeAsync(window, owner);
-        });
-    }
 
-    public async Task<bool> ShowSuccessPromptAsync(Window? owner, string version)
-    {
-        return await Dispatcher.UIThread.InvokeAsync(async () =>
-        {
-            var viewModel = new UpdateSuccessViewModel(version);
-            var window = new UpdateSuccessWindow(viewModel);
+            window = new UpdateWindow(viewModel);
             viewModel.OwnerWindow = window;
-            viewModel.RequestClose += () => window.Close();
+            _updateWindow = window;
 
-            if (owner is not null)
-            {
-                await window.ShowDialog(owner);
-            }
-            else
-            {
-                window.Show();
-                var tcs = new TaskCompletionSource<bool>();
-                window.Closed += (_, _) => tcs.TrySetResult(viewModel.RestartRequested);
-                return await tcs.Task;
-            }
+            window.Closed += OnUpdateWindowClosed;
+        }
 
-            return viewModel.RestartRequested;
-        });
-    }
-
-    private static async Task ShowDialogSafeAsync(Window window, Window? owner)
-    {
-        if (owner is not null)
+        var resolvedOwner = owner ?? await WaitForMainWindowAsync(TimeSpan.FromSeconds(8));
+        if (resolvedOwner is not null)
         {
-            await window.ShowDialog(owner);
+            await window.ShowDialog(resolvedOwner);
             return;
         }
 
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnClosed(object? _, EventArgs __) => closed.TrySetResult();
+        window.Closed += OnClosed;
         window.Show();
+        await closed.Task;
+    }
+
+    private void OnUpdateWindowClosed(object? sender, EventArgs e)
+    {
+        if (sender is Window window)
+        {
+            window.Closed -= OnUpdateWindowClosed;
+        }
+
+        lock (_sync)
+        {
+            if (ReferenceEquals(_updateWindow, sender))
+            {
+                _updateWindow = null;
+            }
+        }
+
+        appUpdateService.StartPeriodicChecks();
+    }
+
+    private async Task<bool> ShowSuccessPromptCoreAsync(Window? owner, string version)
+    {
+        var viewModel = new UpdateSuccessViewModel(version);
+        var window = new UpdateSuccessWindow(viewModel);
+        viewModel.OwnerWindow = window;
+        viewModel.RequestClose += () =>
+        {
+            if (window.IsVisible)
+            {
+                window.Close();
+            }
+        };
+
+        var resolvedOwner = owner ?? await WaitForMainWindowAsync(TimeSpan.FromSeconds(5));
+        if (resolvedOwner is not null)
+        {
+            await window.ShowDialog(resolvedOwner);
+            return viewModel.RestartRequested;
+        }
+
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        window.Closed += (_, _) => tcs.TrySetResult(viewModel.RestartRequested);
+        window.Show();
+        return await tcs.Task;
+    }
+
+    private static async Task<Window?> WaitForMainWindowAsync(TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            var main = GetMainWindow();
+            if (main is not null)
+            {
+                return main;
+            }
+
+            await Task.Delay(100);
+        }
+
+        return GetMainWindow();
+    }
+
+    private static Window? GetMainWindow()
+    {
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            return desktop.MainWindow;
+        }
+
+        return null;
     }
 }

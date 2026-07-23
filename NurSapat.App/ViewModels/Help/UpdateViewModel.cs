@@ -20,10 +20,16 @@ public sealed partial class UpdateViewModel : HelpDialogViewModelBase
         CurrentVersion = _appUpdateService.CurrentVersion;
         AvailableVersion = "—";
         UpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, CanInstall);
-        LaterCommand = new RelayCommand(Close);
-        SkipVersionCommand = new RelayCommand(SkipVersion, () => _pendingRelease is not null);
+        LaterCommand = new RelayCommand(CloseWindow);
+        SkipVersionCommand = new RelayCommand(SkipVersion, () => _pendingRelease is not null && !IsBusy);
         CancelDownloadCommand = new RelayCommand(CancelDownload, () => IsDownloading);
     }
+
+    /// <summary>
+    /// Когда результат уже передан через <see cref="ApplyCheckResult"/>,
+    /// повторная проверка в Loaded не нужна (иначе снова срабатывает UpdateAvailable и плодятся окна).
+    /// </summary>
+    public bool SuppressAutoCheckOnLoad { get; set; }
 
     public IAsyncRelayCommand UpdateCommand { get; }
 
@@ -38,6 +44,7 @@ public sealed partial class UpdateViewModel : HelpDialogViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(UpdateCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelDownloadCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SkipVersionCommand))]
     private bool _isBusy;
 
     [ObservableProperty]
@@ -82,7 +89,15 @@ public sealed partial class UpdateViewModel : HelpDialogViewModelBase
     [ObservableProperty]
     private string _headingText = "Проверка обновлений";
 
-    public async Task InitializeAsync() => await CheckForUpdatesAsync();
+    public async Task InitializeAsync()
+    {
+        if (SuppressAutoCheckOnLoad || _pendingRelease is not null)
+        {
+            return;
+        }
+
+        await CheckForUpdatesAsync();
+    }
 
     public void ApplyCheckResult(AppUpdateCheckResult result)
     {
@@ -201,6 +216,7 @@ public sealed partial class UpdateViewModel : HelpDialogViewModelBase
             IsUpdateProgressIndeterminate = !IsDownloading;
             UpdateCommand.NotifyCanExecuteChanged();
             CancelDownloadCommand.NotifyCanExecuteChanged();
+            SkipVersionCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -219,10 +235,24 @@ public sealed partial class UpdateViewModel : HelpDialogViewModelBase
         _appUpdateService.SkipVersion(_pendingRelease.Version);
         StatusText = $"Версия {_pendingRelease.Version} пропущена.";
         IsUpdateAvailable = false;
-        CloseCommand.Execute(null);
+        CloseWindow();
     }
 
-    private void Close() => CloseCommand.Execute(null);
+    /// <summary>Гарантированно закрывает текущее окно (Позже / Пропустить).</summary>
+    private void CloseWindow()
+    {
+        if (OwnerWindow is { } window)
+        {
+            if (window.IsVisible)
+            {
+                window.Close();
+            }
+
+            return;
+        }
+
+        RaiseRequestClose();
+    }
 
     private static string FormatBytes(long bytes)
     {

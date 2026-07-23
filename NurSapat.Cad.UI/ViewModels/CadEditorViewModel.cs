@@ -679,6 +679,49 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     public IReadOnlyCollection<CadSelectableItem> ConstructionSelection => _constructionSelection;
 
+    /// <summary>Выделенные рейки/профили рамы (мультивыбор).</summary>
+    public IReadOnlyList<FrameProfileRail> SelectedProfiles =>
+        _constructionSelection
+            .Where(item => item.Kind == CadSelectableKind.Frame && item.ProfileRail is not null)
+            .Select(item => item.ProfileRail!.Value)
+            .Distinct()
+            .ToList();
+
+    /// <summary>
+    /// Последний выделенный профиль (обратная совместимость).
+    /// Setter заменяет выделение на одну рейку.
+    /// </summary>
+    public FrameProfileRail? SelectedProfile
+    {
+        get
+        {
+            var rails = SelectedProfiles;
+            return rails.Count > 0 ? rails[^1] : null;
+        }
+        set
+        {
+            if (value is null)
+            {
+                var rails = _constructionSelection
+                    .Where(item => item.Kind == CadSelectableKind.Frame && item.ProfileRail is not null)
+                    .ToList();
+                foreach (var item in rails)
+                {
+                    _constructionSelection.Remove(item);
+                }
+
+                SyncLegacySelectionFromConstruction();
+                RequestSceneRefresh();
+                return;
+            }
+
+            _constructionSelection.Clear();
+            _constructionSelection.Add(CadSelectableItem.FrameRail(value.Value));
+            SyncLegacySelectionFromConstruction();
+            RequestSceneRefresh();
+        }
+    }
+
     public bool IsConstructionItemSelected(CadSelectableItem item) => _constructionSelection.Contains(item);
 
     public bool IsGeometryElementSelected(Guid elementId) =>
@@ -2528,6 +2571,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
         SyncGeometryElementSelectedFlags();
         SelectedElement = null;
         OnPropertyChanged(nameof(ConstructionSelection));
+        OnPropertyChanged(nameof(SelectedProfiles));
+        OnPropertyChanged(nameof(SelectedProfile));
         OnPropertyChanged(nameof(SelectedMullion));
         NotifyFrameSelectionProperties();
         StatusText = "Выделение снято";
@@ -2536,6 +2581,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private void SyncLegacySelectionFromConstruction()
     {
         OnPropertyChanged(nameof(ConstructionSelection));
+        OnPropertyChanged(nameof(SelectedProfiles));
+        OnPropertyChanged(nameof(SelectedProfile));
         SyncGeometryElementSelectedFlags();
 
         if (_constructionSelection.Count == 0)
@@ -2567,12 +2614,14 @@ public sealed partial class CadEditorViewModel : ObservableObject
             ApplyPrimaryConstructionSelection(primary);
         }
 
-        StatusText = _constructionSelection.Count > 1
-            ? $"Выбрано элементов: {_constructionSelection.Count}"
-            : _constructionSelection.Count == 1
-                && _constructionSelection.First() is { Kind: CadSelectableKind.Frame, ProfileRail: { } profileRail }
-                ? $"Выбран профиль: {DescribeFrameProfileRail(profileRail)}"
-                : "Элемент выбран";
+        var selectedRails = SelectedProfiles;
+        StatusText = selectedRails.Count > 1
+            ? $"Выбрано профилей: {selectedRails.Count}"
+            : _constructionSelection.Count > 1
+                ? $"Выбрано элементов: {_constructionSelection.Count}"
+                : selectedRails.Count == 1
+                    ? $"Выбран профиль: {DescribeFrameProfileRail(selectedRails[0])}"
+                    : "Элемент выбран";
         OnPropertyChanged(nameof(IsSashMosquitoNetPanelVisible));
         OnPropertyChanged(nameof(HasMosquitoNetOnSelectedSash));
         OnPropertyChanged(nameof(IsSillPropertiesPanelVisible));
@@ -4367,6 +4416,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(IsTopProfileHovered));
         OnPropertyChanged(nameof(HoveredTopProfile));
         OnPropertyChanged(nameof(ShowArcVertexHandles));
+        OnPropertyChanged(nameof(ShowVertexHandles));
         OnPropertyChanged(nameof(IsConstructionMaterialComboEnabled));
 
         QueueMaterialFilterRefresh();
@@ -4379,6 +4429,11 @@ public sealed partial class CadEditorViewModel : ObservableObject
         if (value != WindowToolMode.ExtremeImpost)
         {
             ClearExtremeImpostHover();
+        }
+
+        if (value != WindowToolMode.SelectVertex)
+        {
+            ClearVertexHandleHover();
         }
 
         if (value != WindowToolMode.Hardware)

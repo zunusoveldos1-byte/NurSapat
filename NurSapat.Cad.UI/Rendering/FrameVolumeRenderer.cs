@@ -5,6 +5,7 @@ using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Orders;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace NurSapat.Cad.UI.Rendering;
 
@@ -147,14 +148,15 @@ public static class FrameVolumeRenderer
             return;
         }
 
-        var x0 = originX;
-        var y0 = originY;
-        var x1 = originX + width;
-        var y1 = originY + height;
-        var xi0 = x0 + halfThickness;
-        var xi1 = x1 - halfThickness;
-        var yi0 = y0 + halfThickness;
-        var yi1 = y1 - halfThickness;
+        var corners = editor.FrameRoot is { } frameRoot
+            && Math.Abs(frameRoot.X - originX) <= CadMath.MmPrecision
+            && Math.Abs(frameRoot.Y - originY) <= CadMath.MmPrecision
+            && Math.Abs(frameRoot.Width - width) <= CadMath.MmPrecision
+            && Math.Abs(frameRoot.Height - height) <= CadMath.MmPrecision
+            ? frameRoot.GetOuterCorners()
+            : FrameProfileRailGeometry.ResolveAabbCorners(originX, originY, width, height);
+
+        var innerCorners = FrameProfileRailGeometry.InsetOuterCorners(corners, halfThickness);
 
         var hasArcTop = topProfile?.SegmentType == SegmentType.Arc &&
                         topProfile.Radius > CadMath.Epsilon &&
@@ -180,31 +182,35 @@ public static class FrameVolumeRenderer
         }
         else
         {
-            FillInnerOpening(context, editor, xi0, yi0, xi1, yi1);
+            FillQuadOpening(context, editor, innerCorners);
 
-            DrawRail(context, editor, outlinePen, profileFill,
-                new CadPoint(x0, y0), new CadPoint(x1, y0),
-                new CadPoint(xi1, yi0), new CadPoint(xi0, yi0));
+            DrawFrameRailSide(
+                context, editor, outlinePen, profileFill,
+                corners, width, height, profileThickness,
+                FrameProfileRail.Bottom);
 
-            DrawRail(context, editor, outlinePen, profileFill,
-                new CadPoint(x0, y1), new CadPoint(x1, y1),
-                new CadPoint(xi1, yi1), new CadPoint(xi0, yi1));
+            DrawFrameRailSide(
+                context, editor, outlinePen, profileFill,
+                corners, width, height, profileThickness,
+                FrameProfileRail.Top);
 
-            DrawRail(context, editor, outlinePen, profileFill,
-                new CadPoint(x0, y0), new CadPoint(x0, y1),
-                new CadPoint(xi0, yi1), new CadPoint(xi0, yi0));
+            DrawFrameRailSide(
+                context, editor, outlinePen, profileFill,
+                corners, width, height, profileThickness,
+                FrameProfileRail.Left);
 
-            DrawRail(context, editor, outlinePen, profileFill,
-                new CadPoint(x1, y0), new CadPoint(x1, y1),
-                new CadPoint(xi1, yi1), new CadPoint(xi1, yi0));
+            DrawFrameRailSide(
+                context, editor, outlinePen, profileFill,
+                corners, width, height, profileThickness,
+                FrameProfileRail.Right);
         }
 
-        DrawCornerMiter(context, editor, new CadPoint(x0, y0), new CadPoint(xi0, yi0));
-        DrawCornerMiter(context, editor, new CadPoint(x1, y0), new CadPoint(xi1, yi0));
+        DrawCornerMiter(context, editor, corners.BottomLeft, innerCorners.BottomLeft);
+        DrawCornerMiter(context, editor, corners.BottomRight, innerCorners.BottomRight);
         if (!hasArcTop)
         {
-            DrawCornerMiter(context, editor, new CadPoint(x0, y1), new CadPoint(xi0, yi1));
-            DrawCornerMiter(context, editor, new CadPoint(x1, y1), new CadPoint(xi1, yi1));
+            DrawCornerMiter(context, editor, corners.TopLeft, innerCorners.TopLeft);
+            DrawCornerMiter(context, editor, corners.TopRight, innerCorners.TopRight);
         }
     }
 
@@ -601,6 +607,123 @@ public static class FrameVolumeRenderer
         }
 
         ctx.EndFigure(isFilled);
+    }
+
+    private static void DrawFrameRailSide(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        IPen pen,
+        IBrush fill,
+        FrameProfileRailGeometry.OuterCorners corners,
+        double width,
+        double height,
+        double profileThickness,
+        FrameProfileRail rail)
+    {
+        var band = FrameProfileRailGeometry.ResolveRailBand(
+            corners, width, height, profileThickness, rail);
+
+        var joints = editor.FrameRoot?.GetConstructionRoot().GetProfileRailJoints(rail);
+        if (joints is not { Count: > 0 })
+        {
+            DrawRail(context, editor, pen, fill, band.OuterStart, band.OuterEnd, band.InnerEnd, band.InnerStart);
+            return;
+        }
+
+        var segments = FrameProfileRailGeometry.SplitRailBand(
+            band,
+            joints.Select(j => j.RelativeT).ToList());
+
+        foreach (var segment in segments)
+        {
+            DrawRail(
+                context,
+                editor,
+                pen,
+                fill,
+                segment.OuterStart,
+                segment.OuterEnd,
+                segment.InnerEnd,
+                segment.InnerStart);
+        }
+
+        // Прямой рез 90° в каждом стыке (через толщину профиля).
+        foreach (var joint in joints)
+        {
+            var (outer, inner) = FrameProfileRailGeometry.ResolveJointPoints(band, joint.RelativeT);
+            DrawProfileMiter(context, editor, outer, inner);
+        }
+    }
+
+    private static void FillQuadOpening(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        FrameProfileRailGeometry.OuterCorners inner)
+    {
+        if (editor.Viewport == null)
+        {
+            return;
+        }
+
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(WorldToScreen(editor, inner.BottomLeft), isFilled: true);
+            ctx.LineTo(WorldToScreen(editor, inner.BottomRight));
+            ctx.LineTo(WorldToScreen(editor, inner.TopRight));
+            ctx.LineTo(WorldToScreen(editor, inner.TopLeft));
+            ctx.EndFigure(true);
+        }
+
+        context.DrawGeometry(InnerOpeningFill, null, geometry);
+    }
+
+    public static void DrawVertexHandles(DrawingContext context, CadEditorViewModel editor)
+    {
+        if (editor.Viewport == null || editor.FrameRoot is null || !editor.ShowVertexHandles)
+        {
+            return;
+        }
+
+        var root = editor.FrameRoot.GetConstructionRoot();
+        foreach (var (kind, point) in root.EnumerateOuterCorners())
+        {
+            var active = editor.ActiveVertexCorner == kind;
+            DrawVertexHandleEllipse(context, editor, point, active);
+        }
+
+        foreach (var joint in root.ProfileRailJoints)
+        {
+            var band = root.GetRailBand(joint.Rail, editor.FrameThickness);
+            var (outer, _) = FrameProfileRailGeometry.ResolveJointPoints(band, joint.RelativeT);
+            var active = editor.ActiveVertexJointId == joint.Id;
+            DrawVertexHandleEllipse(context, editor, outer, active);
+        }
+    }
+
+    private static readonly IBrush VertexHandleFill = new SolidColorBrush(Color.Parse("#E53935"));
+    private static readonly IBrush VertexHandleActiveFill = new SolidColorBrush(Color.Parse("#FFEB3B"));
+    private static readonly IPen VertexHandleActivePen = new Pen(new SolidColorBrush(Color.Parse("#E53935")), 1.8);
+
+    private static void DrawVertexHandleEllipse(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        CadPoint worldPoint,
+        bool active)
+    {
+        var screen = WorldToScreen(editor, worldPoint);
+        if (active)
+        {
+            const double outerR = 8.0;
+            context.DrawEllipse(VertexHandleActiveFill, VertexHandleActivePen, screen, outerR, outerR);
+            const double cross = 4.0;
+            context.DrawLine(VertexHandleActivePen, new Point(screen.X - cross, screen.Y), new Point(screen.X + cross, screen.Y));
+            context.DrawLine(VertexHandleActivePen, new Point(screen.X, screen.Y - cross), new Point(screen.X, screen.Y + cross));
+            return;
+        }
+
+        const double radiusPx = 5.5;
+        context.DrawEllipse(VertexHandleFill, null, screen, radiusPx, radiusPx);
     }
 
     private static void DrawRail(
