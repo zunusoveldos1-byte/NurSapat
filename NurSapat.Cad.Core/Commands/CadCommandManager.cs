@@ -1,13 +1,25 @@
 using NurSapat.Cad.Core.Document;
+using NurSapat.Cad.Foundation.Commands;
 
 namespace NurSapat.Cad.Core.Commands;
 
-public sealed class CadCommandManager
+/// <summary>
+/// Менеджер истории команд редактора, привязанный к <see cref="CadDocument"/>.
+/// </summary>
+/// <remarks>
+/// <b>Мост с NurSapat.Cad.Foundation</b>: наследует обобщённую историю
+/// <see cref="CommandHistory{TContext}"/> с <c>TContext = CadDocument</c>.
+/// Тем самым получает <see cref="CommandHistory{TContext}.Clear"/>,
+/// <see cref="CommandHistory{TContext}.MaxSize"/>, событие
+/// <see cref="CommandHistory{TContext}.HistoryChanged"/> и методы <c>GetUndoNames/GetRedoNames</c>.
+/// Существующий публичный API (<see cref="Execute"/>, <see cref="Undo"/>, <see cref="Redo"/>,
+/// <see cref="CanUndo"/>, <see cref="CanRedo"/>, <see cref="CommandExecuted"/>) сохранён.
+/// </remarks>
+public sealed class CadCommandManager : CommandHistory<CadDocument>
 {
-    private readonly Stack<ICadCommand> _undo = new();
-    private readonly Stack<ICadCommand> _redo = new();
     private readonly CadDocument _document;
 
+    /// <summary>Поднимается после выполнения или повторения команды (payload — сама команда).</summary>
     public event EventHandler<ICadCommand>? CommandExecuted;
 
     public CadCommandManager(CadDocument document)
@@ -15,34 +27,22 @@ public sealed class CadCommandManager
         _document = document;
     }
 
-    public bool CanUndo => _undo.Count > 0;
+    /// <summary>Выполнить команду над документом и поместить её в undo-стек.</summary>
+    public void Execute(ICadCommand command) => Execute(command, _document);
 
-    public bool CanRedo => _redo.Count > 0;
+    /// <summary>Откатить последнюю команду.</summary>
+    public void Undo() => Undo(_document);
 
-    public void Execute(ICadCommand command)
+    /// <summary>Повторить последнюю откатанную команду.</summary>
+    public void Redo() => Redo(_document);
+
+    /// <inheritdoc />
+    /// <remarks>Поднимает <see cref="CommandExecuted"/> при Execute/Redo (существующий контракт).</remarks>
+    protected override void OnCommandExecuted(ICadCommand<CadDocument>? command, CommandHistoryAction action)
     {
-        command.Execute(_document);
-        _undo.Push(command);
-        _redo.Clear();
-        CommandExecuted?.Invoke(this, command);
-    }
-
-    public void Undo()
-    {
-        if (_undo.TryPop(out var command))
+        if (action is CommandHistoryAction.Execute or CommandHistoryAction.Redo && command is ICadCommand cmd)
         {
-            command.Undo(_document);
-            _redo.Push(command);
-        }
-    }
-
-    public void Redo()
-    {
-        if (_redo.TryPop(out var command))
-        {
-            command.Execute(_document);
-            _undo.Push(command);
-            CommandExecuted?.Invoke(this, command);
+            CommandExecuted?.Invoke(this, cmd);
         }
     }
 }

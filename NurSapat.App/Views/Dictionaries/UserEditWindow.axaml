@@ -1,0 +1,96 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dictionaries"
+        x:Class="NurSapat.App.Views.Dictionaries.UserEditWindow"
+        x:DataType="vm:UserEditViewModel"
+        Width="760"
+        Height="760"
+        MinWidth="680"
+        MinHeight="640"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="32,*,Auto">
+            <Border Grid.Row="0" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="mat-titlebar-text" Text="{Binding WindowTitle}" Margin="16,0,0,0"/>
+                    <Button Grid.Column="1" Classes="mat-chrome-btn close" Click="OnCloseClick" Content="✕"
+                            Margin="0,0,8,0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Row="1" Margin="12,0,12,0">
+                <StackPanel Spacing="12">
+                    <Border Classes="mat-card">
+                        <Grid ColumnDefinitions="170,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+                            <TextBlock Text="Пользователь" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Text="{Binding Username}"/>
+
+                            <TextBlock Grid.Row="1" Text="Пароль" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="1" Grid.Column="1" PasswordChar="*" Text="{Binding Password}"/>
+
+                            <TextBlock Grid.Row="2" Text="Подтверждение пароля" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="2" Grid.Column="1" PasswordChar="*" Text="{Binding ConfirmPassword}"/>
+
+                            <TextBlock Grid.Row="3" Text="№ группы" VerticalAlignment="Center"/>
+                            <NumericUpDown Grid.Row="3" Grid.Column="1" Minimum="1" Increment="1" Value="{Binding GroupNumber}"/>
+
+                            <TextBlock Grid.Row="4" Grid.ColumnSpan="2" Text="{Binding ValidationMessage}"
+                                       Foreground="#DC2626" TextWrapping="Wrap"/>
+                        </Grid>
+                    </Border>
+
+                    <Border Classes="mat-card" Background="#F8FAFC">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="mat-section-title" Text="Доступы"/>
+                            <CheckBox Content="Администраторские права (доб/изм/удл пользователей)"
+                                      IsChecked="{Binding CanManageUsers}"/>
+                            <CheckBox Content="Справочник материалов"
+                                      IsChecked="{Binding CanAccessMaterialsDictionary}"/>
+                            <CheckBox Content="Настройка элементов"
+                                      IsChecked="{Binding CanConfigureConstructionElements}"/>
+                            <CheckBox Content="Экономика в целом"
+                                      IsChecked="{Binding CanAccessEconomics}"/>
+                            <CheckBox Content="Изменение коэффициентов на листе заказа"
+                                      IsChecked="{Binding CanEditOrderSheetCoefficients}"/>
+                            <CheckBox Content="Изменение коэффициента затрат на листе заказа"
+                                      IsChecked="{Binding CanEditOrderSheetCostCoefficients}"/>
+                            <CheckBox Content="Изменение коэффициентов дополнительных расходов на листе заказа"
+                                      IsChecked="{Binding CanEditOrderSheetExtraExpenseCoefficients}"/>
+                            <CheckBox Content="Печать цен на материалы"
+                                      IsChecked="{Binding CanPrintMaterialPrices}"/>
+                            <CheckBox Content="Удаление заказов"
+                                      IsChecked="{Binding CanDeleteOrders}"/>
+                            <CheckBox Content="Склад (материалы и обрезки профиля)"
+                                      IsChecked="{Binding CanAccessWarehouse}"/>
+                            <CheckBox Content="Склад: редактирование"
+                                      IsChecked="{Binding CanEditWarehouse}"/>
+                            <CheckBox Content="Склад: редактирование накладной на отпуск"
+                                      IsChecked="{Binding CanEditWarehouseInvoice}"/>
+                            <CheckBox Content="Доступ к информации только пользователей своей группы"
+                                      IsChecked="{Binding GroupOnlyDataAccess}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Classes="mat-toolbar" Content="Отмена" Command="{Binding CancelCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Classes="mat-primary" Content="ОК" Command="{Binding SaveCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

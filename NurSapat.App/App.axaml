@@ -1,4 +1,4 @@
-<Application xmlns="https://github.com/avaloniaui"
+	<Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
              xmlns:views="clr-namespace:NurSapat.App.Views"
@@ -10,13 +10,19 @@
 		<ResourceDictionary>
 			<ResourceDictionary.MergedDictionaries>
 				<ResourceInclude Source="/Styles/Colors.axaml"/>
+				<ResourceInclude Source="avares://NurSapat.Cad.UI/Resources/CadIcons.axaml"/>
+				<ResourceInclude Source="/Resources/EditMenuStrings.axaml"/>
 			</ResourceDictionary.MergedDictionaries>
 		</ResourceDictionary>
 	</Application.Resources>
 
 	<Application.Styles>
 		<FluentTheme />
+		<StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml"/>
+		<StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
 		<StyleInclude Source="/Styles/ButtonStyles.axaml"/>
+		<StyleInclude Source="/Styles/EditDialogStyles.axaml"/>
+		<StyleInclude Source="/Styles/ServiceWindowStyles.axaml"/>
 
 		<!-- Базовое состояние -->
 		<Style Selector="Button">
@@ -57,19 +63,28 @@
 		<DataTemplate DataType="vm:RegistrationViewModel">
 			<views:RegistrationView/>
 		</DataTemplate>
-		<DataTemplate DataType="vm:DashboardViewModel">
+        <DataTemplate DataType="vm:ErpReferenceHubViewModel">
+            <views:ErpReferenceHubView/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:DashboardViewModel">
 			<views:DashboardView/>
 		</DataTemplate>
 		<DataTemplate DataType="vm:WorkspaceSectionViewModel">
 			<views:WorkspaceSectionView/>
 		</DataTemplate>
-		<DataTemplate DataType="vm:OrderEditViewModel">
-			<views:OrderEditView/>
+		<DataTemplate DataType="vm:OrderSheetViewModel">
+			<views:OrderSheetView/>
+		</DataTemplate>
+		<DataTemplate DataType="vm:OrderDrawingViewModel">
+			<views:OrderDrawingView/>
+		</DataTemplate>
+		<DataTemplate DataType="vm:AdditionalDashboardViewModel">
+			<views:AdditionalDashboardView/>
 		</DataTemplate>
 		<DataTemplate DataType="vm:ProductionOptionsViewModel">
 			<views:ProductionOptionsView/>
 		</DataTemplate>
-		<DataTemplate DataType="vm:EnvironmentSettingsViewModel">
+		<DataTemplate DataType="vm:EnvironmentPathsViewModel">
 			<views:EnvironmentSettingsView/>
 		</DataTemplate>
 		<DataTemplate DataType="vm:DataTransferViewModel">

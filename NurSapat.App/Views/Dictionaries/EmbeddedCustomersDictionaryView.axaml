@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dictionaries"
+             xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+             x:Class="NurSapat.App.Views.Dictionaries.EmbeddedCustomersDictionaryView"
+             x:DataType="vm:CustomersDictionaryViewModel">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="16">
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+            <TextBox PlaceholderText="Поиск..." Text="{Binding SearchText}" MinHeight="36"/>
+            <Button Grid.Column="1" Content="Добавить" Command="{Binding AddCommand}"/>
+            <Button Grid.Column="2" Content="Редактировать" Command="{Binding EditCommand}"/>
+            <Button Grid.Column="3" Content="Удалить" Command="{Binding DeleteCommand}"/>
+        </Grid>
+        <dg:DataGrid Grid.Row="1" Margin="0,12,0,12"
+                     ItemsSource="{Binding FilteredItems}"
+                     SelectedItem="{Binding SelectedItem}"
+                     AutoGenerateColumns="False"
+                     IsReadOnly="True">
+            <dg:DataGrid.Columns>
+                <dg:DataGridTextColumn Header="№" Binding="{Binding RowNumber}" Width="50"/>
+                <dg:DataGridTextColumn Header="Заказчик" Binding="{Binding FullName}" Width="2*"/>
+                <dg:DataGridTextColumn Header="Город" Binding="{Binding City}" Width="110"/>
+                <dg:DataGridTextColumn Header="Телефон" Binding="{Binding Phone}" Width="140"/>
+                <dg:DataGridTextColumn Header="Тип" Binding="{Binding TypeDisplay}" Width="100"/>
+                <dg:DataGridTextColumn Header="Заблокирован" Binding="{Binding BlockedDisplay}" Width="110"/>
+            </dg:DataGrid.Columns>
+        </dg:DataGrid>
+        <TextBlock Grid.Row="2" Text="{Binding FilteredItems.Count, StringFormat=Заказчиков: {0}}" Foreground="#64748B"/>
+    </Grid>
+</UserControl>

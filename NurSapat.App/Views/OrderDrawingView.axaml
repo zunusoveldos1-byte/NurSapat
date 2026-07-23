@@ -1,0 +1,9 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             xmlns:cadViews="clr-namespace:NurSapat.Cad.UI.Views;assembly=NurSapat.Cad.UI"
+             x:Class="NurSapat.App.Views.OrderDrawingView"
+             x:DataType="vm:OrderDrawingViewModel"
+             FontFamily="Inter">
+    <cadViews:CadEditorView DataContext="{Binding CadEditor}"/>
+</UserControl>

@@ -1,0 +1,326 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+
+    <Style Selector="Border.svc-window-shell">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#CBD5E1"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="BoxShadow" Value="0 12 32 0 #220F172A"/>
+        <Setter Property="ClipToBounds" Value="True"/>
+    </Style>
+
+    <Style Selector="Border.svc-body">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="Padding" Value="20"/>
+    </Style>
+
+    <Style Selector="ScrollViewer.svc-scroll">
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+        <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+    </Style>
+
+    <Style Selector="TextBlock.svc-heading">
+        <Setter Property="FontSize" Value="23"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="#0F172A"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+
+    <Style Selector="TextBlock.svc-subheading">
+        <Setter Property="FontSize" Value="15"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#0F172A"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+
+    <Style Selector="TextBlock.svc-lead">
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Foreground" Value="#475569"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="LineHeight" Value="22"/>
+    </Style>
+
+    <Style Selector="TextBlock.svc-body">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Foreground" Value="#64748B"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="LineHeight" Value="20"/>
+    </Style>
+
+    <Style Selector="TextBlock.svc-caption">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Foreground" Value="#94A3B8"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="TextAlignment" Value="Center"/>
+        <Setter Property="LineHeight" Value="18"/>
+    </Style>
+
+    <Style Selector="TextBlock.svc-label">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Foreground" Value="#64748B"/>
+    </Style>
+
+    <Style Selector="TextBlock.svc-value">
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#0F172A"/>
+    </Style>
+
+    <Style Selector="Border.svc-info-panel">
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="28"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    </Style>
+
+    <Style Selector="TextBlock.svc-info-icon">
+        <Setter Property="FontSize" Value="42"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="0,0,0,12"/>
+    </Style>
+
+    <Style Selector="TextBlock.svc-info-title">
+        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#0F172A"/>
+        <Setter Property="TextAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="0,0,0,6"/>
+    </Style>
+
+    <Style Selector="Border.svc-release-card">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="18"/>
+        <Setter Property="Margin" Value="0,0,0,14"/>
+        <Setter Property="BoxShadow" Value="0 2 8 0 #0A0F172A"/>
+    </Style>
+
+    <Style Selector="TextBlock.svc-release-version">
+        <Setter Property="FontSize" Value="20"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="#0F172A"/>
+    </Style>
+
+    <Style Selector="TextBlock.svc-release-date">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Foreground" Value="#94A3B8"/>
+        <Setter Property="Margin" Value="0,2,0,0"/>
+    </Style>
+
+    <Style Selector="TextBlock.svc-release-item">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Foreground" Value="#475569"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="Margin" Value="0,0,0,4"/>
+    </Style>
+
+    <Style Selector="Border.svc-support-card">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="18"/>
+        <Setter Property="MinHeight" Value="180"/>
+        <Setter Property="BoxShadow" Value="0 2 8 0 #0A0F172A"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.15"/>
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <Style Selector="Border.svc-support-card:pointerover">
+        <Setter Property="BorderBrush" Value="#94A3B8"/>
+        <Setter Property="RenderTransform" Value="translateY(-2px)"/>
+    </Style>
+
+    <Style Selector="Border.svc-support-card:pressed">
+        <Setter Property="BorderBrush" Value="#64748B"/>
+        <Setter Property="RenderTransform" Value="translateY(0px)"/>
+    </Style>
+
+    <Style Selector="Border.svc-support-icon">
+        <Setter Property="Width" Value="48"/>
+        <Setter Property="Height" Value="48"/>
+        <Setter Property="CornerRadius" Value="24"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="Margin" Value="0,0,0,12"/>
+    </Style>
+
+    <Style Selector="Border.svc-support-icon.telegram">
+        <Setter Property="Background" Value="#E0F2FE"/>
+    </Style>
+
+    <Style Selector="Border.svc-support-icon.whatsapp">
+        <Setter Property="Background" Value="#DCFCE7"/>
+    </Style>
+
+    <Style Selector="Border.svc-support-icon.phone">
+        <Setter Property="Background" Value="#D1FAE5"/>
+    </Style>
+
+    <Style Selector="Border.svc-support-icon.email">
+        <Setter Property="Background" Value="#EEF2FF"/>
+    </Style>
+
+    <Style Selector="Border.svc-support-icon TextBlock">
+        <Setter Property="FontSize" Value="22"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="TextBlock.svc-support-title">
+        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#0F172A"/>
+        <Setter Property="Margin" Value="0,0,0,4"/>
+    </Style>
+
+    <Style Selector="TextBlock.svc-support-contact">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Foreground" Value="#64748B"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="Margin" Value="0,0,0,14"/>
+    </Style>
+
+    <Style Selector="Button.svc-support-action">
+        <Setter Property="MinHeight" Value="34"/>
+        <Setter Property="MinWidth" Value="108"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="14,6"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+    </Style>
+
+    <Style Selector="Button.svc-support-action.telegram">
+        <Setter Property="Background" Value="#33ADE9"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style Selector="Button.svc-support-action.telegram:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#299AD2"/>
+    </Style>
+    <Style Selector="Button.svc-support-action.telegram:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#2082B2"/>
+    </Style>
+
+    <Style Selector="Button.svc-support-action.whatsapp">
+        <Setter Property="Background" Value="#197948"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style Selector="Button.svc-support-action.whatsapp:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#135F38"/>
+    </Style>
+    <Style Selector="Button.svc-support-action.whatsapp:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#0E4629"/>
+    </Style>
+
+    <Style Selector="Button.svc-support-action.phone">
+        <Setter Property="Background" Value="#0BC770"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style Selector="Button.svc-support-action.phone:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#09A65D"/>
+    </Style>
+    <Style Selector="Button.svc-support-action.phone:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#07854A"/>
+    </Style>
+
+    <Style Selector="Button.svc-support-action.email">
+        <Setter Property="Background" Value="#2563EB"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style Selector="Button.svc-support-action.email:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#1D4ED8"/>
+    </Style>
+    <Style Selector="Button.svc-support-action.email:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#1E40AF"/>
+    </Style>
+
+    <Style Selector="Border.svc-about-logo">
+        <Setter Property="Width" Value="88"/>
+        <Setter Property="Height" Value="88"/>
+        <Setter Property="CornerRadius" Value="20"/>
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="0,0,0,16"/>
+    </Style>
+
+    <Style Selector="Border.svc-version-pill">
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="14,10"/>
+        <Setter Property="MinWidth" Value="280"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="Border.svc-tech-card">
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="14"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    </Style>
+
+    <Style Selector="TextBlock.svc-tech-item">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Foreground" Value="#475569"/>
+        <Setter Property="Margin" Value="0,0,0,4"/>
+    </Style>
+
+    <Style Selector="Button.svc-link">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="MinHeight" Value="24"/>
+        <Setter Property="Foreground" Value="#2563EB"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.svc-link:pointerover">
+        <Setter Property="Foreground" Value="#1D4ED8"/>
+        <Setter Property="Background" Value="Transparent"/>
+    </Style>
+
+    <Style Selector="Border.svc-footer">
+        <Setter Property="Padding" Value="16,10"/>
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="CornerRadius" Value="0,0,12,12"/>
+    </Style>
+
+    <Style Selector="Border.svc-pdf-page">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Margin" Value="0,0,0,12"/>
+        <Setter Property="Padding" Value="8"/>
+        <Setter Property="BoxShadow" Value="0 2 8 0 #0A0F172A"/>
+    </Style>
+
+    <Style Selector="Border.svc-update-icon">
+        <Setter Property="Width" Value="72"/>
+        <Setter Property="Height" Value="72"/>
+        <Setter Property="CornerRadius" Value="36"/>
+        <Setter Property="Background" Value="#EFF6FF"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="0,0,0,12"/>
+    </Style>
+
+</Styles>

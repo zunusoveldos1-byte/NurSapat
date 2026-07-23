@@ -1,0 +1,73 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dialogs"
+        x:Class="NurSapat.App.Views.Dialogs.ExternalUtilityEditDialog"
+        x:DataType="vm:ExternalUtilityEditDialogViewModel"
+        Width="520"
+        Height="220"
+        MinWidth="480"
+        MinHeight="200"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="8">
+        <Grid RowDefinitions="32,*,Auto">
+            <Border Grid.Row="0" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="mat-titlebar-text"
+                               Margin="16,0,0,0"
+                               Text="{Binding Title}"/>
+                    <Button Grid.Column="1"
+                            Classes="mat-chrome-btn close"
+                            Click="OnCloseClick"
+                            Content="✕"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Row="1" Margin="16" Spacing="10">
+                <Grid ColumnDefinitions="100,*" RowDefinitions="Auto,Auto" RowSpacing="10">
+                    <TextBlock Text="Наименование" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" Text="{Binding Name}"/>
+
+                    <TextBlock Grid.Row="1" Text="Файл" VerticalAlignment="Center"/>
+                    <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto">
+                        <TextBox Grid.Column="0" Text="{Binding FilePath}" IsReadOnly="True"/>
+                        <Button Grid.Column="1"
+                                Classes="mat-toolbar"
+                                Content="..."
+                                Command="{Binding PickFileCommand}"
+                                Margin="8,0,0,0"
+                                MinWidth="40"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"/>
+                    </Grid>
+                </Grid>
+            </StackPanel>
+
+            <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Classes="mat-toolbar"
+                            Content="Отмена"
+                            Command="{Binding CancelCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Classes="mat-primary"
+                            Content="ОК"
+                            Command="{Binding ConfirmCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

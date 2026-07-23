@@ -1,0 +1,81 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.Cad.UI.ViewModels"
+        Width="360"
+        Height="380"
+        Title="Подоконник"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="0"
+        x:Class="NurSapat.Cad.UI.Dialogs.SillDialogWindow"
+        x:DataType="vm:SillDialogViewModel"
+        FontFamily="Inter">
+    <Border Background="White"
+            BorderBrush="#808080"
+            BorderThickness="2"
+            CornerRadius="8">
+        <Grid RowDefinitions="Auto,*,Auto" Margin="20" RowSpacing="10">
+            <Border Background="#F8FAFC"
+                    CornerRadius="6"
+                    Padding="8,6"
+                    PointerPressed="OnTitleBarPointerPressed"
+                    Cursor="SizeAll">
+                <TextBlock Text="Параметры подоконника"
+                           FontWeight="SemiBold"
+                           FontSize="14"/>
+            </Border>
+
+            <StackPanel Grid.Row="1" Spacing="10">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                    <TextBlock Text="Толщина, мм" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" Text="{Binding ThicknessText, Mode=TwoWay}"/>
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                    <TextBlock Text="Ширина, мм" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" Text="{Binding WidthText, Mode=TwoWay}"/>
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                    <TextBlock Text="Вынос слева, мм" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" Text="{Binding LeftOverhangText, Mode=TwoWay}"/>
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                    <TextBlock Text="Вынос справа, мм" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" Text="{Binding RightOverhangText, Mode=TwoWay}"/>
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                    <TextBlock Text="Материал / цвет" VerticalAlignment="Center"/>
+                    <ComboBox Grid.Column="1"
+                              HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding MaterialOptions}"
+                              SelectedItem="{Binding SelectedMaterial, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SillDialogViewModel+SillMaterialOption">
+                                <TextBlock Text="{Binding Name}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Grid.Row="2" Spacing="8">
+                <TextBlock Text="{Binding ValidationMessage}"
+                           Foreground="#DC2626"
+                           FontSize="11"
+                           TextWrapping="Wrap"/>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <Button Content="OK"
+                            Command="{Binding ConfirmCommand}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Content="Отмена"
+                            Command="{Binding CancelCommand}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

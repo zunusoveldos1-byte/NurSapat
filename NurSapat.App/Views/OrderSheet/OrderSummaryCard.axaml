@@ -1,0 +1,90 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             x:Class="NurSapat.App.Views.OrderSheet.OrderSummaryCard"
+             x:DataType="vm:OrderSheetViewModel"
+             FontFamily="Inter, Segoe UI">
+
+    <UserControl.Styles>
+        <StyleInclude Source="/Styles/OrderSheetStyles.axaml"/>
+
+        <Style Selector="TextBlock.sumLabel">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#667085"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="TextBlock.sumValue">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+        </Style>
+        <Style Selector="Grid.sumRow">
+            <Setter Property="MinHeight" Value="18"/>
+            <Setter Property="MaxHeight" Value="22"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="8,6">
+        <StackPanel Spacing="2">
+            <TextBlock Classes="cardTitle" FontSize="14" Text="Итог" Margin="0,0,0,2"/>
+
+            <StackPanel Spacing="1">
+                <Grid Classes="sumRow" ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="sumLabel" Text="Стоимость изделия"/>
+                    <TextBlock Grid.Column="1" Classes="sumValue" Text="{Binding SummaryProductCostDisplay}"/>
+                </Grid>
+                <Grid Classes="sumRow" ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="sumLabel" Text="Производство и монтаж"/>
+                    <TextBlock Grid.Column="1" Classes="sumValue" Text="{Binding SummaryProductionCostDisplay}"/>
+                </Grid>
+                <Grid Classes="sumRow" ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="sumLabel" Text="Доп. расходы"/>
+                    <TextBlock Grid.Column="1" Classes="sumValue" Text="{Binding SummaryAdditionalDisplay}"/>
+                </Grid>
+            </StackPanel>
+
+            <Border Classes="totalStrip" Padding="8,4">
+                <Grid ColumnDefinitions="*,Auto" MinHeight="22">
+                    <TextBlock Text="Итого" FontSize="11" FontWeight="SemiBold" Foreground="#1D4ED8" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Classes="totalValue" FontSize="14" Text="{Binding SummaryTotalDisplay}"/>
+                </Grid>
+            </Border>
+
+            <Grid Classes="sumRow" ColumnDefinitions="*,Auto">
+                <TextBlock Classes="sumLabel" Text="НДС"/>
+                <TextBlock Grid.Column="1" Classes="sumValue" Text="{Binding SummaryVatDisplay}"/>
+            </Grid>
+
+            <Border Background="#2563EB" CornerRadius="8" Padding="8,4">
+                <Grid ColumnDefinitions="*,Auto" MinHeight="22">
+                    <TextBlock Text="К оплате" FontSize="11" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="{Binding SummaryPayableDisplay}"
+                               FontSize="14" FontWeight="Bold" Foreground="White"/>
+                </Grid>
+            </Border>
+
+            <Border BorderBrush="#E5EAF3" BorderThickness="0,1,0,0" Padding="0,4,0,0" Margin="0,2,0,0">
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                    <StackPanel Grid.Column="0" Spacing="0">
+                        <TextBlock Classes="fieldLabel" Text="Валюта"/>
+                        <ComboBox Classes="field"
+                                  ItemsSource="{Binding Currencies}"
+                                  SelectedItem="{Binding SelectedCurrency, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="0">
+                        <TextBlock Classes="fieldLabel" Text="Оплачено"/>
+                        <TextBox Classes="field"
+                                 Text="{Binding AmountPaid, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Classes="sumRow" ColumnDefinitions="*,Auto">
+                <TextBlock Classes="sumLabel" Text="Осталось оплатить"/>
+                <TextBlock Grid.Column="1" Classes="sumValue" Text="{Binding AmountLeftToPayDisplay}"/>
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

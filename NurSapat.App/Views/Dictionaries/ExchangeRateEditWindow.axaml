@@ -1,0 +1,108 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dictionaries"
+        x:Class="NurSapat.App.Views.Dictionaries.ExchangeRateEditWindow"
+        x:DataType="vm:ExchangeRateEditViewModel"
+        Width="640"
+        Height="560"
+        MinWidth="560"
+        MinHeight="500"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="32,*,Auto">
+            <Border Grid.Row="0"
+                    Classes="mat-titlebar"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="mat-titlebar-text"
+                               Text="{Binding WindowTitle}"
+                               Margin="16,0,0,0"
+                               VerticalAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Classes="mat-chrome-btn close"
+                            Click="OnCloseClick"
+                            Content="✕"
+                            Margin="0,0,8,0"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Row="1" Margin="12,0,12,0">
+                <Border Classes="mat-card">
+                    <Grid ColumnDefinitions="200,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+                        <TextBlock Text="Начало действия" VerticalAlignment="Center"/>
+                        <DatePicker Grid.Column="1" SelectedDate="{Binding StartDate}"/>
+
+                        <TextBlock Grid.Row="1" Text="USD к сому" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Row="1"
+                                         Grid.Column="1"
+                                         Minimum="0.0001"
+                                         Increment="0.01"
+                                         FormatString="N4"
+                                         Value="{Binding UsdRate}"/>
+
+                        <TextBlock Grid.Row="2" Text="EUR к сому" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Row="2"
+                                         Grid.Column="1"
+                                         Minimum="0.0001"
+                                         Increment="0.01"
+                                         FormatString="N4"
+                                         Value="{Binding EurRate}"/>
+
+                        <TextBlock Grid.Row="3" Text="CNY к сому" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Row="3"
+                                         Grid.Column="1"
+                                         Minimum="0.0001"
+                                         Increment="0.01"
+                                         FormatString="N4"
+                                         Value="{Binding CnyRate}"/>
+
+                        <TextBlock Grid.Row="4" Text="у.е." VerticalAlignment="Center"/>
+                        <StackPanel Grid.Row="4" Grid.Column="1" Spacing="4">
+                            <NumericUpDown Minimum="0.0001"
+                                           Increment="0.01"
+                                           FormatString="N4"
+                                           Value="{Binding UeRate}"/>
+                            <TextBlock Text="Рекомендуется устанавливать равным курсу USD или EUR для корректности распечаток"
+                                       FontSize="12"
+                                       Foreground="#64748B"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="5"
+                                   Grid.ColumnSpan="2"
+                                   Text="{Binding ValidationMessage}"
+                                   Foreground="#DC2626"
+                                   TextWrapping="Wrap"/>
+                    </Grid>
+                </Border>
+            </ScrollViewer>
+
+            <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Classes="mat-toolbar"
+                            Content="Отмена"
+                            Command="{Binding CancelCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Classes="mat-primary"
+                            Content="ОК"
+                            Command="{Binding SaveCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

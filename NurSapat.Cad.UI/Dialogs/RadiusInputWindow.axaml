@@ -1,0 +1,33 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.Cad.UI.ViewModels"
+        xmlns:behaviors="clr-namespace:NurSapat.Cad.UI.Behaviors;assembly=NurSapat.Cad.UI"
+        Width="300"
+        Height="190"
+        Title="Задать радиус"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="0"
+        x:Class="NurSapat.Cad.UI.Dialogs.RadiusInputWindow"
+        x:DataType="vm:RadiusInputViewModel"
+        FontFamily="Inter">
+
+    <Border Background="White" BorderBrush="#808080" BorderThickness="2" CornerRadius="8"
+            PointerPressed="OnWindowPointerPressed">
+        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12" Margin="20">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <TextBlock Text="R, мм" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="1"
+                         Text="{Binding RadiusText, Mode=TwoWay}"
+                         behaviors:SignedDecimalInputBehavior.AllowNegative="False"/>
+            </Grid>
+            <TextBlock Grid.Row="1" Text="{Binding ValidationMessage}" Foreground="#DC2626" FontSize="11"/>
+            <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="12">
+                <Button Content="OK" Command="{Binding ConfirmCommand}" HorizontalAlignment="Stretch"/>
+                <Button Grid.Column="1" Content="Отмена" Command="{Binding CancelCommand}" HorizontalAlignment="Stretch"/>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

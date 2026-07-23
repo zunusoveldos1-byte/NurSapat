@@ -1,0 +1,39 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             x:Class="NurSapat.App.Views.ErpReferenceHubView"
+             x:DataType="vm:ErpReferenceHubViewModel">
+    <Grid Background="{StaticResource SurfaceBrush}">
+        <Border Background="{StaticResource BackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="28"
+                Margin="24"
+                VerticalAlignment="Top">
+            <StackPanel Spacing="18">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{Binding Title}"
+                               FontSize="28"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextBrush}"/>
+                    <TextBlock Text="{Binding Description}"
+                               FontSize="14"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding ItemCountText}"
+                               FontSize="13"
+                               Foreground="{StaticResource SecondaryTextBrush}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button Content="Открыть справочник"
+                            Command="{Binding OpenDictionaryCommand}"
+                            Classes="Primary"/>
+                    <Button Content="Добавить"
+                            Command="{Binding AddItemCommand}"
+                            IsVisible="{Binding CanAdd}"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

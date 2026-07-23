@@ -1,0 +1,95 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dialogs"
+        xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+        xmlns:controls="clr-namespace:NurSapat.App.Views.Dialogs.Controls"
+        x:Class="NurSapat.App.Views.Dialogs.DealerSelectDialogWindow"
+        x:DataType="vm:DealerSelectDialogViewModel"
+        Width="760"
+        Height="580"
+        MinWidth="680"
+        MinHeight="500"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+        <StyleInclude Source="/Styles/ErpDialogStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="8">
+        <Grid RowDefinitions="32,Auto,*,Auto,Auto">
+            <controls:ErpDialogTitleBar Grid.Row="0"
+                                        x:Name="TitleBar"
+                                        Title="{Binding Title}"
+                                        CloseRequested="OnTitleBarClose"/>
+
+            <TextBox Grid.Row="1"
+                     x:Name="SearchTextBox"
+                     Classes="erp-input"
+                     Margin="16,0,16,0"
+                     PlaceholderText="Поиск по компании или контактному лицу..."
+                     Text="{Binding SearchText}"/>
+
+            <dg:DataGrid Grid.Row="2"
+                         Classes="erp-grid"
+                         Margin="16,0,16,0"
+                         ItemsSource="{Binding FilteredDealers}"
+                         SelectedItem="{Binding SelectedDealer}"
+                         AutoGenerateColumns="False"
+                         IsReadOnly="True"
+                         CanUserReorderColumns="False"
+                         CanUserResizeColumns="True">
+                <dg:DataGrid.Columns>
+                    <dg:DataGridTextColumn Header="Компания" Binding="{Binding CompanyName}" Width="*"/>
+                    <dg:DataGridTextColumn Header="Контакт" Binding="{Binding ContactPerson}" Width="160"/>
+                    <dg:DataGridTextColumn Header="Скидка" Binding="{Binding DiscountPercentage, StringFormat={}{0} %}" Width="80"/>
+                    <dg:DataGridTextColumn Header="Категория" Binding="{Binding DiscountCategory}" Width="90"/>
+                    <dg:DataGridTextColumn Header="Доступно" Binding="{Binding AvailableCredit, StringFormat=N0}" Width="100"/>
+                </dg:DataGrid.Columns>
+            </dg:DataGrid>
+
+            <Border Grid.Row="3"
+                    Classes="erp-info-card"
+                    Margin="16,10,16,0"
+                    IsVisible="{Binding SelectedDealer, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <StackPanel Spacing="4" DataContext="{Binding SelectedDealer}">
+                    <TextBlock Text="{Binding CompanyName}" FontWeight="SemiBold" FontSize="13"/>
+                    <TextBlock Text="{Binding ContactPerson, StringFormat=Контакт: {0}}" Foreground="#475569"/>
+                    <TextBlock Text="{Binding DiscountCategory, StringFormat=Категория скидки: {0}}" Foreground="#475569"/>
+                    <TextBlock Text="{Binding CreditLimit, StringFormat=Кредитный лимит: {0:N0} сом}" Foreground="#475569"/>
+                    <TextBlock Text="{Binding DealerCommissionEstimate, StringFormat=Комиссия (оценка): {0:N0} сом}" Foreground="#475569"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="4" Classes="erp-dialog-footer">
+                <StackPanel Spacing="8">
+                    <Border Classes="erp-error-card"
+                            IsVisible="{Binding CreditWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                        <TextBlock Text="{Binding CreditWarning}" Foreground="#DC2626" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    </Border>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="mat-toolbar" Command="{Binding CancelCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="✕" FontSize="11"/>
+                                <TextBlock Text="Отмена"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="mat-primary"
+                                Command="{Binding ConfirmCommand}"
+                                IsEnabled="{Binding CanConfirm}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="✓" FontSize="11" Foreground="White"/>
+                                <TextBlock Text="Применить" Foreground="White"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

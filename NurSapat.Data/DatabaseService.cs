@@ -3,23 +3,26 @@ using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
 using Npgsql;
+using NurSapat.Data.Legacy;
 
 namespace NurSapat.Data;
 
 public class DatabaseService
 {
     private readonly string _connectionString;
+    public NpgsqlDataSource DataSource { get; } // ДОБАВЛЕНО
+    public string ConnectionString => _connectionString;
 
     public DatabaseService(string connectionString)
     {
         _connectionString = connectionString;
+        var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+        dataSourceBuilder.MapEnum<LegacyMaterialCategory>("material_category");
+        DataSource = dataSourceBuilder.Build();
     }
 
-    public NpgsqlConnection CreateConnection() => new NpgsqlConnection(_connectionString);
+    public NpgsqlConnection CreateConnection() => DataSource.CreateConnection();
 
-    /// <summary>
-    /// Проверяет, есть ли таблицы в БД, и если нет – выполняет InitialSchema.sql из ресурсов.
-    /// </summary>
     public async Task EnsureDatabaseAsync()
     {
         if (await IsDatabaseEmptyAsync())
@@ -37,20 +40,16 @@ public class DatabaseService
                 AND table_name = 'users'
             );";
 
-        using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = DataSource.CreateConnection();
         await connection.OpenAsync();
-        using var command = new NpgsqlCommand(checkSql, connection);
+        await using var command = new NpgsqlCommand(checkSql, connection);
         var result = await command.ExecuteScalarAsync();
         return result is bool exists && !exists;
     }
 
     private async Task ExecuteEmbeddedSchemaAsync()
     {
-        // Получаем сборку, в которой находится этот класс (NurSapat.Data)
         var assembly = Assembly.GetExecutingAssembly();
-
-        // Имя ресурса формируется как: "ПространствоИмён.Папка.ИмяФайла"
-        // Убедитесь, что папка называется Migrations, а файл – InitialSchema.sql
         string resourceName = "NurSapat.Data.Migrations.InitialSchema.sql";
 
         string sqlScript;
@@ -68,9 +67,9 @@ public class DatabaseService
             }
         }
 
-        using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = DataSource.CreateConnection();
         await connection.OpenAsync();
-        using var command = new NpgsqlCommand(sqlScript, connection);
+        await using var command = new NpgsqlCommand(sqlScript, connection);
         await command.ExecuteNonQueryAsync();
         System.Diagnostics.Debug.WriteLine("База данных успешно инициализирована из встроенного ресурса.");
     }

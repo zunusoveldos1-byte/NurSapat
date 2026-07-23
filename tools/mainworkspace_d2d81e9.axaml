@@ -1,0 +1,229 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+        x:Class="NurSapat.App.Views.MainWorkspaceWindow"
+        x:DataType="vm:MainWorkspaceViewModel"
+        Title="{Binding DocumentTitle}"
+        Icon="/Assets/logo.ico"
+        MinWidth="1180"
+        MinHeight="720"
+        WindowState="Maximized"
+        WindowStartupLocation="CenterScreen"
+        WindowDecorations="None"
+        Background="#F6F9FD"
+        FontFamily="Inter">
+    <Window.Styles>
+        <StyleInclude Source="/Styles/WorkspaceStyles.axaml"/>
+        <Style Selector="TextBlock.icon">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="21"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="40,Auto,Auto,*">
+        <!-- Кастомная верхняя панель -->
+        <Border Grid.Row="0"
+                Background="White"
+                BorderBrush="#E2E8F0"
+                BorderThickness="0,0,0,1"
+                PointerPressed="OnTitleBarPointerPressed">
+            <Grid ColumnDefinitions="*,Auto" Margin="16,0,12,0">
+                <TextBlock Text="{Binding DocumentTitle}"
+                           FontSize="14"
+                           FontWeight="Medium"
+                           Foreground="#0F172A"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"/>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="0"
+                            VerticalAlignment="Center">
+                    <Button Classes="workspace-title-btn"
+                            Click="OnMinimizeClick"
+                            ToolTip.Tip="Свернуть">
+                        <Viewbox Width="10" Height="10">
+                            <Canvas Width="10" Height="10">
+                                <Line StartPoint="1,5"
+                                      EndPoint="9,5"
+                                      Stroke="#64748B"
+                                      StrokeThickness="1.2"
+                                      StrokeLineCap="Round"/>
+                            </Canvas>
+                        </Viewbox>
+                    </Button>
+                    <Button x:Name="MaximizeButton"
+                            Classes="workspace-title-btn"
+                            Click="OnMaximizeClick"
+                            ToolTip.Tip="Развернуть">
+                        <Panel>
+                            <Viewbox x:Name="MaximizeIcon" Width="10" Height="10">
+                                <Canvas Width="10" Height="10">
+                                    <Rectangle Canvas.Left="1.5"
+                                               Canvas.Top="1.5"
+                                               Width="7"
+                                               Height="7"
+                                               Stroke="#64748B"
+                                               StrokeThickness="1.2"
+                                               Fill="Transparent"/>
+                                </Canvas>
+                            </Viewbox>
+                            <Viewbox x:Name="RestoreIcon"
+                                     Width="10"
+                                     Height="10"
+                                     IsVisible="False">
+                                <Canvas Width="10" Height="10">
+                                    <Rectangle Canvas.Left="3"
+                                               Canvas.Top="1"
+                                               Width="6"
+                                               Height="6"
+                                               Stroke="#64748B"
+                                               StrokeThickness="1.2"
+                                               Fill="Transparent"/>
+                                    <Rectangle Canvas.Left="1"
+                                               Canvas.Top="3"
+                                               Width="6"
+                                               Height="6"
+                                               Stroke="#64748B"
+                                               StrokeThickness="1.2"
+                                               Fill="Transparent"/>
+                                </Canvas>
+                            </Viewbox>
+                        </Panel>
+                    </Button>
+                    <Button Classes="workspace-title-btn close"
+                            Click="OnCloseClick"
+                            ToolTip.Tip="Закрыть">
+                        <Viewbox Width="10" Height="10">
+                            <Canvas Width="10" Height="10">
+                                <Line StartPoint="1,1"
+                                      EndPoint="9,9"
+                                      Stroke="#64748B"
+                                      StrokeThickness="1.2"
+                                      StrokeLineCap="Round"/>
+                                <Line StartPoint="9,1"
+                                      EndPoint="1,9"
+                                      Stroke="#64748B"
+                                      StrokeThickness="1.2"
+                                      StrokeLineCap="Round"/>
+                            </Canvas>
+                        </Viewbox>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Меню -->
+        <Border Grid.Row="1"
+                Background="White"
+                BorderBrush="#E2E8F0"
+                BorderThickness="0,0,0,1">
+            <Menu VerticalAlignment="Center" Margin="12,0,0,0">
+                <MenuItem Header="Файл">
+                    <MenuItem Header="Создать новый заказ" InputGesture="Ctrl+N" Command="{Binding NewOrderCommand}"/>
+                    <MenuItem Header="Открыть заказ" Command="{Binding OpenOrderCommand}"/>
+                    <MenuItem Header="Сохранить заказ" InputGesture="Ctrl+S" Command="{Binding SaveOrderCommand}"/>
+                    <MenuItem Header="Сохранить как копию" Command="{Binding SaveAsCopyOrderCommand}"/>
+                    <MenuItem Header="Закрыть заказ" InputGesture="Ctrl+E" Command="{Binding CloseOrderCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Последние проекты" ItemsSource="{Binding RecentProjects}">
+                        <MenuItem.ItemTemplate>
+                            <DataTemplate>
+                                <MenuItem Header="{Binding DisplayName}" Command="{Binding OpenCommand}"/>
+                            </DataTemplate>
+                        </MenuItem.ItemTemplate>
+                    </MenuItem>
+                    <Separator/>
+                    <MenuItem Header="Печать" Command="{Binding PrintOrderCommand}"/>
+                    <MenuItem Header="Параметры печати" Command="{Binding PrintSettingsCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Выход" InputGesture="Alt+X" Command="{Binding ExitCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="Правка">
+                    <MenuItem Header="Копировать" Command="{Binding CopyDrawingCommand}"/>
+                    <MenuItem Header="Вставить" Command="{Binding PasteDrawingCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Сменить элементы конструкции" Command="{Binding ChangeConstructionElementsCommand}"/>
+                    <MenuItem Header="Сменить элементы заказа" Command="{Binding ChangeOrderElementsCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="Вид">
+                    <MenuItem Header="Панель инструментов" Command="{Binding ToggleToolPanelCommand}" IsChecked="{Binding IsLeftPanelVisible}"/>
+                    <Separator/>
+                    <MenuItem Header="Таблица затрат" Command="{Binding CostTableCommand}"/>
+                    <MenuItem Header="Сообщения" Command="{Binding MessagesCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="Справочники">
+                    <MenuItem Header="Материалы" Command="{Binding MaterialsCommand}"/>
+                    <MenuItem Header="Заказчики" Command="{Binding CustomersCommand}"/>
+                    <MenuItem Header="Заказы" Command="{Binding OrdersCommand}"/>
+                    <MenuItem Header="Склад (материалы)" Command="{Binding StockMaterialsCommand}"/>
+                    <MenuItem Header="Склад (обрезки профиля)" Command="{Binding StockProfileCutsCommand}"/>
+                    <MenuItem Header="Склад (обрезки стекла)" Command="{Binding StockGlassCutsCommand}"/>
+                    <MenuItem Header="Склад (готовая продукция)" Command="{Binding StockFinishedCommand}"/>
+                    <MenuItem Header="Типовые конструкции" Command="{Binding StandardStructuresCommand}"/>
+                    <MenuItem Header="Пользователи" Command="{Binding UsersCommand}"/>
+                    <MenuItem Header="Курсы валют" Command="{Binding ExchangeRatesCommand}"/>
+                    <MenuItem Header="Серии" Command="{Binding SeriesCommand}"/>
+                    <MenuItem Header="Производители" Command="{Binding ManufacturersCommand}"/>
+                    <MenuItem Header="Поставщики" Command="{Binding SuppliersCommand}"/>
+                    <MenuItem Header="Шаблоны заказов" Command="{Binding OrderTemplatesCommand}"/>
+                    <MenuItem Header="Наименования конструкций" Command="{Binding StructureNamesCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="Настройки">
+                    <MenuItem Header="Среда" Command="{Binding EnvironmentCommand}"/>
+                    <MenuItem Header="Смена конфигурации" Command="{Binding ChangeConfigurationCommand}"/>
+                    <MenuItem Header="Элементы конструкции" Command="{Binding ConstructionElementsCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="Сервис">
+                    <MenuItem Header="Экспорт списания (DBF)" Command="{Binding ExportWriteOffDBFCommand}"/>
+                    <MenuItem Header="Экспорт списания (XLS)" Command="{Binding ExportWriteOffXLSCommand}"/>
+                    <MenuItem Header="Импорт москитных сеток" Command="{Binding ImportMosquitoNetCommand}"/>
+                    <MenuItem Header="Импорт доп. изделий" Command="{Binding ImportAccessoriesCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="Утилиты">
+                    <MenuItem Header="Сжать базу" Command="{Binding CompressDatabaseCommand}"/>
+                    <MenuItem Header="Сформировать дилерскую базу" Command="{Binding GenerateDealerDatabaseCommand}"/>
+                    <MenuItem Header="Установить пароль на базу" Command="{Binding SetDatabasePasswordCommand}"/>
+                    <MenuItem Header="Корпоративный узел" Command="{Binding CorporateNodeCommand}"/>
+                    <MenuItem Header="Сформировать производственную базу" Command="{Binding GenerateProductionDatabaseCommand}"/>
+                    <MenuItem Header="Обновить производственную базу" Command="{Binding UpdateProductionDatabaseCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="Помощь">
+                    <MenuItem Header="Справка" Command="{Binding HelpCommand}"/>
+                    <MenuItem Header="Что нового?" Command="{Binding WhatIsNewCommand}"/>
+                    <MenuItem Header="Обновить программу" Command="{Binding UpdateProgramCommand}"/>
+                    <MenuItem Header="Консультация" Command="{Binding ConsultationCommand}"/>
+                    <MenuItem Header="О программе" Command="{Binding AboutCommand}"/>
+                </MenuItem>
+            </Menu>
+        </Border>
+
+        <!-- Вкладки -->
+        <Border Grid.Row="2"
+                Background="White"
+                BorderBrush="#E2E8F0"
+                BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Stretch">
+                <Button Classes="tab" Classes.active="{Binding IsCadSelected}"
+                        Command="{Binding NavigationCommand}" CommandParameter="cad" Content="Чертеж"/>
+                <Button Classes="tab" Classes.active="{Binding IsOrdersSelected}"
+                        Command="{Binding NavigationCommand}" CommandParameter="orders" Content="Лист заказа"/>
+                <Button Classes="tab" Classes.active="{Binding IsAdditionalSelected}"
+                        Command="{Binding NavigationCommand}" CommandParameter="additional" Content="Дополнительно"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Рабочая область -->
+        <Border Grid.Row="3" Background="#F6F9FD">
+            <ContentControl Content="{Binding CurrentContent}"/>
+        </Border>
+    </Grid>
+</Window>
