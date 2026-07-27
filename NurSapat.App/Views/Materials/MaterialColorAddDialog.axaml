@@ -1,0 +1,67 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Materials"
+        x:Class="NurSapat.App.Views.Materials.MaterialColorAddDialog"
+        x:DataType="vm:MaterialColorAddDialogViewModel"
+        Width="480"
+        Height="420"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="8">
+        <Grid RowDefinitions="32,*,Auto">
+            <Border Grid.Row="0"
+                    Classes="mat-titlebar"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="mat-titlebar-text"
+                               Margin="12,0,0,0"
+                               Text="Добавить цвет"/>
+                    <Button Grid.Column="1"
+                            Classes="mat-chrome-btn close"
+                            Click="OnCloseClick"
+                            Content="✕"/>
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Row="1" Margin="16" Spacing="10">
+                <TextBlock Text="Артикул цвета"/>
+                <TextBox Text="{Binding ColorArticle}"/>
+                <TextBlock Text="Цвет из справочника"/>
+                <ComboBox ItemsSource="{Binding CatalogColors}"
+                          SelectedItem="{Binding SelectedColorName}"/>
+                <TextBlock Text="Цена, сом"/>
+                <NumericUpDown Minimum="0" Increment="10" Value="{Binding Price}"/>
+                <TextBlock Text="Артикул связи (1С)"/>
+                <TextBox Text="{Binding LinkArticle}"/>
+                <CheckBox Content="Кроить длину нестандартно"
+                          IsChecked="{Binding UseCustomCutLength}"/>
+                <StackPanel IsVisible="{Binding UseCustomCutLength}" Spacing="6">
+                    <TextBlock Text="Длина прута (мм)"/>
+                    <NumericUpDown Minimum="100"
+                                   Maximum="12000"
+                                   Value="{Binding CustomBarLengthMm}"/>
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Grid.Row="2"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="16"
+                        Spacing="8">
+                <Button Content="Отмена" Command="{Binding CancelCommand}"/>
+                <Button Classes="mat-primary"
+                        Content="Добавить"
+                        Command="{Binding ConfirmCommand}"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

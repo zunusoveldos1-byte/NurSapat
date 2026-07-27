@@ -1,0 +1,772 @@
+
+===== NurSapat.App/ViewModels/OrderDrawingViewModel.cs:110-125 =====
+110|        {
+111|            SelectTool(mapped);
+112|        }
+113|    }
+114|
+115|    private CadDesignTool? MapWindowToolMode(NurSapat.Cad.Core.Models.WindowToolMode mode) => mode switch
+116|    {
+117|        // RealFrame \u0443\u043f\u0440\u0430\u0432\u043b\u044f\u0435\u0442\u0441\u044f \u043f\u0430\u043d\u0435\u043b\u044c\u044e CadEditorView (FrameNode), \u043d\u0435 legacy RectangleTool.
+118|        NurSapat.Cad.Core.Models.WindowToolMode.FictitiousFrame => AllTools.FirstOrDefault(t => t.Id == "fictitious-frame"),
+119|        NurSapat.Cad.Core.Models.WindowToolMode.FakeFrame => AllTools.FirstOrDefault(t => t.Id == "dummy-frame"),
+120|        NurSapat.Cad.Core.Models.WindowToolMode.FakeFrameCircle => AllTools.FirstOrDefault(t => t.Id == "round-dummy"),
+121|        NurSapat.Cad.Core.Models.WindowToolMode.ExtremeImpost => AllTools.FirstOrDefault(t => t.Id == "edge-mullion"),
+122|        NurSapat.Cad.Core.Models.WindowToolMode.RackRigelNone => AllTools.FirstOrDefault(t => t.Id == "edge-mullion"),
+123|        _ => null
+124|    };
+125|
+
+===== NurSapat.App/ViewModels/OrderDrawingViewModel.cs:310-330 =====
+310|                Tools = group.ToList()
+311|            });
+312|        }
+313|    }
+314|
+315|    private static IReadOnlyList<CadDesignTool> BuildTools() =>
+316|    [
+317|        Tool("select", "\u0412\u044b\u0434\u0435\u043b\u0435\u043d\u0438\u0435", "\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435", "\\uE8C1", cadToolId: "select"),
+318|        Tool("fictitious-frame", "\u0413\u0430\u0431\u0430\u0440\u0438\u0442\u043d\u0430\u044f \u0440\u0430\u043c\u043a\u0430", "\u0411\u0430\u0437\u043e\u0432\u0430\u044f \u0433\u0435\u043e\u043c\u0435\u0442\u0440\u0438\u044f \u0438 \u0440\u0430\u043c\u044b", "\\uE7C9", GeometryElementKind.FictitiousFrame, cadToolId: "design-rect"),
+319|        Tool("dummy-frame", "\u041a\u043e\u0440\u043e\u0431\u043a\u0430 \u0444\u0438\u043a\u0442\u0438\u0432\u043d\u0430\u044f", "\u0411\u0430\u0437\u043e\u0432\u0430\u044f \u0433\u0435\u043e\u043c\u0435\u0442\u0440\u0438\u044f \u0438 \u0440\u0430\u043c\u044b", "\\uE739", GeometryElementKind.DummyFrame, cadToolId: "design-rect"),
+320|        Tool("dummy-mullion", "\u0424\u0438\u043a\u0442\u0438\u0432\u043d\u044b\u0435 \u0438\u043c\u043f\u043e\u0441\u0442\u044b", "\u0411\u0430\u0437\u043e\u0432\u0430\u044f \u0433\u0435\u043e\u043c\u0435\u0442\u0440\u0438\u044f \u0438 \u0440\u0430\u043c\u044b", "\\uE8B0", GeometryElementKind.DummyMullion, places: true),
+321|        Tool("frame", "\u041a\u043e\u0440\u043e\u0431\u043a\u0430 (\u0440\u0430\u043c\u0430)", "\u0411\u0430\u0437\u043e\u0432\u0430\u044f \u0433\u0435\u043e\u043c\u0435\u0442\u0440\u0438\u044f \u0438 \u0440\u0430\u043c\u044b", "\\uE7F4", GeometryElementKind.Frame, cadToolId: "rectangle"),
+322|        Tool("edge-mullion", "\u0421\u0442\u043e\u0439\u043a\u0430/\u0440\u0438\u0433\u0435\u043b\u044c \u0432 \u043a\u0440\u0430\u0439\u043d\u0435\u043c \u043f\u043e\u043b\u043e\u0436\u0435\u043d\u0438\u0438", "\u0411\u0430\u0437\u043e\u0432\u0430\u044f \u0433\u0435\u043e\u043c\u0435\u0442\u0440\u0438\u044f \u0438 \u0440\u0430\u043c\u044b", "\\uE8A5", GeometryElementKind.EdgeMullion, places: true),
+323|        Tool("round-dummy", "\u041a\u043e\u0440\u043e\u0431\u043a\u0430 \u0444\u0438\u043a\u0442\u0438\u0432\u043d\u0430\u044f \u043a\u0440\u0443\u0433\u043b\u0430\u044f", "\u0411\u0430\u0437\u043e\u0432\u0430\u044f \u0433\u0435\u043e\u043c\u0435\u0442\u0440\u0438\u044f \u0438 \u0440\u0430\u043c\u044b", "\\uECAF", GeometryElementKind.RoundDummyFrame, cadToolId: "design-rect"),
+324|        Tool("transition-frame", "\u041a\u043e\u0440\u043e\u0431\u043a\u0430 \u0438 \u043f\u0435\u0440\u0435\u0445\u043e\u0434\u043d\u043e\u0439 \u043f\u0440\u043e\u0444\u0438\u043b\u044c", "\u0411\u0430\u0437\u043e\u0432\u0430\u044f \u0433\u0435\u043e\u043c\u0435\u0442\u0440\u0438\u044f \u0438 \u0440\u0430\u043c\u044b", "\\uE8AB", GeometryElementKind.TransitionFrame, cadToolId: "design-rect"),
+325|        Tool("sash", "\u0421\u0442\u0432\u043e\u0440\u043a\u0430", "\u0421\u0442\u0432\u043e\u0440\u043a\u0438 \u0438 \u0444\u0443\u0440\u043d\u0438\u0442\u0443\u0440\u0430", "\\uE7C3", GeometryElementKind.Sash, cadToolId: "design-rect"),
+326|        Tool("hinges", "\u041f\u0435\u0442\u043b\u0438 / \u043c\u0435\u0445\u0430\u043d\u0438\u0437\u043c\u044b", "\u0421\u0442\u0432\u043e\u0440\u043a\u0438 \u0438 \u0444\u0443\u0440\u043d\u0438\u0442\u0443\u0440\u0430", "\\uE946", GeometryElementKind.Hardware, places: true),
+327|        Tool("handle", "\u0420\u0443\u0447\u043a\u0430", "\u0421\u0442\u0432\u043e\u0440\u043a\u0438 \u0438 \u0444\u0443\u0440\u043d\u0438\u0442\u0443\u0440\u0430", "\\uE7F3", GeometryElementKind.Handle, places: true),
+328|        Tool("mullion-v", "\u0418\u043c\u043f\u043e\u0441\u0442 \u0432\u0435\u0440\u0442\u0438\u043a\u0430\u043b\u044c\u043d\u044b\u0439", "\u0421\u0442\u0432\u043e\u0440\u043a\u0438 \u0438 \u0444\u0443\u0440\u043d\u0438\u0442\u0443\u0440\u0430", "\\uE8A4", GeometryElementKind.Mullion, cadToolId: "mullion-place-v"),
+329|        Tool("mullion-h", "\u0418\u043c\u043f\u043e\u0441\u0442 \u0433\u043e\u0440\u0438\u0437\u043e\u043d\u0442\u0430\u043b\u044c\u043d\u044b\u0439", "\u0421\u0442\u0432\u043e\u0440\u043a\u0438 \u0438 \u0444\u0443\u0440\u043d\u0438\u0442\u0443\u0440\u0430", "\\uE8A3", GeometryElementKind.Mullion, cadToolId: "mullion-place-h"),
+330|        Tool("mullion-d", "\u0418\u043c\u043f\u043e\u0441\u0442 \u043d\u0430\u043a\u043b\u043e\u043d\u043d\u044b\u0439", "\u0421\u0442\u0432\u043e\u0440\u043a\u0438 \u0438 \u0444\u0443\u0440\u043d\u0438\u0442\u0443\u0440\u0430", "\\uE8B6", GeometryElementKind.Mullion, cadToolId: "mullion-place-d"),
+
+===== NurSapat.Core/Models/Orders/FictitiousFrame.cs:1-80 =====
+1|namespace NurSapat.Core.Models.Orders;
+2|
+3|/// <summary>
+4|/// \u0413\u0430\u0431\u0430\u0440\u0438\u0442\u043d\u0430\u044f \u0444\u0438\u043a\u0442\u0438\u0432\u043d\u0430\u044f \u043a\u043e\u0440\u043e\u0431\u043a\u0430 \u2014 \u043d\u0435\u0432\u0438\u0434\u0438\u043c\u044b\u0439 \u043a\u043e\u043d\u0442\u0435\u0439\u043d\u0435\u0440 \u0434\u043b\u044f \u0441\u043b\u043e\u0436\u043d\u044b\u0445 \u0441\u043e\u0441\u0442\u0430\u0432\u043d\u044b\u0445 \u043a\u043e\u043d\u0441\u0442\u0440\u0443\u043a\u0446\u0438\u0439
+5|/// (\u0431\u0430\u043b\u043a\u043e\u043d\u043d\u044b\u0435 \u0431\u043b\u043e\u043a\u0438, \u041f- \u0438 \u0422-\u043e\u0431\u0440\u0430\u0437\u043d\u044b\u0435 \u0444\u0430\u0441\u0430\u0434\u044b). \u041d\u0435 \u0443\u0447\u0430\u0441\u0442\u0432\u0443\u0435\u0442 \u0432 \u0441\u043f\u0438\u0441\u0430\u043d\u0438\u0438 \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b\u043e\u0432.
+6|/// </summary>
+7|public sealed class FictitiousFrame
+8|{
+9|    public const bool IsFictitious = true;
+10|
+11|    public Guid Id { get; set; } = Guid.NewGuid();
+12|
+13|    public double OriginX { get; set; }
+14|
+15|    public double OriginY { get; set; }
+16|
+17|    public double WidthMm { get; set; }
+18|
+19|    public double HeightMm { get; set; }
+20|
+21|    /// <summary>\u0418\u0434\u0435\u043d\u0442\u0438\u0444\u0438\u043a\u0430\u0442\u043e\u0440\u044b \u0434\u043e\u0447\u0435\u0440\u043d\u0438\u0445 \u044d\u043b\u0435\u043c\u0435\u043d\u0442\u043e\u0432 \u0432\u043d\u0443\u0442\u0440\u0438 \u0433\u0430\u0431\u0430\u0440\u0438\u0442\u043d\u043e\u0439 \u0440\u0430\u043c\u043a\u0438.</summary>
+22|    public List<Guid> ChildElementIds { get; } = [];
+23|
+24|    public static bool IsFictitiousKind(GeometryElementKind kind) =>
+25|        kind is GeometryElementKind.FictitiousFrame
+26|            or GeometryElementKind.DummyFrame
+27|            or GeometryElementKind.RoundDummyFrame
+28|            or GeometryElementKind.TriangleDummyFrame
+29|            or GeometryElementKind.ArchDummyFrame
+30|            or GeometryElementKind.DummyMullion;
+31|
+32|    public static bool IsFictitiousElement(GeometryElement element) => IsFictitiousKind(element.Kind);
+33|
+34|    public static FictitiousFrame FromElement(GeometryElement element)
+35|    {
+36|        var width = (double)element.WidthMm;
+37|        var height = (double)element.HeightMm;
+38|        return new FictitiousFrame
+39|        {
+40|            Id = element.Id,
+41|            OriginX = (double)element.X - width / 2.0,
+42|            OriginY = (double)element.Y - height / 2.0,
+43|            WidthMm = width,
+44|            HeightMm = height
+45|        };
+46|    }
+47|
+48|    public GeometryElement ToElement(string? label = null) =>
+49|        new()
+50|        {
+51|            Id = Id,
+52|            Kind = GeometryElementKind.FictitiousFrame,
+53|            Label = label ?? "\u0413\u0430\u0431\u0430\u0440\u0438\u0442\u043d\u0430\u044f \u0440\u0430\u043c\u043a\u0430 (\u0444\u0438\u043a\u0442\u0438\u0432\u043d\u0430\u044f)",
+54|            X = (decimal)(OriginX + WidthMm / 2.0),
+55|            Y = (decimal)(OriginY + HeightMm / 2.0),
+56|            WidthMm = (decimal)WidthMm,
+57|            HeightMm = (decimal)HeightMm
+58|        };
+59|
+60|    public static IEnumerable<GeometryElement> EnumerateBillableElements(IEnumerable<GeometryElement> elements) =>
+61|        elements.Where(element => element.IsBillable);
+62|}
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:3045-3120 =====
+3045|
+3046|    private void SyncFrameRootFictitiousFlag()
+3047|    {
+3048|        if (FrameRoot is null)
+3049|        {
+3050|            return;
+3051|        }
+3052|
+3053|        FrameRoot.IsFictitiousContainer = HasFakeFrameOnCanvas;
+3054|    }
+3055|
+3056|    private bool TryCommitRealFrameInLeaf(FrameNode leaf)
+3057|    {
+3058|        if (!leaf.IsLeaf)
+3059|        {
+3060|            StatusText = "\u0420\u0459\u0420\xbb\u0420\u0451\u0420\u0454\u0420\u0405\u0420\u0451\u0421\u201a\u0420\xb5 \u0420\u0406\u0420\u0405\u0421\u0453\u0421\u201a\u0421\u0402\u0420\u0451 \u0421\u0403\u0420\u0406\u0420\u0455\u0420\xb1\u0420\u0455\u0420\u0491\u0420\u0405\u0420\u0455\u0420\u2116 \u0421\u040f\u0421\u2021\u0420\xb5\u0420\u2116\u0420\u0454\u0420\u0451";
+3061|            return false;
+3062|        }
+3063|
+3064|        if (!leaf.CanAccept(WindowToolMode.RealFrame))
+3065|        {
+3066|            StatusText = "\u0420\u045c\u0420\xb5\u0420\xbb\u0421\u040a\u0420\xb7\u0421\u040f \u0421\u0402\u0420\xb0\u0420\xb7\u0420\u0458\u0420\xb5\u0421\u0403\u0421\u201a\u0420\u0451\u0421\u201a\u0421\u040a \u0420\u0454\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0421\u0453 \u0420\u0406 \u0421\u040c\u0421\u201a\u0420\u0455\u0420\u2116 \u0421\u040f\u0421\u2021\u0420\xb5\u0420\u2116\u0420\u0454\u0420\xb5";
+3067|            return false;
+3068|        }
+3069|
+3070|        if (FindFrameInLeaf(leaf) is not null)
+3071|        {
+3072|            StatusText = "\u0420\u0407\u0421\u2021\u0420\xb5\u0420\u2116\u0420\u0454\u0420\xb0 \u0421\u0453\u0420\xb6\u0420\xb5 \u0421\u0403\u0420\u0455\u0420\u0491\u0420\xb5\u0421\u0402\u0420\xb6\u0420\u0451\u0421\u201a \u0420\u0454\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0421\u0453";
+3073|            return false;
+3074|        }
+3075|
+3076|        var originX = RoundMm(leaf.X);
+3077|        var originY = RoundMm(leaf.Y);
+3078|        var width = RoundMm(leaf.Width);
+3079|        var height = RoundMm(leaf.Height);
+3080|
+3081|        if (FrameRoot?.IsFictitiousContainer == true)
+3082|        {
+3083|            var inset = FrameProfileGeometry.ResolveInnerInset(leaf.Width, leaf.Height, FrameThickness);
+3084|            originX = RoundMm(leaf.X + inset);
+3085|            originY = RoundMm(leaf.Y + inset);
+3086|            width = RoundMm(Math.Max(leaf.Width - inset * 2, MinEditableOpeningMm));
+3087|            height = RoundMm(Math.Max(leaf.Height - inset * 2, MinEditableOpeningMm));
+3088|        }
+3089|
+3090|        var frameKind = ResolveRealFrameKind(width, height);
+3091|        var frameLabel = frameKind == GeometryElementKind.ArchFrame
+3092|            ? "\u0420\u0459\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0420\xb0 \u0420\xb0\u0421\u0402\u0420\u0455\u0421\u2021\u0420\u0405\u0420\xb0\u0421\u040f (\u0421\u0402\u0420\xb0\u0420\u0458\u0420\xb0)"
+3093|            : "\u0420\u0459\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0420\xb0 (\u0421\u0402\u0420\xb0\u0420\u0458\u0420\xb0)";
+3094|
+3095|        var element = new GeometryElement
+3096|        {
+3097|            Kind = frameKind,
+3098|            Label = frameLabel,
+3099|            X = (decimal)RoundMm(originX + width / 2.0),
+3100|            Y = (decimal)RoundMm(originY + height / 2.0),
+3101|            WidthMm = (decimal)width,
+3102|            HeightMm = (decimal)height
+3103|        };
+3104|        AddCanvasElement(element);
+3105|
+3106|        SelectedElement = leaf;
+3107|        _isSyncingSelection = true;
+3108|        Length = width;
+3109|        Height = height;
+3110|        CoordinateX = originX;
+3111|        CoordinateY = originY;
+3112|        _isSyncingSelection = false;
+3113|
+3114|        OnPropertyChanged(nameof(HasRealFrameOnCanvas));
+3115|        OnPropertyChanged(nameof(SelectedElementLength));
+3116|        OnPropertyChanged(nameof(SelectedElementHeight));
+3117|        FrameCreated?.Invoke(this, new FrameCreatedEventArgs(element, replaceExisting: false));
+3118|        StatusText = $"{frameLabel} \u0421\u0403\u0420\u0455\u0420\xb7\u0420\u0491\u0420\xb0\u0420\u0405\u0420\xb0";
+3119|        RequestSceneRefresh();
+3120|        return true;
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:3375-3420 =====
+3375|        {
+3376|            EnsureRectangularRootProfile(root);
+3377|            return;
+3378|        }
+3379|
+3380|        if (root.TopProfile is { } profile && profile.SegmentType == SegmentType.Arc)
+3381|        {
+3382|            profile.SyncTopRailGeometry(root.X, root.Y, root.Width, root.Height);
+3383|            profile.ConvertToLine();
+3384|        }
+3385|    }
+3386|
+3387|    private bool TryCommitNestedRealFrameAt(double worldX, double worldY)
+3388|    {
+3389|        if (!ShouldNestRealFrameInFakeContext() || FrameRoot is null)
+3390|        {
+3391|            return false;
+3392|        }
+3393|
+3394|        var leaf = FrameRoot.FindLeafAt(worldX, worldY);
+3395|        if (leaf is null || FindTransitionInLeaf(leaf) is null)
+3396|        {
+3397|            return false;
+3398|        }
+3399|
+3400|        _isCommittingRealFrame = true;
+3401|        return TryCommitRealFrameInLeaf(leaf);
+3402|    }
+3403|
+3404|    private bool ShouldPreserveFakeContainerForPlacement(CadPoint worldPoint) =>
+3405|        CurrentToolMode == WindowToolMode.RealFrame
+3406|        && ShouldNestRealFrameInFakeContext()
+3407|        && FrameRoot?.FindLeafAt(worldPoint.X, worldPoint.Y) is FrameNode leaf
+3408|        && FindTransitionInLeaf(leaf) is not null;
+3409|
+3410|    private void ClearExistingFrameForReplacement()
+3411|    {
+3412|        ClearCommittedFrameGeometry();
+3413|        Length = 0;
+3414|        Height = 0;
+3415|        OnPropertyChanged(nameof(SelectedElementLength));
+3416|        OnPropertyChanged(nameof(SelectedElementHeight));
+3417|    }
+3418|
+3419|    public bool TryHandleCanvasClick(CadPoint worldPoint, bool splitAtHalf = false)
+3420|    {
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:2255-2330 =====
+2255|        if (_constructionSelection.Count == 0)
+2256|        {
+2257|            return false;
+2258|        }
+2259|
+2260|        var items = _constructionSelection.ToList();
+2261|        var deletable = items.Where(CanDeleteConstructionItem).ToList();
+2262|        if (deletable.Count == 0)
+2263|        {
+2264|            StatusText = "\u0420\u2019\u0421\u2039\u0420\xb1\u0421\u0402\u0420\xb0\u0420\u0405\u0420\u0405\u0421\u2039\u0420\xb5 \u0421\u040c\u0420\xbb\u0420\xb5\u0420\u0458\u0420\xb5\u0420\u0405\u0421\u201a\u0421\u2039 \u0420\u0405\u0420\xb5\u0420\xbb\u0421\u040a\u0420\xb7\u0421\u040f \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0420\u0451\u0421\u201a\u0421\u040a";
+2265|            return false;
+2266|        }
+2267|
+2268|        var removed = RecordPlacement(
+2269|            deletable.Count == 1 ? "\u0420\xad\u0420\xbb\u0420\xb5\u0420\u0458\u0420\xb5\u0420\u0405\u0421\u201a \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0421\u2018\u0420\u0405" : "\u0420\xad\u0420\xbb\u0420\xb5\u0420\u0458\u0420\xb5\u0420\u0405\u0421\u201a\u0421\u2039 \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0420\xb5\u0420\u0405\u0421\u2039",
+2270|            () =>
+2271|            {
+2272|                foreach (var item in deletable)
+2273|                {
+2274|                    if (!TryDeleteConstructionItem(item))
+2275|                    {
+2276|                        return false;
+2277|                    }
+2278|                }
+2279|
+2280|                return true;
+2281|            });
+2282|
+2283|        if (!removed)
+2284|        {
+2285|            StatusText = "\u0420\u045c\u0420\xb5 \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0420\u0455\u0421\u0403\u0421\u040a \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0420\u0451\u0421\u201a\u0421\u040a \u0420\u0406\u0421\u2039\u0420\xb1\u0421\u0402\u0420\xb0\u0420\u0405\u0420\u0405\u0421\u2039\u0420\xb5 \u0421\u040c\u0420\xbb\u0420\xb5\u0420\u0458\u0420\xb5\u0420\u0405\u0421\u201a\u0421\u2039";
+2286|            return false;
+2287|        }
+2288|
+2289|        ClearConstructionSelection();
+2290|        SyncFillingsToFrameLayout();
+2291|        RefreshAfterPlacementHistoryChange();
+2292|        RequestSceneRefresh();
+2293|        StatusText = deletable.Count == 1 ? "\u0420\xad\u0420\xbb\u0420\xb5\u0420\u0458\u0420\xb5\u0420\u0405\u0421\u201a \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0421\u2018\u0420\u0405" : $"\u0420\u0408\u0420\u0491\u0420\xb0\u0420\xbb\u0420\xb5\u0420\u0405\u0420\u0455 \u0421\u040c\u0420\xbb\u0420\xb5\u0420\u0458\u0420\xb5\u0420\u0405\u0421\u201a\u0420\u0455\u0420\u0406: {deletable.Count}";
+2294|        return true;
+2295|    }
+2296|
+2297|    private static bool CanDeleteConstructionItem(CadSelectableItem item) =>
+2298|        item.Kind is CadSelectableKind.Sash
+2299|            or CadSelectableKind.Glazing
+2300|            or CadSelectableKind.Bead
+2301|            or CadSelectableKind.Impost
+2302|            or CadSelectableKind.ExtremeImpost
+2303|            or CadSelectableKind.SashHandle
+2304|            or CadSelectableKind.SashHinge;
+2305|
+2306|    private bool TryDeleteConstructionItem(CadSelectableItem item)
+2307|    {
+2308|        switch (item.Kind)
+2309|        {
+2310|            case CadSelectableKind.Sash when item.ElementId is Guid sashId:
+2311|                OrphanHostedGlazingForSash(sashId);
+2312|                return RemoveCanvasElementById(sashId);
+2313|            case CadSelectableKind.Glazing or CadSelectableKind.Bead when item.ElementId is Guid elementId:
+2314|                RemoveSpokesForGlazing(elementId);
+2315|                return RemoveCanvasElementById(elementId);
+2316|            case CadSelectableKind.Impost when item.ImpostNode is { IsUniformSplit: false } impostNode:
+2317|                return impostNode.TryRemoveImpostSplit();
+2318|            case CadSelectableKind.ExtremeImpost
+2319|                when item.ImpostNode is FrameNode leaf && item.ElementId is Guid slotId:
+2320|                if (!leaf.TryRemoveExtremeImpost(slotId))
+2321|                {
+2322|                    return false;
+2323|                }
+2324|
+2325|                SyncExtremeImpostCanvasElements();
+2326|                SyncFillingsToFrameLayout();
+2327|                return true;
+2328|            case CadSelectableKind.SashHandle when item.ElementId is Guid handleSashId:
+2329|                return TryClearSashHandle(handleSashId);
+2330|            case CadSelectableKind.SashHinge when item.ElementId is Guid hingeSashId:
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:2400-2470 =====
+2400|
+2401|    private void SyncGeometryElementSelectedFlags()
+2402|    {
+2403|        foreach (var element in CanvasElements)
+2404|        {
+2405|            element.IsSelected = IsGeometryElementSelected(element.Id);
+2406|        }
+2407|    }
+2408|
+2409|    private bool TryDeleteSelectionFromTool()
+2410|    {
+2411|        if (_constructionSelection.Count > 0 && HasCommittedConstruction)
+2412|        {
+2413|            return TryDeleteConstructionSelection();
+2414|        }
+2415|
+2416|        if (SelectedRectangle != null)
+2417|        {
+2418|            var removed = SelectedRectangle.Value;
+2419|            RecordPlacement("\u0420\u045b\u0420\xb1\u0421\u0409\u0420\xb5\u0420\u0454\u0421\u201a \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0421\u2018\u0420\u0405", () =>
+2420|            {
+2421|                Document.RemoveRectangle(removed);
+2422|                SelectedRectangle = null;
+2423|            });
+2424|            RefreshSelection();
+2425|            RequestSceneRefresh();
+2426|            StatusText = "\u0420\u2019\u0421\u2039\u0420\xb1\u0421\u0402\u0420\xb0\u0420\u0405\u0420\u0405\u0421\u2039\u0420\u2116 \u0420\u0455\u0420\xb1\u0421\u0409\u0420\xb5\u0420\u0454\u0421\u201a \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0421\u2018\u0420\u0405";
+2427|            return true;
+2428|        }
+2429|
+2430|        if (SelectedElement is FrameNode)
+2431|        {
+2432|            RecordPlacement("\u0420\u0459\u0420\u0455\u0420\u0405\u0421\u0403\u0421\u201a\u0421\u0402\u0421\u0453\u0420\u0454\u0421\u2020\u0420\u0451\u0421\u040f \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0420\xb5\u0420\u0405\u0420\xb0", () => ClearCommittedFrameGeometry(clearPlacementHistory: false));
+2433|            RefreshAfterPlacementHistoryChange();
+2434|            RequestSceneRefresh();
+2435|            StatusText = "\u0420\u0459\u0420\u0455\u0420\u0405\u0421\u0403\u0421\u201a\u0421\u0402\u0421\u0453\u0420\u0454\u0421\u2020\u0420\u0451\u0421\u040f \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0420\xb5\u0420\u0405\u0420\xb0";
+2436|            return true;
+2437|        }
+2438|
+2439|        return false;
+2440|    }
+2441|
+2442|    private bool TryClearConstructionFromTool()
+2443|    {
+2444|        if (FrameRoot == null && Document.Rectangles.Count == 0 && CanvasElements.Count == 0)
+2445|        {
+2446|            return false;
+2447|        }
+2448|
+2449|        ClearCommittedFrameGeometry();
+2450|        StatusText = "\u0420\u0459\u0420\u0455\u0420\u0405\u0421\u0403\u0421\u201a\u0421\u0402\u0421\u0453\u0420\u0454\u0421\u2020\u0420\u0451\u0421\u040f \u0420\u0455\u0421\u2021\u0420\u0451\u0421\u2030\u0420\xb5\u0420\u0405\u0420\xb0";
+2451|        return true;
+2452|    }
+2453|
+2454|    private void TrackImpostSplit(FrameNode splitNode)
+2455|    {
+2456|        if (!splitNode.IsLeaf)
+2457|        {
+2458|            _impostSplitHistory.Add(splitNode);
+2459|        }
+2460|    }
+2461|
+2462|    private double ResolveFrameSplitInset(FrameNode leaf) =>
+2463|        leaf.GetRoot().IsFictitiousContainer
+2464|            ? 0
+2465|            : leaf.Parent == null
+2466|                ? FrameProfileGeometry.ResolveInnerInset(leaf.Width, leaf.Height, FrameThickness)
+2467|                : 0;
+2468|
+2469|    private bool TryApplyMullionLineToFrame(DesignPlacementCommit commit)
+2470|    {
+
+===== NurSapat.Cad.UI/Controls/CadCanvasControl.cs:1-80 =====
+1|using System.ComponentModel;
+2|using Avalonia;
+3|using Avalonia.Controls;
+4|using Avalonia.Input;
+5|using Avalonia.Media;
+6|using Avalonia.Threading;
+7|using NurSapat.Cad.Core.Geometry;
+8|using NurSapat.Cad.Core.Models;
+9|using NurSapat.Cad.Tools;
+10|using NurSapat.Cad.Tools.Tools;
+11|using NurSapat.Cad.UI.Diagnostics;
+12|using NurSapat.Cad.UI.Models;
+13|using NurSapat.Cad.UI.Rendering;
+14|using NurSapat.Cad.UI.ViewModels;
+15|using NurSapat.Core.Models.Orders;
+16|using System.Linq;
+17|using ToolPointerEvent = NurSapat.Cad.Tools.CadPointerEvent;
+18|
+19|namespace NurSapat.Cad.UI.Controls;
+20|
+21|public sealed class CadCanvasControl : Control
+22|{
+23|    private static bool IsDragCreateShapeTool(WindowToolMode mode) =>
+24|        mode is WindowToolMode.RealFrame
+25|            or WindowToolMode.FakeFrame
+26|            or WindowToolMode.FakeFrameTriangle
+27|            or WindowToolMode.FakeFrameArch
+28|            or WindowToolMode.FakeFrameCircle;
+29|
+30|    private static bool IsImpostSplitTool(WindowToolMode mode) =>
+31|        mode is WindowToolMode.FakeVerticalImpost or WindowToolMode.FakeHorizontalImpost
+32|            or WindowToolMode.RealVerticalImpost or WindowToolMode.RealHorizontalImpost
+33|            or WindowToolMode.DoubleVerticalImpost or WindowToolMode.DoubleHorizontalImpost
+34|            or WindowToolMode.SlantedImpost
+35|            or WindowToolMode.MullionVertical or WindowToolMode.MullionHorizontal;
+36|
+37|    private static readonly IBrush CanvasBrush = Brushes.White;
+38|    private static readonly IBrush CadStrokeBrush = new SolidColorBrush(Color.Parse("#AEAEAE"));
+39|    private static readonly Pen FramePen = new(CadStrokeBrush, 1.5);
+40|    private static readonly Pen MiterPreviewPen = new(new SolidColorBrush(FrameVolumeRenderer.MiterColor), 1.2);
+41|    private static readonly Pen SelectedFramePen = new(CadStrokeBrush, 2);
+42|    private static readonly Pen FramePreviewPen = new(
+43|        new SolidColorBrush(Color.Parse("#0078D7")),
+44|        1.5,
+45|        new DashStyle(new double[] { 4, 3 }, 0));
+46|    private static readonly Pen MinorGridPen = new(new SolidColorBrush(Color.FromArgb(92, 239, 239, 239)), 1);
+47|    private static readonly Pen MajorGridPen = new(new SolidColorBrush(Color.FromArgb(150, 224, 224, 224)), 1);
+48|    private static readonly IBrush AxisBrush = new SolidColorBrush(Color.Parse("#64748B"));
+49|    private static readonly Pen AxisPen = new(AxisBrush, 1.2);
+50|    private static readonly Cursor PanHandCursor = new(StandardCursorType.Hand);
+51|    private static readonly Cursor PanDragCursor = new(StandardCursorType.SizeAll);
+52|    private static readonly Cursor DefaultCanvasCursor = new(StandardCursorType.Arrow);
+53|
+54|    private Point? _lastPanPoint;
+55|    private bool _isPanning;
+56|    private Point _startPoint;
+57|    private bool _isDrawingFrame;
+58|
+59|    public CadEditorViewModel? Editor
+60|    {
+61|        get => GetValue(EditorProperty);
+62|        set => SetValue(EditorProperty, value);
+63|    }
+64|
+65|    public static readonly StyledProperty<CadEditorViewModel?> EditorProperty =
+66|        AvaloniaProperty.Register<CadCanvasControl, CadEditorViewModel?>(nameof(Editor));
+67|
+68|    public static readonly StyledProperty<bool> AutoFitOnResizeProperty =
+69|        AvaloniaProperty.Register<CadCanvasControl, bool>(nameof(AutoFitOnResize), false);
+70|
+71|    public bool AutoFitOnResize
+72|    {
+73|        get => GetValue(AutoFitOnResizeProperty);
+74|        set => SetValue(AutoFitOnResizeProperty, value);
+75|    }
+76|
+77|    public static readonly StyledProperty<bool> IsThumbnailPreviewProperty =
+78|        AvaloniaProperty.Register<CadCanvasControl, bool>(nameof(IsThumbnailPreview), false);
+79|
+80|    public bool IsThumbnailPreview
+
+===== NurSapat.Cad.UI/Controls/CadCanvasControl.cs:330-450 =====
+330|
+331|        if (Editor.ShowArcVertexHandles && Editor.FrameRoot?.TopProfile is { } arcTopProfile)
+332|        {
+333|            FrameVolumeRenderer.DrawArcVertexHandles(context, Editor, arcTopProfile);
+334|        }
+335|
+336|        // RectangleTool: \u043f\u0440\u0438\u0437\u0440\u0430\u043a + \u0440\u0430\u0437\u043c\u0435\u0440\u044b
+337|        if (Editor.ActiveTool is RectangleTool rectTool && rectTool.PreviewRect is CadRect preview)
+338|        {
+339|            DrawRect(context, preview, null, FramePen);
+340|            if (ShouldDrawDimensions)
+341|            {
+342|                DrawRectangleDimensions(context, preview, isTemporary: true);
+343|            }
+344|        }
+345|
+346|        // \u041f\u0440\u0435\u0432\u044c\u044e \u043e\u0434\u0438\u043d\u043e\u0447\u043d\u043e\u0433\u043e \u0438\u043c\u043f\u043e\u0441\u0442\u0430 \u0432\u043d\u0443\u0442\u0440\u0438 \u0441\u0432\u0435\u0442\u043e\u0432\u043e\u0433\u043e \u043f\u0440\u043e\u0451\u043c\u0430
+347|        if (Editor.ActiveTool is MullionPlacementTool mullionTool)
+348|        {
+349|            foreach (var rect in mullionTool.PreviewRects)
+350|            {
+351|                DrawRect(context, rect, null, FramePen);
+352|            }
+353|        }
+354|
+355|        if (Editor.ActiveTool is DesignRectPlacementTool designRectTool && designRectTool.PreviewRect is CadRect designPreview)
+356|        {
+357|            DrawRect(context, designPreview, null, FramePen);
+358|        }
+359|
+360|        if (Editor.ActiveTool is SelectionTool selectionTool)
+361|        {
+362|            if (selectionTool.SelectionRect is CadRect selectionRect)
+363|            {
+364|                var fill = new SolidColorBrush(Color.FromArgb(48, 255, 4, 4));
+365|                DrawRect(context, selectionRect, fill, SelectedFramePen);
+366|            }
+367|        }
+368|
+369|        if (!IsThumbnailPreview)
+370|        {
+371|            DrawAxisIndicator(context);
+372|        }
+373|    }
+374|
+375|    private bool _autoFitOnResizeScheduled;
+376|
+377|    private void ScheduleAutoFitOnResize()
+378|    {
+379|        if (!AutoFitOnResize || Editor is null)
+380|        {
+381|            return;
+382|        }
+383|
+384|        if (_autoFitOnResizeScheduled)
+385|        {
+386|            return;
+387|        }
+388|
+389|        _autoFitOnResizeScheduled = true;
+390|        Dispatcher.UIThread.Post(
+391|            () =>
+392|            {
+393|                _autoFitOnResizeScheduled = false;
+394|                TryAutoFitOnResize();
+395|            },
+396|            DispatcherPriority.Background);
+397|    }
+398|
+399|    private void TryAutoFitOnResize()
+400|    {
+401|        if (!AutoFitOnResize || Editor is null || Bounds.Width <= 0 || Bounds.Height <= 0)
+402|        {
+403|            return;
+404|        }
+405|
+406|        var bounds = Bounds.Size;
+407|        if (Math.Abs(bounds.Width - _lastAutoFitBounds.Width) < 0.5 &&
+408|            Math.Abs(bounds.Height - _lastAutoFitBounds.Height) < 0.5)
+409|        {
+410|            return;
+411|        }
+412|
+413|        _lastAutoFitBounds = bounds;
+414|        if (IsThumbnailPreview)
+415|        {
+416|            var thumbMargin = Math.Max(12, Math.Min(Bounds.Width, Bounds.Height) * 0.18);
+417|            Editor.FitThumbnailPreview(thumbMargin, boundsPaddingRatio: 0.36);
+418|        }
+419|        else if (Editor.IsViewOnlyMode)
+420|        {
+421|            Editor.FitPreviewViewport(0.85);
+422|        }
+423|        else if (Editor.HasConstructionGeometry())
+424|        {
+425|            Editor.FitDocumentToViewport();
+426|        }
+427|        else
+428|        {
+429|            Editor.CenterViewportOnOrigin();
+430|        }
+431|    }
+432|
+433|    private void DrawHandlePreview(DrawingContext context)
+434|    {
+435|        if (Editor?.HandlePreviewSashId is not Guid sashId)
+436|        {
+437|            return;
+438|        }
+439|
+440|        var sash = Editor.CanvasElements.FirstOrDefault(e => e.Id == sashId && e.Kind == GeometryElementKind.Sash);
+441|        if (sash is null)
+442|        {
+443|            return;
+444|        }
+445|
+446|        var hingeSide = sash.HingeSide ?? SashHingeSide.Left;
+447|        SashElementRenderer.DrawHandleMarker(context, Editor, sash, hingeSide, preview: true);
+448|    }
+449|
+450|    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+
+===== NurSapat.Cad.UI/Rendering/ConstructionSelectionRenderer.cs:1-100 =====
+1|using Avalonia;
+2|using Avalonia.Media;
+3|using NurSapat.Cad.Core.Geometry;
+4|using NurSapat.Cad.Core.Models;
+5|using NurSapat.Cad.UI.Models;
+6|using NurSapat.Cad.UI.Services;
+7|using NurSapat.Cad.UI.ViewModels;
+8|using NurSapat.Core.Models.Orders;
+9|using System.Linq;
+10|
+11|namespace NurSapat.Cad.UI.Rendering;
+12|
+13|public static class ConstructionSelectionRenderer
+14|{
+15|    private static readonly IPen SelectionPen = new Pen(
+16|        FrameVolumeRenderer.SelectionHighlightBrush,
+17|        2.5);
+18|    private static readonly IPen DummySelectionPen = new Pen(
+19|        FrameVolumeRenderer.DummySelectionHighlightBrush,
+20|        2.5,
+21|        new DashStyle(new double[] { 4, 3 }, 0));
+22|
+23|    public static void DrawHighlights(
+24|        DrawingContext context,
+25|        CadEditorViewModel editor,
+26|        IEnumerable<CadSelectableItem> selection)
+27|    {
+28|        if (editor.Viewport == null)
+29|        {
+30|            return;
+31|        }
+32|
+33|        foreach (var item in selection.ToList())
+34|        {
+35|            switch (item.Kind)
+36|            {
+37|                case CadSelectableKind.Frame:
+38|                    DrawFrameHighlight(context, editor);
+39|                    break;
+40|                case CadSelectableKind.Impost when item.ImpostNode is not null:
+41|                    DrawImpostHighlight(context, editor, item.ImpostNode, item.ImpostGapIndex);
+42|                    break;
+43|                case CadSelectableKind.ExtremeImpost
+44|                    when item.ImpostNode is not null && item.ElementId is Guid slotId:
+45|                    DrawExtremeImpostHighlight(context, editor, item.ImpostNode, slotId);
+46|                    break;
+47|                case CadSelectableKind.Sash when item.ElementId is Guid sashId:
+48|                    DrawSashProfileHighlight(context, editor, sashId);
+49|                    break;
+50|                case CadSelectableKind.Glazing when item.ElementId is Guid glazingId:
+51|                    DrawGeometryElementHighlight(context, editor, glazingId, GeometryElementKind.Glazing);
+52|                    break;
+53|                case CadSelectableKind.Bead when item.ElementId is Guid beadId:
+54|                    DrawGeometryElementHighlight(context, editor, beadId, GeometryElementKind.Bead);
+55|                    break;
+56|                case CadSelectableKind.SashHandle when item.ElementId is Guid handleSashId:
+57|                    DrawHardwareHighlight(context, editor, handleSashId, CadSelectableKind.SashHandle, 0);
+58|                    break;
+59|                case CadSelectableKind.SashHinge when item.ElementId is Guid hingeSashId:
+60|                    DrawHardwareHighlight(context, editor, hingeSashId, CadSelectableKind.SashHinge, item.HingeSlot);
+61|                    break;
+62|            }
+63|        }
+64|    }
+65|
+66|    private static void DrawFrameHighlight(DrawingContext context, CadEditorViewModel editor)
+67|    {
+68|        if (editor.FrameRoot is not FrameNode frame)
+69|        {
+70|            return;
+71|        }
+72|
+73|        if (frame.IsDummy)
+74|        {
+75|            DrawWorldRectOutline(
+76|                context,
+77|                editor,
+78|                new CadRect(frame.X, frame.Y + frame.Height, frame.Width, frame.Height),
+79|                DummySelectionPen);
+80|            return;
+81|        }
+82|
+83|        if (frame.TopProfile?.SegmentType == SegmentType.Arc &&
+84|            frame.TopProfile.ArcHeight > ProfileSegment.MinFlatArcHeightMm)
+85|        {
+86|            try
+87|            {
+88|                var contours = FrameProfileGeometry.BuildArchedFrameContours(
+89|                    frame.X,
+90|                    frame.Y,
+91|                    frame.Width,
+92|                    frame.Height,
+93|                    frame.TopProfile,
+94|                    editor.FrameThickness);
+95|            StrokeProfileBand(context, editor, contours.OuterLoop, contours.InnerLoop, SelectionPen);
+96|                return;
+97|            }
+98|            catch (InvalidOperationException)
+99|            {
+100|            }
+
+===== NurSapat.App/Services/Export/ExportService.cs:200-280 =====
+200|        return string.IsNullOrWhiteSpace(order.Header.OrderNumber)
+201|            ? "\u042d\u043a\u0441\u043f\u043e\u0440\u0442 \u0437\u0430\u043f\u0440\u0435\u0449\u0451\u043d: \u0443 \u0437\u0430\u043a\u0430\u0437\u0430 \u043d\u0435 \u0437\u0430\u0434\u0430\u043d \u043d\u043e\u043c\u0435\u0440."
+202|            : null;
+203|    }
+204|
+205|    private ConstructionExportNode BuildConstructionNode(OrderConstruction construction)
+206|    {
+207|        var materials = BuildMaterialLines(construction);
+208|        return new ConstructionExportNode
+209|        {
+210|            Id = construction.Id,
+211|            Number = construction.Number,
+212|            Name = construction.Name,
+213|            ProfileSystemName = construction.ProfileSystemName,
+214|            WidthMm = construction.Geometry.OuterWidthMm,
+215|            HeightMm = construction.Geometry.OuterHeightMm,
+216|            Quantity = Math.Max(1, construction.Cost.Quantity),
+217|            Elements = construction.Geometry.Elements
+218|                .Select(element => new ElementExportNode
+219|                {
+220|                    Id = element.Id,
+221|                    Kind = element.Kind.ToString(),
+222|                    Label = element.Label,
+223|                    X = (double)element.X,
+224|                    Y = (double)element.Y,
+225|                    WidthMm = (double)element.WidthMm,
+226|                    HeightMm = (double)element.HeightMm
+227|                })
+228|                .ToList(),
+229|            Materials = materials
+230|        };
+231|    }
+232|
+233|    private static List<MaterialLineExportNode> BuildMaterialLines(OrderConstruction construction)
+234|    {
+235|        var lines = new List<MaterialLineExportNode>();
+236|        var quantity = Math.Max(1, construction.Cost.Quantity);
+237|        var billableElements = construction.Geometry.Elements
+238|            .Where(element => !FictitiousFrame.IsFictitiousElement(element))
+239|            .ToList();
+240|        if (billableElements.Count == 0)
+241|        {
+242|            return lines;
+243|        }
+244|
+245|        var (billableWidth, _) = construction.Geometry.ResolveBillableOuterBounds();
+246|
+247|        if (!string.IsNullOrWhiteSpace(construction.ProfileSystemName) && billableWidth > 0)
+248|        {
+249|            lines.Add(new MaterialLineExportNode
+250|            {
+251|                Article = "PROFILE",
+252|                Name = $"\u041f\u0440\u043e\u0444\u0438\u043b\u044c {construction.ProfileSystemName}",
+253|                Unit = "\u043c.\u043f.",
+254|                Quantity = Math.Round(billableWidth / 1000m * 4m * quantity, 3),
+255|                UnitPrice = 420m,
+256|                TotalCost = Math.Round(billableWidth / 1000m * 4m * quantity * 420m, 2),
+257|                MaterialType = "Profile",
+258|                ConstructionNumber = construction.Number
+259|            });
+260|        }
+261|
+262|        foreach (var element in billableElements)
+263|        {
+264|            if (element.Kind == GeometryElementKind.Glazing)
+265|            {
+266|                continue;
+267|            }
+268|
+269|            if (element.Kind is GeometryElementKind.Frame or GeometryElementKind.ArchFrame
+270|                or GeometryElementKind.TransitionFrame or GeometryElementKind.Mullion
+271|                or GeometryElementKind.EdgeMullion or GeometryElementKind.Sash)
+272|            {
+273|                continue;
+274|            }
+275|
+276|            var area = Math.Round((decimal)(element.WidthMm * element.HeightMm) / 1_000_000m, 3);
+277|            if (area <= 0)
+278|            {
+279|                continue;
+280|            }

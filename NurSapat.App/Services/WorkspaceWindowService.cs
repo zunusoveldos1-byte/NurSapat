@@ -1,9 +1,11 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Microsoft.Extensions.DependencyInjection;
+using NurSapat.App.Services.Documents;
+using NurSapat.App.Services.Users;
 using NurSapat.App.ViewModels;
 using NurSapat.App.Views;
-using System;
+using NurSapat.Infrastructure.Sync.Abstractions;
 
 namespace NurSapat.App.Services;
 
@@ -13,24 +15,70 @@ public sealed class WorkspaceWindowService(IServiceProvider serviceProvider) : I
 
     public void OpenWorkspace()
     {
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // 1. Создаем рабочее окно и ViewModel
-            var workspaceWindow = _serviceProvider.GetRequiredService<MainWorkspaceWindow>();
-            var workspaceVm = _serviceProvider.GetRequiredService<MainWorkspaceViewModel>();
+            return;
+        }
 
-            // 2. Привязываем DataContext
-            workspaceWindow.DataContext = workspaceVm;
+        var workspaceWindow = _serviceProvider.GetRequiredService<MainWorkspaceWindow>();
+        var workspaceVm = _serviceProvider.GetRequiredService<MainWorkspaceViewModel>();
+        var documentManager = _serviceProvider.GetRequiredService<IDocumentManager>();
 
-            // 3. Сохраняем ссылку на старое окно (логин)
-            var oldMainWindow = desktop.MainWindow;
+        workspaceWindow.DataContext = workspaceVm;
+        workspaceVm.InitializeDocumentLifecycle();
 
-            // 4. Устанавливаем новое главное окно и показываем его
-            desktop.MainWindow = workspaceWindow;
-            workspaceWindow.Show();
+        var oldMainWindow = desktop.MainWindow;
+        desktop.MainWindow = workspaceWindow;
+        workspaceWindow.Show();
+        oldMainWindow?.Close();
 
-            // 5. Закрываем окно логина
-            oldMainWindow?.Close();
+        _ = documentManager.TryRecoverAutoSaveAsync();
+        documentManager.StartAutoSave();
+    }
+
+    public void ReturnToLogin()
+    {
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            return;
+        }
+
+        var documentManager = _serviceProvider.GetRequiredService<IDocumentManager>();
+        documentManager.StopAutoSave();
+
+        _serviceProvider.GetRequiredService<IUserSessionService>().Clear();
+
+        // Best-effort cloud sign-out (HTTPS). Does not touch Postgres.
+        _ = SignOutSupabaseSafeAsync();
+
+        var loginWindow = _serviceProvider.GetRequiredService<MainWindow>();
+        var shell = _serviceProvider.GetRequiredService<MainWindowViewModel>();
+        shell.NavigateToLogin();
+        if (shell.CurrentView is LoginViewModel loginVm)
+        {
+            loginVm.LoadSavedCredentials();
+        }
+        loginWindow.DataContext = shell;
+
+        var oldMainWindow = desktop.MainWindow;
+        desktop.MainWindow = loginWindow;
+        loginWindow.Show();
+        oldMainWindow?.Close();
+    }
+
+    private async Task SignOutSupabaseSafeAsync()
+    {
+        try
+        {
+            var auth = _serviceProvider.GetService<ISupabaseAuthService>();
+            if (auth is not null)
+            {
+                await auth.SignOutAsync().ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            // Ignore network errors on logout.
         }
     }
 }

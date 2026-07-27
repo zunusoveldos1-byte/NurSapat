@@ -3,16 +3,35 @@
         xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
         xmlns:views="clr-namespace:NurSapat.App.Views"
         x:Class="NurSapat.App.Views.MainWindow"
-        x:DataType="vm:LoginViewModel"
-        Title="NurSapat - вход"
-        Width="700"
-        Height="450"
-        MinWidth="700"
-        MaxWidth="700"
-        MinHeight="450"
-        MaxHeight="450"
+        x:DataType="vm:MainWindowViewModel"
+        Title="NurSapat"
+        Icon="/Assets/logo.ico"
+        Width="1240" Height="820"
+        MinWidth="1240" MinHeight="820"
+        MaxWidth="1240" MaxHeight="820"
         CanResize="False"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource BackgroundBrush}">
-	<views:LoginView/>
+        WindowDecorations="None"
+        TransparencyLevelHint="Transparent"
+        Background="Transparent"
+        FontFamily="Inter">
+    <Window.Styles>
+        <StyleInclude Source="/Styles/LoginStyles.axaml"/>
+    </Window.Styles>
+
+    <Border x:Name="RootBorder"
+            Margin="20"
+            Background="White"
+            CornerRadius="16"
+            ClipToBounds="True"
+            BoxShadow="0 10 40 0 #1F000000"
+            Opacity="0">
+        <Border.Transitions>
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.35"/>
+            </Transitions>
+        </Border.Transitions>
+
+        <ContentControl Content="{Binding CurrentView}"/>
+    </Border>
 </Window>

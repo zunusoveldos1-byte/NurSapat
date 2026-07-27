@@ -1,0 +1,135 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dialogs.Edit"
+        xmlns:models="clr-namespace:NurSapat.App.Models.EditDialogs"
+        xmlns:controls="clr-namespace:NurSapat.Cad.UI.Controls;assembly=NurSapat.Cad.UI"
+        xmlns:picker="using:Avalonia.Controls"
+        x:Class="NurSapat.App.Views.Dialogs.Edit.ConstructionColorDialogWindow"
+        x:DataType="vm:ConstructionColorDialogViewModel"
+        Title="{DynamicResource Edit_ConstructionColor_Title}"
+        MinWidth="820"
+        MinHeight="560"
+        Width="900"
+        Height="600"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="0"
+        Background="#F6F9FD"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/EditDialogStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Background="White"
+            BorderBrush="#808080"
+            BorderThickness="2"
+            CornerRadius="10"
+            PointerPressed="OnWindowPointerPressed">
+        <Grid RowDefinitions="Auto,*" Margin="20">
+            <TextBlock Grid.Row="0"
+                       Classes="edit-dialog-section-title"
+                       Text="{DynamicResource Edit_ConstructionColor_Title}"
+                       Margin="0,0,0,16"/>
+
+            <Grid Grid.Row="1" ColumnDefinitions="*,340" ColumnSpacing="16">
+                <Border Classes="edit-dialog-card edit-preview-frame" Padding="12">
+                    <controls:CadCanvasControl Editor="{Binding PreviewEditor}"
+                                               IsThumbnailPreview="True"
+                                               AutoFitOnResize="True"/>
+                </Border>
+
+                <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="16">
+                        <Border Classes="edit-dialog-card">
+                            <StackPanel Spacing="12">
+                                <TextBlock Classes="edit-dialog-section-title"
+                                           Text="{DynamicResource Edit_ConstructionColor_Settings}"/>
+                                <picker:ColorPicker Color="{Binding SelectedColor}"
+                                                    IsAlphaEnabled="False"/>
+                                <CheckBox Content="{DynamicResource Edit_ConstructionColor_ChangeProfile}"
+                                          IsChecked="{Binding ChangeProfile}"/>
+                                <CheckBox Content="{DynamicResource Edit_ConstructionColor_Imposts}"
+                                          IsChecked="{Binding ChangeImposts}"/>
+                                <CheckBox Content="{DynamicResource Edit_ConstructionColor_Sashes}"
+                                          IsChecked="{Binding ChangeSashes}"/>
+                                <CheckBox Content="{DynamicResource Edit_ConstructionColor_Layout}"
+                                          IsChecked="{Binding ChangeLayout}"/>
+                                <CheckBox Content="{DynamicResource Edit_ConstructionColor_Decorative}"
+                                          IsChecked="{Binding ChangeDecorativeElements}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="edit-dialog-card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Classes="edit-dialog-section-title"
+                                           Text="{DynamicResource Edit_ConstructionColor_RecentColors}"/>
+                                <ItemsControl ItemsSource="{Binding RecentColorHexes}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="8"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Classes="color-swatch"
+                                                    Command="{Binding $parent[Window].((vm:ConstructionColorDialogViewModel)DataContext).SelectRecentColorCommand}"
+                                                    CommandParameter="{Binding}">
+                                                <Border Background="{Binding}"
+                                                        CornerRadius="5"
+                                                        Width="24"
+                                                        Height="24"/>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="edit-dialog-card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Classes="edit-dialog-section-title"
+                                           Text="{DynamicResource Edit_ConstructionColor_StandardColors}"/>
+                                <ItemsControl ItemsSource="{Binding StandardColors}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:StandardColorOption">
+                                            <Button Margin="0,0,0,6"
+                                                    HorizontalAlignment="Stretch"
+                                                    HorizontalContentAlignment="Left"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Command="{Binding $parent[Window].((vm:ConstructionColorDialogViewModel)DataContext).SelectStandardColorCommand}"
+                                                    CommandParameter="{Binding}">
+                                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                                    <Border Width="20"
+                                                            Height="20"
+                                                            CornerRadius="4"
+                                                            BorderBrush="#CBD5E1"
+                                                            BorderThickness="1"
+                                                            Background="{Binding Hex}"/>
+                                                    <TextBlock Text="{Binding Name}" Classes="edit-dialog-body"/>
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                            <Button Grid.Column="0"
+                                    Classes="edit-dialog-primary"
+                                    Content="{DynamicResource Edit_ConstructionColor_Apply}"
+                                    Command="{Binding ApplyCommand}"/>
+                            <Button Grid.Column="1"
+                                    Classes="edit-dialog-action"
+                                    Content="{DynamicResource Edit_ConstructionColor_Cancel}"
+                                    Command="{Binding CancelCommand}"/>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

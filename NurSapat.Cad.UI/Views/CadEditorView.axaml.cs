@@ -9,6 +9,7 @@ public partial class CadEditorView : UserControl
         InitializeComponent();
     }
 
-    public double GetLeftPanelWidth() => LeftPanel.Width;
-    public double GetRightPanelWidth() => RightPanel.Width;
+    public double GetLeftPanelWidth() => 150;
+
+    public double GetRightPanelWidth() => 0;
 }

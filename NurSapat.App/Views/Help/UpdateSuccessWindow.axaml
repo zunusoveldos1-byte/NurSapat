@@ -1,0 +1,50 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Help"
+        xmlns:controls="clr-namespace:NurSapat.App.Views.Help.Controls"
+        x:Class="NurSapat.App.Views.Help.UpdateSuccessWindow"
+        x:DataType="vm:UpdateSuccessViewModel"
+        Title="Обновление установлено"
+        Width="480"
+        Height="300"
+        MinWidth="420"
+        MinHeight="260"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <controls:ServiceWindowShell WindowTitle="Обновление установлено">
+        <controls:ServiceWindowShell.BodyContent>
+            <StackPanel Spacing="16" HorizontalAlignment="Center">
+                <TextBlock Classes="svc-heading"
+                           Text="Обновление успешно установлено."
+                           TextAlignment="Center"/>
+                <StackPanel Spacing="4" HorizontalAlignment="Center">
+                    <TextBlock Classes="svc-label" Text="Версия:" TextAlignment="Center"/>
+                    <TextBlock Classes="svc-value" Text="{Binding Version}" TextAlignment="Center"/>
+                </StackPanel>
+                <TextBlock Classes="svc-body"
+                           Text="Перезапустить сейчас?"
+                           TextAlignment="Center"/>
+            </StackPanel>
+        </controls:ServiceWindowShell.BodyContent>
+
+        <controls:ServiceWindowShell.FooterContent>
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                <Button Grid.Column="1"
+                        Classes="mat-primary"
+                        Content="Да"
+                        Command="{Binding RestartCommand}"
+                        MinWidth="90"/>
+                <Button Grid.Column="2"
+                        Classes="mat-toolbar"
+                        Content="Позже"
+                        Command="{Binding LaterCommand}"
+                        MinWidth="90"/>
+            </Grid>
+        </controls:ServiceWindowShell.FooterContent>
+    </controls:ServiceWindowShell>
+</Window>
