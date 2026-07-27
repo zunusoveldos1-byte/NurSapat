@@ -12,11 +12,20 @@ public sealed partial class OrderSettingsDialogViewModel : ViewModelBase
     private readonly Order _order;
     private readonly IDealersCatalog _dealersCatalog;
     private DateTime _originalOrderDate;
+    private readonly OrderLifecycleService _lifecycleService;
+    private readonly bool _hasCalculationSnapshot;
 
-    public OrderSettingsDialogViewModel(Order order, bool isAdministrator, IDealersCatalog dealersCatalog)
+    public OrderSettingsDialogViewModel(
+        Order order,
+        bool isAdministrator,
+        IDealersCatalog dealersCatalog,
+        OrderLifecycleService lifecycleService,
+        bool hasCalculationSnapshot)
     {
         _order = order;
         _dealersCatalog = dealersCatalog;
+        _lifecycleService = lifecycleService;
+        _hasCalculationSnapshot = hasCalculationSnapshot;
         Header = order.Header;
         IsAdministrator = isAdministrator;
         _originalOrderDate = Header.OrderDate;
@@ -38,7 +47,7 @@ public sealed partial class OrderSettingsDialogViewModel : ViewModelBase
     public bool IsDateEditable =>
         IsAdministrator
         || Status is OrderStatus.Draft
-        || Status is OrderStatus.Calculation;
+        || Status is OrderStatus.Calculated;
 
     public ObservableCollection<OrderStatus> StatusOptions { get; }
 
@@ -97,6 +106,23 @@ public sealed partial class OrderSettingsDialogViewModel : ViewModelBase
     [RelayCommand]
     private void Confirm()
     {
+        try
+        {
+            if (Status == Header.Status)
+            {
+                _lifecycleService.AssertCanEdit(_order);
+            }
+            else
+            {
+                _lifecycleService.AssertCanTransition(_order, Status, _hasCalculationSnapshot);
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            ProductionBlockReason = ex.Message;
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(OrderNumber))
         {
             OrderNumber = OrderNumberGenerator.GenerateNext();
@@ -115,10 +141,14 @@ public sealed partial class OrderSettingsDialogViewModel : ViewModelBase
             }
         }
 
-        Header.OrderNumber = OrderNumber.Trim();
-        Header.OrderDate = SelectedDateOffset?.DateTime.Date ?? DateTime.Today;
+        if (Header.Status < OrderStatus.InProduction)
+        {
+            Header.OrderNumber = OrderNumber.Trim();
+            Header.OrderDate = SelectedDateOffset?.DateTime.Date ?? DateTime.Today;
+            Header.ProductionNote = ProductionNote;
+        }
+
         Header.Status = Status;
-        Header.ProductionNote = ProductionNote;
         CloseRequested?.Invoke(true);
     }
 

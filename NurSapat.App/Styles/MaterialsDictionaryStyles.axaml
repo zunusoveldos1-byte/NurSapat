@@ -72,6 +72,11 @@
         <Setter Property="Margin" Value="0,0,0,8"/>
     </Style>
 
+    <Style Selector="TextBlock.mat-validation-error">
+        <Setter Property="Foreground" Value="#DC2626"/>
+        <Setter Property="FontSize" Value="11"/>
+    </Style>
+
     <Style Selector="Button.mat-primary">
         <Setter Property="Background" Value="#2563EB"/>
         <Setter Property="Foreground" Value="White"/>

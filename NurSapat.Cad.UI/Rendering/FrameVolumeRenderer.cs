@@ -15,7 +15,7 @@ namespace NurSapat.Cad.UI.Rendering;
 /// </summary>
 public static class FrameVolumeRenderer
 {
-    public static readonly Color SelectionHighlightColor = Color.Parse("#FF0404");
+    public static readonly Color SelectionHighlightColor = CadContourTheme.SelectionColor;
     public static readonly Color DummySelectionHighlightColor = Color.Parse("#0078D7");
 
     public const double ProfileStrokeThickness = 1.5;
@@ -28,7 +28,7 @@ public static class FrameVolumeRenderer
 
     /// <summary>Линии стыков 45° профиля — тот же цвет, что и сам контур.</summary>
     private static readonly IBrush MiterBrush = CadContourTheme.Brush;
-    public static readonly IBrush SelectionHighlightBrush = new SolidColorBrush(SelectionHighlightColor);
+    public static readonly IBrush SelectionHighlightBrush = CadContourTheme.SelectionBrush;
     public static readonly IBrush DummySelectionHighlightBrush = new SolidColorBrush(DummySelectionHighlightColor);
     public static readonly IPen ProfilePen = new Pen(ProfileStrokeBrush, ProfileStrokeThickness);
     private static readonly IPen MiterPen = new Pen(MiterBrush, 1.2);
@@ -182,7 +182,18 @@ public static class FrameVolumeRenderer
         }
         else
         {
-            FillQuadOpening(context, editor, innerCorners);
+            var activeRoot = editor.FrameRoot?.GetConstructionRoot();
+            if (activeRoot is not null && activeRoot.ProfileRailJoints.Any(joint =>
+                    joint.HasFixedAnchor || Math.Abs(joint.NormalOffsetMm) > CadMath.Epsilon))
+            {
+                var outerLoop = activeRoot.GetOuterContourPoints();
+                var innerLoop = FrameProfileRailGeometry.InsetPolygon(outerLoop, halfThickness);
+                FillOpeningPolygon(context, editor, innerLoop);
+            }
+            else
+            {
+                FillQuadOpening(context, editor, innerCorners);
+            }
 
             DrawFrameRailSide(
                 context, editor, outlinePen, profileFill,
@@ -630,9 +641,11 @@ public static class FrameVolumeRenderer
             return;
         }
 
-        var segments = FrameProfileRailGeometry.SplitRailBand(
-            band,
-            joints.Select(j => j.RelativeT).ToList());
+        var rootForJoints = editor.FrameRoot!.GetConstructionRoot();
+        var outerJoints = joints
+            .Select(rootForJoints.ResolveProfileRailJointOuterPoint)
+            .ToList();
+        var segments = FrameProfileRailGeometry.SplitRailBandWithMiters(band, outerJoints);
 
         foreach (var segment in segments)
         {
@@ -647,11 +660,10 @@ public static class FrameVolumeRenderer
                 segment.InnerStart);
         }
 
-        // Прямой рез 90° в каждом стыке (через толщину профиля).
-        foreach (var joint in joints)
+        // Линия miter в каждом стыке берётся из общих внутренних вершин сегментов.
+        for (var i = 0; i < outerJoints.Count; i++)
         {
-            var (outer, inner) = FrameProfileRailGeometry.ResolveJointPoints(band, joint.RelativeT);
-            DrawProfileMiter(context, editor, outer, inner);
+            DrawProfileMiter(context, editor, outerJoints[i], segments[i].InnerEnd);
         }
     }
 
@@ -678,6 +690,30 @@ public static class FrameVolumeRenderer
         context.DrawGeometry(InnerOpeningFill, null, geometry);
     }
 
+    private static void FillOpeningPolygon(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        IReadOnlyList<CadPoint> innerLoop)
+    {
+        if (innerLoop.Count < 3)
+        {
+            return;
+        }
+
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(WorldToScreen(editor, innerLoop[0]), isFilled: true);
+            for (var i = 1; i < innerLoop.Count; i++)
+            {
+                ctx.LineTo(WorldToScreen(editor, innerLoop[i]));
+            }
+            ctx.EndFigure(true);
+        }
+
+        context.DrawGeometry(InnerOpeningFill, null, geometry);
+    }
+
     public static void DrawVertexHandles(DrawingContext context, CadEditorViewModel editor)
     {
         if (editor.Viewport == null || editor.FrameRoot is null || !editor.ShowVertexHandles)
@@ -694,8 +730,7 @@ public static class FrameVolumeRenderer
 
         foreach (var joint in root.ProfileRailJoints)
         {
-            var band = root.GetRailBand(joint.Rail, editor.FrameThickness);
-            var (outer, _) = FrameProfileRailGeometry.ResolveJointPoints(band, joint.RelativeT);
+            var outer = root.ResolveProfileRailJointOuterPoint(joint);
             var active = editor.ActiveVertexJointId == joint.Id;
             DrawVertexHandleEllipse(context, editor, outer, active);
         }

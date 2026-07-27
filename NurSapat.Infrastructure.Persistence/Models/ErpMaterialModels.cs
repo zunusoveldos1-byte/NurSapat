@@ -12,6 +12,8 @@ public sealed class ErpMaterialDetail
 
     public string Manufacturer { get; set; } = string.Empty;
 
+    public string SuppliersText { get; set; } = string.Empty;
+
     public ErpMaterialSection Section { get; set; }
 
     public ErpMaterialMainUnit MainUnit { get; set; }

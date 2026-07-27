@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Materials"
         xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+        xmlns:behaviors="clr-namespace:NurSapat.App.Behaviors"
         xmlns:models="clr-namespace:NurSapat.App.Models.Materials"
         x:Class="NurSapat.App.Views.Materials.MaterialsDictionaryWindow"
         x:DataType="vm:MaterialsDictionaryViewModel"
@@ -18,6 +19,13 @@
 
     <Window.Styles>
         <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+        <Style Selector="dg|DataGridCell">
+            <Setter Property="Padding" Value="10,7"/>
+        </Style>
+        <Style Selector="dg|DataGridRow:selected">
+            <Setter Property="Background" Value="#DBEAFE"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
+        </Style>
     </Window.Styles>
 
     <Border Classes="mat-shell" Margin="12">
@@ -50,8 +58,8 @@
                     Background="White">
                 <Grid ColumnDefinitions="*,220,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10">
                     <TextBox Grid.Column="0"
-                             PlaceholderText="Поиск: сначала артикул, затем наименование..."
-                             Text="{Binding SearchText}"
+                             PlaceholderText="Поиск по артикулу, наименованию или поставщикам..."
+                             Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              MinHeight="36"
                              VerticalContentAlignment="Center"/>
                     <ComboBox Grid.Column="1"
@@ -63,7 +71,8 @@
                     <Button Grid.Column="3" Classes="mat-toolbar" Content="По образцу" Command="{Binding AddAsCopyCommand}"/>
                     <Button Grid.Column="4" Classes="mat-toolbar" Content="Excel" Command="{Binding ExportToExcelCommand}"/>
                     <Button Grid.Column="5" Classes="mat-toolbar" Content="TXT" Command="{Binding ExportToTxtCommand}"/>
-                    <Button Grid.Column="6" Classes="mat-toolbar" Content="Редактировать" Command="{Binding EditCommand}"/>
+                    <Button Grid.Column="6" Classes="mat-toolbar" Content="Редактировать"
+                            Command="{Binding EditMaterialCommand}" IsEnabled="{Binding IsSelected}"/>
                 </Grid>
             </Border>
 
@@ -77,18 +86,21 @@
                          CanUserResizeColumns="True"
                          CanUserSortColumns="True"
                          GridLinesVisibility="Horizontal"
+                         SelectionMode="Single"
                          BorderBrush="#E2E8F0"
                          BorderThickness="1"
-                         DoubleTapped="OnGridDoubleTapped">
+                         behaviors:DoubleTappedCommandBehavior.Command="{Binding EditMaterialCommand}">
                 <dg:DataGrid.Columns>
-                    <dg:DataGridTextColumn Header="Артикул" Binding="{Binding Article}" Width="130"/>
-                    <dg:DataGridTextColumn Header="Наименование" Binding="{Binding Name}" Width="2*"/>
-                    <dg:DataGridTextColumn Header="Раздел" Binding="{Binding SectionDisplay}" Width="160"/>
-                    <dg:DataGridTextColumn Header="Производитель" Binding="{Binding Manufacturer}" Width="140"/>
-                    <dg:DataGridTextColumn Header="Ед. изм." Binding="{Binding UnitDisplay}" Width="90"/>
-                    <dg:DataGridTextColumn Header="Валюта" Binding="{Binding CurrencyDisplay}" Width="80"/>
-                    <dg:DataGridTextColumn Header="Цена" Binding="{Binding PriceDisplay}" Width="120"/>
-                    <dg:DataGridTextColumn Header="Отход, %" Binding="{Binding WastePercent}" Width="90"/>
+                    <dg:DataGridTextColumn Header="№" Binding="{Binding IndexNumber}" SortMemberPath="IndexNumber" Width="55"/>
+                    <dg:DataGridTextColumn Header="Артикул" Binding="{Binding Article}" SortMemberPath="Article" Width="120"/>
+                    <dg:DataGridTextColumn Header="Наименование" Binding="{Binding Name}" SortMemberPath="Name" Width="2*"/>
+                    <dg:DataGridTextColumn Header="Ед. изм." Binding="{Binding UnitDisplay}" SortMemberPath="MainUnit" Width="85"/>
+                    <dg:DataGridTextColumn Header="Валюта" Binding="{Binding CurrencyDisplay}" SortMemberPath="Currency" Width="75"/>
+                    <dg:DataGridTextColumn Header="Цена" Binding="{Binding BasePriceFormatted}" SortMemberPath="BasePrice" Width="115"/>
+                    <dg:DataGridTextColumn Header="Раздел" Binding="{Binding SectionDisplay}" SortMemberPath="Section" Width="140"/>
+                    <dg:DataGridTextColumn Header="Группа" Binding="{Binding GroupDisplay}" Width="130"/>
+                    <dg:DataGridTextColumn Header="Производитель" Binding="{Binding Manufacturer}" SortMemberPath="Manufacturer" Width="140"/>
+                    <dg:DataGridTextColumn Header="Поставщики" Binding="{Binding SuppliersText}" SortMemberPath="SuppliersText" Width="180"/>
                 </dg:DataGrid.Columns>
             </dg:DataGrid>
 
@@ -97,9 +109,9 @@
                     <TextBlock VerticalAlignment="Center" Foreground="#64748B"
                                Text="{Binding FilteredItems.Count, StringFormat=Показано позиций: {0}}"/>
                     <Button Grid.Column="1" Classes="mat-toolbar" Margin="0,0,8,0"
-                            Content="Удалить" Command="{Binding DeleteCommand}"/>
+                            Content="Удалить" Command="{Binding DeleteMaterialCommand}" IsEnabled="{Binding IsSelected}"/>
                     <Button Grid.Column="2" Classes="mat-primary"
-                            Content="Редактировать" Command="{Binding EditCommand}"/>
+                            Content="Редактировать" Command="{Binding EditMaterialCommand}" IsEnabled="{Binding IsSelected}"/>
                 </Grid>
             </Border>
         </Grid>

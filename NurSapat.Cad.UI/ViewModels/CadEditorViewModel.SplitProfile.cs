@@ -17,7 +17,7 @@ public sealed partial class CadEditorViewModel
             return false;
         }
 
-        if (!TryGetSelectedFrameProfileRail(out var rail))
+        if (!TryGetSelectedFrameProfileSegment(out var rail, out var segmentIndex))
         {
             StatusText = "Выберите профиль рамы (верх/низ/лево/право) для разбиения пополам";
             return false;
@@ -31,25 +31,24 @@ public sealed partial class CadEditorViewModel
 
         if (!RecordPlacement(
                 "Профиль разделён пополам",
-                () => FrameRoot.TrySplitProfileRailInHalf(rail)))
+                () => FrameRoot.TrySplitProfileRailSegmentInHalf(rail, segmentIndex)))
         {
             RefreshAfterPlacementHistoryChange();
-            StatusText = FrameRoot.HasProfileRailJoints(rail)
-                ? "Профиль уже разделён пополам"
-                : "Невозможно разделить профиль (слишком короткая рейка)";
+            StatusText = "Невозможно разделить выбранный сегмент (слишком короткая рейка)";
             return false;
         }
 
         RefreshAfterPlacementHistoryChange();
         OnPropertyChanged(nameof(FrameRoot));
         RequestSceneRefresh();
-        StatusText = $"Профиль разделён пополам ({DescribeFrameProfileRail(rail)})";
+        StatusText = $"Сегмент профиля разделён пополам ({DescribeFrameProfileRail(rail)})";
         return true;
     }
 
-    private bool TryGetSelectedFrameProfileRail(out FrameProfileRail rail)
+    private bool TryGetSelectedFrameProfileSegment(out FrameProfileRail rail, out int segmentIndex)
     {
         rail = default;
+        segmentIndex = 0;
         var selected = _constructionSelection.FirstOrDefault(item =>
             item.Kind == CadSelectableKind.Frame && item.ProfileRail is not null);
         if (selected?.ProfileRail is not FrameProfileRail profileRail)
@@ -58,6 +57,7 @@ public sealed partial class CadEditorViewModel
         }
 
         rail = profileRail;
+        segmentIndex = selected.ProfileSegmentIndex ?? 0;
         return true;
     }
 }

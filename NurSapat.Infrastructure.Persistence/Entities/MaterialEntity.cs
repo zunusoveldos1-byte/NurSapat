@@ -12,6 +12,8 @@ public sealed class MaterialEntity
 
     public string Manufacturer { get; set; } = string.Empty;
 
+    public string SuppliersText { get; set; } = string.Empty;
+
     public int Section { get; set; }
 
     public int MainUnit { get; set; }

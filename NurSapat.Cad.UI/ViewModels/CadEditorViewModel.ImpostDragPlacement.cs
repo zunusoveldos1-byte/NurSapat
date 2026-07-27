@@ -89,14 +89,17 @@ public partial class CadEditorViewModel
         {
             var split = mode == WindowToolMode.RealVerticalImpost
                 ? leaf.TrySplitVerticalAt(axisWorld - leaf.X, style, width)
-                : leaf.TrySplitHorizontalAt(axisWorld - leaf.Y, style, width);
+                : TrySplitSingleHorizontalImpost(leaf, axisWorld, style, width);
 
             if (!split)
             {
                 return false;
             }
 
-            TrackImpostSplit(leaf);
+            if (mode == WindowToolMode.RealVerticalImpost)
+            {
+                TrackImpostSplit(leaf);
+            }
             SelectedElement = FrameRoot;
             OnPropertyChanged(nameof(FrameRoot));
             return true;

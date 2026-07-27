@@ -1,6 +1,7 @@
 using NurSapat.Cad.Core.Models;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Project;
+using System.Text.Json;
 
 namespace NurSapat.App.Services.Documents;
 
@@ -12,6 +13,10 @@ public static class CadProjectSnapshotHelper
         ViewportZoomFactor = source.ViewportZoomFactor,
         ViewportPanX = source.ViewportPanX,
         ViewportPanY = source.ViewportPanY,
+        BaseStrokeColor = source.BaseStrokeColor,
+        FrameTreeJson = source.FrameTree is null
+            ? null
+            : JsonSerializer.Serialize(source.FrameTree),
         FrameRoot = source.FrameRoot is null ? null : ToFrameData(source.FrameRoot)
     };
 
@@ -21,6 +26,10 @@ public static class CadProjectSnapshotHelper
         ViewportZoomFactor = data.ViewportZoomFactor,
         ViewportPanX = data.ViewportPanX,
         ViewportPanY = data.ViewportPanY,
+        BaseStrokeColor = data.BaseStrokeColor,
+        FrameTree = string.IsNullOrWhiteSpace(data.FrameTreeJson)
+            ? null
+            : JsonSerializer.Deserialize<FrameNode.TreeSnapshot>(data.FrameTreeJson),
         FrameRoot = data.FrameRoot is null ? null : FromFrameData(data.FrameRoot)
     };
 

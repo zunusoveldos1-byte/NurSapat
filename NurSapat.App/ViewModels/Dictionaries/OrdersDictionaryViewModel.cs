@@ -52,9 +52,12 @@ public sealed partial class OrdersDictionaryViewModel : BaseDictionaryViewModel<
         [
             new OrderStatusFilterOption { Display = "Все", Status = null },
             new OrderStatusFilterOption { Display = "Черновик", Status = OrderStatus.Draft },
-            new OrderStatusFilterOption { Display = "Просчёт", Status = OrderStatus.Calculation },
+            new OrderStatusFilterOption { Display = "Рассчитан", Status = OrderStatus.Calculated },
+            new OrderStatusFilterOption { Display = "Утверждён", Status = OrderStatus.Approved },
             new OrderStatusFilterOption { Display = "В производстве", Status = OrderStatus.InProduction },
-            new OrderStatusFilterOption { Display = "Готов", Status = OrderStatus.Ready },
+            new OrderStatusFilterOption { Display = "Раскрой завершён", Status = OrderStatus.CuttingCompleted },
+            new OrderStatusFilterOption { Display = "Собран", Status = OrderStatus.Assembled },
+            new OrderStatusFilterOption { Display = "Готов к отгрузке", Status = OrderStatus.ReadyForShipment },
             new OrderStatusFilterOption { Display = "Отгружен", Status = OrderStatus.Shipped }
         ];
         SelectedStatusFilter = StatusFilterOptions[0];

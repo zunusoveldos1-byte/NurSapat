@@ -86,4 +86,10 @@ public sealed class OrderEntity
     public CustomerEntity? Customer { get; set; }
 
     public ICollection<OrderConstructionEntity> Constructions { get; set; } = [];
+
+    public ICollection<OrderCalculationSnapshotEntity> CalculationSnapshots { get; set; } = [];
+
+    public ICollection<MaterialReservationEntity> MaterialReservations { get; set; } = [];
+
+    public ICollection<StockPostingEntity> StockPostings { get; set; } = [];
 }

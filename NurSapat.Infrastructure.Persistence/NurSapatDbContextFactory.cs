@@ -20,7 +20,8 @@ public sealed class NurSapatDbContextFactory : IDesignTimeDbContextFactory<NurSa
             .AddEnvironmentVariables()
             .Build();
 
-        var connectionString = configuration.GetConnectionString("Default")
+        var connectionStringName = configuration["Persistence:ConnectionStringName"] ?? "PostgreSQL";
+        var connectionString = configuration.GetConnectionString(connectionStringName)
             ?? "Host=localhost;Database=nursapat_db;Username=postgres;Password=postgres;Port=5432";
 
         var optionsBuilder = new DbContextOptionsBuilder<NurSapatDbContext>();

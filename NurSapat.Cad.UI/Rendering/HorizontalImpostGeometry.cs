@@ -68,6 +68,11 @@ internal static class HorizontalImpostGeometry
             axisY,
             ref right);
 
+        // A horizontal profile is a real per-cell body, not a full-width line.
+        // Resolve the T-joint from the vertical ancestor's centre and thickness
+        // even when another host/nested-frame resolver returned a wider span.
+        SashGeometry.ClipHorizontalImpostSpanAtVerticalAncestors(splitNode, ref left, ref right);
+        ClampPhysicalSpanToSourceCell(splitNode, ref left, ref right);
         return (
             CadMath.RoundMm(left),
             CadMath.RoundMm(right));
@@ -145,6 +150,8 @@ internal static class HorizontalImpostGeometry
             impostAxisY,
             ref right);
 
+        SashGeometry.ClipHorizontalImpostSpanAtVerticalAncestors(splitNode, ref left, ref right);
+        ClampPhysicalSpanToSourceCell(splitNode, ref left, ref right);
         return (
             CadMath.RoundMm(left),
             CadMath.RoundMm(Math.Max(left, right)));
@@ -229,6 +236,8 @@ internal static class HorizontalImpostGeometry
         if (CurvedContainerImpostGeometry.IsRoundContainer(editor, container)
             && CurvedContainerImpostGeometry.TryResolveHorizontalSpan(editor, container, worldY, out var circleLeft, out var circleRight))
         {
+            SashGeometry.ClipHorizontalImpostSpanAtVerticalAncestors(splitNode, ref circleLeft, ref circleRight);
+            ClampPhysicalSpanToSourceCell(splitNode, ref circleLeft, ref circleRight);
             return (circleLeft, circleRight);
         }
 
@@ -249,6 +258,30 @@ internal static class HorizontalImpostGeometry
         }
 
         return rectangular;
+    }
+
+    /// <summary>
+    /// Финальный инвариант физического ригеля: никакая последующая привязка к
+    /// раме/переходнику не может расширить его за пределы ячейки-владельца.
+    /// Фиктивные импосты намеренно сохраняют прежнее поведение.
+    /// </summary>
+    private static void ClampPhysicalSpanToSourceCell(
+        FrameNode splitNode,
+        ref double left,
+        ref double right)
+    {
+        if (splitNode.LineStyle == ImpostLineStyle.Dashed
+            || splitNode.GetResolvedImpostThicknessMm() <= CadMath.Epsilon)
+        {
+            return;
+        }
+
+        left = Math.Max(left, splitNode.X);
+        right = Math.Min(right, splitNode.X + splitNode.Width);
+        if (right < left)
+        {
+            right = left;
+        }
     }
 
     /// <summary>

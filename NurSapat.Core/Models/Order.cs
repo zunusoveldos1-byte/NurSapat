@@ -9,6 +9,12 @@ public sealed class Order
 
     public OrderHeader Header { get; set; } = new();
 
+    public OrderStatus Status
+    {
+        get => Header.Status;
+        set => Header.Status = value;
+    }
+
     public List<OrderConstruction> Constructions { get; } = [];
 
     public OrderCostTotals Totals { get; } = new();

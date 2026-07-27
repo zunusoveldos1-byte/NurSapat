@@ -15,6 +15,8 @@ public sealed class MaterialDetail
 
     public string Manufacturer { get; set; } = string.Empty;
 
+    public string SuppliersText { get; set; } = string.Empty;
+
     public MaterialSection Section { get; set; } = MaterialSection.Profile;
 
     public MaterialMainUnit MainUnit { get; set; } = MaterialMainUnit.LinearMeter;
@@ -89,6 +91,7 @@ public sealed class MaterialDetail
             Name = Name,
             Note = Note,
             Manufacturer = Manufacturer,
+            SuppliersText = SuppliersText,
             Section = Section,
             MainUnit = MainUnit,
             LinearGroup = LinearGroup,

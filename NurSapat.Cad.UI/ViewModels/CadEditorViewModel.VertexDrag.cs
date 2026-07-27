@@ -1,5 +1,6 @@
 using NurSapat.Cad.Core.Geometry;
 using NurSapat.Cad.Core.Models;
+using NurSapat.Cad.Tools;
 using NurSapat.Cad.UI.Models;
 using NurSapat.Core.Models.Orders;
 
@@ -14,11 +15,13 @@ public sealed partial class CadEditorViewModel
     private double _vertexDragFixedX;
     private double _vertexDragFixedY;
     private CadPoint _vertexDragStartWorld;
+    private bool _vertexDragWasMoved;
     private FrameOuterCornerKind? _hoveredVertexCorner;
     private Guid? _hoveredVertexJointId;
 
     public bool ShowVertexHandles =>
-        CurrentToolMode == WindowToolMode.SelectVertex
+        (CurrentToolMode == WindowToolMode.SelectVertex
+         || ActiveToolId == CadToolMetadata.GetId(CadToolKind.SetVertexCoordinates))
         && FrameRoot is not null
         && HasRealFrameOnCanvas
         && FrameRoot.Shape == ConstructionShape.Rectangle
@@ -97,6 +100,7 @@ public sealed partial class CadEditorViewModel
         _vertexDragFixedX = hit.Point.X;
         _vertexDragFixedY = hit.Point.Y;
         _vertexDragStartWorld = hit.Point;
+        _vertexDragWasMoved = false;
         _hoveredVertexCorner = hit.Corner;
         _hoveredVertexJointId = hit.JointId;
         OnPropertyChanged(nameof(IsVertexDragging));
@@ -119,6 +123,11 @@ public sealed partial class CadEditorViewModel
         }
 
         var target = ApplyOrthoConstraint(worldPoint, isCtrlDown);
+        if (Distance(target, _vertexDragStartWorld) <= CadMath.Epsilon)
+        {
+            return;
+        }
+
         var applied = false;
 
         if (_vertexDragTarget.Corner is { } corner)
@@ -130,13 +139,9 @@ public sealed partial class CadEditorViewModel
             }
         }
         else if (_vertexDragTarget.JointId is { } jointId
-                 && _vertexDragTarget.Rail is { } rail)
+                 && _vertexDragTarget.Rail is not null)
         {
-            var t = FrameProfileRailGeometry.ProjectPointOntoRailT(
-                FrameRoot.GetOuterCorners(),
-                rail,
-                target);
-            applied = FrameRoot.TrySetProfileRailJointT(jointId, t);
+            applied = FrameRoot.TrySetProfileRailJointPosition(jointId, target);
             if (applied)
             {
                 RequestSceneRefresh();
@@ -145,6 +150,7 @@ public sealed partial class CadEditorViewModel
 
         if (applied)
         {
+            _vertexDragWasMoved = true;
             SyncFrameGeometryToDocument();
             RequestSceneRefresh();
         }
@@ -157,15 +163,80 @@ public sealed partial class CadEditorViewModel
             return;
         }
 
-        CommitConstructionDrag("Вершина рамы перемещена");
+        var openCoordinateInspector = !_vertexDragWasMoved;
+        if (openCoordinateInspector)
+        {
+            CancelConstructionDrag();
+        }
+        else
+        {
+            CommitConstructionDrag("Вершина рамы перемещена");
+        }
+
         _isVertexDragging = false;
         _vertexDragTarget = null;
         OnPropertyChanged(nameof(IsVertexDragging));
         OnPropertyChanged(nameof(ActiveVertexCorner));
         OnPropertyChanged(nameof(ActiveVertexJointId));
-        StatusText = "Вершина обновлена";
+        StatusText = openCoordinateInspector
+            ? "Введите точные координаты вершины"
+            : "Вершина обновлена";
         SyncFrameGeometryToDocument();
         RequestSceneRefresh();
+        if (openCoordinateInspector)
+        {
+            TrySetVertexCoordinatesFromTool(_vertexDragStartWorld);
+        }
+    }
+
+    public bool TryNudgeActiveVertex(double deltaX, double deltaY)
+    {
+        if (!ShowVertexHandles || FrameRoot is null)
+        {
+            return false;
+        }
+
+        var applied = false;
+        if (_hoveredVertexCorner is { } corner)
+        {
+            var current = FrameRoot.GetOuterCorner(corner);
+            applied = FrameRoot.TrySetOuterCorner(
+                corner,
+                new CadPoint(
+                    CadMath.RoundMm(current.X + deltaX),
+                    CadMath.RoundMm(current.Y + deltaY)),
+                MinEditableOpeningMm);
+            if (applied)
+            {
+                RecalculateFrameGeometry();
+            }
+        }
+        else if (_hoveredVertexJointId is { } jointId)
+        {
+            var root = FrameRoot.GetConstructionRoot();
+            var joint = root.ProfileRailJoints.FirstOrDefault(item => item.Id == jointId);
+            if (joint is null)
+            {
+                return false;
+            }
+
+            var current = root.ResolveProfileRailJointOuterPoint(joint);
+            applied = root.TrySetProfileRailJointPosition(
+                jointId,
+                new CadPoint(
+                    CadMath.RoundMm(current.X + deltaX),
+                    CadMath.RoundMm(current.Y + deltaY)));
+        }
+
+        if (!applied)
+        {
+            return false;
+        }
+
+        SyncFrameGeometryToDocument();
+        RequestSceneRefresh();
+        StatusText = "Вершина смещена с клавиатуры";
+        return true;
     }
 
     private CadPoint ApplyOrthoConstraint(CadPoint worldPoint, bool isCtrlDown)
@@ -208,8 +279,7 @@ public sealed partial class CadEditorViewModel
         var root = FrameRoot.GetConstructionRoot();
         foreach (var joint in root.ProfileRailJoints)
         {
-            var band = root.GetRailBand(joint.Rail, FrameThickness);
-            var (outer, _) = FrameProfileRailGeometry.ResolveJointPoints(band, joint.RelativeT);
+            var outer = root.ResolveProfileRailJointOuterPoint(joint);
             var distance = Distance(worldPoint, outer);
             if (distance > tolerance || distance >= bestDistance)
             {

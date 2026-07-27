@@ -21,6 +21,8 @@ public sealed partial class MaterialEditViewModel : ObservableObject
 
     public string WindowTitle => _isNew ? "Новый материал" : "Редактор материалов";
 
+    public Guid Id => _id;
+
     public ObservableCollection<string> Manufacturers { get; }
 
     public ObservableCollection<MaterialColorPriceViewModel> ColorPrices { get; } = [];
@@ -48,6 +50,9 @@ public sealed partial class MaterialEditViewModel : ObservableObject
 
     [ObservableProperty]
     private string _manufacturer = string.Empty;
+
+    [ObservableProperty]
+    private string _suppliersText = string.Empty;
 
     [ObservableProperty]
     private MaterialSection _section = MaterialSection.Profile;
@@ -149,15 +154,27 @@ public sealed partial class MaterialEditViewModel : ObservableObject
 
     public string BasePriceDisplay => $"{BasePrice:N2} сом";
 
+    public bool IsArticleValid => !string.IsNullOrWhiteSpace(Article);
+
+    public bool IsNameValid => !string.IsNullOrWhiteSpace(Name);
+
+    public bool CanSave => IsArticleValid && IsNameValid;
+
+    public string ArticleValidationMessage => IsArticleValid ? string.Empty : "Артикул обязателен.";
+
+    public string NameValidationMessage => IsNameValid ? string.Empty : "Наименование обязательно.";
+
     public void Load(MaterialDetail source, bool isClone)
     {
         _isNew = isClone || source.Id == Guid.Empty;
         _id = isClone ? Guid.NewGuid() : source.Id;
+        OnPropertyChanged(nameof(Id));
 
         Article = isClone ? string.Empty : source.Article;
         Name = isClone ? $"{source.Name} (копия)" : source.Name;
         Note = source.Note;
         Manufacturer = source.Manufacturer;
+        SuppliersText = source.SuppliersText;
         Section = source.Section;
         MainUnit = source.MainUnit;
         LinearGroup = source.LinearGroup ?? MaterialLinearGroup.Profile;
@@ -218,6 +235,7 @@ public sealed partial class MaterialEditViewModel : ObservableObject
         Name = Name,
         Note = Note,
         Manufacturer = Manufacturer,
+        SuppliersText = SuppliersText,
         Section = Section,
         MainUnit = MainUnit,
         LinearGroup = IsLinearGroupVisible ? LinearGroup : null,
@@ -248,8 +266,13 @@ public sealed partial class MaterialEditViewModel : ObservableObject
         DimensionPrices = DimensionPrices.Select(item => item.ToModel()).ToList()
     };
 
-    [RelayCommand]
-    private void Save() => RequestClose?.Invoke(true);
+    [RelayCommand(CanExecute = nameof(CanSave))]
+    private void Save()
+    {
+        Article = Article.Trim();
+        Name = Name.Trim();
+        RequestClose?.Invoke(true);
+    }
 
     [RelayCommand]
     private void Cancel() => RequestClose?.Invoke(false);
@@ -304,6 +327,20 @@ public sealed partial class MaterialEditViewModel : ObservableObject
     partial void OnUseSecondaryUnitChanged(bool value) => NotifyLayoutProperties();
 
     partial void OnBasePriceChanged(decimal value) => OnPropertyChanged(nameof(BasePriceDisplay));
+
+    partial void OnArticleChanged(string value) => NotifyValidationProperties();
+
+    partial void OnNameChanged(string value) => NotifyValidationProperties();
+
+    private void NotifyValidationProperties()
+    {
+        OnPropertyChanged(nameof(IsArticleValid));
+        OnPropertyChanged(nameof(IsNameValid));
+        OnPropertyChanged(nameof(CanSave));
+        OnPropertyChanged(nameof(ArticleValidationMessage));
+        OnPropertyChanged(nameof(NameValidationMessage));
+        SaveCommand.NotifyCanExecuteChanged();
+    }
 
     private void NotifyLayoutProperties()
     {

@@ -48,9 +48,23 @@
                     <TextBlock Text="{Binding LastAutosaveTimeDisplay}" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <Button Classes="secondary" Content="Отмена" Command="{Binding CancelCommand}"/>
-                    <Button Classes="ghost" Content="Сохранить" Command="{Binding SaveCommand}"/>
-                    <Button Classes="primary" Content="Сохранить и закрыть" Command="{Binding SaveAndCloseCommand}"/>
+                    <Button Classes="secondary"
+                            Content="Отмена"
+                            Command="{Binding CancelCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+
+                    <Button Classes="ghost"
+                            Content="Сохранить"
+                            Command="{Binding SaveCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+
+                    <Button Classes="primary"
+                            Content="Сохранить и закрыть"
+                            Command="{Binding SaveAndCloseCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
                 </StackPanel>
             </Grid>
         </Border>

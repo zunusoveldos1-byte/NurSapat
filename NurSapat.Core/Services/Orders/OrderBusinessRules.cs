@@ -7,7 +7,7 @@ public static class OrderBusinessRules
 {
     public const decimal MaxManagerRetailDiscountPercent = 15m;
 
-    public static bool IsCadReadOnly(OrderStatus status) => status == OrderStatus.InProduction;
+    public static bool IsCadReadOnly(OrderStatus status) => status >= OrderStatus.InProduction;
 
     public static decimal ClampManagerDiscountPercent(decimal percent) =>
         percent < 0 ? 0 : Math.Min(percent, MaxManagerRetailDiscountPercent);

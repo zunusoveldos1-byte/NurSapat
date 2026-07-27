@@ -94,8 +94,8 @@
             <Setter Property="StrokeDashArray" Value="4,2"/>
         </Style>
         <Style Selector="Button.mini">
-            <Setter Property="Width" Value="28"/>
-            <Setter Property="Height" Value="28"/>
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Background" Value="White"/>
@@ -133,15 +133,18 @@
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
         <Style Selector="ComboBox, TextBox, NumericUpDown">
-            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="Padding" Value="8,3"/>
             <Setter Property="FontFamily" Value="Inter"/>
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="CornerRadius" Value="6"/>
         </Style>
         <Style Selector="CheckBox">
             <Setter Property="FontFamily" Value="Inter"/>
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="Foreground" Value="#475569"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
         <Style Selector="CheckBox:disabled">
             <Setter Property="Opacity" Value="0.45"/>
@@ -169,169 +172,147 @@
                 Background="White"
                 BorderBrush="#E2E8F0"
                 BorderThickness="0,0,0,1"
-                Padding="5,6"
+                Padding="6,3"
                 IsVisible="{Binding IsTopPanelVisible}">
-            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                <Grid RowDefinitions="Auto,Auto"
-                      ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
-                      Margin="0,0,0,2">
-                    <StackPanel Grid.Row="0"
-                                Grid.Column="0"
-                                Orientation="Horizontal"
-                                Spacing="6"
-                                Margin="5"
-                                VerticalAlignment="Center">
-                        <TextBlock Classes="paramLabel" Text="Шаблоны"/>
-                        <ComboBox Width="170"
-                                  MinWidth="140"
-                                  ItemsSource="{Binding DrawingTemplates}"
-                                  SelectedItem="{Binding SelectedDrawingTemplate}">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate DataType="models:CadDrawingTemplate">
-                                    <TextBlock Text="{Binding Name}"/>
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </StackPanel>
 
-                    <StackPanel Grid.Row="0"
-                                Grid.Column="1"
-                                Orientation="Horizontal"
-                                Spacing="6"
-                                Margin="5"
-                                VerticalAlignment="Center">
-                        <TextBlock Classes="paramLabel" Text="Серия"/>
-                        <ComboBox Width="130"
-                                  MinWidth="110"
-                                  ItemsSource="{Binding AvailableProfileSeries}"
-                                  SelectedItem="{Binding SelectedProfileSeriesItem}">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate DataType="construction:ProfileSeries">
-                                    <TextBlock Text="{Binding Name}"/>
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </StackPanel>
+            <!-- Используем единую сетку с колонками для синхронизации выравнивания -->
+            <Grid RowDefinitions="Auto,Auto"
+                  ColumnDefinitions="Auto,Auto,Auto,Auto,Auto"
+                  RowSpacing="4"
+                  ColumnSpacing="6">
 
-                    <StackPanel Grid.Row="0"
-                                Grid.Column="2"
-                                Orientation="Horizontal"
-                                Spacing="6"
-                                Margin="5"
-                                VerticalAlignment="Center">
-                        <TextBlock Classes="paramLabel" Text="Материалы"/>
-                        <ComboBox Width="200"
-                                  MinWidth="160"
-                                  IsEnabled="{Binding IsConstructionMaterialComboEnabled}"
-                                  ItemsSource="{Binding FilteredConstructionMaterialOptions}"
-                                  SelectedItem="{Binding SelectedConstructionMaterialOption}">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate DataType="models:ConstructionMaterialOption">
-                                    <TextBlock Text="{Binding DisplayName}"/>
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                        <CheckBox Content="Все"
-                                  IsChecked="{Binding ShowAllMaterials}"
-                                  VerticalAlignment="Center"
-                                  ToolTip.Tip="Показать все материалы из базы"/>
-                    </StackPanel>
+                <!-- ====== СТРОКА 0: Основные параметры ====== -->
 
-                    <StackPanel Grid.Row="0"
-                                Grid.Column="3"
-                                Orientation="Horizontal"
-                                Spacing="6"
-                                Margin="5"
-                                VerticalAlignment="Center">
-                        <TextBlock Classes="paramLabel" Text="Цвет материала"/>
-                        <ComboBox Width="130"
-                                  MinWidth="110"
-                                  ItemsSource="{Binding MaterialColors}"
-                                  SelectedItem="{Binding SelectedMaterialColor}"/>
-                    </StackPanel>
+                <!-- 0. Серия -->
+                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Classes="paramLabel" Text="Серия"/>
+                    <ComboBox Width="130"
+                              MinWidth="110"
+                              ItemsSource="{Binding AvailableProfileSeries}"
+                              SelectedItem="{Binding SelectedProfileSeriesItem}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate DataType="construction:ProfileSeries">
+                                <TextBlock Text="{Binding Name}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
 
-                    <StackPanel Grid.Row="0"
-                                Grid.Column="4"
-                                Orientation="Horizontal"
-                                Spacing="6"
-                                Margin="5"
-                                VerticalAlignment="Center">
-                        <TextBlock Classes="paramLabel" Text="Конструкция"/>
-                        <ComboBox Width="150"
-                                  MinWidth="130"
-                                  ItemsSource="{Binding Constructions}"
-                                  SelectedItem="{Binding SelectedConstruction}"/>
-                        <Button Classes="mini"
-                                ToolTip.Tip="Список конструкций заказа"
-                                Command="{Binding OpenConstructionsLookupCommand}">
-                            <TextBlock FontFamily="Segoe MDL2 Assets"
-                                       Text="&#xE8FD;"
-                                       FontSize="14"
-                                       VerticalAlignment="Center"
-                                       HorizontalAlignment="Center"/>
-                        </Button>
-                    </StackPanel>
+                <!-- 1. Материалы -->
+                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Classes="paramLabel" Text="Материалы"/>
+                    <ComboBox Width="200"
+                              MinWidth="160"
+                              IsEnabled="{Binding IsConstructionMaterialComboEnabled}"
+                              ItemsSource="{Binding FilteredConstructionMaterialOptions}"
+                              SelectedItem="{Binding SelectedConstructionMaterialOption}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate DataType="models:ConstructionMaterialOption">
+                                <TextBlock Text="{Binding DisplayName}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <CheckBox Content="Все"
+                              IsChecked="{Binding ShowAllMaterials}"
+                              ToolTip.Tip="Показать все материалы из базы"/>
+                </StackPanel>
 
-                    <StackPanel Grid.Row="0"
-                                Grid.Column="5"
-                                Orientation="Horizontal"
-                                Spacing="6"
-                                Margin="5"
-                                VerticalAlignment="Center">
-                        <TextBlock Classes="paramLabel" Text="Цвет контура"/>
-                        <ComboBox Width="110"
-                                  MinWidth="100"
-                                  ToolTip.Tip="Цвет контура рамы, импостов, створок и размерных линий"
-                                  ItemsSource="{Binding ContourColorOptions}"
-                                  SelectedItem="{Binding SelectedContourColorOption}">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate DataType="models:ContourColorOption">
-                                    <TextBlock Text="{Binding Label}"/>
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </StackPanel>
+                <!-- 2. Цвет материала -->
+                <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Classes="paramLabel" Text="Цвет материала"/>
+                    <ComboBox Width="130"
+                              MinWidth="110"
+                              ItemsSource="{Binding MaterialColors}"
+                              SelectedItem="{Binding SelectedMaterialColor}"/>
+                </StackPanel>
 
-                    <StackPanel Grid.Row="1"
-                                Grid.Column="2"
-                                Orientation="Horizontal"
-                                Spacing="12"
-                                Margin="5,4,5,0"
-                                VerticalAlignment="Top">
-                        <CheckBox Content="Блок. откид."
-                                  IsChecked="{Binding IsTiltBlockerEnabled}"
-                                  IsEnabled="{Binding AreFurnitureOptionsEnabled}"
-                                  ToolTip.Tip="Блокиратор откидывания"/>
-                        <CheckBox Content="Микропров."
-                                  IsChecked="{Binding IsMicroVentilationEnabled}"
-                                  IsEnabled="{Binding AreFurnitureOptionsEnabled}"
-                                  ToolTip.Tip="Микропроветривание"/>
-                        <CheckBox Content="Балк. компл."
-                                  IsChecked="{Binding IsBalconyKitEnabled}"
-                                  IsEnabled="{Binding AreFurnitureOptionsEnabled}"
-                                  ToolTip.Tip="Балконный комплект"/>
-                        <CheckBox Content="Микролифт"
-                                  IsChecked="{Binding IsMicroliftEnabled}"
-                                  IsEnabled="{Binding AreFurnitureOptionsEnabled}"/>
-                    </StackPanel>
+                <!-- 3. Конструкция -->
+                <StackPanel Grid.Row="0" Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Classes="paramLabel" Text="Конструкция"/>
+                    <ComboBox Width="150"
+                              MinWidth="130"
+                              ItemsSource="{Binding Constructions}"
+                              SelectedItem="{Binding SelectedConstruction}"/>
+                </StackPanel>
 
-                    <StackPanel Grid.Row="1"
-                                Grid.Column="4"
-                                Orientation="Horizontal"
-                                Spacing="6"
-                                Margin="5,4,5,0"
-                                VerticalAlignment="Top">
-                        <Button Classes="mini"
-                                Content="+"
-                                ToolTip.Tip="Добавить конструкцию"
-                                Command="{Binding AddConstructionCommand}"/>
-                        <Button Classes="mini"
-                                Content="−"
-                                ToolTip.Tip="Удалить текущую конструкцию"
-                                Command="{Binding RemoveConstructionCommand}"/>
-                    </StackPanel>
-                </Grid>
-            </ScrollViewer>
+                <!-- 4. Цвет контура -->
+                <StackPanel Grid.Row="0" Grid.Column="4" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Classes="paramLabel" Text="Цвет контура"/>
+                    <ComboBox Width="130"
+                              MinWidth="120"
+                              Height="32"
+                              ToolTip.Tip="Цвет контура рамы, импостов, створок и размерных линий"
+                              ItemsSource="{Binding ContourColorOptions}"
+                              SelectedItem="{Binding SelectedContourColorOption}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate DataType="models:ContourColorOption">
+                                <StackPanel Orientation="Horizontal"
+                                            VerticalAlignment="Center">
+                                    <Border Width="14"
+                                            Height="14"
+                                            CornerRadius="2"
+                                            Background="{Binding ColorBrush}"
+                                            BorderBrush="#94A3B8"
+                                            BorderThickness="1"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Label}"
+                                               Margin="6,0,0,0"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
+
+
+                <!-- ====== СТРОКА 1: Параметры створки и Количество ====== -->
+
+                <!-- Чекбоксы (занимают первые 3 колонки под описанием материалов и цвета) -->
+                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                            Orientation="Horizontal"
+                            Spacing="10"
+                            VerticalAlignment="Center">
+                    <CheckBox Content="Блок. откид."
+                              IsChecked="{Binding IsTiltBlockerEnabled}"
+                              IsEnabled="{Binding AreFurnitureOptionsEnabled}"
+                              ToolTip.Tip="Блокиратор откидывания"/>
+                    <CheckBox Content="Микропров."
+                              IsChecked="{Binding IsMicroVentilationEnabled}"
+                              IsEnabled="{Binding AreFurnitureOptionsEnabled}"
+                              ToolTip.Tip="Микропроветривание"/>
+                    <CheckBox Content="Балк. компл."
+                              IsChecked="{Binding IsBalconyKitEnabled}"
+                              IsEnabled="{Binding AreFurnitureOptionsEnabled}"
+                              ToolTip.Tip="Балконный комплект"/>
+                    <CheckBox Content="Микролифт"
+                              IsChecked="{Binding IsMicroliftEnabled}"
+                              IsEnabled="{Binding AreFurnitureOptionsEnabled}"/>
+                </StackPanel>
+
+                <!-- Блок количество (встает точно в колонку 3, под "Конструкцией") -->
+                <StackPanel Grid.Row="1" Grid.Column="3"
+                            Orientation="Horizontal"
+                            Spacing="4"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Left">
+                    <Button Classes="mini"
+                            Content="+"
+                            ToolTip.Tip="Увеличить количество"
+                            Command="{Binding IncrementQuantityCommand}"/>
+                    <Button Classes="mini"
+                            Content="−"
+                            ToolTip.Tip="Уменьшить количество"
+                            Command="{Binding DecrementQuantityCommand}"/>
+                    <TextBlock Classes="paramLabel"
+                               Text="Количество"
+                               Margin="4,0,0,0"/>
+                    <TextBox Width="52"
+                             Text="{Binding ConstructionQuantity}"
+                             TextAlignment="Center"
+                             VerticalContentAlignment="Center"/>
+                </StackPanel>
+
+            </Grid>
         </Border>
 
         <Grid Grid.Row="2" ColumnDefinitions="212,*">

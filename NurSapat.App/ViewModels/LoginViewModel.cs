@@ -5,6 +5,7 @@ using NurSapat.App.Services;
 using NurSapat.App.Services.Users;
 using NurSapat.Infrastructure.Sync.Abstractions;
 using NurSapat.Infrastructure.Sync.Models;
+using NurSapat.App.Services.Persistence;
 using System;
 using System.Threading.Tasks;
 
@@ -19,6 +20,7 @@ public partial class LoginViewModel : ObservableObject
     private readonly SettingsService _settings;
     private readonly IWorkspaceWindowService _workspaceWindowService;
     private readonly MainWindowViewModel _mainWindowViewModel;
+    private readonly IApplicationPersistenceInitializer _persistenceInitializer;
 
     // Константные данные для контактов
     public string SupportPhoneDisplay => "+996 (559) 34-00-32";
@@ -57,7 +59,8 @@ public partial class LoginViewModel : ObservableObject
         IUserSessionService sessionService,
         SettingsService settings,
         IWorkspaceWindowService workspaceWindowService,
-        MainWindowViewModel mainWindowViewModel)
+        MainWindowViewModel mainWindowViewModel,
+        IApplicationPersistenceInitializer persistenceInitializer)
     {
         _authService = authService;
         _cachedUsers = cachedUsers;
@@ -66,6 +69,7 @@ public partial class LoginViewModel : ObservableObject
         _settings = settings;
         _workspaceWindowService = workspaceWindowService;
         _mainWindowViewModel = mainWindowViewModel;
+        _persistenceInitializer = persistenceInitializer;
     }
 
     [ObservableProperty]
@@ -136,7 +140,7 @@ public partial class LoginViewModel : ObservableObject
                     result.Session.Email.Length > 0 ? result.Session.Email : email,
                     password).ConfigureAwait(true);
 
-                CompleteLogin(result.Session, bootstrapSync: true);
+                await CompleteLoginAsync(result.Session, bootstrapSync: true).ConfigureAwait(true);
                 return;
             }
 
@@ -149,7 +153,7 @@ public partial class LoginViewModel : ObservableObject
                 if (offlineSession is not null)
                 {
                     _authService.EstablishLocalSession(offlineSession);
-                    CompleteLogin(offlineSession, bootstrapSync: false);
+                    await CompleteLoginAsync(offlineSession, bootstrapSync: false).ConfigureAwait(true);
                     return;
                 }
 
@@ -169,7 +173,7 @@ public partial class LoginViewModel : ObservableObject
             if (offlineSession is not null)
             {
                 _authService.EstablishLocalSession(offlineSession);
-                CompleteLogin(offlineSession, bootstrapSync: false);
+                await CompleteLoginAsync(offlineSession, bootstrapSync: false).ConfigureAwait(true);
                 return;
             }
 
@@ -213,8 +217,19 @@ public partial class LoginViewModel : ObservableObject
         RequestClose?.Invoke();
     }
 
-    private void CompleteLogin(AuthSessionInfo session, bool bootstrapSync)
+    private async Task CompleteLoginAsync(AuthSessionInfo session, bool bootstrapSync)
     {
+        try
+        {
+            await _persistenceInitializer.EnsureReadyAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage =
+                $"Вход Supabase выполнен, но база ERP недоступна: {GetDatabaseError(ex)}";
+            return;
+        }
+
         if (RememberMe)
         {
             _settings.SetValue("RememberMe", true);
@@ -245,6 +260,17 @@ public partial class LoginViewModel : ObservableObject
         {
             _ = BootstrapSyncSafeAsync();
         }
+    }
+
+    private static string GetDatabaseError(Exception exception)
+    {
+        var current = exception;
+        while (current.InnerException is not null)
+        {
+            current = current.InnerException;
+        }
+
+        return current.Message;
     }
 
     private async Task BootstrapSyncSafeAsync()

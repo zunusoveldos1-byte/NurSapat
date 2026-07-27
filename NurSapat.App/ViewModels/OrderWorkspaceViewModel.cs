@@ -21,6 +21,7 @@ public sealed class OrderWorkspaceViewModel
 {
     private readonly CadEditorViewModel _cadEditor;
     private readonly IOrderErpDialogService _orderErpDialogService;
+    private readonly OrderLifecycleService _orderLifecycleService;
     private bool _isResettingCanvas;
     private bool _isAddingConstruction;
     private Guid? _loadedConstructionId;
@@ -40,10 +41,12 @@ public sealed class OrderWorkspaceViewModel
         ICustomersStore customersStore,
         IManagersStore managersStore,
         IOrderNumberService orderNumberService,
-        IDictionaryWindowService dictionaryWindowService)
+        IDictionaryWindowService dictionaryWindowService,
+        OrderLifecycleService orderLifecycleService)
     {
         _cadEditor = cadEditor;
         _orderErpDialogService = orderErpDialogService;
+        _orderLifecycleService = orderLifecycleService;
         _isResettingCanvas = true;
 
         Sheet = new OrderSheetViewModel(
@@ -73,6 +76,7 @@ public sealed class OrderWorkspaceViewModel
 
     public void RecalculateAll()
     {
+        _orderLifecycleService.AssertCanEdit(Order);
         Sheet.RecalculateAll();
         if (!_isResettingCanvas && !_cadEditor.IsResettingCanvas)
         {
@@ -88,6 +92,8 @@ public sealed class OrderWorkspaceViewModel
         {
             return;
         }
+
+        _orderLifecycleService.AssertCanEdit(Order);
 
         var construction = Order.SelectedConstruction ?? Order.EnsureDefaultConstruction();
         SyncCadToOrder();
@@ -128,6 +134,7 @@ public sealed class OrderWorkspaceViewModel
 
     public async Task DuplicateConstructionAsync(Guid sourceConstructionId)
     {
+        _orderLifecycleService.AssertCanEdit(Order);
         if (_isResettingCanvas || _isAddingConstruction)
         {
             return;
@@ -167,6 +174,7 @@ public sealed class OrderWorkspaceViewModel
 
     public async Task AddNewConstructionAsync()
     {
+        _orderLifecycleService.AssertCanEdit(Order);
         if (_isResettingCanvas || _isAddingConstruction)
         {
             return;
@@ -248,6 +256,7 @@ public sealed class OrderWorkspaceViewModel
 
     public async Task RemoveConstructionAsync(Guid constructionId)
     {
+        _orderLifecycleService.AssertCanEdit(Order);
         if (Order.Constructions.Count <= 1)
         {
             return;

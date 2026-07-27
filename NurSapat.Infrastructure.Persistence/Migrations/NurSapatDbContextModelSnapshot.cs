@@ -300,6 +300,32 @@ namespace NurSapat.Infrastructure.Persistence.Migrations
                     b.ToTable("customers", (string)null);
                 });
 
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.CuttingJobEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CuttingDataJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<bool>("IsExecuted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("MaterialType")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchId");
+
+                    b.ToTable("cutting_jobs", (string)null);
+                });
+
             modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.FinishedGoodEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -700,6 +726,11 @@ namespace NurSapat.Infrastructure.Persistence.Migrations
                     b.Property<int?>("SquareGroup")
                         .HasColumnType("integer");
 
+                    b.Property<string>("SuppliersText")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<bool>("UseSecondaryUnit")
                         .HasColumnType("boolean");
 
@@ -715,6 +746,134 @@ namespace NurSapat.Infrastructure.Persistence.Migrations
                     b.HasIndex("Name");
 
                     b.ToTable("materials", (string)null);
+                });
+
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.MaterialReservationEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsReleased")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MaterialArticle")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("ReservedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaterialArticle");
+
+                    b.HasIndex("OrderId");
+
+                    b.ToTable("material_reservations", (string)null);
+                });
+
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.OperationRouteEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("LaborCostPerHour")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("OperationName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<int>("SequenceOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("StandardMinutesPerUnit")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name", "SequenceOrder")
+                        .IsUnique();
+
+                    b.ToTable("operation_routes", (string)null);
+                });
+
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.OrderCalculationSnapshotEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<decimal>("ExchangeRate")
+                        .HasPrecision(18, 8)
+                        .HasColumnType("numeric(18,8)");
+
+                    b.Property<string>("ItemsSnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PriceListVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("SnapshotDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("TotalCostPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("TotalDiscountPercent")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("numeric(9,4)");
+
+                    b.Property<decimal>("TotalMarginPercent")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("numeric(9,4)");
+
+                    b.Property<decimal>("TotalPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("PriceListVersionId");
+
+                    b.HasIndex("OrderId", "SnapshotDate");
+
+                    b.ToTable("order_calculation_snapshots", (string)null);
                 });
 
             modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.OrderConstructionEntity", b =>
@@ -1131,6 +1290,144 @@ namespace NurSapat.Infrastructure.Persistence.Migrations
                     b.ToTable("order_templates", (string)null);
                 });
 
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.PriceListItemEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("BaseRetailPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("DealerPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("MaterialArticle")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("PriceListVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("PurchasePrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaterialArticle");
+
+                    b.HasIndex("PriceListVersionId", "MaterialArticle")
+                        .IsUnique();
+
+                    b.ToTable("price_list_items", (string)null);
+                });
+
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.PriceListVersionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("EffectiveFrom")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EffectiveTo")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive", "EffectiveFrom");
+
+                    b.ToTable("price_list_versions", (string)null);
+                });
+
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.ProductionBatchEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ActualEndDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("BatchNumber")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("PlannedStartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchNumber")
+                        .IsUnique();
+
+                    b.HasIndex("PlannedStartDate");
+
+                    b.ToTable("production_batches", (string)null);
+                });
+
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.ProductionHardwareKitEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ComponentsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<decimal>("MaxSashHeight")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal>("MaxSashWidth")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal>("MaxWeightKg")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal>("MinSashHeight")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal>("MinSashWidth")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("SystemBrand")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("production_hardware_kits", (string)null);
+                });
+
             modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.StockDocumentEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1219,6 +1516,44 @@ namespace NurSapat.Infrastructure.Persistence.Migrations
                     b.ToTable("stock_document_lines", (string)null);
                 });
 
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.StockPostingEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("BatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MaterialArticle")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("OperationType")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("PostedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchId");
+
+                    b.HasIndex("MaterialArticle");
+
+                    b.HasIndex("OrderId");
+
+                    b.ToTable("stock_postings", (string)null);
+                });
+
             modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.SupplierEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1255,6 +1590,52 @@ namespace NurSapat.Infrastructure.Persistence.Migrations
                     b.HasIndex("Name");
 
                     b.ToTable("suppliers", (string)null);
+                });
+
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.TechnologyRuleEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Article")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<decimal>("MaxInertiaIx")
+                        .HasPrecision(24, 6)
+                        .HasColumnType("numeric(24,6)");
+
+                    b.Property<decimal>("MaxSashHeightMm")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal>("MaxSashWeightKg")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal>("MaxSashWidthMm")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal>("MinRadiusMm")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<string>("ProfileSystemCode")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Article");
+
+                    b.HasIndex("ProfileSystemCode", "Article")
+                        .IsUnique();
+
+                    b.ToTable("technology_rules", (string)null);
                 });
 
             modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.UserEntity", b =>
@@ -1321,6 +1702,17 @@ namespace NurSapat.Infrastructure.Persistence.Migrations
                     b.Navigation("OrderConstruction");
                 });
 
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.CuttingJobEntity", b =>
+                {
+                    b.HasOne("NurSapat.Infrastructure.Persistence.Entities.ProductionBatchEntity", "Batch")
+                        .WithMany("CuttingJobs")
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Batch");
+                });
+
             modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.FinishedGoodEntity", b =>
                 {
                     b.HasOne("NurSapat.Infrastructure.Persistence.Entities.OrderEntity", "Order")
@@ -1376,6 +1768,36 @@ namespace NurSapat.Infrastructure.Persistence.Migrations
                     b.Navigation("Material");
                 });
 
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.MaterialReservationEntity", b =>
+                {
+                    b.HasOne("NurSapat.Infrastructure.Persistence.Entities.OrderEntity", "Order")
+                        .WithMany("MaterialReservations")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.OrderCalculationSnapshotEntity", b =>
+                {
+                    b.HasOne("NurSapat.Infrastructure.Persistence.Entities.OrderEntity", "Order")
+                        .WithMany("CalculationSnapshots")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("NurSapat.Infrastructure.Persistence.Entities.PriceListVersionEntity", "PriceListVersion")
+                        .WithMany("CalculationSnapshots")
+                        .HasForeignKey("PriceListVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+
+                    b.Navigation("PriceListVersion");
+                });
+
             modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.OrderConstructionEntity", b =>
                 {
                     b.HasOne("NurSapat.Infrastructure.Persistence.Entities.OrderEntity", "Order")
@@ -1397,6 +1819,17 @@ namespace NurSapat.Infrastructure.Persistence.Migrations
                     b.Navigation("Customer");
                 });
 
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.PriceListItemEntity", b =>
+                {
+                    b.HasOne("NurSapat.Infrastructure.Persistence.Entities.PriceListVersionEntity", "PriceListVersion")
+                        .WithMany("Items")
+                        .HasForeignKey("PriceListVersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PriceListVersion");
+                });
+
             modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.StockDocumentLineEntity", b =>
                 {
                     b.HasOne("NurSapat.Infrastructure.Persistence.Entities.MaterialEntity", "Material")
@@ -1414,6 +1847,24 @@ namespace NurSapat.Infrastructure.Persistence.Migrations
                     b.Navigation("Material");
 
                     b.Navigation("StockDocument");
+                });
+
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.StockPostingEntity", b =>
+                {
+                    b.HasOne("NurSapat.Infrastructure.Persistence.Entities.ProductionBatchEntity", "Batch")
+                        .WithMany("StockPostings")
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("NurSapat.Infrastructure.Persistence.Entities.OrderEntity", "Order")
+                        .WithMany("StockPostings")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Batch");
+
+                    b.Navigation("Order");
                 });
 
             modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.ConstructionElementEntity", b =>
@@ -1439,7 +1890,27 @@ namespace NurSapat.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.OrderEntity", b =>
                 {
+                    b.Navigation("CalculationSnapshots");
+
                     b.Navigation("Constructions");
+
+                    b.Navigation("MaterialReservations");
+
+                    b.Navigation("StockPostings");
+                });
+
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.PriceListVersionEntity", b =>
+                {
+                    b.Navigation("CalculationSnapshots");
+
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.ProductionBatchEntity", b =>
+                {
+                    b.Navigation("CuttingJobs");
+
+                    b.Navigation("StockPostings");
                 });
 
             modelBuilder.Entity("NurSapat.Infrastructure.Persistence.Entities.StockDocumentEntity", b =>

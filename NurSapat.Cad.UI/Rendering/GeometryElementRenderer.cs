@@ -33,17 +33,25 @@ public static class GeometryElementRenderer
     private static readonly IPen ThinPen = new Pen(FrameBrush, 1);
     private static readonly IPen AccentPen = ThinPen;
 
-    private static readonly IPen DimensionPen = new Pen(DimensionColorBrush, 1.2);
-    private static readonly IPen DimensionTickPen = new Pen(DimensionColorBrush, 1.5);
+    private static readonly IPen DimensionPen = new Pen(
+        DimensionColorBrush,
+        1.2,
+        lineCap: PenLineCap.Flat,
+        lineJoin: PenLineJoin.Miter);
+    private static readonly IPen DimensionTickPen = new Pen(
+        DimensionColorBrush,
+        1.5,
+        lineCap: PenLineCap.Flat,
+        lineJoin: PenLineJoin.Miter);
 
     private static readonly IPen DashedPen = new Pen(FrameBrush, 1.5, new DashStyle(new double[] { 4, 3 }, 0));
     private static readonly IPen DashedAccentPen = DashedPen;
     private static readonly IPen HatchPen = new Pen(new SolidColorBrush(Color.FromArgb(110, 0x1F, 0x29, 0x37)), 0.8);
 
-    private const double DimensionFrameGap = 2;
+    private const double DimensionFrameGap = 0;
     private const double DimensionExtensionOffset = 21;
     private const double DimensionOverallOffset = 42;
-    private const double DimensionBelowSillGap = 4;
+    private const double DimensionBelowSillGap = 0;
     private const double DimensionSegmentOffsetBelowSill = 22;
     private const double DimensionOverallOffsetBelowSill = 46;
     private const double DimensionOvershootWorldMm = 1.5;
@@ -51,6 +59,7 @@ public static class GeometryElementRenderer
     private const double RadiusDimensionArcOffsetFactor = 0.65;
     public const double DimensionLabelFontSize = 11;
     private const double DimensionHitPadding = 6;
+    private const double DimensionJointOverlapPx = 4;
     /// <summary>Смещение центра подписи от оси размерной линии (px), чтобы цифры не пересекались с линией.</summary>
     private const double DimensionLabelClearancePx = 9;
     private const double DimensionLabelBackdropPadX = 3;
@@ -994,6 +1003,149 @@ public static class GeometryElementRenderer
     private static double ResolveBottomDimensionGap(CadEditorViewModel? editor) =>
         HasAttachedSill(editor) ? DimensionBelowSillGap : DimensionFrameGap;
 
+    private static void DrawRightSideHeightDimension(
+        DrawingContext context,
+        Rect rect,
+        double heightMm,
+        double bottomWorldY,
+        CadEditorViewModel editor,
+        bool registerHits)
+    {
+        var topRight = editor.FrameRoot!.GetOuterCorner(FrameOuterCornerKind.TopRight);
+        var bottomRight = editor.FrameRoot.GetOuterCorner(FrameOuterCornerKind.BottomRight);
+        var topObjectX = WorldXToScreenX(editor, topRight.X, topRight.Y);
+        var bottomObjectX = WorldXToScreenX(editor, bottomRight.X, bottomRight.Y);
+        var topY = WorldYToScreenY(editor, topRight.Y, topRight.X);
+        var bottomY = WorldYToScreenY(editor, bottomRight.Y, bottomRight.X);
+        var xDim = rect.Right + DimensionExtensionOffset;
+
+        DrawHorizontalExtensionToVerticalDimension(context, editor, topObjectX, topY, xDim);
+        DrawHorizontalExtensionToVerticalDimension(context, editor, bottomObjectX, bottomY, xDim);
+        DrawVerticalDimensionSegment(context, editor, xDim, topY, bottomY);
+
+        var label = $"{heightMm:0}";
+        var center = new Point(xDim, (topY + bottomY) / 2.0);
+        if (!IsDimensionLabelHidden(editor, DimensionHitKind.SideHeight))
+        {
+            DrawVerticalTextAlongSide(context, label, center, DimensionTextBrush);
+        }
+
+        if (registerHits)
+        {
+            var (textBounds, hitRect) = MeasureVerticalTextBounds(label, center);
+            editor.RegisterDimensionHit(new DimensionHitInfo
+            {
+                Kind = DimensionHitKind.SideHeight,
+                ValueMm = heightMm,
+                TextBounds = textBounds,
+                ScreenRect = hitRect,
+                IsVertical = true,
+                VertexCorner = FrameOuterCornerKind.TopRight,
+                BaseWorldY = bottomWorldY
+            });
+        }
+    }
+
+    private static void DrawRightHeightDimensionChain(
+        DrawingContext context,
+        CadEditorViewModel editor,
+        Rect rect,
+        IReadOnlyList<double> screenBoundaries,
+        IReadOnlyList<double> objectScreenX,
+        IReadOnlyList<double> boundaryWorldY,
+        IReadOnlyList<double> segmentHeightsMm,
+        double totalHeightMm,
+        bool registerHits)
+    {
+        var xSeg = rect.Right + DimensionExtensionOffset;
+        var xOverall = rect.Right + DimensionOverallOffset;
+
+        for (var i = 0; i < screenBoundaries.Count; i++)
+        {
+            DrawHorizontalExtensionToVerticalDimension(
+                context,
+                editor,
+                objectScreenX[i],
+                screenBoundaries[i],
+                xSeg);
+        }
+
+        for (var i = 0; i < segmentHeightsMm.Count; i++)
+        {
+            var y1 = screenBoundaries[i];
+            var y2 = screenBoundaries[i + 1];
+            DrawVerticalDimensionSegment(context, editor, xSeg, y1, y2);
+
+            var label = $"{segmentHeightsMm[i]:0}";
+            var center = new Point(xSeg, (y1 + y2) / 2);
+            if (!IsDimensionLabelHidden(editor, DimensionHitKind.RightSegmentHeight, i))
+            {
+                DrawVerticalTextAlongSide(context, label, center, DimensionTextBrush);
+            }
+
+            if (registerHits)
+            {
+                var (textBounds, hitRect) = MeasureVerticalTextBounds(label, center);
+                editor.RegisterDimensionHit(new DimensionHitInfo
+                {
+                    Kind = DimensionHitKind.RightSegmentHeight,
+                    SegmentIndex = i,
+                    ValueMm = segmentHeightsMm[i],
+                    TextBounds = textBounds,
+                    ScreenRect = hitRect,
+                    IsVertical = true,
+                    BoundaryWorldY = boundaryWorldY,
+                    VertexCorner = FrameOuterCornerKind.TopRight,
+                    MoveUpperBoundary = i == 0
+                });
+            }
+        }
+
+        var top = screenBoundaries[^1];
+        var bottom = screenBoundaries[0];
+        var hasProjectedApex = Math.Abs(
+            boundaryWorldY[^1]
+            - editor.FrameRoot!.GetOuterCorner(FrameOuterCornerKind.TopRight).Y)
+            > CadMath.MmPrecision;
+        if (!hasProjectedApex)
+        {
+            DrawHorizontalExtensionToVerticalDimension(
+                context,
+                editor,
+                objectScreenX[^1],
+                top,
+                xOverall);
+        }
+
+        DrawHorizontalExtensionToVerticalDimension(
+            context,
+            editor,
+            objectScreenX[0],
+            bottom,
+            xOverall);
+        DrawVerticalDimensionSegment(context, editor, xOverall, top, bottom);
+
+        var overallLabel = $"{totalHeightMm:0}";
+        var overallCenter = new Point(xOverall, (top + bottom) / 2);
+        if (!IsDimensionLabelHidden(editor, DimensionHitKind.OverallHeight))
+        {
+            DrawVerticalTextAlongSide(context, overallLabel, overallCenter, DimensionTextBrush);
+        }
+
+        if (registerHits)
+        {
+            var (textBounds, hitRect) = MeasureVerticalTextBounds(overallLabel, overallCenter);
+            editor.RegisterDimensionHit(new DimensionHitInfo
+            {
+                Kind = DimensionHitKind.OverallHeight,
+                ValueMm = totalHeightMm,
+                TextBounds = textBounds,
+                ScreenRect = hitRect,
+                IsVertical = true
+            });
+        }
+    }
+
     private static void DrawLeftHeightDimension(
         DrawingContext context,
         Rect rect,
@@ -1036,7 +1188,8 @@ public static class GeometryElementRenderer
         IReadOnlyList<double> boundaryWorldY,
         IReadOnlyList<double> segmentHeightsMm,
         double totalHeightMm,
-        bool registerHits = false)
+        bool registerHits = false,
+        IReadOnlyList<double>? objectScreenX = null)
     {
         const double frameGap = DimensionFrameGap;
         const double segOffset = DimensionExtensionOffset;
@@ -1046,9 +1199,20 @@ public static class GeometryElementRenderer
         var xSeg = rect.Left - segOffset;
         var xOverall = rect.Left - overallOffset;
 
-        foreach (var boundaryY in screenBoundaries)
+        for (var boundaryIndex = 0; boundaryIndex < screenBoundaries.Count; boundaryIndex++)
         {
-            DrawHorizontalExtensionToVerticalDimension(context, editor, xExtStart, boundaryY, xSeg);
+            var startX = objectScreenX is { Count: > 0 }
+                         && boundaryIndex < objectScreenX.Count
+                ? objectScreenX[boundaryIndex]
+                : xExtStart;
+            var isOuterBoundary = boundaryIndex == 0
+                                  || boundaryIndex == screenBoundaries.Count - 1;
+            DrawHorizontalExtensionToVerticalDimension(
+                context,
+                editor,
+                startX,
+                screenBoundaries[boundaryIndex],
+                isOuterBoundary ? xOverall : xSeg);
         }
 
         var impostCount = boundaryWorldY.Count - 2;
@@ -1069,6 +1233,21 @@ public static class GeometryElementRenderer
             {
                 var moveUpper = i < impostCount;
                 var impostTarget = TryResolveHorizontalImpostForSegment(editor.FrameRoot, boundaryWorldY, i);
+                FrameOuterCornerKind? vertexCorner = null;
+                var topLeftY = editor.FrameRoot.GetOuterCorner(FrameOuterCornerKind.TopLeft).Y;
+                if (impostTarget is null)
+                {
+                    if (Math.Abs(boundaryWorldY[i + 1] - topLeftY) <= CadMath.MmPrecision)
+                    {
+                        vertexCorner = FrameOuterCornerKind.TopLeft;
+                        moveUpper = true;
+                    }
+                    else if (Math.Abs(boundaryWorldY[i] - topLeftY) <= CadMath.MmPrecision)
+                    {
+                        vertexCorner = FrameOuterCornerKind.TopLeft;
+                        moveUpper = false;
+                    }
+                }
                 var (textBounds, hitRect) = MeasureVerticalTextBounds(label, center);
                 editor.RegisterDimensionHit(new DimensionHitInfo
                 {
@@ -1080,6 +1259,7 @@ public static class GeometryElementRenderer
                     IsVertical = true,
                     BoundaryWorldY = boundaryWorldY,
                     ImpostTarget = impostTarget,
+                    VertexCorner = vertexCorner,
                     MoveUpperBoundary = moveUpper
                 });
             }
@@ -1087,8 +1267,6 @@ public static class GeometryElementRenderer
 
         var top = screenBoundaries[^1];
         var bottom = screenBoundaries[0];
-        DrawHorizontalExtensionToVerticalDimension(context, editor, xExtStart, top, xOverall);
-        DrawHorizontalExtensionToVerticalDimension(context, editor, xExtStart, bottom, xOverall);
         DrawVerticalDimensionSegment(context, editor, xOverall, top, bottom);
 
         var overallLabel = $"{totalHeightMm:0}";
@@ -1159,7 +1337,9 @@ public static class GeometryElementRenderer
         IReadOnlyList<double> segmentWidthsMm,
         double totalWidthMm,
         double outerBottomScreenY,
-        bool registerHits = false)
+        bool registerHits = false,
+        FrameNode? profileRailRoot = null,
+        FrameProfileRail? profileRail = null)
     {
         var frameGap = ResolveBottomDimensionGap(editor);
         var (segOffset, overallOffset) = ResolveBottomDimensionOffsets(editor);
@@ -1181,13 +1361,40 @@ public static class GeometryElementRenderer
 
             var label = $"{segmentWidthsMm[i]:0}";
             var center = new Point((x1 + x2) / 2, ySeg - DimensionLabelClearancePx);
-            if (!IsDimensionLabelHidden(editor, DimensionHitKind.SegmentWidth, i))
+            var hitKind = profileRail is null
+                ? DimensionHitKind.SegmentWidth
+                : DimensionHitKind.ProfileRailSegment;
+            if (!IsDimensionLabelHidden(editor, hitKind, i))
             {
                 DrawCenteredText(context, label, center, DimensionTextBrush);
             }
 
             if (registerHits && editor?.FrameRoot != null)
             {
+                if (profileRailRoot is not null && profileRail is FrameProfileRail rail)
+                {
+                    var joints = profileRailRoot.GetProfileRailJoints(rail);
+                    if (joints.Count > 0)
+                    {
+                        var moveRightJoint = i < joints.Count;
+                        var joint = moveRightJoint ? joints[i] : joints[^1];
+                        var (profileTextBounds, profileHitRect) = MeasureHorizontalTextBounds(label, center);
+                        editor.RegisterDimensionHit(new DimensionHitInfo
+                        {
+                            Kind = DimensionHitKind.ProfileRailSegment,
+                            ValueMm = segmentWidthsMm[i],
+                            TextBounds = profileTextBounds,
+                            ScreenRect = profileHitRect,
+                            SegmentIndex = i,
+                            ProfileRail = rail,
+                            RailJointId = joint.Id,
+                            MoveRightBoundary = moveRightJoint
+                        });
+                    }
+
+                    continue;
+                }
+
                 var moveRight = i < impostCount;
                 var impostTarget = TryResolveVerticalImpostForSegment(editor.FrameRoot, boundaryWorldX, i);
                 var (textBounds, hitRect) = MeasureHorizontalTextBounds(label, center);
@@ -1246,12 +1453,25 @@ public static class GeometryElementRenderer
         double totalWidthMm,
         double totalHeightMm)
     {
-        if (!root.HasDeformedOuterContour())
+        if (!root.HasDeformedOuterContour()
+            && !root.ProfileRailJoints.Any(joint => Math.Abs(joint.NormalOffsetMm) > CadMath.Epsilon))
         {
             return false;
         }
 
         var corners = root.GetOuterCorners();
+        var contour = root.GetOuterContourPoints();
+        var minX = contour.Min(point => point.X);
+        var maxX = contour.Max(point => point.X);
+        var minY = contour.Min(point => point.Y);
+        var maxY = contour.Max(point => point.Y);
+        var screenTopLeft = editor.Viewport.WorldToScreen(new CadPoint(minX, maxY));
+        var screenBottomRight = editor.Viewport.WorldToScreen(new CadPoint(maxX, minY));
+        rect = new Rect(
+            new Point(screenTopLeft.X, screenTopLeft.Y),
+            new Point(screenBottomRight.X, screenBottomRight.Y));
+        totalWidthMm = CadMath.RoundMm(maxX - minX);
+        totalHeightMm = CadMath.RoundMm(maxY - minY);
 
         // Высота слева: уникальные Y углов левой стороны + габарит AABB.
         var leftYs = new SortedSet<double>(CadMathComparer.Instance)
@@ -1284,6 +1504,19 @@ public static class GeometryElementRenderer
                 var screenY = leftBounds
                     .Select(worldY => WorldYToScreenY(editor, worldY, root.X))
                     .ToList();
+                var objectScreenX = leftBounds
+                    .Select(worldY =>
+                    {
+                        var anchor = contour
+                            .Where(point => Math.Abs(point.Y - worldY) <= CadMath.MmPrecision)
+                            .OrderBy(point => point.X)
+                            .FirstOrDefault();
+                        var worldX = Math.Abs(anchor.Y - worldY) <= CadMath.MmPrecision
+                            ? anchor.X
+                            : corners.TopLeft.X;
+                        return WorldXToScreenX(editor, worldX, worldY);
+                    })
+                    .ToList();
                 DrawLeftHeightDimensionChain(
                     context,
                     editor,
@@ -1292,7 +1525,8 @@ public static class GeometryElementRenderer
                     leftBounds,
                     leftLengths,
                     totalHeightMm,
-                    registerHits: true);
+                    registerHits: true,
+                    objectScreenX: objectScreenX);
             }
             else
             {
@@ -1302,6 +1536,64 @@ public static class GeometryElementRenderer
         else
         {
             DrawLeftHeightDimension(context, rect, totalHeightMm, editor, registerHits: true);
+        }
+
+        var rightBounds = new SortedSet<double>(CadMathComparer.Instance)
+        {
+            CadMath.RoundMm(minY),
+            CadMath.RoundMm(corners.TopRight.Y),
+            CadMath.RoundMm(maxY)
+        }.ToList();
+        var leftBaseHeight = CadMath.RoundMm(
+            Math.Abs(corners.TopLeft.Y - corners.BottomLeft.Y));
+        var rightHeight = Math.Abs(corners.TopRight.Y - corners.BottomRight.Y);
+        var leftUpperDelta = CadMath.RoundMm(Math.Max(0, maxY - corners.TopLeft.Y));
+        var rightUpperDelta = CadMath.RoundMm(Math.Max(0, maxY - corners.TopRight.Y));
+        var isHeightSymmetric =
+            Math.Abs(leftBaseHeight - rightHeight) <= CadMath.MmPrecision
+            && Math.Abs(leftUpperDelta - rightUpperDelta) <= CadMath.MmPrecision;
+
+        if (!isHeightSymmetric && rightBounds.Count > 2)
+        {
+            var rightLengths = rightBounds
+                .Zip(rightBounds.Skip(1), (bottomY, topY) => CadMath.RoundMm(topY - bottomY))
+                .ToList();
+            var screenY = rightBounds
+                .Select(worldY => WorldYToScreenY(editor, worldY, corners.TopRight.X))
+                .ToList();
+            var objectScreenX = rightBounds
+                .Select(worldY =>
+                {
+                    var anchor = contour
+                        .Where(point => Math.Abs(point.Y - worldY) <= CadMath.MmPrecision)
+                        .OrderByDescending(point => point.X)
+                        .FirstOrDefault();
+                    var worldX = Math.Abs(anchor.Y - worldY) <= CadMath.MmPrecision
+                        ? anchor.X
+                        : corners.TopRight.X;
+                    return WorldXToScreenX(editor, worldX, worldY);
+                })
+                .ToList();
+            DrawRightHeightDimensionChain(
+                context,
+                editor,
+                rect,
+                screenY,
+                objectScreenX,
+                rightBounds,
+                rightLengths,
+                totalHeightMm,
+                registerHits: true);
+        }
+        else if (!isHeightSymmetric)
+        {
+            DrawRightSideHeightDimension(
+                context,
+                rect,
+                rightHeight,
+                corners.BottomRight.Y,
+                editor,
+                registerHits: true);
         }
 
         // Верх: ортогональная проекция скошенного верхнего профиля.
@@ -1321,19 +1613,30 @@ public static class GeometryElementRenderer
             ];
         }
 
-        if (topProjections.Count > 0 && topBounds.Count >= topProjections.Count + 1)
+        if (topProjections.Count > 1 && topBounds.Count >= topProjections.Count + 1)
         {
-            var topWorldY = Math.Max(corners.TopLeft.Y, corners.TopRight.Y);
-            var screenX = topBounds
-                .Select(worldX => WorldXToScreenX(editor, worldX, topWorldY))
+            var topPoints = root.GetOuterRailPolylinePoints(FrameProfileRail.Top);
+            var highestWorldY = topPoints.Max(point => point.Y);
+            var dimensionAnchorScreenY = WorldYToScreenY(
+                editor,
+                highestWorldY,
+                topPoints[0].X);
+            var screenX = topPoints
+                .Select(point => WorldXToScreenX(editor, point.X, point.Y))
                 .ToList();
-            var topScreenY = WorldYToScreenY(editor, topWorldY, corners.TopLeft.X);
+            var objectScreenY = topPoints
+                .Select(point => WorldYToScreenY(editor, point.Y, point.X))
+                .ToList();
+
             DrawTopWidthDimensionChain(
                 context,
                 editor,
+                root,
                 screenX,
                 topProjections,
-                topScreenY);
+                dimensionAnchorScreenY,
+                FrameProfileRail.Top,
+                objectScreenY);
         }
 
         // Низ: проекция / стыки нижней рейки, иначе габарит.
@@ -1454,15 +1757,22 @@ public static class GeometryElementRenderer
             var topBounds = root.GetOuterRailBoundaryCoordinates(FrameProfileRail.Top);
             if (topLengths.Count > 1 && topBounds.Count >= 3)
             {
+                var topPoints = root.GetOuterRailPolylinePoints(FrameProfileRail.Top);
                 var screenX = topBounds
                     .Select(worldX => WorldXToScreenX(editor, worldX, root.Y + root.Height))
+                    .ToList();
+                var objectScreenY = topPoints
+                    .Select(point => WorldYToScreenY(editor, point.Y, point.X))
                     .ToList();
                 DrawTopWidthDimensionChain(
                     context,
                     editor,
+                    root,
                     screenX,
                     topLengths,
-                    rect.Top);
+                    rect.Top,
+                    FrameProfileRail.Top,
+                    objectScreenY);
             }
         }
 
@@ -1519,9 +1829,12 @@ public static class GeometryElementRenderer
     private static void DrawTopWidthDimensionChain(
         DrawingContext context,
         CadEditorViewModel? editor,
+        FrameNode root,
         IReadOnlyList<double> screenBoundaries,
         IReadOnlyList<double> segmentWidthsMm,
-        double outerTopScreenY)
+        double outerTopScreenY,
+        FrameProfileRail rail,
+        IReadOnlyList<double>? objectScreenY = null)
     {
         const double frameGap = DimensionFrameGap;
         const double segOffset = DimensionExtensionOffset;
@@ -1529,9 +1842,17 @@ public static class GeometryElementRenderer
         var yExtStart = outerTopScreenY - frameGap;
         var ySeg = outerTopScreenY - segOffset;
 
-        foreach (var boundaryX in screenBoundaries)
+        for (var boundaryIndex = 0; boundaryIndex < screenBoundaries.Count; boundaryIndex++)
         {
-            DrawVerticalExtensionToHorizontalDimension(context, editor, boundaryX, yExtStart, ySeg);
+            var startY = objectScreenY is { Count: > 0 } && boundaryIndex < objectScreenY.Count
+                ? objectScreenY[boundaryIndex]
+                : yExtStart;
+            DrawVerticalExtensionToHorizontalDimension(
+                context,
+                editor,
+                screenBoundaries[boundaryIndex],
+                startY,
+                ySeg);
         }
 
         for (var i = 0; i < segmentWidthsMm.Count; i++)
@@ -1542,9 +1863,31 @@ public static class GeometryElementRenderer
 
             var label = $"{segmentWidthsMm[i]:0}";
             var center = new Point((x1 + x2) / 2, ySeg + DimensionLabelClearancePx);
-            if (!IsDimensionLabelHidden(editor, DimensionHitKind.SegmentWidth, i))
+            if (!IsDimensionLabelHidden(editor, DimensionHitKind.ProfileRailSegment, i))
             {
                 DrawCenteredText(context, label, center, DimensionTextBrush);
+            }
+
+            if (editor is not null)
+            {
+                var joints = root.GetProfileRailJoints(rail);
+                if (joints.Count > 0)
+                {
+                    var moveRight = i < joints.Count;
+                    var joint = moveRight ? joints[i] : joints[^1];
+                    var (textBounds, hitRect) = MeasureHorizontalTextBounds(label, center);
+                    editor.RegisterDimensionHit(new DimensionHitInfo
+                    {
+                        Kind = DimensionHitKind.ProfileRailSegment,
+                        ValueMm = segmentWidthsMm[i],
+                        TextBounds = textBounds,
+                        ScreenRect = hitRect,
+                        SegmentIndex = i,
+                        ProfileRail = rail,
+                        RailJointId = joint.Id,
+                        MoveRightBoundary = moveRight
+                    });
+                }
             }
         }
     }
@@ -2133,10 +2476,43 @@ public static class GeometryElementRenderer
 
     private static double ResolveLeftSegmentHeight(FrameNode root, double bottomWorldY, double topWorldY)
     {
-        // Внешняя размерная цепь: Outer Edge → Impost Center Axis (без вычета фальца).
-        _ = root;
+        // Размер ячейки считается между физическими гранями профилей.
+        // Для опоры на ось горизонтального импоста вычитаем половину его
+        // толщины с соответствующей стороны, чтобы тело профиля не попадало
+        // ни в нижний, ни в верхний световой проём.
         var height = topWorldY - bottomWorldY;
+        height -= ResolveHorizontalImpostHalfThicknessAt(root, bottomWorldY);
+        height -= ResolveHorizontalImpostHalfThicknessAt(root, topWorldY);
         return height <= CadMath.Epsilon ? 0 : CadMath.RoundMm(height);
+    }
+
+    private static double ResolveHorizontalImpostHalfThicknessAt(FrameNode root, double axisWorldY)
+    {
+        foreach (var node in root.EnumerateInternalNodes())
+        {
+            if (node.IsUniformSplit && node.SplitOrientation == SplitOrientation.Horizontal)
+            {
+                for (var gap = 0; gap < node.UniformCells.Count - 1; gap++)
+                {
+                    if (node.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, gap, out var axis)
+                        && CadMath.NearlyEqual(axis, axisWorldY))
+                    {
+                        return node.GetResolvedImpostThicknessMm() / 2.0;
+                    }
+                }
+
+                continue;
+            }
+
+            if (node.SplitOrientation == SplitOrientation.Horizontal
+                && node.TryGetHorizontalImpostAxisWorldY(out var binaryAxis)
+                && CadMath.NearlyEqual(binaryAxis, axisWorldY))
+            {
+                return node.GetResolvedImpostThicknessMm() / 2.0;
+            }
+        }
+
+        return 0;
     }
 
     private static void CollectHorizontalImpostAxes(FrameNode node, List<double> axes)
@@ -2520,14 +2896,18 @@ public static class GeometryElementRenderer
         double objectScreenY,
         double dimensionScreenY)
     {
-        var overshoot = ResolveDimensionOvershootPx(editor);
         var intersection = new Point(boundaryScreenX, dimensionScreenY);
-        var extensionDirection = dimensionScreenY >= objectScreenY ? 1 : -1;
-        var extensionEndY = dimensionScreenY + overshoot * extensionDirection;
+        var direction = Math.Sign(dimensionScreenY - objectScreenY);
+        if (direction == 0)
+        {
+            direction = 1;
+        }
         context.DrawLine(
             DimensionPen,
             new Point(boundaryScreenX, objectScreenY),
-            new Point(boundaryScreenX, extensionEndY));
+            new Point(
+                boundaryScreenX,
+                dimensionScreenY + direction * DimensionJointOverlapPx));
         DrawArchitecturalTick(context, editor, intersection);
     }
 
@@ -2538,14 +2918,18 @@ public static class GeometryElementRenderer
         double boundaryScreenY,
         double dimensionScreenX)
     {
-        var overshoot = ResolveDimensionOvershootPx(editor);
         var intersection = new Point(dimensionScreenX, boundaryScreenY);
-        var extensionDirection = dimensionScreenX <= objectScreenX ? -1 : 1;
-        var extensionEndX = dimensionScreenX + overshoot * extensionDirection;
+        var direction = Math.Sign(dimensionScreenX - objectScreenX);
+        if (direction == 0)
+        {
+            direction = 1;
+        }
         context.DrawLine(
             DimensionPen,
             new Point(objectScreenX, boundaryScreenY),
-            new Point(extensionEndX, boundaryScreenY));
+            new Point(
+                dimensionScreenX + direction * DimensionJointOverlapPx,
+                boundaryScreenY));
         DrawArchitecturalTick(context, editor, intersection);
     }
 
@@ -2556,13 +2940,12 @@ public static class GeometryElementRenderer
         double screenX1,
         double screenX2)
     {
-        var overshoot = ResolveDimensionOvershootPx(editor);
         var left = Math.Min(screenX1, screenX2);
         var right = Math.Max(screenX1, screenX2);
         context.DrawLine(
             DimensionPen,
-            new Point(left - overshoot, screenY),
-            new Point(right + overshoot, screenY));
+            new Point(left, screenY),
+            new Point(right, screenY));
     }
 
     private static void DrawVerticalDimensionSegment(
@@ -2572,13 +2955,12 @@ public static class GeometryElementRenderer
         double screenY1,
         double screenY2)
     {
-        var overshoot = ResolveDimensionOvershootPx(editor);
         var top = Math.Min(screenY1, screenY2);
         var bottom = Math.Max(screenY1, screenY2);
         context.DrawLine(
             DimensionPen,
-            new Point(screenX, top - overshoot),
-            new Point(screenX, bottom + overshoot));
+            new Point(screenX, top),
+            new Point(screenX, bottom));
     }
 
     private static bool IsDimensionLabelHidden(CadEditorViewModel? editor, DimensionHitKind kind, int segmentIndex = 0) =>

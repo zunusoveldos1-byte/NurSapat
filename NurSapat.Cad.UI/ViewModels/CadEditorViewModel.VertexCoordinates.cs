@@ -22,6 +22,7 @@ public sealed partial class CadEditorViewModel
         CadPoint CurrentPoint,
         FrameCornerKind? Corner = null,
         ImpostTarget? Impost = null,
+        Guid? RailJointId = null,
         bool IsArcSpringing = false);
 
     private bool TrySetVertexCoordinatesFromTool(CadPoint worldPoint)
@@ -141,8 +142,8 @@ public sealed partial class CadEditorViewModel
         // Стыки разделённых профилей.
         foreach (var joint in FrameRoot.GetConstructionRoot().ProfileRailJoints)
         {
-            var band = FrameRoot.GetRailBand(joint.Rail, FrameThickness);
-            var (outer, _) = FrameProfileRailGeometry.ResolveJointPoints(band, joint.RelativeT);
+            var root = FrameRoot.GetConstructionRoot();
+            var outer = root.ResolveProfileRailJointOuterPoint(joint);
             var distance = Distance(worldPoint, outer);
             if (distance > tolerance || distance >= bestCornerDistance)
             {
@@ -153,7 +154,8 @@ public sealed partial class CadEditorViewModel
             bestCorner = new ParametricVertexHit(
                 $"RailJoint:{joint.Id}",
                 "Стык профиля",
-                outer);
+                outer,
+                RailJointId: joint.Id);
         }
 
         return bestCorner;
@@ -271,6 +273,20 @@ public sealed partial class CadEditorViewModel
             return string.Equals(hit.ProfileRole, "ImpostVertical", StringComparison.Ordinal)
                 ? MoveVerticalImpost(impost, x)
                 : MoveHorizontalImpost(impost, y);
+        }
+
+        if (hit.RailJointId is { } jointId)
+        {
+            var moved = FrameRoot.GetConstructionRoot().TrySetProfileRailJointPosition(
+                jointId,
+                new CadPoint(CadMath.RoundMm(x), CadMath.RoundMm(y)),
+                overrideLockedAxis: true);
+            if (moved)
+            {
+                RecalculateFrameGeometry();
+            }
+
+            return moved;
         }
 
         if (hit.Corner is not { } corner)

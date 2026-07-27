@@ -16,6 +16,7 @@ public sealed class MaterialEntityConfiguration : IEntityTypeConfiguration<Mater
         builder.Property(entity => entity.Name).HasMaxLength(512).IsRequired();
         builder.Property(entity => entity.Note).HasMaxLength(4000);
         builder.Property(entity => entity.Manufacturer).HasMaxLength(256);
+        builder.Property(entity => entity.SuppliersText).HasMaxLength(1000);
         builder.Property(entity => entity.BasePrice).HasPrecision(18, 4);
         builder.Property(entity => entity.WastePercent).HasPrecision(9, 2);
         builder.Property(entity => entity.InnerCoatingAreaPerMeter).HasPrecision(18, 4);

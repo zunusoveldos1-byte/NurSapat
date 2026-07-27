@@ -93,6 +93,25 @@ public static class FrameProfileRailGeometry
         return new OuterCorners(bl, br, tl, tr);
     }
 
+    public static IReadOnlyList<CadPoint> InsetPolygon(IReadOnlyList<CadPoint> outerCcw, double inset)
+    {
+        if (outerCcw.Count < 3 || inset <= CadMath.Epsilon)
+        {
+            return outerCcw.ToList();
+        }
+
+        var result = new List<CadPoint>(outerCcw.Count);
+        for (var i = 0; i < outerCcw.Count; i++)
+        {
+            var previous = outerCcw[(i - 1 + outerCcw.Count) % outerCcw.Count];
+            var current = outerCcw[i];
+            var next = outerCcw[(i + 1) % outerCcw.Count];
+            result.Add(MiterInsetCorner(previous, current, next, inset));
+        }
+
+        return result;
+    }
+
     public static bool TryHitFrameRail(
         OuterCorners corners,
         double frameWidth,
@@ -170,6 +189,87 @@ public static class FrameProfileRailGeometry
         var outer = Lerp(band.OuterStart, band.OuterEnd, t);
         var inner = Lerp(band.InnerStart, band.InnerEnd, t);
         return (outer, inner);
+    }
+
+    public static CadPoint ResolveJointOuterPoint(
+        OuterCorners corners,
+        FrameProfileRail rail,
+        double relativeT,
+        double normalOffsetMm)
+    {
+        var (start, end) = ResolveOuterEdge(corners, rail);
+        var point = Lerp(start, end, Math.Clamp(relativeT, 0, 1));
+        var normal = InwardUnitNormal(start, end);
+        return new CadPoint(
+            CadMath.RoundMm(point.X + normal.X * normalOffsetMm),
+            CadMath.RoundMm(point.Y + normal.Y * normalOffsetMm));
+    }
+
+    public static (double RelativeT, double NormalOffsetMm) ProjectPointOntoRail(
+        OuterCorners corners,
+        FrameProfileRail rail,
+        CadPoint point)
+    {
+        var (start, end) = ResolveOuterEdge(corners, rail);
+        var dx = end.X - start.X;
+        var dy = end.Y - start.Y;
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        if (length <= CadMath.Epsilon)
+        {
+            return (0.5, 0);
+        }
+
+        var t = Math.Clamp(
+            ((point.X - start.X) * dx + (point.Y - start.Y) * dy) / (length * length),
+            0.05,
+            0.95);
+        var basePoint = Lerp(start, end, t);
+        var normal = InwardUnitNormal(start, end);
+        var offset = (point.X - basePoint.X) * normal.X + (point.Y - basePoint.Y) * normal.Y;
+        return (t, CadMath.RoundMm(offset));
+    }
+
+    /// <summary>
+    /// Строит части ломаной рейки. Внутренние вершины находятся пересечением
+    /// параллельно смещённых граней, поэтому в изломе получается корректный miter.
+    /// </summary>
+    public static IReadOnlyList<RailBand> SplitRailBandWithMiters(
+        RailBand baseBand,
+        IReadOnlyList<CadPoint> orderedOuterJoints)
+    {
+        if (orderedOuterJoints.Count == 0)
+        {
+            return [baseBand];
+        }
+
+        var outer = new List<CadPoint>(orderedOuterJoints.Count + 2) { baseBand.OuterStart };
+        outer.AddRange(orderedOuterJoints);
+        outer.Add(baseBand.OuterEnd);
+
+        var inset = DistancePointToLine(baseBand.InnerStart, baseBand.OuterStart, baseBand.OuterEnd);
+        var inner = new CadPoint[outer.Count];
+        inner[0] = baseBand.InnerStart;
+        inner[^1] = baseBand.InnerEnd;
+        var innerTarget = new CadPoint(
+            (baseBand.InnerStart.X + baseBand.InnerEnd.X) / 2.0,
+            (baseBand.InnerStart.Y + baseBand.InnerEnd.Y) / 2.0);
+        for (var i = 1; i < outer.Count - 1; i++)
+        {
+            inner[i] = MiterOffsetCornerToward(
+                outer[i - 1],
+                outer[i],
+                outer[i + 1],
+                inset,
+                innerTarget);
+        }
+
+        var result = new List<RailBand>(outer.Count - 1);
+        for (var i = 0; i < outer.Count - 1; i++)
+        {
+            result.Add(new RailBand(outer[i], outer[i + 1], inner[i + 1], inner[i]));
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -400,6 +500,38 @@ public static class FrameProfileRailGeometry
             CadMath.RoundMm(curr.Y + ny * inset));
     }
 
+    private static CadPoint MiterOffsetCornerToward(
+        CadPoint prev,
+        CadPoint curr,
+        CadPoint next,
+        double inset,
+        CadPoint target)
+    {
+        var n1 = UnitNormalToward(prev, curr, target);
+        var n2 = UnitNormalToward(curr, next, target);
+        var a0 = new CadPoint(prev.X + n1.X * inset, prev.Y + n1.Y * inset);
+        var a1 = new CadPoint(curr.X + n1.X * inset, curr.Y + n1.Y * inset);
+        var b0 = new CadPoint(curr.X + n2.X * inset, curr.Y + n2.Y * inset);
+        var b1 = new CadPoint(next.X + n2.X * inset, next.Y + n2.Y * inset);
+        if (TryIntersectLines(a0, a1, b0, b1, out var intersection))
+        {
+            return new CadPoint(CadMath.RoundMm(intersection.X), CadMath.RoundMm(intersection.Y));
+        }
+
+        return new CadPoint(
+            CadMath.RoundMm(curr.X + (n1.X + n2.X) * inset / 2.0),
+            CadMath.RoundMm(curr.Y + (n1.Y + n2.Y) * inset / 2.0));
+    }
+
+    private static (double X, double Y) UnitNormalToward(CadPoint from, CadPoint to, CadPoint target)
+    {
+        var normal = InwardUnitNormal(from, to);
+        var midpointX = (from.X + to.X) / 2.0;
+        var midpointY = (from.Y + to.Y) / 2.0;
+        var dot = normal.X * (target.X - midpointX) + normal.Y * (target.Y - midpointY);
+        return dot >= 0 ? normal : (-normal.X, -normal.Y);
+    }
+
     /// <summary>Внутренняя нормаль для CCW-обхода: (-dy, dx).</summary>
     private static (double X, double Y) InwardUnitNormal(CadPoint from, CadPoint to)
     {
@@ -435,6 +567,16 @@ public static class FrameProfileRailGeometry
         var t = ((b0.X - a0.X) * dyB - (b0.Y - a0.Y) * dxB) / denom;
         intersection = new CadPoint(a0.X + t * dxA, a0.Y + t * dyA);
         return true;
+    }
+
+    private static double DistancePointToLine(CadPoint point, CadPoint lineA, CadPoint lineB)
+    {
+        var dx = lineB.X - lineA.X;
+        var dy = lineB.Y - lineA.Y;
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        return length <= CadMath.Epsilon
+            ? 0
+            : Math.Abs(dx * (lineA.Y - point.Y) - (lineA.X - point.X) * dy) / length;
     }
 
     private static List<double> NormalizeCuts(IReadOnlyList<double> relativeTs) =>

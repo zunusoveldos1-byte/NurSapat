@@ -83,6 +83,7 @@ public static class FrameNodeRenderer
                 out var leftX,
                 out var rightX))
         {
+            ClipHorizontalProfileToCell(leaf, ref leftX, ref rightX);
             DrawHorizontalProfileVolumeRect(context, editor, leftX, rightX, bottom, top, fill, pen);
             return;
         }
@@ -189,6 +190,7 @@ public static class FrameNodeRenderer
                     && node.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, i, out var axisY)
                     && CurvedContainerImpostGeometry.TryResolveHorizontalImpostSpan(editor, container, node, axisY, out var leftX, out var rightX))
                 {
+                    ClipHorizontalProfileToCell(node, ref leftX, ref rightX);
                     DrawHorizontalProfileVolumeRect(context, editor, leftX, rightX, bottom, top, ImpostFillBrush, pen);
                     continue;
                 }
@@ -250,6 +252,7 @@ public static class FrameNodeRenderer
             && node.TryGetHorizontalImpostAxisWorldY(out var axisY)
             && CurvedContainerImpostGeometry.TryResolveHorizontalImpostSpan(editor, container, node, axisY, out var leftX, out var rightX))
         {
+            ClipHorizontalProfileToCell(node, ref leftX, ref rightX);
             DrawHorizontalProfileVolumeRect(context, editor, leftX, rightX, bottom, top, ImpostFillBrush, pen);
             return;
         }
@@ -1329,6 +1332,7 @@ public static class FrameNodeRenderer
         if (CurvedContainerImpostGeometry.IsRoundContainer(editor, container)
             && CurvedContainerImpostGeometry.TryResolveHorizontalImpostSpan(editor, container, node, axisY, out var leftX, out var rightX))
         {
+            ClipHorizontalProfileToCell(node, ref leftX, ref rightX);
             DrawHorizontalProfileVolumeRect(context, editor, leftX, rightX, bottom, top, GhostImpostFillBrush, GhostImpostPen);
             return;
         }
@@ -1409,6 +1413,20 @@ public static class FrameNodeRenderer
 
         context.FillRectangle(fill, rect);
         context.DrawRectangle(null, pen, rect);
+    }
+
+    private static void ClipHorizontalProfileToCell(
+        FrameNode splitNode,
+        ref double left,
+        ref double right)
+    {
+        SashGeometry.ClipHorizontalImpostSpanAtVerticalAncestors(splitNode, ref left, ref right);
+        left = CadMath.RoundMm(Math.Max(left, splitNode.X));
+        right = CadMath.RoundMm(Math.Min(right, splitNode.X + splitNode.Width));
+        if (right < left)
+        {
+            right = left;
+        }
     }
 
     private static void DrawHorizontalProfilePolygon(

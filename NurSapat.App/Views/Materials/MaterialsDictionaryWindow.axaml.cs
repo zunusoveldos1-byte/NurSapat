@@ -32,11 +32,4 @@ public partial class MaterialsDictionaryWindow : Window
     private void OnCloseClick(object? sender, RoutedEventArgs e) =>
         BorderlessChromeHelper.Close(this);
 
-    private async void OnGridDoubleTapped(object? sender, TappedEventArgs e)
-    {
-        if (DataContext is MaterialsDictionaryViewModel vm && vm.SelectedItem is not null)
-        {
-            await vm.OpenEditorForItemAsync(vm.SelectedItem);
-        }
-    }
 }

@@ -46,6 +46,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IUserAccountRepository, UserAccountRepository>();
         services.AddSingleton<IOrderTemplateRepository, OrderTemplateRepository>();
         services.AddSingleton<IAppSettingRepository, AppSettingRepository>();
+        services.AddSingleton<IOrderCalculationSnapshotRepository, OrderCalculationSnapshotRepository>();
+        services.AddSingleton<IPriceListRepository, PriceListRepository>();
         services.AddSingleton<InitialDataSeeder>();
         services.AddSingleton<PersistenceIntegrityVerifier>();
 

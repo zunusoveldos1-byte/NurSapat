@@ -16,7 +16,7 @@ public sealed class OrderHeaderItem
 
     public decimal TotalSum { get; set; }
 
-    public OrderStatus Status { get; set; } = OrderStatus.Calculation;
+    public OrderStatus Status { get; set; } = OrderStatus.Calculated;
 
     public string? FilePath { get; set; }
 

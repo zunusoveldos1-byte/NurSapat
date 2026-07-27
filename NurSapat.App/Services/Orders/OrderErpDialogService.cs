@@ -5,6 +5,8 @@ using NurSapat.App.Views.Dialogs;
 using NurSapat.Core.Models;
 using NurSapat.Core.Models.Orders;
 using NurSapat.Core.Services.Orders;
+using NurSapat.Core.Interfaces.Persistence;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace NurSapat.App.Services.Orders;
 
@@ -19,11 +21,23 @@ public interface IOrderErpDialogService
     Task<bool> ShowConfirmDeleteAsync(string confirmationMessage, string? title = null);
 }
 
-public sealed class OrderErpDialogService(IDealersCatalog dealersCatalog) : IOrderErpDialogService
+public sealed class OrderErpDialogService(
+    IDealersCatalog dealersCatalog,
+    IServiceProvider serviceProvider,
+    OrderLifecycleService lifecycleService) : IOrderErpDialogService
 {
     public async Task<bool> ShowOrderSettingsAsync(Order order, bool isAdministrator)
     {
-        var viewModel = new OrderSettingsDialogViewModel(order, isAdministrator, dealersCatalog);
+        var snapshotRepository = serviceProvider.GetService<IOrderCalculationSnapshotRepository>();
+        var hasSnapshot = snapshotRepository is not null
+            && Persistence.PersistenceSync.Run(
+                () => snapshotRepository.GetLatestByOrderIdAsync(order.Id)) is not null;
+        var viewModel = new OrderSettingsDialogViewModel(
+            order,
+            isAdministrator,
+            dealersCatalog,
+            lifecycleService,
+            hasSnapshot);
         var window = new OrderSettingsDialogWindow { DataContext = viewModel };
         return await ShowAsync(window, viewModel) == true;
     }

@@ -18,6 +18,16 @@ public enum SplitOrientation
     Horizontal
 }
 
+/// <summary>Правило расчёта равномерного разбиения проёма.</summary>
+public enum UniformSplitDistribution
+{
+    /// <summary>Оси импостов равноудалены по внешнему габариту контейнера.</summary>
+    CenterToCenter,
+
+    /// <summary>Все световые проёмы равны; толщина импостов вычитается из света.</summary>
+    ClearOpening
+}
+
 /// <summary>
 /// Бинарный узел рамы: лист или разделённый импостом на два дочерних прямоугольника.
 /// Координаты: X,Y — нижний левый угол, Y растёт вверх.
@@ -329,14 +339,17 @@ public sealed class FrameNode
     }
 
     /// <summary>
-    /// N-split engine: равномерное деление светового проёма с физическим объёмом каждого импоста.
+    /// N-split engine: равномерное деление с физическим объёмом каждого импоста.
+    /// По умолчанию размерная цепь строится по осям (Center-to-Center); для
+    /// одинакового света укажите <see cref="UniformSplitDistribution.ClearOpening"/>.
     /// </summary>
     public bool TrySplitUniformWithVolume(
         SplitOrientation orientation,
         int impostCount,
         double impostWidthMm,
         double frameProfileInset = 0,
-        ImpostLineStyle lineStyle = ImpostLineStyle.Solid)
+        ImpostLineStyle lineStyle = ImpostLineStyle.Solid,
+        UniformSplitDistribution distribution = UniformSplitDistribution.CenterToCenter)
     {
         if (!IsLeaf || impostCount < 1)
         {
@@ -346,35 +359,25 @@ public sealed class FrameNode
         var impostWidth = ResolveUniformImpostWidth(impostWidthMm, lineStyle);
         var edgeInsets = ResolveEdgeLightOpeningInsets();
 
-        if (!TryComputeUniformLayout(
+        if (!TryComputeUniformCellSizes(
                 orientation,
                 impostCount,
                 impostWidth,
                 frameProfileInset,
                 edgeInsets,
+                distribution,
                 out var innerStart,
-                out var singleGlassSize))
+                out var cellSizes))
         {
             return false;
         }
 
         _uniformCells.Clear();
-        var trailingInset = (Parent == null && frameProfileInset > CadMath.Epsilon ? frameProfileInset : 0)
-            + (orientation == SplitOrientation.Vertical ? edgeInsets.Right : edgeInsets.Top);
-        var innerSpan = orientation switch
-        {
-            SplitOrientation.Vertical => Width - innerStart - trailingInset,
-            SplitOrientation.Horizontal => Height - innerStart - trailingInset,
-            _ => 0
-        };
-
         var used = 0.0;
         for (var i = 0; i <= impostCount; i++)
         {
             var isLast = i == impostCount;
-            var cellWidth = isLast
-                ? CadMath.RoundMm(innerSpan - used)
-                : CadMath.RoundMm(singleGlassSize);
+            var cellWidth = cellSizes[i];
 
             var offset = innerStart + used;
             var cell = orientation switch
@@ -413,7 +416,8 @@ public sealed class FrameNode
         SplitOrientation orientation,
         int impostCount,
         double impostWidthMm,
-        double frameProfileInset = 0)
+        double frameProfileInset = 0,
+        UniformSplitDistribution distribution = UniformSplitDistribution.CenterToCenter)
     {
         if (!IsLeaf || impostCount < 1)
         {
@@ -426,14 +430,124 @@ public sealed class FrameNode
                 ? impostWidthMm
                 : DefaultImpostProfileMm;
 
-        return TryComputeUniformLayout(
+        return TryComputeUniformCellSizes(
             orientation,
             impostCount,
             impostWidth,
             frameProfileInset,
             ResolveEdgeLightOpeningInsets(),
+            distribution,
             out _,
             out _);
+    }
+
+    private bool TryComputeUniformCellSizes(
+        SplitOrientation orientation,
+        int impostCount,
+        double impostWidth,
+        double frameProfileInset,
+        EdgeLightOpeningInsets edgeInsets,
+        UniformSplitDistribution distribution,
+        out double innerStart,
+        out IReadOnlyList<double> cellSizes)
+    {
+        if (distribution == UniformSplitDistribution.ClearOpening)
+        {
+            if (!TryComputeUniformLayout(
+                    orientation,
+                    impostCount,
+                    impostWidth,
+                    frameProfileInset,
+                    edgeInsets,
+                    out innerStart,
+                    out var singleGlassSize))
+            {
+                cellSizes = Array.Empty<double>();
+                return false;
+            }
+
+            var trailingInset = (Parent == null && frameProfileInset > CadMath.Epsilon ? frameProfileInset : 0)
+                + (orientation == SplitOrientation.Vertical ? edgeInsets.Right : edgeInsets.Top);
+            var innerSpan = orientation == SplitOrientation.Vertical
+                ? Width - innerStart - trailingInset
+                : Height - innerStart - trailingInset;
+            var sizes = new List<double>(impostCount + 1);
+            var used = 0.0;
+            for (var i = 0; i <= impostCount; i++)
+            {
+                var isLast = i == impostCount;
+                var size = isLast
+                    ? CadMath.RoundMm(innerSpan - used)
+                    : CadMath.RoundMm(singleGlassSize);
+                sizes.Add(size);
+                used += size + (isLast ? 0 : impostWidth);
+            }
+
+            cellSizes = sizes;
+            return true;
+        }
+
+        return TryComputeCenterToCenterCellSizes(
+            orientation,
+            impostCount,
+            impostWidth,
+            frameProfileInset,
+            edgeInsets,
+            out innerStart,
+            out cellSizes);
+    }
+
+    /// <summary>
+    /// Центры импостов лежат на равных долях внешнего габарита: для W=3000 и
+    /// трёх секций это строго X=1000 и X=2000. Толщина профиля влияет только
+    /// на границы световых ячеек, но никогда не сдвигает размерную ось.
+    /// </summary>
+    private bool TryComputeCenterToCenterCellSizes(
+        SplitOrientation orientation,
+        int impostCount,
+        double impostWidth,
+        double frameProfileInset,
+        EdgeLightOpeningInsets edgeInsets,
+        out double innerStart,
+        out IReadOnlyList<double> cellSizes)
+    {
+        var leadingFrameInset = Parent == null && frameProfileInset > CadMath.Epsilon ? frameProfileInset : 0;
+        var trailingFrameInset = Parent == null && frameProfileInset > CadMath.Epsilon ? frameProfileInset : 0;
+        innerStart = leadingFrameInset
+            + (orientation == SplitOrientation.Vertical ? edgeInsets.Left : edgeInsets.Bottom);
+        var trailingInset = trailingFrameInset
+            + (orientation == SplitOrientation.Vertical ? edgeInsets.Right : edgeInsets.Top);
+        var totalSpan = orientation == SplitOrientation.Vertical ? Width : Height;
+        var innerEnd = totalSpan - trailingInset;
+        var sectionCount = impostCount + 1;
+        var currentStart = innerStart;
+        var sizes = new List<double>(sectionCount);
+
+        for (var section = 1; section < sectionCount; section++)
+        {
+            var axis = totalSpan * section / sectionCount;
+            var profileStart = axis - impostWidth / 2.0;
+            var size = CadMath.RoundMm(profileStart - currentStart);
+            if (size < MinSplitSizeMm)
+            {
+                cellSizes = Array.Empty<double>();
+                return false;
+            }
+
+            sizes.Add(size);
+            currentStart = profileStart + impostWidth;
+        }
+
+        var lastSize = CadMath.RoundMm(innerEnd - currentStart);
+        if (lastSize < MinSplitSizeMm)
+        {
+            cellSizes = Array.Empty<double>();
+            return false;
+        }
+
+        sizes.Add(lastSize);
+        cellSizes = sizes;
+        return true;
     }
 
     private bool TryComputeUniformLayout(
@@ -1055,9 +1169,56 @@ public sealed class FrameNode
             return false;
         }
 
-        Width = CadMath.RoundMm(newWidth);
-        Height = CadMath.RoundMm(newHeight);
-        if (Parent is null)
+        var preserveContour = Parent is null
+                              && (HasStoredOuterCorners()
+                                  || _profileRailJoints.Any(joint => joint.HasFixedAnchor));
+        var oldWidth = Width;
+        var oldHeight = Height;
+        var oldCorners = preserveContour ? GetOuterCorners() : default;
+        var currentContour = preserveContour ? GetOuterContourPoints() : [];
+        var currentOverallWidth = preserveContour
+            ? currentContour.Max(point => point.X) - currentContour.Min(point => point.X)
+            : oldWidth;
+        var currentOverallHeight = preserveContour
+            ? currentContour.Max(point => point.Y) - currentContour.Min(point => point.Y)
+            : oldHeight;
+        var widthScale = currentOverallWidth > CadMath.Epsilon
+            ? newWidth / currentOverallWidth
+            : 1.0;
+        var heightDelta = newHeight - currentOverallHeight;
+
+        Width = CadMath.RoundMm(preserveContour
+            ? oldWidth + (newWidth - currentOverallWidth)
+            : newWidth);
+        Height = CadMath.RoundMm(preserveContour
+            ? oldHeight + heightDelta
+            : newHeight);
+
+        if (preserveContour)
+        {
+            CadPoint ScaleX(CadPoint point) => new(
+                CadMath.RoundMm(X + (point.X - X) * widthScale),
+                point.Y);
+
+            var bottomLeft = ScaleX(oldCorners.BottomLeft);
+            var bottomRight = ScaleX(oldCorners.BottomRight);
+            var topLeft = ScaleX(oldCorners.TopLeft);
+            var topRight = ScaleX(oldCorners.TopRight);
+            _outerBottomLeft = bottomLeft;
+            _outerBottomRight = bottomRight;
+            _outerTopLeft = new CadPoint(topLeft.X, CadMath.RoundMm(topLeft.Y + heightDelta));
+            _outerTopRight = new CadPoint(topRight.X, CadMath.RoundMm(topRight.Y + heightDelta));
+
+            foreach (var joint in _profileRailJoints.Where(joint => joint.HasFixedAnchor))
+            {
+                joint.AnchorLocalX = CadMath.RoundMm(joint.AnchorLocalX * widthScale);
+                if (joint.Rail == FrameProfileRail.Top)
+                {
+                    joint.AnchorLocalY = CadMath.RoundMm(joint.AnchorLocalY + heightDelta);
+                }
+            }
+        }
+        else if (Parent is null)
         {
             ClearOuterCorners();
         }
@@ -1608,8 +1769,12 @@ public sealed class FrameNode
                 ImpostThicknessMm = ImpostThicknessMm,
                 UniformImpostCount = UniformImpostCount,
                 UniformCells = UniformCells.Select(cell => cell.CaptureTreeSnapshot()).ToList(),
+                NodeId = NodeId,
                 IsDummy = IsDummy,
+                ExtremeImposts = CaptureExtremeImpostSnapshots(),
                 TopProfile = Parent is null ? TopProfile?.CaptureSnapshot() : null,
+                Shape = Parent is null ? Shape : ConstructionShape.Rectangle,
+                Sill = Parent is null ? CaptureSillSnapshot() : null,
                 ProfileRailJoints = Parent is null ? CaptureProfileRailJointSnapshots() : [],
                 OuterCorners = Parent is null ? CaptureOuterCornerSnapshot() : null
             };
@@ -1632,8 +1797,12 @@ public sealed class FrameNode
                 ChildA = ChildA.CaptureTreeSnapshot(),
                 ChildB = ChildB.CaptureTreeSnapshot(),
                 SplitRelativeCenter = SplitRelativeCenter,
+                NodeId = NodeId,
                 IsDummy = IsDummy,
+                ExtremeImposts = CaptureExtremeImpostSnapshots(),
                 TopProfile = Parent is null ? TopProfile?.CaptureSnapshot() : null,
+                Shape = Parent is null ? Shape : ConstructionShape.Rectangle,
+                Sill = Parent is null ? CaptureSillSnapshot() : null,
                 ProfileRailJoints = Parent is null ? CaptureProfileRailJointSnapshots() : [],
                 OuterCorners = Parent is null ? CaptureOuterCornerSnapshot() : null
             };
@@ -1696,6 +1865,11 @@ public sealed class FrameNode
             Id = joint.Id,
             Rail = joint.Rail,
             RelativeT = joint.RelativeT,
+            NormalOffsetMm = joint.NormalOffsetMm,
+            LockHorizontalAxis = joint.LockHorizontalAxis,
+            HasFixedAnchor = joint.HasFixedAnchor,
+            AnchorLocalX = joint.AnchorLocalX,
+            AnchorLocalY = joint.AnchorLocalY,
             Kind = joint.Kind
         }).ToList();
 
@@ -1895,11 +2069,24 @@ public sealed class FrameNode
         _profileRailJoints.Clear();
         foreach (var snapshot in snapshots)
         {
+            var lockHorizontal = snapshot.LockHorizontalAxis
+                || (snapshot.Rail == FrameProfileRail.Top
+                    && Math.Abs(snapshot.RelativeT - 0.5) <= CadMath.Epsilon);
+            var hasAnchor = snapshot.HasFixedAnchor || lockHorizontal;
             _profileRailJoints.Add(new FrameProfileRailJoint
             {
                 Id = snapshot.Id == Guid.Empty ? Guid.NewGuid() : snapshot.Id,
                 Rail = snapshot.Rail,
                 RelativeT = snapshot.RelativeT,
+                NormalOffsetMm = snapshot.NormalOffsetMm,
+                LockHorizontalAxis = lockHorizontal,
+                HasFixedAnchor = hasAnchor,
+                AnchorLocalX = snapshot.HasFixedAnchor
+                    ? snapshot.AnchorLocalX
+                    : Width * snapshot.RelativeT,
+                AnchorLocalY = snapshot.HasFixedAnchor
+                    ? snapshot.AnchorLocalY
+                    : Height,
                 Kind = snapshot.Kind
             });
         }
@@ -2099,24 +2286,97 @@ public sealed class FrameNode
     public bool TrySplitProfileRailInHalf(FrameProfileRail rail)
     {
         var root = GetRoot();
-        var (start, end) = FrameProfileRailGeometry.ResolveOuterEdge(root.GetOuterCorners(), rail);
-        var span = start.DistanceTo(end);
-        if (span < MinSplitSizeMm * 2)
+        if (root.HasProfileRailJoints(rail))
         {
             return false;
         }
 
-        const double halfT = 0.5;
-        if (root._profileRailJoints.Any(j =>
-                j.Rail == rail && Math.Abs(j.RelativeT - halfT) <= CadMath.Epsilon))
+        return root.TrySplitProfileRailSegmentInHalf(rail, 0);
+    }
+
+    /// <summary>
+    /// Возвращает конечные ячейки дерева в геометрическом порядке. В отличие от
+    /// <see cref="FindLeafAt"/>, метод не выбирает ячейку по точке и потому может
+    /// использоваться для одного действия над всеми секциями, пересекаемыми импостом.
+    /// </summary>
+    public IEnumerable<FrameNode> EnumerateTerminalLeaves()
+    {
+        if (IsTerminalLeaf)
+        {
+            yield return this;
+            yield break;
+        }
+
+        if (IsUniformSplit)
+        {
+            foreach (var cell in _uniformCells)
+            {
+                foreach (var leaf in cell.EnumerateTerminalLeaves())
+                {
+                    yield return leaf;
+                }
+            }
+
+            yield break;
+        }
+
+        if (ChildA is not null)
+        {
+            foreach (var leaf in ChildA.EnumerateTerminalLeaves())
+            {
+                yield return leaf;
+            }
+        }
+
+        if (ChildB is not null)
+        {
+            foreach (var leaf in ChildB.EnumerateTerminalLeaves())
+            {
+                yield return leaf;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Делит выбранный интервал рейки между соседними стыками пополам.
+    /// Существующие стыки и геометрия остальных сегментов не изменяются.
+    /// </summary>
+    public bool TrySplitProfileRailSegmentInHalf(FrameProfileRail rail, int segmentIndex)
+    {
+        var root = GetRoot();
+        var (start, end) = FrameProfileRailGeometry.ResolveOuterEdge(root.GetOuterCorners(), rail);
+        var span = start.DistanceTo(end);
+        var joints = root.GetProfileRailJoints(rail);
+        var points = root.GetOuterRailPolylinePoints(rail);
+        if (segmentIndex < 0 || segmentIndex >= points.Count - 1)
         {
             return false;
         }
+
+        var segmentStart = points[segmentIndex];
+        var segmentEnd = points[segmentIndex + 1];
+        if (segmentStart.DistanceTo(segmentEnd) < MinSplitSizeMm * 2 || span <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        var leftT = segmentIndex == 0 ? 0.0 : joints[segmentIndex - 1].RelativeT;
+        var rightT = segmentIndex == joints.Count ? 1.0 : joints[segmentIndex].RelativeT;
+        var halfT = (leftT + rightT) / 2.0;
+        var midpoint = new CadPoint(
+            CadMath.RoundMm((segmentStart.X + segmentEnd.X) / 2.0),
+            CadMath.RoundMm((segmentStart.Y + segmentEnd.Y) / 2.0));
+        var isCentralTopJoint = rail == FrameProfileRail.Top
+                                && Math.Abs(halfT - 0.5) <= CadMath.Epsilon;
 
         root._profileRailJoints.Add(new FrameProfileRailJoint
         {
             Rail = rail,
             RelativeT = halfT,
+            LockHorizontalAxis = isCentralTopJoint,
+            HasFixedAnchor = rail == FrameProfileRail.Top,
+            AnchorLocalX = rail == FrameProfileRail.Top ? midpoint.X - root.X : 0,
+            AnchorLocalY = rail == FrameProfileRail.Top ? midpoint.Y - root.Y : 0,
             Kind = FrameRailJointKind.Butt90
         });
         return true;
@@ -2133,23 +2393,69 @@ public sealed class FrameNode
 
     public IReadOnlyList<double> GetOuterRailSegmentLengthsMm(FrameProfileRail rail)
     {
-        var root = GetRoot();
-        var ts = root.GetProfileRailJoints(rail).Select(j => j.RelativeT).ToList();
-        return FrameProfileRailGeometry.ResolveOuterSegmentLengthsMm(root.GetOuterCorners(), rail, ts);
+        var points = GetOuterRailPolylinePoints(rail);
+        return points.Zip(points.Skip(1), (a, b) => CadMath.RoundMm(a.DistanceTo(b))).ToList();
     }
 
     public IReadOnlyList<double> GetOuterRailSegmentProjectionsMm(FrameProfileRail rail)
     {
-        var root = GetRoot();
-        var ts = root.GetProfileRailJoints(rail).Select(j => j.RelativeT).ToList();
-        return FrameProfileRailGeometry.ResolveOuterSegmentProjectionsMm(root.GetOuterCorners(), rail, ts);
+        var points = GetOuterRailPolylinePoints(rail);
+        var horizontal = rail is FrameProfileRail.Top or FrameProfileRail.Bottom;
+        return points.Zip(
+                points.Skip(1),
+                (a, b) => CadMath.RoundMm(horizontal ? Math.Abs(b.X - a.X) : Math.Abs(b.Y - a.Y)))
+            .ToList();
     }
 
     public IReadOnlyList<double> GetOuterRailBoundaryCoordinates(FrameProfileRail rail)
     {
+        var horizontal = rail is FrameProfileRail.Top or FrameProfileRail.Bottom;
+        return GetOuterRailPolylinePoints(rail)
+            .Select(point => CadMath.RoundMm(horizontal ? point.X : point.Y))
+            .ToList();
+    }
+
+    public IReadOnlyList<CadPoint> GetOuterRailPolylinePoints(FrameProfileRail rail)
+    {
         var root = GetRoot();
-        var ts = root.GetProfileRailJoints(rail).Select(j => j.RelativeT).ToList();
-        return FrameProfileRailGeometry.ResolveOuterBoundaryCoordinates(root.GetOuterCorners(), rail, ts);
+        var corners = root.GetOuterCorners();
+        var (start, end) = FrameProfileRailGeometry.ResolveOuterEdge(corners, rail);
+        var points = new List<CadPoint> { start };
+        points.AddRange(root.GetProfileRailJoints(rail).Select(joint =>
+            root.ResolveProfileRailJointOuterPoint(joint)));
+        points.Add(end);
+        return points;
+    }
+
+    public CadPoint ResolveProfileRailJointOuterPoint(FrameProfileRailJoint joint)
+    {
+        var root = GetRoot();
+        if (joint.HasFixedAnchor)
+        {
+            return new CadPoint(
+                CadMath.RoundMm(root.X + joint.AnchorLocalX),
+                CadMath.RoundMm(root.Y + joint.AnchorLocalY));
+        }
+
+        return FrameProfileRailGeometry.ResolveJointOuterPoint(
+            root.GetOuterCorners(),
+            joint.Rail,
+            joint.RelativeT,
+            joint.NormalOffsetMm);
+    }
+
+    /// <summary>Полный внешний контур с учётом свободно смещённых стыков, обход CCW.</summary>
+    public IReadOnlyList<CadPoint> GetOuterContourPoints()
+    {
+        var bottom = GetOuterRailPolylinePoints(FrameProfileRail.Bottom);
+        var right = GetOuterRailPolylinePoints(FrameProfileRail.Right);
+        var top = GetOuterRailPolylinePoints(FrameProfileRail.Top).Reverse().ToList();
+        var left = GetOuterRailPolylinePoints(FrameProfileRail.Left).Reverse().ToList();
+        return bottom
+            .Concat(right.Skip(1))
+            .Concat(top.Skip(1))
+            .Concat(left.Skip(1).SkipLast(1))
+            .ToList();
     }
 
     public bool TrySetProfileRailJointT(Guid jointId, double relativeT)
@@ -2162,6 +2468,63 @@ public sealed class FrameNode
         }
 
         joint.RelativeT = Math.Clamp(relativeT, 0.05, 0.95);
+        return true;
+    }
+
+    public bool TrySetProfileRailJointPosition(
+        Guid jointId,
+        CadPoint worldPoint,
+        bool overrideLockedAxis = false)
+    {
+        var root = GetRoot();
+        var joint = root._profileRailJoints.FirstOrDefault(item => item.Id == jointId);
+        if (joint is null)
+        {
+            return false;
+        }
+
+        var currentPoint = root.ResolveProfileRailJointOuterPoint(joint);
+        if (!overrideLockedAxis
+            && (joint.LockHorizontalAxis
+                || (joint.Rail == FrameProfileRail.Top
+                    && Math.Abs(joint.RelativeT - 0.5) <= CadMath.Epsilon)))
+        {
+            worldPoint = new CadPoint(currentPoint.X, worldPoint.Y);
+        }
+
+        var projected = FrameProfileRailGeometry.ProjectPointOntoRail(
+            root.GetOuterCorners(),
+            joint.Rail,
+            worldPoint);
+        var previousT = joint.RelativeT;
+        var previousOffset = joint.NormalOffsetMm;
+        if (Math.Abs(previousT - projected.RelativeT) <= CadMath.Epsilon
+            && Math.Abs(previousOffset - projected.NormalOffsetMm) <= CadMath.Epsilon)
+        {
+            return false;
+        }
+
+        joint.RelativeT = projected.RelativeT;
+        joint.NormalOffsetMm = projected.NormalOffsetMm;
+        if (joint.HasFixedAnchor)
+        {
+            joint.AnchorLocalX = CadMath.RoundMm(worldPoint.X - root.X);
+            joint.AnchorLocalY = CadMath.RoundMm(worldPoint.Y - root.Y);
+        }
+
+        var points = root.GetOuterRailPolylinePoints(joint.Rail);
+        if (points.Zip(points.Skip(1), (a, b) => a.DistanceTo(b)).Any(length => length < MinSplitSizeMm))
+        {
+            joint.RelativeT = previousT;
+            joint.NormalOffsetMm = previousOffset;
+            if (joint.HasFixedAnchor)
+            {
+                joint.AnchorLocalX = CadMath.RoundMm(currentPoint.X - root.X);
+                joint.AnchorLocalY = CadMath.RoundMm(currentPoint.Y - root.Y);
+            }
+            return false;
+        }
+
         return true;
     }
 

@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Avalonia;
+using Avalonia.Media;
 using Avalonia.Threading;
 using NurSapat.Cad.Core.Commands;
 using NurSapat.Cad.Core.Document;
@@ -299,8 +300,24 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     private static readonly ContourColorOption[] ContourColorOptionList =
     [
-        new() { Option = CadContourColorOption.Black, Label = "Черный" },
-        new() { Option = CadContourColorOption.Gray, Label = "Серый" }
+        new()
+        {
+            Option = CadContourColorOption.Black,
+            Label = "Черный",
+            ColorBrush = new SolidColorBrush(CadContourTheme.BlackColor)
+        },
+        new()
+        {
+            Option = CadContourColorOption.Gray,
+            Label = "Серый",
+            ColorBrush = new SolidColorBrush(CadContourTheme.GrayColor)
+        },
+        new()
+        {
+            Option = CadContourColorOption.White,
+            Label = "Белый",
+            ColorBrush = new SolidColorBrush(CadContourTheme.WhiteColor)
+        }
     ];
 
     /// <summary>Варианты глобального цвета контура чертежа (рама, импосты, створки, размеры и т.д.).</summary>
@@ -395,6 +412,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     private ConstructionMaterialOption? _selectedConstructionMaterialOption = ConstructionMaterialOption.None;
     private readonly Dictionary<WindowToolMode, Guid?> _constructionMaterialByTool = new();
+    private readonly Dictionary<WindowToolMode, ToolPreset> _toolPresets = new();
+    private bool _isRestoringToolPreset;
     private WindowToolMode _materialCacheSourceTool = WindowToolMode.Other;
     private bool _pendingMaterialFilterRefresh;
     private bool _materialFilterRefreshQueued;
@@ -426,6 +445,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
             if (UsesPerToolMaterialCache(CurrentToolMode))
             {
                 _constructionMaterialByTool[CurrentToolMode] = value?.MaterialId;
+                CacheCurrentToolPreset();
             }
 
             RefreshConstructionVolume();
@@ -458,7 +478,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     [ObservableProperty]
     private ContourColorOption _selectedContourColorOption =
-        ContourColorOptionList.First(option => option.Option == CadContourColorOption.Gray);
+        ContourColorOptionList.First(option => option.Option == CadContourTheme.CurrentOption);
 
     [ObservableProperty]
     private CadDrawingTemplate? _selectedDrawingTemplate;
@@ -753,7 +773,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
     public double? DraggingMullionWorldY => _draggingMullionWorldY;
 
     public bool IsSelectedForOffset(FrameNode node, int uniformGapIndex = 0) =>
-        _selectedMullion?.Matches(node, uniformGapIndex) == true;
+        _selectedImposts.Any(target => target.Matches(node, uniformGapIndex));
 
     [ObservableProperty]
     private double _impostPanelX;
@@ -770,13 +790,11 @@ public sealed partial class CadEditorViewModel : ObservableObject
     public bool IsVerticalImpostHighlighted(FrameNode node, int uniformGapIndex = 0) =>
         IsImpostConstructionSelected(node, uniformGapIndex) ||
         (CurrentToolMode == WindowToolMode.OffsetImpostVertical &&
-         !_draggingMullionWorldX.HasValue &&
          IsSelectedForOffset(node, uniformGapIndex));
 
     public bool IsHorizontalImpostHighlighted(FrameNode node, int uniformGapIndex = 0) =>
         IsImpostConstructionSelected(node, uniformGapIndex) ||
         (CurrentToolMode == WindowToolMode.OffsetImpostHorizontal &&
-         !_draggingMullionWorldY.HasValue &&
          IsSelectedForOffset(node, uniformGapIndex));
 
     public bool IsTopProfileHovered =>
@@ -1124,6 +1142,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
             DimensionHitKind.OverallHeight => TryChangeOverallHeight(newValueMm),
             DimensionHitKind.SegmentWidth => TryChangeSegmentWidth(hit, newValueMm),
             DimensionHitKind.SegmentHeight => TryChangeSegmentHeight(hit, newValueMm),
+            DimensionHitKind.RightSegmentHeight => TryChangeSegmentHeight(hit, newValueMm),
+            DimensionHitKind.ProfileRailSegment => TryChangeProfileRailSegment(hit, newValueMm),
+            DimensionHitKind.SideHeight => TryChangeSideHeight(hit, newValueMm),
             _ => false
         };
     }
@@ -1376,13 +1397,102 @@ public sealed partial class CadEditorViewModel : ObservableObject
             ? boundaries[hit.SegmentIndex] + newValueMm
             : boundaries[hit.SegmentIndex + 1] - newValueMm;
 
-        var target = hit.ImpostTarget;
-        if (target is null)
+        if (hit.ImpostTarget is { } target)
+        {
+            return MoveHorizontalImpost(target, newAxisWorldY);
+        }
+
+        if (hit.VertexCorner is not { } corner)
         {
             return false;
         }
 
-        return MoveHorizontalImpost(target, newAxisWorldY);
+        var current = FrameRoot.GetOuterCorner(corner);
+        if (!FrameRoot.TrySetOuterCorner(
+                corner,
+                new CadPoint(current.X, CadMath.RoundMm(newAxisWorldY)),
+                MinEditableOpeningMm))
+        {
+            return false;
+        }
+
+        RecalculateFrameGeometry();
+        return true;
+    }
+
+    private bool TryChangeSideHeight(DimensionHitInfo hit, double newValueMm)
+    {
+        if (FrameRoot is null || hit.VertexCorner is not { } corner || newValueMm < MinEditableOpeningMm)
+        {
+            return false;
+        }
+
+        var current = FrameRoot.GetOuterCorner(corner);
+        var direction = Math.Sign(current.Y - hit.BaseWorldY);
+        if (direction == 0)
+        {
+            direction = 1;
+        }
+
+        if (!FrameRoot.TrySetOuterCorner(
+                corner,
+                new CadPoint(current.X, CadMath.RoundMm(hit.BaseWorldY + direction * newValueMm)),
+                MinEditableOpeningMm))
+        {
+            return false;
+        }
+
+        RecalculateFrameGeometry();
+        return true;
+    }
+
+    private bool TryChangeProfileRailSegment(DimensionHitInfo hit, double newValueMm)
+    {
+        if (FrameRoot is null
+            || hit.ProfileRail is not { } rail
+            || hit.RailJointId is not { } jointId
+            || newValueMm < MinEditableOpeningMm)
+        {
+            return false;
+        }
+
+        var root = FrameRoot.GetConstructionRoot();
+        var linkedJoint = root.ProfileRailJoints.FirstOrDefault(joint => joint.Id == jointId);
+        if (linkedJoint is not null
+            && (linkedJoint.LockHorizontalAxis
+                || (linkedJoint.Rail == FrameProfileRail.Top
+                    && Math.Abs(linkedJoint.RelativeT - 0.5) <= CadMath.Epsilon)))
+        {
+            StatusText = "Центральный стык закреплён по X; изменяйте его высоту";
+            return false;
+        }
+
+        var points = root.GetOuterRailPolylinePoints(rail);
+        if (hit.SegmentIndex < 0 || hit.SegmentIndex >= points.Count - 1)
+        {
+            return false;
+        }
+
+        var horizontal = rail is FrameProfileRail.Top or FrameProfileRail.Bottom;
+        CadPoint target;
+        if (hit.MoveRightBoundary)
+        {
+            var fixedPoint = points[hit.SegmentIndex];
+            var movingPoint = points[hit.SegmentIndex + 1];
+            target = horizontal
+                ? new CadPoint(fixedPoint.X + Math.CopySign(newValueMm, movingPoint.X - fixedPoint.X), movingPoint.Y)
+                : new CadPoint(movingPoint.X, fixedPoint.Y + Math.CopySign(newValueMm, movingPoint.Y - fixedPoint.Y));
+        }
+        else
+        {
+            var movingPoint = points[hit.SegmentIndex];
+            var fixedPoint = points[hit.SegmentIndex + 1];
+            target = horizontal
+                ? new CadPoint(fixedPoint.X - Math.CopySign(newValueMm, fixedPoint.X - movingPoint.X), movingPoint.Y)
+                : new CadPoint(movingPoint.X, fixedPoint.Y - Math.CopySign(newValueMm, fixedPoint.Y - movingPoint.Y));
+        }
+
+        return root.TrySetProfileRailJointPosition(jointId, target);
     }
 
     private static bool ValidateNeighborSegmentHeight(
@@ -1850,12 +1960,13 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
-        var bounds = new CadRect(
+        var modelBounds = new CadRect(
             FrameRoot.X,
             FrameRoot.Y + FrameRoot.Height,
             FrameRoot.Width,
             FrameRoot.Height);
-        UpdatePrimaryElementGeometry(bounds);
+        var bounds = ResolveFrameOuterBounds(FrameRoot);
+        UpdatePrimaryElementGeometry(modelBounds);
 
         if (FrameRoot.Shape == ConstructionShape.Triangle)
         {
@@ -1897,11 +2008,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
     {
         if (FrameRoot != null)
         {
-            return new CadRect(
-                FrameRoot.X,
-                FrameRoot.Y + FrameRoot.Height,
-                FrameRoot.Width,
-                FrameRoot.Height);
+            return ResolveFrameOuterBounds(FrameRoot);
         }
 
         var rects = Document.Rectangles;
@@ -1923,11 +2030,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
     {
         if (FrameRoot != null)
         {
-            return new CadRect(
-                FrameRoot.X,
-                FrameRoot.Y + FrameRoot.Height,
-                FrameRoot.Width,
-                FrameRoot.Height);
+            return ResolveFrameOuterBounds(FrameRoot);
         }
 
         if (CanvasElements.Count > 0)
@@ -2568,6 +2671,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         _constructionSelection.Clear();
         ClearExtremeImpostSelection();
         _selectedMullion = null;
+        ClearImpostMultiSelection();
         SyncGeometryElementSelectedFlags();
         SelectedElement = null;
         OnPropertyChanged(nameof(ConstructionSelection));
@@ -2588,6 +2692,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         if (_constructionSelection.Count == 0)
         {
             _selectedMullion = null;
+            ClearImpostMultiSelection();
             SelectedElement = null;
             ClearExtremeImpostSelection();
             OnPropertyChanged(nameof(SelectedMullion));
@@ -3023,8 +3128,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
                 {
                     var split = commit.ToolId switch
                     {
-                        "mullion-place-h" => leaf.TrySplitHorizontalAt(
-                            point.Y - leaf.Y,
+                        "mullion-place-h" => TrySplitSingleHorizontalImpost(
+                            leaf,
+                            point.Y,
                             ImpostLineStyle.Solid,
                             impostWidth),
                         "mullion-place-d" => leaf.AddSplit(
@@ -3043,7 +3149,10 @@ public sealed partial class CadEditorViewModel : ObservableObject
                         return false;
                     }
 
-                    TrackImpostSplit(leaf);
+                    if (commit.ToolId != "mullion-place-h")
+                    {
+                        TrackImpostSplit(leaf);
+                    }
                     SelectedElement = FrameRoot;
                     OnPropertyChanged(nameof(FrameRoot));
                     return true;
@@ -3118,6 +3227,63 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
+        if (HasCommittedConstruction && !ShouldPreserveFakeContainerForPlacement(worldPoint))
+        {
+            StatusText = "На холсте уже есть конструкция";
+            return;
+        }
+
+        BeginShapePlacementCore(worldPoint);
+    }
+
+    private static CadRect ResolveFrameOuterBounds(FrameNode frame)
+    {
+        var points = frame.GetConstructionRoot().GetOuterContourPoints();
+        if (points.Count == 0)
+        {
+            return new CadRect(frame.X, frame.Y + frame.Height, frame.Width, frame.Height);
+        }
+
+        var minX = points.Min(point => point.X);
+        var maxX = points.Max(point => point.X);
+        var minY = points.Min(point => point.Y);
+        var maxY = points.Max(point => point.Y);
+        return new CadRect(minX, maxY, maxX - minX, maxY - minY);
+    }
+
+    public async Task<bool> TryBeginShapePlacementAsync(CadPoint worldPoint)
+    {
+        if (!IsDragCreateShapeMode(CurrentToolMode))
+        {
+            return false;
+        }
+
+        if (HasCommittedConstruction && !ShouldPreserveFakeContainerForPlacement(worldPoint))
+        {
+            var confirmed = await _dialogService.ShowConfirmationAsync(
+                "Новая конструкция",
+                "Создать новую конструкцию? Несохраненные изменения текущей рамы будут сброшены");
+            if (!confirmed)
+            {
+                StatusText = "Текущая конструкция сохранена";
+                return false;
+            }
+
+            // Исходный pointer-жест завершился, пока был открыт модальный диалог.
+            // Очищаем только после подтверждения и ждём нового осознанного drag-жеста.
+            ClearCommittedFrameGeometry();
+            ApplyNewConstructionOptionsToPanel();
+            StatusText = "Новая конструкция: укажите первый угол";
+            RequestSceneRefresh();
+            return false;
+        }
+
+        BeginShapePlacementCore(worldPoint);
+        return true;
+    }
+
+    private void BeginShapePlacementCore(CadPoint worldPoint)
+    {
         if (!ShouldPreserveFakeContainerForPlacement(worldPoint))
         {
             ClearCommittedFrameGeometry();
@@ -3180,13 +3346,14 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         try
         {
+            var placementMode = CurrentToolMode;
             var end = RoundMm(endWorld);
             var width = RoundMm(Math.Abs(end.X - start.X));
             var height = RoundMm(Math.Abs(end.Y - start.Y));
             var originX = RoundMm(Math.Min(start.X, end.X));
             var originY = RoundMm(Math.Min(start.Y, end.Y));
 
-            if (!CommitShapeAt(CurrentToolMode, originX, originY, width, height))
+            if (!CommitShapeAt(placementMode, originX, originY, width, height))
             {
                 _isCommittingRealFrame = false;
                 ClearShapePlacementFlags();
@@ -3200,7 +3367,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
                 originY,
                 PlacementAnchor.BottomLeft);
             CompleteFrameCreationAndSelection();
-            StatusText = $"{GetDragShapeKindLabel(CurrentToolMode).Label} создана";
+            StatusText = $"{GetDragShapeKindLabel(placementMode).Label} создана";
             return true;
         }
         finally
@@ -3226,6 +3393,18 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
+        var placementCenter = new CadPoint(CoordinateX, CoordinateY);
+        if (HasCommittedConstruction && !ShouldPreserveFakeContainerForPlacement(placementCenter))
+        {
+            StatusText = "На холсте уже есть конструкция";
+            return;
+        }
+
+        PrepareShapeSizeEntryCore();
+    }
+
+    private void PrepareShapeSizeEntryCore()
+    {
         ClearShapePlacementFlags();
         _isCommittingRealFrame = false;
         _realFrameStartWorld = null;
@@ -3254,10 +3433,23 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
+        var placementCenter = new CadPoint(CoordinateX, CoordinateY);
+        if (HasCommittedConstruction && !ShouldPreserveFakeContainerForPlacement(placementCenter))
+        {
+            var confirmed = await _dialogService.ShowConfirmationAsync(
+                "Новая конструкция",
+                "Создать новую конструкцию? Несохраненные изменения текущей рамы будут сброшены");
+            if (!confirmed)
+            {
+                StatusText = "Текущая конструкция сохранена";
+                return;
+            }
+        }
+
         _isShapeSizeDialogOpen = true;
         try
         {
-            PrepareShapeSizeEntry();
+            PrepareShapeSizeEntryCore();
 
             var result = await _dialogService.ShowNewConstructionSizeInputAsync(_newConstructionOptions.Clone());
             if (result == null)
@@ -3386,6 +3578,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         if (ShouldNestRealFrameInFakeContext() && SelectedElement is FrameNode nestedLeaf)
         {
             ScheduleFrameSelectionUiRefresh(nestedLeaf);
+            ResetToSelectionTool();
             return;
         }
 
@@ -3396,6 +3589,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         ApplyFrameSelection(frame);
         ScheduleFrameSelectionUiRefresh(frame);
+        ResetToSelectionTool();
     }
 
     public void FinalizeRealFramePlacement() => FinalizeShapePlacement();
@@ -3937,6 +4131,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         SelectedRectangle = null;
         _constructionSelection.Clear();
         _selectedMullion = null;
+        ClearImpostMultiSelection();
         SyncGeometryElementSelectedFlags();
         RealFramePreview = null;
         SashDragPreview = null;
@@ -4270,6 +4465,23 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
+        if (CurrentToolMode == WindowToolMode.DoubleHorizontalImpost)
+        {
+            var width = GetImpostProfileWidth(CurrentToolMode);
+            var style = GetImpostLineStyle(CurrentToolMode);
+            if (RecordPlacement("Импост двойной горизонтальный", () =>
+                    TrySplitDoubleHorizontalImpostIntoSegments(leaf!, worldPoint.Y, width, style)))
+            {
+                RefreshAfterImpostAdded(CurrentToolMode);
+            }
+            else
+            {
+                StatusText = "Невозможно установить импост на этом уровне";
+            }
+
+            return;
+        }
+
         var impostCount = await _dialogService.ShowImpostCountAsync(1);
         if (impostCount is not >= 1)
         {
@@ -4328,7 +4540,13 @@ public sealed partial class CadEditorViewModel : ObservableObject
         }
     }
 
-    partial void OnSelectedProfileSeriesItemChanged(ProfileSeries? value) => ApplySeriesThickness(value);
+    partial void OnSelectedProfileSeriesItemChanged(ProfileSeries? value)
+    {
+        ApplySeriesThickness(value);
+        CacheCurrentToolPreset();
+    }
+
+    partial void OnSelectedMaterialColorChanged(string? value) => CacheCurrentToolPreset();
 
     public bool AreFurnitureOptionsEnabled =>
         CurrentToolMode is WindowToolMode.Hardware or WindowToolMode.Sash;
@@ -4399,7 +4617,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     partial void OnCurrentToolModeChanged(WindowToolMode value)
     {
-        CacheMaterialForTool(_materialCacheSourceTool);
+        CacheToolPreset(_materialCacheSourceTool);
 
         // Сброс очереди материалов — старые callback'и ComboBox не должны перезаписывать новый инструмент.
         _pendingMaterialFilterRefresh = false;
@@ -4407,6 +4625,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         _selectionUpdateGeneration++;
 
         FinalizeActiveToolModeSwitch(value);
+        RestoreToolPreset(value);
         _materialCacheSourceTool = value;
 
         OnPropertyChanged(nameof(IsDragCreateShapeToolActive));
@@ -4897,6 +5116,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         SelectedRectangle = null;
         _constructionSelection.Clear();
         _selectedMullion = null;
+        ClearImpostMultiSelection();
         SyncGeometryElementSelectedFlags();
 
         Length = 0;
@@ -5900,6 +6120,66 @@ public sealed partial class CadEditorViewModel : ObservableObject
         _constructionMaterialByTool[mode] = _selectedConstructionMaterialOption?.MaterialId;
     }
 
+    private void CacheCurrentToolPreset()
+    {
+        if (_isRestoringToolPreset)
+        {
+            return;
+        }
+
+        CacheToolPreset(CurrentToolMode);
+    }
+
+    private void CacheToolPreset(WindowToolMode mode)
+    {
+        if (!UsesPerToolMaterialCache(mode))
+        {
+            return;
+        }
+
+        var preset = new ToolPreset(
+            SelectedProfileSeriesItem?.Id,
+            _selectedConstructionMaterialOption?.MaterialId,
+            SelectedMaterialColor);
+        _toolPresets[mode] = preset;
+        _constructionMaterialByTool[mode] = preset.MaterialId;
+    }
+
+    private void RestoreToolPreset(WindowToolMode mode)
+    {
+        if (!UsesPerToolMaterialCache(mode))
+        {
+            return;
+        }
+
+        _isRestoringToolPreset = true;
+        try
+        {
+            if (!_toolPresets.TryGetValue(mode, out var preset))
+            {
+                preset = new ToolPreset(
+                    ProfileSeriesCatalog.Pvc70Id,
+                    null,
+                    MaterialColors.FirstOrDefault() ?? "Белый");
+                _toolPresets[mode] = preset;
+            }
+
+            SelectedProfileSeriesItem =
+                AvailableProfileSeries.FirstOrDefault(series => series.Id == preset.SeriesId)
+                ?? AvailableProfileSeries.FirstOrDefault();
+            SelectedMaterialColor =
+                MaterialColors.FirstOrDefault(color => string.Equals(color, preset.Color, StringComparison.Ordinal))
+                ?? MaterialColors.FirstOrDefault();
+            _constructionMaterialByTool[mode] = preset.MaterialId;
+        }
+        finally
+        {
+            _isRestoringToolPreset = false;
+        }
+    }
+
+    private sealed record ToolPreset(Guid? SeriesId, Guid? MaterialId, string? Color);
+
     private static bool SupportsConstructionMaterialSelection(WindowToolMode mode) => mode switch
     {
         WindowToolMode.Hardware or WindowToolMode.Handle or WindowToolMode.Lock
@@ -6557,7 +6837,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
     public CadPoint SnapPointToGrid(CadPoint point) =>
         new(SnapToGrid(point.X), SnapToGrid(point.Y));
 
-    public bool TryPressVerticalImpostOffset(CadPoint worldPoint)
+    public bool TryPressVerticalImpostOffset(CadPoint worldPoint, bool isControlPressed = false)
     {
         if (CurrentToolMode != WindowToolMode.OffsetImpostVertical || FrameRoot is null)
         {
@@ -6565,16 +6845,23 @@ public sealed partial class CadEditorViewModel : ObservableObject
         }
 
         var hit = HitTestVerticalImpost(worldPoint);
-        if (hit is null)
+        if (hit is null || hit.Orientation != GridLineOrientation.Vertical)
         {
             StatusText = "Кликните по вертикальному импосту";
             return false;
         }
 
-        _selectedMullion = hit;
+        if (!TrySelectImpostForOffset(
+                hit,
+                GridLineOrientation.Vertical,
+                isControlPressed,
+                worldPoint.X))
+        {
+            return false;
+        }
+
         _isVerticalImpostDragging = true;
         _draggingMullionWorldX = ResolveSelectedMullionAxisX();
-        BeginConstructionDrag();
         SyncImpostPanelFromGhostAxis(_draggingMullionWorldX ?? worldPoint.X);
         OnPropertyChanged(nameof(SelectedMullion));
         OnPropertyChanged(nameof(DraggingMullionWorldX));
@@ -6592,14 +6879,13 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
-        if (!TryResolveVerticalImpostDragAxisRange(_selectedMullion, out var minX, out var maxX))
+        if (!TryMoveSelectedImpostGroup(GridLineOrientation.Vertical, worldPoint.X))
         {
             return;
         }
 
-        var axisX = RoundMm(Math.Clamp(worldPoint.X, minX, maxX));
-        _draggingMullionWorldX = axisX;
-        TryMoveSelectedVerticalImpost(axisX);
+        var axisX = ResolveSelectedMullionAxisX() ?? worldPoint.X;
+        _draggingMullionWorldX = RoundMm(axisX);
         OnPropertyChanged(nameof(DraggingMullionWorldX));
         SyncImpostPanelFromGhostAxis(axisX);
         StatusText = $"Свет слева {ImpostPanelL:F1} · справа {ImpostPanelH:F1} мм";
@@ -6613,11 +6899,12 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
-        if (_selectedMullion is not null && _draggingMullionWorldX is double axisX)
+        if (_selectedMullion is not null)
         {
-            TryMoveSelectedVerticalImpost(axisX);
             SyncImpostPanelFromSelection();
-            CommitConstructionDrag("Импост перемещён");
+            CommitConstructionDrag(_selectedImposts.Count > 1
+                ? "Группа вертикальных импостов перемещена"
+                : "Импост перемещён");
         }
         else
         {
@@ -6636,7 +6923,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         RequestSceneRefresh();
     }
 
-    public bool TryPressHorizontalImpostOffset(CadPoint worldPoint)
+    public bool TryPressHorizontalImpostOffset(CadPoint worldPoint, bool isControlPressed = false)
     {
         if (CurrentToolMode != WindowToolMode.OffsetImpostHorizontal || FrameRoot is null)
         {
@@ -6646,16 +6933,23 @@ public sealed partial class CadEditorViewModel : ObservableObject
         EnsureArchFrameTopProfileForImpost();
 
         var hit = HitTestHorizontalImpost(worldPoint);
-        if (hit is null)
+        if (hit is null || hit.Orientation != GridLineOrientation.Horizontal)
         {
             StatusText = "Кликните по горизонтальному импосту";
             return false;
         }
 
-        _selectedMullion = hit;
+        if (!TrySelectImpostForOffset(
+                hit,
+                GridLineOrientation.Horizontal,
+                isControlPressed,
+                worldPoint.Y))
+        {
+            return false;
+        }
+
         _isHorizontalImpostDragging = true;
         _draggingMullionWorldY = ResolveSelectedMullionAxisY();
-        BeginConstructionDrag();
         SyncImpostPanelFromGhostAxisY(_draggingMullionWorldY ?? worldPoint.Y);
         OnPropertyChanged(nameof(SelectedMullion));
         OnPropertyChanged(nameof(DraggingMullionWorldY));
@@ -6673,15 +6967,14 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return;
         }
 
-        if (!TryResolveHorizontalImpostDragAxisRange(_selectedMullion, out var minY, out var maxY))
+        if (!TryMoveSelectedImpostGroup(GridLineOrientation.Horizontal, worldPoint.Y))
         {
             return;
         }
 
-        var axisY = RoundMm(Math.Clamp(worldPoint.Y, minY, maxY));
+        var axisY = RoundMm(ResolveSelectedMullionAxisY() ?? worldPoint.Y);
         _draggingMullionWorldY = axisY;
         TraceHorizontalImpost("drag-update", ghostAxisY: axisY, moveInputAxisY: axisY);
-        TryMoveSelectedHorizontalImpost(axisY);
         TraceHorizontalImpost("drag-after-move", ghostAxisY: axisY);
         OnPropertyChanged(nameof(DraggingMullionWorldY));
         SyncImpostPanelFromGhostAxisY(axisY);
@@ -6699,35 +6992,22 @@ public sealed partial class CadEditorViewModel : ObservableObject
         _isCommittingHorizontalImpostRelease = true;
         try
         {
-            if (_selectedMullion is not null && _draggingMullionWorldY is double axisY)
+            if (_selectedMullion is not null)
             {
-                if (TryResolveHorizontalImpostDragAxisRange(_selectedMullion, out var minY, out var maxY))
+                TraceHorizontalImpost("release-before-move", ghostAxisY: _draggingMullionWorldY);
+                _isSyncingImpostPanel = true;
+                try
                 {
-                    axisY = RoundMm(Math.Clamp(axisY, minY, maxY));
+                    SyncImpostPanelFromSelection();
+                }
+                finally
+                {
+                    _isSyncingImpostPanel = false;
                 }
 
-                TraceHorizontalImpost("release-before-move", ghostAxisY: axisY, moveInputAxisY: axisY);
-
-                if (TryMoveSelectedHorizontalImpost(axisY))
-                {
-                    TraceHorizontalImpost("release-after-move", ghostAxisY: axisY);
-                    _isSyncingImpostPanel = true;
-                    try
-                    {
-                        SyncImpostPanelFromSelection();
-                    }
-                    finally
-                    {
-                        _isSyncingImpostPanel = false;
-                    }
-
-                    CommitConstructionDrag("Импост перемещён");
-                }
-                else
-                {
-                    TraceHorizontalImpost("release-move-failed", ghostAxisY: axisY, moveInputAxisY: axisY);
-                    CancelConstructionDrag();
-                }
+                CommitConstructionDrag(_selectedImposts.Count > 1
+                    ? "Группа горизонтальных импостов перемещена"
+                    : "Импост перемещён");
             }
             else
             {
@@ -6826,6 +7106,16 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         var nodeMin = node.X + minCellMm + half;
         var nodeMax = node.X + node.Width - minCellMm - half;
+        if (node.IsUniformSplit
+            && target.UniformGapIndex is int gapIndex
+            && gapIndex >= 0
+            && gapIndex + 1 < node.UniformCells.Count)
+        {
+            var leftCell = node.UniformCells[gapIndex];
+            var rightCell = node.UniformCells[gapIndex + 1];
+            nodeMin = leftCell.X + minCellMm + half;
+            nodeMax = rightCell.X + rightCell.Width - minCellMm - half;
+        }
 
         if (FrameRoot is null)
         {
@@ -6856,6 +7146,18 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         var nodeMin = node.Y + minCellMm + half;
         var nodeMax = node.Y + node.Height - minCellMm - half;
+        if (node.IsUniformSplit
+            && target.UniformGapIndex is int gapIndex
+            && gapIndex >= 0
+            && gapIndex + 1 < node.UniformCells.Count)
+        {
+            var bottomCell = node.UniformCells[gapIndex];
+            var topEdge = gapIndex >= node.UniformCells.Count - 2
+                ? node.Y + FrameNode.ResolveHorizontalSplitExtentLocal(node, node.GetRoot())
+                : node.UniformCells[gapIndex + 1].Y + node.UniformCells[gapIndex + 1].Height;
+            nodeMin = bottomCell.Y + minCellMm + half;
+            nodeMax = topEdge - minCellMm - half;
+        }
 
         if (FrameRoot is null)
         {
@@ -6868,7 +7170,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
         var innerMin = inner.Bottom + ImpostDragInnerInsetMm + half;
 
         minAxisY = Math.Max(nodeMin, innerMin);
-        maxAxisY = HorizontalImpostGeometry.ResolveMaxCenterAxisY(this, node, half, ImpostDragInnerInsetMm);
+        maxAxisY = Math.Min(
+            nodeMax,
+            HorizontalImpostGeometry.ResolveMaxCenterAxisY(this, node, half, ImpostDragInnerInsetMm));
 
         return maxAxisY > minAxisY;
     }
@@ -7200,6 +7504,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private void ClearImpostOffsetInteractionState()
     {
         _selectedMullion = null;
+        ClearImpostMultiSelection();
         _isVerticalImpostDragging = false;
         _isHorizontalImpostDragging = false;
         _isCommittingHorizontalImpostRelease = false;
@@ -7221,7 +7526,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
     public ImpostTarget? HitTestGridLine(CadPoint worldPoint, GridLineOrientation? orientationFilter = null)
     {
         var tolerance = ResolveVerticalImpostHitToleranceMm();
-        var hit = GridLineHitTest.HitTest(this, worldPoint, tolerance);
+        var hit = GridLineHitTest.HitTest(this, worldPoint, tolerance, orientationFilter);
         if (hit is null)
         {
             return null;
@@ -8288,6 +8593,10 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         public double ViewportPanY { get; init; } = 350;
 
+        public string BaseStrokeColor { get; init; } = nameof(CadContourColorOption.Gray);
+
+        public FrameNode.TreeSnapshot? FrameTree { get; init; }
+
         public FrameNodeSnapshot? FrameRoot { get; init; }
     }
 
@@ -8330,6 +8639,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
         ViewportZoomFactor = Viewport.ZoomFactor,
         ViewportPanX = Viewport.PanOffset.X,
         ViewportPanY = Viewport.PanOffset.Y,
+        BaseStrokeColor = CadContourTheme.CurrentOption.ToString(),
+        FrameTree = FrameRoot?.CaptureTreeSnapshot(),
         FrameRoot = FrameRoot is null ? null : CaptureFrameNode(FrameRoot)
     };
 
@@ -8350,10 +8661,21 @@ public sealed partial class CadEditorViewModel : ObservableObject
             Viewport.PanOffset = new CadVector(snapshot.ViewportPanX, snapshot.ViewportPanY);
             OnPropertyChanged(nameof(ZoomPercent));
             OnPropertyChanged(nameof(MillimetersPerPixel));
+            var contourOption = Enum.TryParse<CadContourColorOption>(
+                snapshot.BaseStrokeColor,
+                ignoreCase: true,
+                out var parsedContourOption)
+                ? parsedContourOption
+                : CadContourColorOption.Gray;
+            CadContourTheme.Apply(contourOption);
+            SelectedContourColorOption = ContourColorOptionList.First(
+                option => option.Option == contourOption);
 
-            FrameRoot = snapshot.FrameRoot is null
-                ? TryCreateFrameFromElements(elements)
-                : RestoreFrameNode(snapshot.FrameRoot);
+            FrameRoot = snapshot.FrameTree is not null
+                ? FrameNode.RestoreTree(snapshot.FrameTree)
+                : snapshot.FrameRoot is null
+                    ? TryCreateFrameFromElements(elements)
+                    : RestoreFrameNode(snapshot.FrameRoot);
 
             SetDesignElements(elements);
             SyncExtremeImpostCanvasElements();

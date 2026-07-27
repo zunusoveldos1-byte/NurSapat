@@ -104,9 +104,26 @@ internal static class LegacyDatabasePreparer
         }
 
         // Unquoted identifiers — PostgreSQL folds to lowercase matching legacy tables.
-        await dbContext.Database.ExecuteSqlRawAsync(
-            $"ALTER TABLE {from} RENAME TO {to};",
-            cancellationToken);
+        if (!IsSafePostgresIdentifier(from) || !IsSafePostgresIdentifier(to))
+        {
+            throw new InvalidOperationException("Unsafe PostgreSQL identifier in legacy table rename.");
+        }
+
+        // Identifiers cannot be query parameters. Validate them before composing DDL.
+        var renameSql = $"ALTER TABLE \"{from}\" RENAME TO \"{to}\";";
+        await dbContext.Database.ExecuteSqlRawAsync(renameSql, cancellationToken);
+    }
+
+    private static bool IsSafePostgresIdentifier(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)
+            || !(char.IsAsciiLetter(value[0]) || value[0] == '_'))
+        {
+            return false;
+        }
+
+        return value.All(character =>
+            char.IsAsciiLetterOrDigit(character) || character == '_');
     }
 
     private static async Task<bool> TableExistsAsync(

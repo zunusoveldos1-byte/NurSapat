@@ -24,6 +24,23 @@ public sealed class FrameProfileRailJoint
     /// </summary>
     public double RelativeT { get; set; } = 0.5;
 
+    /// <summary>
+    /// Смещение стыка от исходной оси рейки вдоль её нормали.
+    /// Вместе с RelativeT позволяет свободно перемещать стык в 2D.
+    /// </summary>
+    public double NormalOffsetMm { get; set; }
+
+    /// <summary>Центральный стык-конёк сохраняет мировую координату X при перемещении.</summary>
+    public bool LockHorizontalAxis { get; set; }
+
+    /// <summary>
+    /// Зафиксированная позиция стыка в локальных координатах корневой рамы.
+    /// Не зависит от последующей деформации крайних углов.
+    /// </summary>
+    public bool HasFixedAnchor { get; set; }
+    public double AnchorLocalX { get; set; }
+    public double AnchorLocalY { get; set; }
+
     public FrameRailJointKind Kind { get; set; } = FrameRailJointKind.Butt90;
 }
 
@@ -33,5 +50,10 @@ public sealed class FrameProfileRailJointSnapshot
     public Guid Id { get; init; }
     public FrameProfileRail Rail { get; init; }
     public double RelativeT { get; init; }
+    public double NormalOffsetMm { get; init; }
+    public bool LockHorizontalAxis { get; init; }
+    public bool HasFixedAnchor { get; init; }
+    public double AnchorLocalX { get; init; }
+    public double AnchorLocalY { get; init; }
     public FrameRailJointKind Kind { get; init; }
 }

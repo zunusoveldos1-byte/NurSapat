@@ -107,6 +107,8 @@
                                    TextWrapping="Wrap"
                                    IsVisible="{Binding !!ErrorMessage}"/>
 
+                        <!-- Email -->
+
                         <StackPanel Spacing="16">
                             <StackPanel Spacing="8">
                                 <TextBlock Text="Email"
@@ -122,7 +124,8 @@
                                                  VerticalAlignment="Center"
                                                  HorizontalAlignment="Center">
                                             <Canvas Width="24" Height="24">
-                                                <Path Data="M12,11 C13.66,11 15,9.66 15,8 C15,6.34 13.66,5 12,5 C10.34,5 9,6.34 9,8 C9,9.66 10.34,11 12,11 M6,19 C6,16.24 8.69,14.5 12,14.5 C15.31,14.5 18,16.24 18,19"
+                                                <!-- Иконка Конверта (Email) -->
+                                                <Path Data="M4,6 H20 C21.1,6 22,6.9 22,8 V16 C22,17.1 21.1,18 20,18 H4 C2.9,18 2,17.1 2,16 V8 C2,6.9 2.9,6 4,6 Z M21,8 L12,13 L3,8"
                                                       Stroke="#94A3B8"
                                                       StrokeThickness="1.5"
                                                       StrokeLineCap="Round"/>
@@ -140,6 +143,8 @@
                                     </Grid>
                                 </Border>
                             </StackPanel>
+
+                            <!-- Password -->
 
                             <StackPanel Spacing="8">
                                 <TextBlock Text="Пароль"
@@ -198,17 +203,17 @@
                         </StackPanel>
 
                         <Grid ColumnDefinitions="*,Auto">
-                        <CheckBox Classes="remember-me"
-                                  Content="Запомнить меня"
-                                  IsChecked="{Binding RememberMe}"
-                                  VerticalAlignment="Center"/>
-                        <Button Grid.Column="1"
-                                Classes="link-btn"
-                                Command="{Binding HelpCommand}"
-                                Content="Забыли пароль?"
-                                VerticalAlignment="Center"
-                                Margin="0,6,0,0"/> 
-                        </Grid>
+                            <CheckBox Classes="remember-me"
+                                      Content="Запомнить меня"
+                                      IsChecked="{Binding RememberMe}"
+                                      VerticalAlignment="Center"/>
+                            <Button Grid.Column="1"
+                                    Classes="link-btn"
+                                    Command="{Binding HelpCommand}"
+                                    Content="Забыли пароль?"
+                                    VerticalAlignment="Center"
+                                    Margin="0,6,0,0"/>
+                    </Grid>
 
                         <StackPanel Spacing="0">
                             <Button Classes="login-primary"
@@ -259,21 +264,6 @@
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
-
-                            <Button Content="Выйти"
-                                    Command="{Binding LogoutCommand}"
-                                    IsVisible="True"
-                                    HorizontalAlignment="Stretch"
-                                    Margin="0,20,0,0"
-                                    Height="45"
-                                    CornerRadius="8"
-                                    Background="#EF4444"
-                                    Foreground="White"
-                                    FontSize="16"
-                                    FontWeight="Bold"
-                                    HorizontalContentAlignment="Center"
-                                    VerticalContentAlignment="Center"
-                                    Cursor="Hand"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -318,7 +308,7 @@
                                     VerticalAlignment="Center"
                                     Focusable="False"/>
                         </Grid>
-    
+
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                             <TextBlock Grid.Column="0"
                                        Text="Email:"
@@ -332,7 +322,7 @@
                                     VerticalAlignment="Center"
                                     Focusable="False"/>
                         </Grid>
-    
+
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                             <TextBlock Grid.Column="0"
                                        Text="Telegram:"
@@ -346,7 +336,7 @@
                                     VerticalAlignment="Center"
                                     Focusable="False"/>
                         </Grid>
-    
+
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                             <TextBlock Grid.Column="0"
                                        Text="График:"

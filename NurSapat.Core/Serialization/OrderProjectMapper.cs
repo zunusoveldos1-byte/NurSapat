@@ -96,7 +96,7 @@ public static class OrderProjectMapper
     {
         OrderNumber = data.OrderNumber,
         OrderDate = data.OrderDate,
-        Status = data.Status,
+        Status = NormalizeLegacyStatus(data.Status),
         CustomerId = data.CustomerId,
         DealerId = data.DealerId,
         CurrentPriceMode = data.CurrentPriceMode,
@@ -120,6 +120,15 @@ public static class OrderProjectMapper
         ProductionNote = data.ProductionNote,
         Note = data.Note,
         CurrencyCode = data.CurrencyCode
+    };
+
+    private static OrderStatus NormalizeLegacyStatus(OrderStatus status) => (int)status switch
+    {
+        1 => OrderStatus.Calculated,
+        2 => OrderStatus.InProduction,
+        3 => OrderStatus.ReadyForShipment,
+        4 => OrderStatus.Shipped,
+        _ => status
     };
 
     private static ConstructionProjectData ToConstructionData(OrderConstruction construction) => new()

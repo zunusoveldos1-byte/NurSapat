@@ -23,12 +23,12 @@
             <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
 
             <Grid Grid.Row="1" ColumnDefinitions="Auto,*" ColumnSpacing="16" RowDefinitions="Auto,Auto" RowSpacing="8">
-                <TextBlock Text="X, мм" VerticalAlignment="Center"/>
+                <TextBlock Text="Координата X (мм)" VerticalAlignment="Center"/>
                 <TextBox Grid.Column="1"
                          Text="{Binding CoordinateXText, Mode=TwoWay}"
                          behaviors:SignedDecimalInputBehavior.AllowNegative="True"/>
 
-                <TextBlock Grid.Row="1" Text="Y, мм" VerticalAlignment="Center"/>
+                <TextBlock Grid.Row="1" Text="Координата Y (мм)" VerticalAlignment="Center"/>
                 <TextBox Grid.Row="1"
                          Grid.Column="1"
                          Text="{Binding CoordinateYText, Mode=TwoWay}"
@@ -43,14 +43,17 @@
 
             <Grid Grid.Row="3" ColumnDefinitions="*,*" ColumnSpacing="12">
                 <Button Content="OK"
+                        IsDefault="True"
                         Command="{Binding ConfirmCommand}"
                         HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"/>
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
                 <Button Grid.Column="1"
                         Content="Отмена"
                         Command="{Binding CancelCommand}"
                         HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"/>
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
             </Grid>
         </Grid>
     </Border>

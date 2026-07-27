@@ -1,4 +1,5 @@
 using Avalonia;
+using NurSapat.Cad.Core.Models;
 
 namespace NurSapat.Cad.UI.Models;
 
@@ -7,7 +8,10 @@ public enum DimensionHitKind
     OverallWidth,
     OverallHeight,
     SegmentWidth,
-    SegmentHeight
+    SegmentHeight,
+    ProfileRailSegment,
+    SideHeight,
+    RightSegmentHeight
 }
 
 /// <summary>
@@ -44,4 +48,12 @@ public sealed class DimensionHitInfo
 
     /// <summary>true — сдвигать верхнюю границу сегмента; false — нижнюю (для крайнего верхнего сегмента).</summary>
     public bool MoveUpperBoundary { get; init; }
+
+    public FrameProfileRail? ProfileRail { get; init; }
+
+    public Guid? RailJointId { get; init; }
+
+    public FrameOuterCornerKind? VertexCorner { get; init; }
+
+    public double BaseWorldY { get; init; }
 }

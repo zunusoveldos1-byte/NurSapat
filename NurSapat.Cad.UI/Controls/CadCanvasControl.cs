@@ -618,7 +618,7 @@ public sealed class CadCanvasControl : Control
         context.DrawText(yLabel, new Point(x0 - yLabel.Width / 2, y0 - len - 12));
     }
 
-    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    protected override async void OnPointerPressed(PointerPressedEventArgs e)
     {
         Focus();
         var point = e.GetPosition(this);
@@ -702,10 +702,16 @@ public sealed class CadCanvasControl : Control
 
             if (properties.IsLeftButtonPressed)
             {
+                var worldPoint = Editor.Viewport.ScreenToWorld(new ScreenPoint(point.X, point.Y));
+                if (!await Editor.TryBeginShapePlacementAsync(worldPoint))
+                {
+                    e.Handled = true;
+                    InvalidateVisual();
+                    return;
+                }
+
                 _startPoint = point;
                 _isDrawingFrame = true;
-                var worldPoint = Editor.Viewport.ScreenToWorld(new ScreenPoint(point.X, point.Y));
-                Editor.BeginShapePlacement(worldPoint);
                 e.Pointer.Capture(this);
                 e.Handled = true;
                 InvalidateVisual();
@@ -778,7 +784,9 @@ public sealed class CadCanvasControl : Control
             && properties.IsLeftButtonPressed)
         {
             e.Handled = true;
-            if (Editor.TryPressVerticalImpostOffset(cadEvent.WorldPoint))
+            if (Editor.TryPressVerticalImpostOffset(
+                    cadEvent.WorldPoint,
+                    e.KeyModifiers.HasFlag(KeyModifiers.Control)))
             {
                 e.Pointer.Capture(this);
             }
@@ -792,7 +800,9 @@ public sealed class CadCanvasControl : Control
             && properties.IsLeftButtonPressed)
         {
             e.Handled = true;
-            if (Editor.TryPressHorizontalImpostOffset(cadEvent.WorldPoint))
+            if (Editor.TryPressHorizontalImpostOffset(
+                    cadEvent.WorldPoint,
+                    e.KeyModifiers.HasFlag(KeyModifiers.Control)))
             {
                 e.Pointer.Capture(this);
             }
@@ -973,6 +983,12 @@ public sealed class CadCanvasControl : Control
         Editor.UpdatePointerInteraction(worldPoint);
         Editor.UpdateRadiusVertexHover(worldPoint);
         Editor.UpdateVertexHandleHover(worldPoint);
+        if (!_isPanning
+            && Editor.ShowVertexHandles
+            && Editor.TryHitVertexHandle(worldPoint))
+        {
+            Cursor = PanHandCursor;
+        }
 
         if (Editor.CurrentToolMode == WindowToolMode.ExtremeImpost)
         {
@@ -1175,9 +1191,38 @@ public sealed class CadCanvasControl : Control
             return;
         }
 
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            const double nudgeMm = 1.0;
+            var delta = e.Key switch
+            {
+                Key.Left => (-nudgeMm, 0.0),
+                Key.Right => (nudgeMm, 0.0),
+                Key.Up => (0.0, nudgeMm),
+                Key.Down => (0.0, -nudgeMm),
+                _ => (0.0, 0.0)
+            };
+            if ((Math.Abs(delta.Item1) > 0 || Math.Abs(delta.Item2) > 0)
+                && Editor.TryNudgeActiveVertex(delta.Item1, delta.Item2))
+            {
+                e.Handled = true;
+                InvalidateVisual();
+                return;
+            }
+        }
+
         if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Alt) && e.Key == Key.Z)
         {
             Editor.UndoLastElementCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control)
+            && e.KeyModifiers.HasFlag(KeyModifiers.Shift)
+            && e.Key == Key.Z)
+        {
+            Editor.RedoCommand.Execute(null);
             e.Handled = true;
             return;
         }
@@ -1303,6 +1348,14 @@ public sealed class CadCanvasControl : Control
             || Editor.FrameRoot?.IsFictitiousContainer == true
             || Editor.HasFakeFrameOnCanvas;
         if (isFictitiousFrame)
+        {
+            return;
+        }
+
+        // Точный профиль уже подсвечивается ConstructionSelectionRenderer.
+        // Старый AABB здесь создавал паразитную «коробку в коробке» после деформации.
+        if (Editor.FrameRoot?.HasDeformedOuterContour() == true
+            || Editor.FrameRoot?.ProfileRailJoints.Any(joint => Math.Abs(joint.NormalOffsetMm) > CadMath.Epsilon) == true)
         {
             return;
         }

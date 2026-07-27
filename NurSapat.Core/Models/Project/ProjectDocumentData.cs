@@ -346,6 +346,10 @@ public sealed class CadProjectData
 
     public double ViewportPanY { get; set; } = 350;
 
+    public string BaseStrokeColor { get; set; } = "Gray";
+
+    public string? FrameTreeJson { get; set; }
+
     public FrameNodeData? FrameRoot { get; set; }
 }
 

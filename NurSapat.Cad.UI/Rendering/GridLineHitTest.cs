@@ -17,7 +17,8 @@ public static class GridLineHitTest
     public static GridLine? HitTest(
         CadEditorViewModel editor,
         CadPoint worldPoint,
-        double toleranceMm)
+        double toleranceMm,
+        GridLineOrientation? orientationFilter = null)
     {
         editor.RebuildGridLines();
         GridLine? best = null;
@@ -27,6 +28,11 @@ public static class GridLineHitTest
 
         foreach (var line in editor.GridLines.All)
         {
+            if (orientationFilter is { } orientation && line.Orientation != orientation)
+            {
+                continue;
+            }
+
             var distance = AxisMath.DistanceToLine(line, worldPoint.X, worldPoint.Y);
             if (distance > tolerance)
             {

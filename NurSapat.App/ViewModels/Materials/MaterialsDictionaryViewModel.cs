@@ -16,9 +16,9 @@ public sealed partial class MaterialsDictionaryViewModel : ObservableObject
     private readonly List<MaterialListItemViewModel> _allItems = [];
 
     public MaterialsDictionaryViewModel(
-        IMaterialsDetailStore store,
-        IMaterialEditorService editorService,
-        IMaterialExportService exportService)
+      IMaterialsDetailStore store,
+      IMaterialEditorService editorService,
+      IMaterialExportService exportService)
     {
         _store = store;
         _editorService = editorService;
@@ -37,6 +37,12 @@ public sealed partial class MaterialsDictionaryViewModel : ObservableObject
     [ObservableProperty]
     private string _searchText = string.Empty;
 
+    public string SearchQuery
+    {
+        get => SearchText;
+        set => SearchText = value;
+    }
+
     [ObservableProperty]
     private string _selectedManufacturer = AllManufacturersLabel;
 
@@ -45,6 +51,12 @@ public sealed partial class MaterialsDictionaryViewModel : ObservableObject
 
     [ObservableProperty]
     private Window? _ownerWindow;
+
+    public bool IsSelected => SelectedItem is not null;
+
+    public IAsyncRelayCommand EditMaterialCommand => EditCommand;
+
+    public IAsyncRelayCommand DeleteMaterialCommand => DeleteCommand;
 
     public async Task InitializeAsync()
     {
@@ -59,12 +71,17 @@ public sealed partial class MaterialsDictionaryViewModel : ObservableObject
         await Task.CompletedTask;
     }
 
-    partial void OnSearchTextChanged(string value) => ApplyFilter();
+    partial void OnSearchTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(SearchQuery));
+        ApplyFilter();
+    }
 
     partial void OnSelectedManufacturerChanged(string value) => ApplyFilter();
 
     partial void OnSelectedItemChanged(MaterialListItemViewModel? value)
     {
+        OnPropertyChanged(nameof(IsSelected));
         EditCommand.NotifyCanExecuteChanged();
         DeleteCommand.NotifyCanExecuteChanged();
         AddAsCopyCommand.NotifyCanExecuteChanged();
@@ -96,18 +113,17 @@ public sealed partial class MaterialsDictionaryViewModel : ObservableObject
         var search = SearchText.Trim();
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var articleMatches = query
-                .Where(item => item.Article.Contains(search, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            query = articleMatches.Count > 0
-                ? articleMatches
-                : query.Where(item => item.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(item =>
+                item.Article.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                item.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                item.SuppliersText.Contains(search, StringComparison.OrdinalIgnoreCase));
         }
 
         FilteredItems.Clear();
+        var index = 1;
         foreach (var item in query.OrderBy(item => item.Article))
         {
+            item.IndexNumber = index++;
             FilteredItems.Add(item);
         }
 
@@ -241,12 +257,12 @@ public sealed partial class MaterialsDictionaryViewModel : ObservableObject
             Title = "Сохранить экспорт",
             SuggestedFileName = defaultName,
             FileTypeChoices =
-            [
-                new FilePickerFileType(filter.Split('|')[0])
-                {
-                    Patterns = [filter.Split('|')[1].Replace("*", "")]
-                }
-            ]
+          [
+            new FilePickerFileType(filter.Split('|')[0])
+        {
+          Patterns = [filter.Split('|')[1].Replace("*", "")]
+        }
+          ]
         });
 
         return file?.Path.LocalPath;

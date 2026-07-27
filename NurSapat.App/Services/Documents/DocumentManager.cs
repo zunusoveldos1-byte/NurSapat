@@ -5,6 +5,7 @@ using NurSapat.App.ViewModels;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Project;
 using NurSapat.Core.Serialization;
+using NurSapat.Core.Services.Orders;
 
 namespace NurSapat.App.Services.Documents;
 
@@ -23,6 +24,7 @@ public sealed class DocumentManager : IDocumentManager
     private readonly IWorkspaceWindowService _workspaceWindowService;
     private readonly IEnvironmentSettingsService _environmentSettingsService;
     private readonly IOrdersStore _ordersStore;
+    private readonly OrderLifecycleService _orderLifecycleService;
 
     private bool _isModified;
     private bool _suppressModification;
@@ -39,7 +41,8 @@ public sealed class DocumentManager : IDocumentManager
         IPrintSettingsService printSettingsService,
         IWorkspaceWindowService workspaceWindowService,
         IEnvironmentSettingsService environmentSettingsService,
-        IOrdersStore ordersStore)
+        IOrdersStore ordersStore,
+        OrderLifecycleService orderLifecycleService)
     {
         _workspace = workspace;
         _cadEditor = cadEditor;
@@ -51,6 +54,7 @@ public sealed class DocumentManager : IDocumentManager
         _workspaceWindowService = workspaceWindowService;
         _environmentSettingsService = environmentSettingsService;
         _ordersStore = ordersStore;
+        _orderLifecycleService = orderLifecycleService;
 
         _workspace.ProjectModified += OnProjectModified;
         _cadEditor.Commands.CommandExecuted += (_, _) => MarkModifiedIfAllowed();
@@ -102,6 +106,7 @@ public sealed class DocumentManager : IDocumentManager
 
     public ProjectDocumentData CreateSnapshot()
     {
+        _orderLifecycleService.AssertCanEdit(_workspace.Order);
         _workspace.SyncCadToOrder();
 
         var activeConstruction = _workspace.Order.SelectedConstruction
@@ -183,6 +188,16 @@ public sealed class DocumentManager : IDocumentManager
 
     public async Task<bool> SaveOrderAsync(CancellationToken cancellationToken = default)
     {
+        try
+        {
+            _orderLifecycleService.AssertCanEdit(_workspace.Order);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await _dialogService.ShowErrorAsync(ex.Message, cancellationToken);
+            return false;
+        }
+
         if (string.IsNullOrWhiteSpace(_filePath))
         {
             try
@@ -385,6 +400,7 @@ public sealed class DocumentManager : IDocumentManager
     {
         try
         {
+            _orderLifecycleService.AssertCanEdit(_workspace.Order);
             var snapshot = CreateSnapshot();
             await _serializer.SaveAsync(snapshot, path, cancellationToken);
             _filePath = path;

@@ -2,11 +2,14 @@ using Microsoft.EntityFrameworkCore;
 using NurSapat.Core.Interfaces.Persistence;
 using NurSapat.Core.Models;
 using NurSapat.Infrastructure.Persistence.Mapping;
+using NurSapat.Core.Models.Orders;
+using NurSapat.Core.Services.Orders;
 
 namespace NurSapat.Infrastructure.Persistence.Repositories;
 
 public sealed class OrderRepository : IOrderRepository
 {
+    private static readonly OrderLifecycleService Lifecycle = new();
     private readonly IDbContextFactory<NurSapatDbContext> _dbContextFactory;
 
     public OrderRepository(IDbContextFactory<NurSapatDbContext> dbContextFactory)
@@ -66,6 +69,27 @@ public sealed class OrderRepository : IOrderRepository
         {
             await SaveAsync(order, cancellationToken);
             return;
+        }
+
+        var currentStatus = (OrderStatus)existing.Status;
+        var targetStatus = order.Header.Status;
+        if (currentStatus != targetStatus)
+        {
+            var hasSnapshot = await dbContext.OrderCalculationSnapshots
+                .AnyAsync(x => x.OrderId == order.Id, cancellationToken);
+            var lifecycleOrder = OrderMapper.ToDomain(existing);
+            Lifecycle.AssertCanTransition(lifecycleOrder, targetStatus, hasSnapshot);
+
+            if (currentStatus >= OrderStatus.InProduction || targetStatus >= OrderStatus.InProduction)
+            {
+                existing.Status = (int)targetStatus;
+                await dbContext.SaveChangesAsync(cancellationToken);
+                return;
+            }
+        }
+        else
+        {
+            Lifecycle.AssertCanEdit(currentStatus);
         }
 
         dbContext.OrderConstructions.RemoveRange(existing.Constructions);

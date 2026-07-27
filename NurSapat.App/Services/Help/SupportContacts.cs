@@ -14,9 +14,9 @@ internal static class SupportContacts
 
     public const string PhoneTelUri = "tel:+996559340032";
 
-    public const string EmailAddress = "support@nursapat.kg";
+    public const string EmailAddress = "zunusoveldos1@gmail.com";
 
-    public const string EmailMailtoUri = "mailto:support@nursapat.kg";
+    public const string EmailMailtoUri = "mailto:zunusoveldos1@gmail.com";
 
     public const string WebsiteUrl = "https://nursapat.kg";
 

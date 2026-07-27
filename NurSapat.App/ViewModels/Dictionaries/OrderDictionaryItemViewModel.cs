@@ -22,7 +22,7 @@ public sealed partial class OrderDictionaryItemViewModel : DictionaryItemViewMod
     private decimal _totalSum;
 
     [ObservableProperty]
-    private OrderStatus _status = OrderStatus.Calculation;
+    private OrderStatus _status = OrderStatus.Calculated;
 
     [ObservableProperty]
     private string? _filePath;

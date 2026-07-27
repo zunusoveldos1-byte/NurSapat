@@ -33,7 +33,11 @@ public static class ConstructionSelectionRenderer
             switch (item.Kind)
             {
                 case CadSelectableKind.Frame:
-                    DrawFrameHighlight(context, editor, item.ProfileRail);
+                    DrawFrameHighlight(
+                        context,
+                        editor,
+                        item.ProfileRail,
+                        item.ProfileSegmentIndex);
                     break;
                 case CadSelectableKind.Impost when item.ImpostNode is not null:
                     DrawImpostHighlight(context, editor, item.ImpostNode, item.ImpostGapIndex);
@@ -64,7 +68,8 @@ public static class ConstructionSelectionRenderer
     private static void DrawFrameHighlight(
         DrawingContext context,
         CadEditorViewModel editor,
-        FrameProfileRail? profileRail = null)
+        FrameProfileRail? profileRail = null,
+        int? profileSegmentIndex = null)
     {
         if (editor.FrameRoot is not FrameNode frame)
         {
@@ -85,7 +90,7 @@ public static class ConstructionSelectionRenderer
 
         if (profileRail is FrameProfileRail rail)
         {
-            DrawFrameRailHighlight(context, editor, frame, rail);
+            DrawFrameRailHighlight(context, editor, frame, rail, profileSegmentIndex);
             return;
         }
 
@@ -143,34 +148,46 @@ public static class ConstructionSelectionRenderer
         DrawingContext context,
         CadEditorViewModel editor,
         FrameNode frame,
-        FrameProfileRail rail)
+        FrameProfileRail rail,
+        int? selectedSegmentIndex = null)
     {
         var root = frame.GetConstructionRoot();
         var band = root.GetRailBand(rail, editor.FrameThickness);
         var joints = root.GetProfileRailJoints(rail);
         if (joints.Count > 0)
         {
-            var segments = FrameProfileRailGeometry.SplitRailBand(
-                band,
-                joints.Select(j => j.RelativeT).ToList());
+            var outerJoints = joints
+                .Select(root.ResolveProfileRailJointOuterPoint)
+                .ToList();
+            var segments = FrameProfileRailGeometry.SplitRailBandWithMiters(band, outerJoints);
+            if (selectedSegmentIndex is int segmentIndex
+                && segmentIndex >= 0
+                && segmentIndex < segments.Count)
+            {
+                StrokeRailBandHighlight(context, editor, segments[segmentIndex], SelectionPen);
+                return;
+            }
+
             foreach (var segment in segments)
             {
                 StrokeRailBandHighlight(context, editor, segment, SelectionPen);
             }
 
-            foreach (var joint in joints)
+            for (var i = 0; i < outerJoints.Count; i++)
             {
-                var (outer, inner) = FrameProfileRailGeometry.ResolveJointPoints(band, joint.RelativeT);
                 context.DrawLine(
                     SelectionPen,
-                    WorldToScreen(editor, outer),
-                    WorldToScreen(editor, inner));
+                    WorldToScreen(editor, outerJoints[i]),
+                    WorldToScreen(editor, segments[i].InnerEnd));
             }
 
             return;
         }
 
-        StrokeRailBandHighlight(context, editor, band, SelectionPen);
+        if (selectedSegmentIndex is null or 0)
+        {
+            StrokeRailBandHighlight(context, editor, band, SelectionPen);
+        }
     }
 
     private static void StrokeRailBandHighlight(

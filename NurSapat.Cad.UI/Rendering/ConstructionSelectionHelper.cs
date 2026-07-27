@@ -108,9 +108,14 @@ internal static class ConstructionSelectionHelper
 
         if (editor.CurrentToolMode == WindowToolMode.SelectProfile
             && editor.FrameRoot is FrameNode profileFrame
-            && TryHitTestFrameProfileRail(editor, profileFrame, worldPoint, out var profileRail))
+            && TryHitTestFrameProfileRail(
+                editor,
+                profileFrame,
+                worldPoint,
+                out var profileRail,
+                out var profileSegmentIndex))
         {
-            return CadSelectableItem.FrameRail(profileRail);
+            return CadSelectableItem.FrameRail(profileRail, profileSegmentIndex);
         }
 
         if (editor.FrameRoot is not null && HitTestFrame(editor, worldPoint))
@@ -200,9 +205,27 @@ internal static class ConstructionSelectionHelper
                      })
             {
                 var band = editor.FrameRoot.GetRailBand(rail, editor.FrameThickness);
-                if (RailBandIntersectsRect(band, selectionBounds))
+                var joints = editor.FrameRoot.GetProfileRailJoints(rail);
+                if (joints.Count == 0)
                 {
-                    results.Add(CadSelectableItem.FrameRail(rail));
+                    if (RailBandIntersectsRect(band, selectionBounds))
+                    {
+                        results.Add(CadSelectableItem.FrameRail(rail, 0));
+                    }
+
+                    continue;
+                }
+
+                var outerJoints = joints
+                    .Select(editor.FrameRoot.ResolveProfileRailJointOuterPoint)
+                    .ToList();
+                var segments = FrameProfileRailGeometry.SplitRailBandWithMiters(band, outerJoints);
+                for (var segmentIndex = 0; segmentIndex < segments.Count; segmentIndex++)
+                {
+                    if (RailBandIntersectsRect(segments[segmentIndex], selectionBounds))
+                    {
+                        results.Add(CadSelectableItem.FrameRail(rail, segmentIndex));
+                    }
                 }
             }
 
@@ -285,7 +308,17 @@ internal static class ConstructionSelectionHelper
             return null;
         }
 
-        return new CadRect(frame.X, frame.Y + frame.Height, frame.Width, frame.Height);
+        var points = frame.GetConstructionRoot().GetOuterContourPoints();
+        if (points.Count == 0)
+        {
+            return null;
+        }
+
+        var minX = points.Min(point => point.X);
+        var maxX = points.Max(point => point.X);
+        var minY = points.Min(point => point.Y);
+        var maxY = points.Max(point => point.Y);
+        return new CadRect(minX, maxY, maxX - minX, maxY - minY);
     }
 
     public static CadRect? TryGetImpostBounds(CadEditorViewModel editor, FrameNode node, int gapIndex)
@@ -466,9 +499,11 @@ internal static class ConstructionSelectionHelper
         CadEditorViewModel editor,
         FrameNode frame,
         CadPoint worldPoint,
-        out FrameProfileRail rail)
+        out FrameProfileRail rail,
+        out int segmentIndex)
     {
         rail = default;
+        segmentIndex = 0;
         if (frame.IsDummy || frame.IsFictitiousContainer)
         {
             return false;
@@ -485,13 +520,40 @@ internal static class ConstructionSelectionHelper
             return false;
         }
 
-        return FrameProfileRailGeometry.TryHitFrameRail(
-            frame.GetOuterCorners(),
-            frame.Width,
-            frame.Height,
-            editor.FrameThickness,
-            worldPoint,
-            out rail);
+        var root = frame.GetConstructionRoot();
+        foreach (var candidateRail in new[]
+                 {
+                     FrameProfileRail.Top,
+                     FrameProfileRail.Bottom,
+                     FrameProfileRail.Left,
+                     FrameProfileRail.Right
+                 })
+        {
+            var band = root.GetRailBand(candidateRail, editor.FrameThickness);
+            var outerJoints = root.GetProfileRailJoints(candidateRail)
+                .Select(root.ResolveProfileRailJointOuterPoint)
+                .ToList();
+            var segments = outerJoints.Count == 0
+                ? [band]
+                : FrameProfileRailGeometry.SplitRailBandWithMiters(band, outerJoints);
+            for (var candidateSegmentIndex = 0;
+                 candidateSegmentIndex < segments.Count;
+                 candidateSegmentIndex++)
+            {
+                if (!FrameProfileRailGeometry.ContainsPointInBand(
+                        segments[candidateSegmentIndex],
+                        worldPoint))
+                {
+                    continue;
+                }
+
+                rail = candidateRail;
+                segmentIndex = candidateSegmentIndex;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryGetArchedFrameContours(

@@ -24,11 +24,17 @@ public sealed class CadSelectableItem : IEquatable<CadSelectableItem>
     public int ImpostGapIndex { get; init; }
     public int HingeSlot { get; init; }
     public FrameProfileRail? ProfileRail { get; init; }
+    public int? ProfileSegmentIndex { get; init; }
 
     public static CadSelectableItem Frame() => new() { Kind = CadSelectableKind.Frame };
 
-    public static CadSelectableItem FrameRail(FrameProfileRail rail) =>
-        new() { Kind = CadSelectableKind.Frame, ProfileRail = rail };
+    public static CadSelectableItem FrameRail(FrameProfileRail rail, int? segmentIndex = null) =>
+        new()
+        {
+            Kind = CadSelectableKind.Frame,
+            ProfileRail = rail,
+            ProfileSegmentIndex = segmentIndex
+        };
 
     public static CadSelectableItem Sash(Guid id) =>
         new() { Kind = CadSelectableKind.Sash, ElementId = id };
@@ -81,7 +87,9 @@ public sealed class CadSelectableItem : IEquatable<CadSelectableItem>
 
         return Kind switch
         {
-            CadSelectableKind.Frame => ProfileRail == other.ProfileRail,
+            CadSelectableKind.Frame =>
+                ProfileRail == other.ProfileRail
+                && ProfileSegmentIndex == other.ProfileSegmentIndex,
             CadSelectableKind.Impost =>
                 ReferenceEquals(ImpostNode, other.ImpostNode) && ImpostGapIndex == other.ImpostGapIndex,
             CadSelectableKind.ExtremeImpost =>
@@ -97,7 +105,7 @@ public sealed class CadSelectableItem : IEquatable<CadSelectableItem>
     public override int GetHashCode() =>
         Kind switch
         {
-            CadSelectableKind.Frame => HashCode.Combine(Kind, ProfileRail),
+            CadSelectableKind.Frame => HashCode.Combine(Kind, ProfileRail, ProfileSegmentIndex),
             CadSelectableKind.Impost => HashCode.Combine(Kind, ImpostNode, ImpostGapIndex),
             CadSelectableKind.ExtremeImpost => HashCode.Combine(Kind, ImpostNode, ElementId),
             CadSelectableKind.SashHinge => HashCode.Combine(Kind, ElementId, HingeSlot),

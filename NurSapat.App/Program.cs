@@ -47,7 +47,6 @@ using NurSapat.Data.Legacy;
 using NurSapat.Data.Repositories;
 using System;
 using System.IO;
-using System.Text.Json;
 
 namespace NurSapat.App;
 
@@ -144,10 +143,13 @@ class Program
         services.AddAppPersistence(configuration);
         services.AddNurSapatUpdates(configuration);
         services.AddNurSapatSync(configuration);
+        services.AddSingleton<IApplicationPersistenceInitializer, ApplicationPersistenceInitializer>();
+        // Login preferences belong to the local device. Supabase owns user authentication;
+        // PostgreSQL is initialized only after a successful Supabase sign-in.
+        services.AddSingleton<SettingsService>();
 
         if (!configuration.IsPostgreSqlPersistence())
         {
-            services.AddSingleton<SettingsService>();
             services.AddSingleton<IEnvironmentSettingsService, EnvironmentSettingsService>();
             services.AddSingleton<IUsersStore, UsersStore>();
             services.AddSingleton<IOrdersStore, SyncedOrdersStore>();
@@ -162,8 +164,6 @@ class Program
         }
         else
         {
-            services.AddSingleton<SettingsService>(sp =>
-                new SettingsService(sp.GetRequiredService<IAppSettingRepository>()));
             services.AddSingleton<IEnvironmentSettingsService, EnvironmentSettingsService>();
         }
 
@@ -172,6 +172,12 @@ class Program
         services.AddSingleton<IMaterialCatalogResolver, MaterialCatalogResolver>();
         services.AddSingleton<IMaterialPriceCatalog, MaterialsDetailPriceCatalog>();
         services.AddSingleton<OrderCalculationService>();
+        services.AddSingleton<OrderLifecycleService>();
+        services.AddSingleton<OrderCalculationSnapshotService>();
+        if (configuration.IsPostgreSqlPersistence())
+        {
+            services.AddSingleton<OrderSnapshotCoordinator>();
+        }
         services.AddSingleton<IMaterialExportService, MaterialExportService>();
         services.AddSingleton<IMaterialEditorService, MaterialEditorService>();
         services.AddSingleton<IManufacturersStore, ManufacturersStore>();
@@ -202,7 +208,7 @@ class Program
         services.AddSingleton<IHelpWindowService, HelpWindowService>();
         services.AddSingleton<IAppMessageService, AppMessageService>();
         services.AddSingleton<IDocumentManager, DocumentManager>();
-        services.AddSingleton(new DatabaseService(ReadConnectionString()));
+        services.AddSingleton(new DatabaseService(ReadConnectionString(configuration)));
         services.AddSingleton<DataMigrationService>();
         services.AddSingleton<ISystemLogRepository, SystemLogRepository>();
         services.AddSingleton<IUserRepository, UserRepository>();
@@ -252,7 +258,8 @@ class Program
                 sp.GetRequiredService<ICustomersStore>(),
                 sp.GetRequiredService<IManagersStore>(),
                 sp.GetRequiredService<IOrderNumberService>(),
-                sp.GetRequiredService<IDictionaryWindowService>()));
+                sp.GetRequiredService<IDictionaryWindowService>(),
+                sp.GetRequiredService<OrderLifecycleService>()));
         services.AddSingleton<OrderSheetViewModel>(sp => sp.GetRequiredService<OrderWorkspaceViewModel>().Sheet);
         services.AddSingleton<OrderDrawingViewModel>(sp => sp.GetRequiredService<OrderWorkspaceViewModel>().Drawing);
         services.AddTransient<CostTableViewModel>();
@@ -334,26 +341,16 @@ class Program
         return configuration;
     }
 
-    private static string ReadConnectionString()
+    private static string ReadConnectionString(IConfiguration configuration)
     {
         const string fallback = "Host=localhost;Database=nursapat;Username=postgres;Password=7720";
-        var path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        var connectionStringName =
+            configuration["Persistence:ConnectionStringName"] ?? "PostgreSQL";
 
-        if (!File.Exists(path))
-        {
-            path = Path.Combine(Directory.GetCurrentDirectory(), "NurSapat.App", "appsettings.json");
-        }
-
-        if (!File.Exists(path))
-        {
-            return fallback;
-        }
-
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
-        return document.RootElement
-            .GetProperty("ConnectionStrings")
-            .GetProperty("Default")
-            .GetString() ?? fallback;
+        return configuration.GetConnectionString(connectionStringName)
+            ?? configuration.GetConnectionString("PostgreSQL")
+            ?? configuration.GetConnectionString("Default")
+            ?? fallback;
     }
 }
 
