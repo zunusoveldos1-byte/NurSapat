@@ -3,14 +3,23 @@ using NurSapat.Core.Models.Calculation;
 using NurSapat.Core.Models.Construction;
 using NurSapat.Core.Models.Materials;
 using NurSapat.Core.Models.Orders;
+using NurSapat.App.Services.Users;
+using NurSapat.Infrastructure.Sync.Diagnostics;
 
 namespace NurSapat.App.Services.Materials;
 
 public sealed class MaterialCatalogResolver : IMaterialCatalogResolver
 {
     private readonly IMaterialsDetailStore _store;
+    private readonly IUserSessionService _userSessionService;
 
-    public MaterialCatalogResolver(IMaterialsDetailStore store) => _store = store;
+    public MaterialCatalogResolver(
+        IMaterialsDetailStore store,
+        IUserSessionService userSessionService)
+    {
+        _store = store;
+        _userSessionService = userSessionService;
+    }
 
     public Guid? ResolveCatalogMaterialId(Guid? constructionMaterialId)
     {
@@ -20,6 +29,14 @@ public sealed class MaterialCatalogResolver : IMaterialCatalogResolver
 
     public Guid? ResolveByArticle(string? article)
     {
+        if (_userSessionService.IsOffline)
+        {
+            StartupTrace.Info(
+                "[LOG] MaterialCatalogResolver.ResolveByArticle: " +
+                "оффлайн-режим, PostgreSQL не вызывается.");
+            return null;
+        }
+
         if (string.IsNullOrWhiteSpace(article))
         {
             return null;

@@ -2476,43 +2476,9 @@ public static class GeometryElementRenderer
 
     private static double ResolveLeftSegmentHeight(FrameNode root, double bottomWorldY, double topWorldY)
     {
-        // Размер ячейки считается между физическими гранями профилей.
-        // Для опоры на ось горизонтального импоста вычитаем половину его
-        // толщины с соответствующей стороны, чтобы тело профиля не попадало
-        // ни в нижний, ни в верхний световой проём.
-        var height = topWorldY - bottomWorldY;
-        height -= ResolveHorizontalImpostHalfThicknessAt(root, bottomWorldY);
-        height -= ResolveHorizontalImpostHalfThicknessAt(root, topWorldY);
-        return height <= CadMath.Epsilon ? 0 : CadMath.RoundMm(height);
-    }
-
-    private static double ResolveHorizontalImpostHalfThicknessAt(FrameNode root, double axisWorldY)
-    {
-        foreach (var node in root.EnumerateInternalNodes())
-        {
-            if (node.IsUniformSplit && node.SplitOrientation == SplitOrientation.Horizontal)
-            {
-                for (var gap = 0; gap < node.UniformCells.Count - 1; gap++)
-                {
-                    if (node.TryGetUniformImpostAxisWorld(SplitOrientation.Horizontal, gap, out var axis)
-                        && CadMath.NearlyEqual(axis, axisWorldY))
-                    {
-                        return node.GetResolvedImpostThicknessMm() / 2.0;
-                    }
-                }
-
-                continue;
-            }
-
-            if (node.SplitOrientation == SplitOrientation.Horizontal
-                && node.TryGetHorizontalImpostAxisWorldY(out var binaryAxis)
-                && CadMath.NearlyEqual(binaryAxis, axisWorldY))
-            {
-                return node.GetResolvedImpostThicknessMm() / 2.0;
-            }
-        }
-
-        return 0;
+        // Внешняя размерная цепь: Outer Edge → Impost Center Axis → Outer Edge.
+        // Толщина профиля не вычитается: при коробке 1000 и оси 500 получаем 500/500.
+        return ResolveBottomSegmentWidth(root, bottomWorldY, topWorldY);
     }
 
     private static void CollectHorizontalImpostAxes(FrameNode node, List<double> axes)
@@ -3204,7 +3170,8 @@ public static class GeometryElementRenderer
                     match = new ImpostTarget
                     {
                         SplitNode = node,
-                        UniformGapIndex = gapIndex
+                        UniformGapIndex = gapIndex,
+                        Orientation = GridLineOrientation.Vertical
                     };
                 }
 
@@ -3223,7 +3190,11 @@ public static class GeometryElementRenderer
             }
 
             bestDistance = binaryDistance;
-            match = new ImpostTarget { SplitNode = node };
+            match = new ImpostTarget
+            {
+                SplitNode = node,
+                Orientation = GridLineOrientation.Vertical
+            };
         }
 
         return match;
@@ -3295,7 +3266,8 @@ public static class GeometryElementRenderer
                     match = new ImpostTarget
                     {
                         SplitNode = node,
-                        UniformGapIndex = gapIndex
+                        UniformGapIndex = gapIndex,
+                        Orientation = GridLineOrientation.Horizontal
                     };
                 }
 
@@ -3322,7 +3294,11 @@ public static class GeometryElementRenderer
 
             bestDistance = binaryDistance;
             bestWidth = node.Width;
-            match = new ImpostTarget { SplitNode = node };
+            match = new ImpostTarget
+            {
+                SplitNode = node,
+                Orientation = GridLineOrientation.Horizontal
+            };
         }
 
         return match;

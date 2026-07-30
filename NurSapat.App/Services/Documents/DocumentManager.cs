@@ -6,6 +6,7 @@ using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Project;
 using NurSapat.Core.Serialization;
 using NurSapat.Core.Services.Orders;
+using NurSapat.App.Services.Utilities;
 
 namespace NurSapat.App.Services.Documents;
 
@@ -25,6 +26,7 @@ public sealed class DocumentManager : IDocumentManager
     private readonly IEnvironmentSettingsService _environmentSettingsService;
     private readonly IOrdersStore _ordersStore;
     private readonly OrderLifecycleService _orderLifecycleService;
+    private readonly IDatabaseBackupPayloadService _databaseBackupPayloadService;
 
     private bool _isModified;
     private bool _suppressModification;
@@ -42,7 +44,8 @@ public sealed class DocumentManager : IDocumentManager
         IWorkspaceWindowService workspaceWindowService,
         IEnvironmentSettingsService environmentSettingsService,
         IOrdersStore ordersStore,
-        OrderLifecycleService orderLifecycleService)
+        OrderLifecycleService orderLifecycleService,
+        IDatabaseBackupPayloadService databaseBackupPayloadService)
     {
         _workspace = workspace;
         _cadEditor = cadEditor;
@@ -55,6 +58,7 @@ public sealed class DocumentManager : IDocumentManager
         _environmentSettingsService = environmentSettingsService;
         _ordersStore = ordersStore;
         _orderLifecycleService = orderLifecycleService;
+        _databaseBackupPayloadService = databaseBackupPayloadService;
 
         _workspace.ProjectModified += OnProjectModified;
         _cadEditor.Commands.CommandExecuted += (_, _) => MarkModifiedIfAllowed();
@@ -106,7 +110,6 @@ public sealed class DocumentManager : IDocumentManager
 
     public ProjectDocumentData CreateSnapshot()
     {
-        _orderLifecycleService.AssertCanEdit(_workspace.Order);
         _workspace.SyncCadToOrder();
 
         var activeConstruction = _workspace.Order.SelectedConstruction
@@ -130,6 +133,11 @@ public sealed class DocumentManager : IDocumentManager
                 "Создать новый заказ",
                 "Текущий заказ содержит несохранённые изменения.\n\nЧто необходимо сделать?",
                 cancellationToken))
+        {
+            return false;
+        }
+
+        if (!await CreateNowSnapshotAsync(cancellationToken))
         {
             return false;
         }
@@ -200,19 +208,7 @@ public sealed class DocumentManager : IDocumentManager
 
         if (string.IsNullOrWhiteSpace(_filePath))
         {
-            try
-            {
-                var snapshot = CreateSnapshot();
-                _ordersStore.UpsertFromProject(snapshot, string.Empty);
-                _isModified = false;
-                RaiseStateChanged();
-                return true;
-            }
-            catch (Exception ex)
-            {
-                await _dialogService.ShowErrorAsync(ex.Message, cancellationToken);
-                return false;
-            }
+            return await SaveAsCopyAsync(cancellationToken);
         }
 
         return await SaveToFileAsync(_filePath, cancellationToken);
@@ -220,6 +216,42 @@ public sealed class DocumentManager : IDocumentManager
 
     public Task<bool> SaveOrderToPathAsync(string path, CancellationToken cancellationToken = default) =>
         SaveToFileAsync(path, cancellationToken);
+
+    public async Task<bool> CreateBackupAsync(string path, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            path = EnsureZpExtension(path);
+            await _serializer.SaveAsync(CreateSnapshot(), path, cancellationToken);
+            await _databaseBackupPayloadService.AddDatabasePayloadAsync(path, cancellationToken);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _dialogService.ShowErrorAsync(
+                $"Не удалось создать резервную копию: {ex.Message}",
+                cancellationToken);
+            return false;
+        }
+    }
+
+    public async Task<bool> RestorePreparedBackupAsync(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await ConfirmDiscardOrSaveAsync(
+                "Восстановить резервную копию",
+                "Текущий проект содержит несохранённые изменения. Что необходимо сделать?",
+                cancellationToken))
+        {
+            return false;
+        }
+
+        return await LoadProjectFromFileAsync(
+            path,
+            cancellationToken,
+            skipNowSnapshot: true);
+    }
 
     public async Task<bool> SaveAsCopyAsync(CancellationToken cancellationToken = default)
     {
@@ -230,7 +262,7 @@ public sealed class DocumentManager : IDocumentManager
             return false;
         }
 
-        return await SaveToFileAsync(path, cancellationToken);
+        return await SaveToFileAsync(EnsureUniqueArchivePath(path), cancellationToken);
     }
 
     public async Task<bool> CloseOrderAsync(CancellationToken cancellationToken = default)
@@ -247,7 +279,7 @@ public sealed class DocumentManager : IDocumentManager
         _autoSaveService.ClearAutoSave();
         ResetWorkspaceState();
         _hasOpenDocument = false;
-        _workspaceWindowService.ReturnToLogin();
+        await _workspaceWindowService.ReturnToLoginAsync();
         return true;
     }
 
@@ -265,7 +297,7 @@ public sealed class DocumentManager : IDocumentManager
         _autoSaveService.ClearAutoSave();
         ResetWorkspaceState();
         _hasOpenDocument = false;
-        _workspaceWindowService.ReturnToLogin();
+        await _workspaceWindowService.ReturnToLoginAsync();
         return true;
     }
 
@@ -293,7 +325,7 @@ public sealed class DocumentManager : IDocumentManager
                     return true;
                 case UnsavedChangesChoice.Save:
                 {
-                    // Prefer .nsp file save: existing path, otherwise Save File dialog.
+                    // Prefer .zp archive save: existing path, otherwise Save File dialog.
                     var saved = string.IsNullOrWhiteSpace(_filePath)
                         ? await SaveAsCopyAsync(cancellationToken)
                         : await SaveOrderAsync(cancellationToken);
@@ -370,11 +402,25 @@ public sealed class DocumentManager : IDocumentManager
     private async Task<bool> LoadProjectFromFileAsync(
         string path,
         CancellationToken cancellationToken,
-        bool isAutoSaveRecovery = false)
+        bool isAutoSaveRecovery = false,
+        bool skipNowSnapshot = false)
     {
         try
         {
             var project = await _serializer.LoadAsync(path, cancellationToken);
+            if (!isAutoSaveRecovery
+                && !skipNowSnapshot
+                && !await CreateNowSnapshotAsync(cancellationToken))
+            {
+                return false;
+            }
+
+            if (!isAutoSaveRecovery
+                && Path.GetExtension(path).Equals(ProjectFormat.Extension, StringComparison.OrdinalIgnoreCase))
+            {
+                await _databaseBackupPayloadService.RestoreDatabasePayloadAsync(path, cancellationToken);
+            }
+
             ApplyProject(project);
             _filePath = isAutoSaveRecovery ? null : path;
             _isModified = isAutoSaveRecovery;
@@ -401,8 +447,10 @@ public sealed class DocumentManager : IDocumentManager
         try
         {
             _orderLifecycleService.AssertCanEdit(_workspace.Order);
+            path = EnsureZpExtension(path);
             var snapshot = CreateSnapshot();
             await _serializer.SaveAsync(snapshot, path, cancellationToken);
+            await _databaseBackupPayloadService.AddDatabasePayloadAsync(path, cancellationToken);
             _filePath = path;
             _isModified = false;
             _recentFilesService.AddRecentFile(path);
@@ -497,11 +545,73 @@ public sealed class DocumentManager : IDocumentManager
 
     private string BuildSuggestedFileName()
     {
-        var orderNumber = _workspace.Order.Header.OrderNumber;
-        var normalized = string.IsNullOrWhiteSpace(orderNumber)
-            ? "НовыйЗаказ"
-            : string.Join("_", orderNumber.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
-        return $"Заказ_{normalized}";
+        return $"{DateTime.Now:yyyyMMdd}{ProjectFormat.Extension}";
+    }
+
+    private async Task<bool> CreateNowSnapshotAsync(CancellationToken cancellationToken)
+    {
+        if (!_hasOpenDocument)
+        {
+            return true;
+        }
+
+        try
+        {
+            var backupDirectory = _environmentSettingsService.Current.BackupPath;
+            if (string.IsNullOrWhiteSpace(backupDirectory))
+            {
+                backupDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "NurSapat",
+                    "Backups");
+            }
+
+            Directory.CreateDirectory(backupDirectory);
+            var nowPath = Path.Combine(backupDirectory, $"now{ProjectFormat.Extension}");
+            await _serializer.SaveAsync(CreateSnapshot(), nowPath, cancellationToken);
+            await _databaseBackupPayloadService.AddDatabasePayloadAsync(nowPath, cancellationToken);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _dialogService.ShowErrorAsync(
+                $"Не удалось создать страховую копию now.zp: {ex.Message}",
+                cancellationToken);
+            return false;
+        }
+    }
+
+    private static string EnsureZpExtension(string path) =>
+        Path.ChangeExtension(path, ProjectFormat.Extension);
+
+    private static string EnsureUniqueArchivePath(string path)
+    {
+        path = EnsureZpExtension(path);
+        if (!File.Exists(path))
+        {
+            return path;
+        }
+
+        var directory = Path.GetDirectoryName(path) ?? string.Empty;
+        var baseName = Path.GetFileNameWithoutExtension(path);
+        var timestamped = Path.Combine(
+            directory,
+            $"{baseName}_{DateTime.Now:HHmmss}{ProjectFormat.Extension}");
+        if (!File.Exists(timestamped))
+        {
+            return timestamped;
+        }
+
+        for (var index = 1; ; index++)
+        {
+            var candidate = Path.Combine(
+                directory,
+                $"{baseName}_{index}{ProjectFormat.Extension}");
+            if (!File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
     }
 
     private void OnProjectModified(object? sender, EventArgs e) => MarkModifiedIfAllowed();

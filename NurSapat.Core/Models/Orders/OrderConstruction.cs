@@ -12,6 +12,9 @@ public sealed class OrderConstruction
 
     public bool IsSelectedForCalculation { get; set; } = true;
 
+    public ConstructionReadinessStatus Status { get; set; } =
+        ConstructionReadinessStatus.RequiresPaymentOrSaved;
+
     public ConstructionGeometry Geometry { get; set; } = new();
 
     public ConstructionCostBreakdown Cost { get; } = new();
@@ -22,7 +25,11 @@ public sealed class OrderConstruction
 
     public string ProfileSystemName { get; set; } = "";
 
+    public Guid? SelectedMaterialId { get; set; }
+
     public ConstructionAppearance Appearance { get; set; } = new();
+
+    public ConstructionOrderDetails OrderDetails { get; set; } = new();
 
     public DateTimeOffset? ManufactureDate { get; set; }
 

@@ -32,5 +32,8 @@ public sealed partial class ConstructionItemViewModel : ObservableObject
         QuantityDisplay = quantityDisplay;
     }
 
+    public void UpdateQuantity(int quantity) =>
+        QuantityDisplay = $"{Math.Max(1, quantity)} шт.";
+
     public override string ToString() => Name;
 }

@@ -48,7 +48,43 @@ public sealed class CachedUserRepository : ICachedUserRepository
 
         var normalizedEmail = email.Trim().ToLowerInvariant();
         var passwordHash = OfflinePasswordHasher.HashPassword(plainPassword);
-        var lastLogin = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+        var nowUtc = DateTimeOffset.UtcNow;
+        await ImportRememberedCredentialAsync(
+                userId,
+                normalizedEmail,
+                passwordHash,
+                nowUtc,
+                nowUtc,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task ImportRememberedCredentialAsync(
+        Guid userId,
+        string email,
+        string passwordHash,
+        DateTimeOffset lastOnlineUtc,
+        DateTimeOffset lastLocalAppRunUtc,
+        CancellationToken cancellationToken = default)
+    {
+        if (userId == Guid.Empty)
+        {
+            throw new ArgumentException("User id is required.", nameof(userId));
+        }
+
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            throw new ArgumentException("Email is required.", nameof(email));
+        }
+
+        if (string.IsNullOrWhiteSpace(passwordHash))
+        {
+            throw new ArgumentException("Password hash is required.", nameof(passwordHash));
+        }
+
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var lastOnline = lastOnlineUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
+        var lastLocalRun = lastLocalAppRunUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
 
         await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -61,17 +97,24 @@ public sealed class CachedUserRepository : ICachedUserRepository
                 WHERE email = $email COLLATE NOCASE
                   AND id <> $id;
 
-                INSERT INTO cached_users (id, email, password_hash, last_login_at)
-                VALUES ($id, $email, $password_hash, $last_login_at)
+                INSERT INTO cached_users (
+                    id, email, password_hash, last_login_at,
+                    last_online_utc, last_local_app_run_utc)
+                VALUES (
+                    $id, $email, $password_hash, $last_local_app_run_utc,
+                    $last_online_utc, $last_local_app_run_utc)
                 ON CONFLICT(id) DO UPDATE SET
                     email = excluded.email,
                     password_hash = excluded.password_hash,
-                    last_login_at = excluded.last_login_at;
+                    last_login_at = excluded.last_login_at,
+                    last_online_utc = excluded.last_online_utc,
+                    last_local_app_run_utc = excluded.last_local_app_run_utc;
                 """;
             command.Parameters.AddWithValue("$id", userId.ToString("D"));
             command.Parameters.AddWithValue("$email", normalizedEmail);
             command.Parameters.AddWithValue("$password_hash", passwordHash);
-            command.Parameters.AddWithValue("$last_login_at", lastLogin);
+            command.Parameters.AddWithValue("$last_online_utc", lastOnline);
+            command.Parameters.AddWithValue("$last_local_app_run_utc", lastLocalRun);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -124,7 +167,8 @@ public sealed class CachedUserRepository : ICachedUserRepository
         await using var connection = await _factory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT id, email, password_hash, last_login_at
+            SELECT id, email, password_hash, last_login_at,
+                   last_online_utc, last_local_app_run_utc
             FROM cached_users
             WHERE email = $email COLLATE NOCASE
             LIMIT 1;
@@ -142,7 +186,9 @@ public sealed class CachedUserRepository : ICachedUserRepository
             Id = Guid.Parse(reader.GetString(0)),
             Email = reader.GetString(1),
             PasswordHash = reader.GetString(2),
-            LastLoginAt = DateTimeOffset.Parse(reader.GetString(3), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
+            LastLoginAt = ParseUtc(reader.GetString(3)),
+            LastOnlineUtc = ParseUtc(reader.GetString(4)),
+            LastLocalAppRunUtc = ParseUtc(reader.GetString(5))
         };
     }
 
@@ -162,8 +208,8 @@ public sealed class CachedUserRepository : ICachedUserRepository
             return null;
         }
 
-        // Touch last_login_at without re-hashing.
-        await TouchLastLoginAsync(cached.Id, cancellationToken).ConfigureAwait(false);
+        await TouchLastLocalAppRunAsync(cached.Id, DateTimeOffset.UtcNow, cancellationToken)
+            .ConfigureAwait(false);
 
         return new AuthSessionInfo
         {
@@ -175,19 +221,46 @@ public sealed class CachedUserRepository : ICachedUserRepository
         };
     }
 
-    private async Task TouchLastLoginAsync(Guid userId, CancellationToken cancellationToken)
+    public async Task TouchLastLocalAppRunAsync(
+        Guid userId,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken = default)
     {
         await using var connection = await _factory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = """
             UPDATE cached_users
-            SET last_login_at = $last_login_at
+            SET last_login_at = $last_local_app_run_utc,
+                last_local_app_run_utc = $last_local_app_run_utc
             WHERE id = $id;
             """;
         command.Parameters.AddWithValue("$id", userId.ToString("D"));
         command.Parameters.AddWithValue(
-            "$last_login_at",
-            DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+            "$last_local_app_run_utc",
+            nowUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    public async Task DeleteByEmailAsync(
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return;
+        }
+
+        await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await _factory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM cached_users WHERE email = $email COLLATE NOCASE;";
+        command.Parameters.AddWithValue("$email", email.Trim().ToLowerInvariant());
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static DateTimeOffset ParseUtc(string value) =>
+        DateTimeOffset.Parse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.RoundtripKind).ToUniversalTime();
 }

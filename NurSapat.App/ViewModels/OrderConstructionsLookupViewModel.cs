@@ -50,15 +50,15 @@ public sealed partial class OrderConstructionsLookupViewModel : ObservableObject
             return;
         }
 
-        CloseRequested?.Invoke();
         await _workspace.SwitchToConstructionAsync(item.Id);
+        CloseRequested?.Invoke();
     }
 
     [RelayCommand]
     private async Task AddNewConstructionAsync()
     {
-        CloseRequested?.Invoke();
         await _workspace.AddNewConstructionAsync();
+        CloseRequested?.Invoke();
     }
 
     private static int ArrangeGallery(IReadOnlyList<object> items, int columns)

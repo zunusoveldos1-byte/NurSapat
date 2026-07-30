@@ -19,6 +19,11 @@ public interface IOrderErpDialogService
     Task<bool> ShowPriceModeAsync(Order order);
 
     Task<bool> ShowConfirmDeleteAsync(string confirmationMessage, string? title = null);
+
+    Task<bool> ShowConfirmationAsync(
+        string confirmationMessage,
+        string title,
+        string confirmText);
 }
 
 public sealed class OrderErpDialogService(
@@ -59,6 +64,21 @@ public sealed class OrderErpDialogService(
     public async Task<bool> ShowConfirmDeleteAsync(string confirmationMessage, string? title = null)
     {
         var viewModel = new ConfirmDeleteDialogViewModel(confirmationMessage, title ?? "Удаление конструкции");
+        var window = new ConfirmDeleteDialogWindow { DataContext = viewModel };
+        return await ShowAsync(window, viewModel) == true;
+    }
+
+    public async Task<bool> ShowConfirmationAsync(
+        string confirmationMessage,
+        string title,
+        string confirmText)
+    {
+        var viewModel = new ConfirmDeleteDialogViewModel(
+            confirmationMessage,
+            title,
+            confirmText,
+            "✓",
+            isDanger: false);
         var window = new ConfirmDeleteDialogWindow { DataContext = viewModel };
         return await ShowAsync(window, viewModel) == true;
     }

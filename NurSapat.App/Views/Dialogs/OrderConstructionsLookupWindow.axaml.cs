@@ -11,6 +11,7 @@ public partial class OrderConstructionsLookupWindow : Window
     public OrderConstructionsLookupWindow()
     {
         InitializeComponent();
+        WindowState = WindowState.Maximized;
         Opened += OnOpened;
     }
 

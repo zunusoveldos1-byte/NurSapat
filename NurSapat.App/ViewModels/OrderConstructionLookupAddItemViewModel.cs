@@ -5,8 +5,8 @@ namespace NurSapat.App.ViewModels;
 /// </summary>
 public sealed class OrderConstructionLookupAddItemViewModel
 {
-    private const double CardWidthValue = 220;
-    private const double CardHeightValue = 340;
+    private const double CardWidthValue = 230;
+    private const double CardHeightValue = 360;
     public double CardWidth => CardWidthValue;
 
     public double CardHeight => CardHeightValue;

@@ -6,6 +6,8 @@ public sealed class ConstructionAppearance
 
     public string ColorHex { get; set; } = "#FFFFFF";
 
+    public string ContourColorName { get; set; } = "Gray";
+
     public bool ChangeProfile { get; set; } = true;
 
     public bool ChangeImposts { get; set; } = true;

@@ -3,6 +3,8 @@ using NurSapat.Core.Interfaces;
 using NurSapat.Core.Models.Calculation;
 using NurSapat.Core.Models.Construction;
 using NurSapat.Core.Models.Orders;
+using NurSapat.App.Services.Users;
+using NurSapat.Infrastructure.Sync.Diagnostics;
 
 namespace NurSapat.App.Services.Materials;
 
@@ -10,15 +12,28 @@ public sealed class MaterialsDetailPriceCatalog : IMaterialPriceCatalog
 {
     private readonly IMaterialsDetailStore _store;
     private readonly IMaterialCatalogResolver _resolver;
+    private readonly IUserSessionService _userSessionService;
 
-    public MaterialsDetailPriceCatalog(IMaterialsDetailStore store, IMaterialCatalogResolver resolver)
+    public MaterialsDetailPriceCatalog(
+        IMaterialsDetailStore store,
+        IMaterialCatalogResolver resolver,
+        IUserSessionService userSessionService)
     {
         _store = store;
         _resolver = resolver;
+        _userSessionService = userSessionService;
     }
 
     public MaterialPriceQuote? TryGetByMaterialId(Guid materialId)
     {
+        if (_userSessionService.IsOffline)
+        {
+            StartupTrace.Info(
+                "[LOG] MaterialsDetailPriceCatalog.TryGetByMaterialId: " +
+                "оффлайн-режим, PostgreSQL не вызывается.");
+            return null;
+        }
+
         var detail = _store.GetById(materialId);
         return detail is null ? null : ToQuote(detail);
     }

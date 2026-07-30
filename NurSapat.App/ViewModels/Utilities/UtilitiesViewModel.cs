@@ -5,6 +5,8 @@ using CommunityToolkit.Mvvm.Input;
 using NurSapat.App.Services;
 using NurSapat.App.Services.Settings;
 using NurSapat.App.Services.Utilities;
+using NurSapat.App.Services.Documents;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 
 namespace NurSapat.App.ViewModels.Utilities;
@@ -17,6 +19,8 @@ public sealed partial class UtilitiesViewModel : ViewModelBase
     private readonly IUtilitiesWindowService _utilitiesWindowService;
     private readonly IEnvironmentSettingsService _environmentSettingsService;
     private readonly IDialogService _dialogService;
+    private readonly IDocumentManager _documentManager;
+    private readonly IDatabaseBackupPayloadService _databaseBackupPayloadService;
 
     private Func<Window?>? _ownerResolver;
 
@@ -26,7 +30,9 @@ public sealed partial class UtilitiesViewModel : ViewModelBase
         IProductionBaseService productionBaseService,
         IUtilitiesWindowService utilitiesWindowService,
         IEnvironmentSettingsService environmentSettingsService,
-        IDialogService dialogService)
+        IDialogService dialogService,
+        IDocumentManager documentManager,
+        IDatabaseBackupPayloadService databaseBackupPayloadService)
     {
         _databaseUtilitiesService = databaseUtilitiesService;
         _dealerBaseService = dealerBaseService;
@@ -34,7 +40,14 @@ public sealed partial class UtilitiesViewModel : ViewModelBase
         _utilitiesWindowService = utilitiesWindowService;
         _environmentSettingsService = environmentSettingsService;
         _dialogService = dialogService;
+        _documentManager = documentManager;
+        _databaseBackupPayloadService = databaseBackupPayloadService;
     }
+
+    public ObservableCollection<BackupArchiveItem> BackupArchives { get; } = [];
+
+    [ObservableProperty]
+    private BackupArchiveItem? _selectedBackupArchive;
 
     public void ConfigureOwnerResolver(Func<Window?> ownerResolver) =>
         _ownerResolver = ownerResolver;
@@ -141,6 +154,185 @@ public sealed partial class UtilitiesViewModel : ViewModelBase
     private async Task ImportProductionBaseAsync() =>
         await _utilitiesWindowService.ShowProductionBaseImportAsync(_ownerResolver?.Invoke());
 
+    [RelayCommand]
+    private async Task OpenDatabaseBackupsAsync()
+    {
+        RefreshBackupArchives();
+        var owner = _ownerResolver?.Invoke();
+        var window = new NurSapat.App.Views.Utilities.DatabaseBackupsWindow
+        {
+            DataContext = this
+        };
+        if (owner is null)
+        {
+            window.Show();
+            return;
+        }
+
+        await window.ShowDialog(owner);
+    }
+
+    [RelayCommand]
+    private async Task CreateDatabaseBackupAsync()
+    {
+        try
+        {
+            var directory = ResolveBackupDirectory();
+            Directory.CreateDirectory(directory);
+            var path = BuildUniqueDailyBackupPath(directory);
+            if (!await _documentManager.CreateBackupAsync(path))
+            {
+                return;
+            }
+
+            RefreshBackupArchives();
+            if (_ownerResolver?.Invoke() is { } owner)
+            {
+                AppNotificationHelper.ShowSuccess(
+                    owner,
+                    $"Резервная копия создана: {Path.GetFileName(path)}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _dialogService.ShowErrorAsync(
+                $"Не удалось создать резервную копию: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task RestoreDatabaseBackupAsync()
+    {
+        var selected = SelectedBackupArchive;
+        if (selected is null)
+        {
+            await _dialogService.ShowErrorAsync("Выберите архив для восстановления.");
+            return;
+        }
+
+        if (!File.Exists(selected.FullPath))
+        {
+            await _dialogService.ShowErrorAsync(
+                new FileNotFoundException(
+                    "Выбранный архив резервной копии не найден.",
+                    selected.FullPath).Message);
+            RefreshBackupArchives();
+            return;
+        }
+
+        string? temporaryRestoreSource = null;
+        try
+        {
+            var backupDirectory = ResolveBackupDirectory();
+            Directory.CreateDirectory(backupDirectory);
+            var nowPath = Path.Combine(backupDirectory, "now.zp");
+
+            var restoreSource = selected.FullPath;
+            if (Path.GetFullPath(restoreSource).Equals(
+                    Path.GetFullPath(nowPath),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                temporaryRestoreSource = Path.Combine(
+                    Path.GetTempPath(),
+                    $"nursapat-restore-{Guid.NewGuid():N}.zp");
+                File.Copy(restoreSource, temporaryRestoreSource, overwrite: true);
+                restoreSource = temporaryRestoreSource;
+            }
+
+            if (!await _documentManager.CreateBackupAsync(nowPath))
+            {
+                return;
+            }
+
+            if (await _documentManager.RestorePreparedBackupAsync(restoreSource)
+                && _ownerResolver?.Invoke() is { } owner)
+            {
+                AppNotificationHelper.ShowSuccess(owner, "Резервная копия восстановлена.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _dialogService.ShowErrorAsync(
+                $"Не удалось восстановить резервную копию: {ex.Message}");
+        }
+        finally
+        {
+            if (temporaryRestoreSource is not null)
+            {
+                try
+                {
+                    File.Delete(temporaryRestoreSource);
+                }
+                catch
+                {
+                    // Temporary cleanup must not hide restore errors.
+                }
+            }
+
+            RefreshBackupArchives();
+        }
+    }
+
+    [RelayCommand]
+    private void RefreshBackupArchives()
+    {
+        BackupArchives.Clear();
+        var directory = ResolveBackupDirectory();
+        if (!Directory.Exists(directory))
+        {
+            return;
+        }
+
+        foreach (var path in Directory.EnumerateFiles(directory, "*.zp")
+                     .OrderByDescending(File.GetLastWriteTimeUtc))
+        {
+            var info = new FileInfo(path);
+            BackupArchives.Add(new BackupArchiveItem(
+                info.FullName,
+                info.Name,
+                info.LastWriteTime,
+                info.Length));
+        }
+    }
+
+    private string ResolveBackupDirectory()
+    {
+        var configured = _environmentSettingsService.Current.BackupPath;
+        return string.IsNullOrWhiteSpace(configured)
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "NurSapat",
+                "Backups")
+            : Path.GetFullPath(configured);
+    }
+
+    private static string BuildUniqueDailyBackupPath(string directory)
+    {
+        var baseName = DateTime.Now.ToString("yyyyMMdd");
+        var path = Path.Combine(directory, $"{baseName}.zp");
+        if (!File.Exists(path))
+        {
+            return path;
+        }
+
+        var timestamped = Path.Combine(
+            directory,
+            $"{baseName}_{DateTime.Now:HHmmss}.zp");
+        if (!File.Exists(timestamped))
+        {
+            return timestamped;
+        }
+
+        for (var index = 1; ; index++)
+        {
+            var candidate = Path.Combine(directory, $"{baseName}_{index}.zp");
+            if (!File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+    }
+
     private static async Task<string?> ShowSaveProductionFileAsync(Window? owner)
     {
         if (owner?.StorageProvider is not { } storage)
@@ -164,4 +356,15 @@ public sealed partial class UtilitiesViewModel : ViewModelBase
 
         return file?.TryGetLocalPath();
     }
+}
+
+public sealed record BackupArchiveItem(
+    string FullPath,
+    string FileName,
+    DateTime CreatedAt,
+    long SizeBytes)
+{
+    public string CreatedDisplay => CreatedAt.ToString("dd.MM.yyyy HH:mm:ss");
+
+    public string SizeDisplay => $"{SizeBytes / 1024d:N1} КБ";
 }

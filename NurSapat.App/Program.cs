@@ -195,6 +195,7 @@ class Program
         services.AddSingleton<IExportService, ExportService>();
         services.AddSingleton<IExportWindowService, ExportWindowService>();
         services.AddSingleton<IDatabaseUtilitiesService, DatabaseUtilitiesService>();
+        services.AddSingleton<IDatabaseBackupPayloadService, PostgresBackupPayloadService>();
         services.AddSingleton<IDatabasePasswordService, DatabasePasswordService>();
         services.AddSingleton<IDealerBaseService, DealerBaseService>();
         services.AddSingleton<IProductionBaseService, ProductionBaseService>();
@@ -257,6 +258,7 @@ class Program
                 sp.GetRequiredService<OrderCalculationService>(),
                 sp.GetRequiredService<ICustomersStore>(),
                 sp.GetRequiredService<IManagersStore>(),
+                sp.GetRequiredService<IUserSessionService>(),
                 sp.GetRequiredService<IOrderNumberService>(),
                 sp.GetRequiredService<IDictionaryWindowService>(),
                 sp.GetRequiredService<OrderLifecycleService>()));

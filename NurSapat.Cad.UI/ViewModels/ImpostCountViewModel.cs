@@ -17,8 +17,11 @@ public sealed partial class ImpostCountViewModel : ObservableObject
 
     public bool IsConfirmed { get; private set; }
 
-    public ImpostCountViewModel(int initialCount = 1)
+    public Guid TargetCellId { get; }
+
+    public ImpostCountViewModel(Guid targetCellId, int initialCount = 1)
     {
+        TargetCellId = targetCellId;
         CountText = Math.Max(1, initialCount).ToString();
     }
 

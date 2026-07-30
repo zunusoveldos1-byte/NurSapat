@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Orders;
@@ -55,6 +56,78 @@ public sealed partial class ConstructionModel : ObservableObject
             OnPropertyChanged();
             NotifyAreaChanged();
         }
+    }
+
+    public string ProfileSystemName
+    {
+        get => _construction.ProfileSystemName;
+        set => SetConstructionValue(
+            _construction.ProfileSystemName,
+            value,
+            newValue => _construction.ProfileSystemName = newValue);
+    }
+
+    public Guid? SelectedMaterialId
+    {
+        get => _construction.SelectedMaterialId;
+        set => SetConstructionValue(
+            _construction.SelectedMaterialId,
+            value,
+            newValue => _construction.SelectedMaterialId = newValue);
+    }
+
+    public string MaterialColor
+    {
+        get => _construction.Appearance.ColorName;
+        set => SetConstructionValue(
+            _construction.Appearance.ColorName,
+            value,
+            newValue => _construction.Appearance.ColorName = newValue);
+    }
+
+    public string ContourColor
+    {
+        get => _construction.Appearance.ContourColorName;
+        set => SetConstructionValue(
+            _construction.Appearance.ContourColorName,
+            value,
+            newValue => _construction.Appearance.ContourColorName = newValue);
+    }
+
+    public string CustomerName
+    {
+        get => _construction.OrderDetails.CustomerName;
+        set => SetConstructionValue(
+            _construction.OrderDetails.CustomerName,
+            value,
+            newValue => _construction.OrderDetails.CustomerName = newValue);
+    }
+
+    public string CustomerPhone
+    {
+        get => _construction.OrderDetails.CustomerPhone;
+        set => SetConstructionValue(
+            _construction.OrderDetails.CustomerPhone,
+            value,
+            newValue => _construction.OrderDetails.CustomerPhone = newValue);
+    }
+
+    public string ObjectAddress
+    {
+        get => _construction.OrderDetails.SiteAddress;
+        set => SetConstructionValue(
+            _construction.OrderDetails.SiteAddress,
+            value,
+            newValue => _construction.OrderDetails.SiteAddress = newValue);
+    }
+
+    public DateTime OrderDate
+    {
+        get => _construction.OrderDetails.OrderDate;
+        set => SetConstructionValue(
+            _construction.OrderDetails.OrderDate,
+            value,
+            newValue => _construction.OrderDetails.OrderDate = newValue);
     }
 
     public double Width
@@ -143,6 +216,21 @@ public sealed partial class ConstructionModel : ObservableObject
         }
     }
 
+    public ConstructionReadinessStatus Status
+    {
+        get => _construction.Status;
+        set
+        {
+            if (_construction.Status == value)
+            {
+                return;
+            }
+
+            _construction.Status = value;
+            OnPropertyChanged();
+        }
+    }
+
     public DateTimeOffset? DeliveryDate
     {
         get => _construction.DeliveryDate;
@@ -154,6 +242,12 @@ public sealed partial class ConstructionModel : ObservableObject
             }
 
             _construction.DeliveryDate = value;
+            if (value is not null)
+            {
+                _construction.Status = ConstructionReadinessStatus.CompletedAndSold;
+                OnPropertyChanged(nameof(Status));
+            }
+
             OnPropertyChanged();
         }
     }
@@ -236,6 +330,21 @@ public sealed partial class ConstructionModel : ObservableObject
     {
         DetachPreviewEditorSubscription();
         _construction.Cost.PropertyChanged -= OnUnderlyingCostChanged;
+    }
+
+    private void SetConstructionValue<T>(
+        T current,
+        T value,
+        Action<T> apply,
+        [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(current, value))
+        {
+            return;
+        }
+
+        apply(value);
+        OnPropertyChanged(propertyName);
     }
 
     private void AttachPreviewEditorSubscription()

@@ -15,7 +15,12 @@ public sealed class DialogService : IDialogService
     private static readonly FilePickerFileType ProjectFileType = new(ProjectFormat.FilterName)
     {
         Patterns = new[] { $"*{ProjectFormat.Extension}" },
-        MimeTypes = new[] { "application/vnd.nursapat.project+json" }
+        MimeTypes = new[] { "application/zip" }
+    };
+
+    private static readonly FilePickerFileType AllFilesType = new("Все файлы (*.*)")
+    {
+        Patterns = new[] { "*.*" }
     };
 
     public async Task<UnsavedChangesChoice> ShowUnsavedChangesDialogAsync(
@@ -66,9 +71,9 @@ public sealed class DialogService : IDialogService
         var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Сохранить проект NurSapat",
-            SuggestedFileName = suggestedFileName,
-            DefaultExtension = ProjectFormat.Extension.TrimStart('.'),
-            FileTypeChoices = new[] { ProjectFileType }
+            SuggestedFileName = $"{DateTime.Now:yyyyMMdd}{ProjectFormat.Extension}",
+            DefaultExtension = "zp",
+            FileTypeChoices = new[] { ProjectFileType, AllFilesType }
         });
 
         return file?.TryGetLocalPath();
@@ -86,7 +91,7 @@ public sealed class DialogService : IDialogService
         {
             Title = "Открыть проект NurSapat",
             AllowMultiple = false,
-            FileTypeFilter = new[] { ProjectFileType }
+            FileTypeFilter = new[] { ProjectFileType, AllFilesType }
         });
 
         return files.FirstOrDefault()?.TryGetLocalPath();

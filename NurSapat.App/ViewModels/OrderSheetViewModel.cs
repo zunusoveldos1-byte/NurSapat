@@ -15,6 +15,7 @@ using NurSapat.Core.Models.Construction;
 using NurSapat.Core.Models;
 using NurSapat.Core.Models.Calculation;
 using NurSapat.Core.Models.Orders;
+using NurSapat.Infrastructure.Sync.Diagnostics;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Avalonia.Controls;
@@ -31,6 +32,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
     private readonly OrderCalculationService _calculationService;
     private readonly ICustomersStore _customersStore;
     private readonly IManagersStore _managersStore;
+    private readonly IUserSessionService _userSessionService;
     private readonly IOrderNumberService _orderNumberService;
     private readonly IDictionaryWindowService _dictionaryWindowService;
     private IDocumentManager? _documentManager;
@@ -42,7 +44,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
 
     public Order Order { get; }
 
-    public ObservableCollection<OrderConstruction> Constructions { get; } = new();
+    public ObservableCollection<OrderConstruction> Constructions => Order.Constructions;
 
     public ObservableCollection<ConstructionModel> ConstructionModels { get; } = new();
 
@@ -195,6 +197,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
             }
 
             Header.CustomerName = value;
+            ActiveConstruction.OrderDetails.CustomerName = value;
             OnPropertyChanged();
         }
     }
@@ -210,6 +213,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
             }
 
             Header.CustomerPhone = value;
+            ActiveConstruction.OrderDetails.CustomerPhone = value;
             OnPropertyChanged();
         }
     }
@@ -225,6 +229,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
             }
 
             Header.SiteAddress = value;
+            ActiveConstruction.OrderDetails.SiteAddress = value;
             OnPropertyChanged();
         }
     }
@@ -240,6 +245,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
             }
 
             Header.ContractNumber = value;
+            ActiveConstruction.OrderDetails.ContractNumber = value;
             OnPropertyChanged();
         }
     }
@@ -255,6 +261,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
             }
 
             Header.OrderManagerName = value;
+            ActiveConstruction.OrderDetails.OrderManagerName = value;
             OnPropertyChanged();
         }
     }
@@ -466,6 +473,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         OrderCalculationService calculationService,
         ICustomersStore customersStore,
         IManagersStore managersStore,
+        IUserSessionService userSessionService,
         IOrderNumberService orderNumberService,
         IDictionaryWindowService dictionaryWindowService)
     {
@@ -474,6 +482,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         _calculationService = calculationService;
         _customersStore = customersStore;
         _managersStore = managersStore;
+        _userSessionService = userSessionService;
         _orderNumberService = orderNumberService;
         _dictionaryWindowService = dictionaryWindowService;
         Order = workspace.Order;
@@ -526,18 +535,49 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
     public void ReloadCustomerLookups()
     {
         var previousId = SelectedCustomer?.Id ?? Header.CustomerId;
+        var previousName = Header.CustomerName;
         AvailableCustomers.Clear();
-        foreach (var item in _customersStore.GetSelectable())
+
+        if (_userSessionService.IsOffline)
         {
-            AvailableCustomers.Add(CustomerLookupItem.FromItem(item));
+            StartupTrace.Info(
+                "[LOG] OrderSheetViewModel.ReloadCustomerLookups: " +
+                "оффлайн-режим, PostgreSqlCustomersStore не вызывается.");
+        }
+        else
+        {
+            try
+            {
+                foreach (var item in _customersStore.GetSelectable())
+                {
+                    AvailableCustomers.Add(CustomerLookupItem.FromItem(item));
+                }
+            }
+            catch (Exception ex)
+            {
+                // A lookup is optional startup data. A PostgreSQL/network failure
+                // must never escape the constructor and abort workspace creation.
+                StartupTrace.Error(
+                    "[LOG] OrderSheetViewModel.ReloadCustomerLookups: " +
+                    "ошибка загрузки клиентов; используется локальное/пустое состояние",
+                    ex);
+            }
         }
 
+        PreserveCurrentCustomerLookup(previousId, previousName);
+
         _suppressLookupSync = true;
-        SelectedCustomer = previousId is Guid id
-            ? AvailableCustomers.FirstOrDefault(c => c.Id == id)
-            : AvailableCustomers.FirstOrDefault(c =>
-                string.Equals(c.FullName, Header.CustomerName, StringComparison.OrdinalIgnoreCase));
-        _suppressLookupSync = false;
+        try
+        {
+            SelectedCustomer = previousId is Guid id
+                ? AvailableCustomers.FirstOrDefault(c => c.Id == id)
+                : AvailableCustomers.FirstOrDefault(c =>
+                    string.Equals(c.FullName, previousName, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            _suppressLookupSync = false;
+        }
     }
 
     public void ReloadManagerLookups()
@@ -546,18 +586,74 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         var previousName = Header.OrderManagerName;
         AvailableManagers.Clear();
         ManagerNames.Clear();
-        foreach (var item in _managersStore.GetSelectable())
+        try
         {
-            AvailableManagers.Add(ManagerLookupItem.FromItem(item));
-            ManagerNames.Add(item.FullName);
+            // ManagersStore is currently in-memory. Keep the catch so a future
+            // PostgreSQL implementation cannot break startup.
+            foreach (var item in _managersStore.GetSelectable())
+            {
+                AvailableManagers.Add(ManagerLookupItem.FromItem(item));
+                ManagerNames.Add(item.FullName);
+            }
+        }
+        catch (Exception ex)
+        {
+            StartupTrace.Error(
+                "[LOG] OrderSheetViewModel.ReloadManagerLookups: " +
+                "ошибка загрузки менеджеров; используется локальное/пустое состояние",
+                ex);
         }
 
+        PreserveCurrentManagerLookup(previousId, previousName);
+
         _suppressLookupSync = true;
-        SelectedManager = previousId is Guid id
-            ? AvailableManagers.FirstOrDefault(m => m.Id == id)
-            : AvailableManagers.FirstOrDefault(m =>
-                string.Equals(m.FullName, previousName, StringComparison.OrdinalIgnoreCase));
-        _suppressLookupSync = false;
+        try
+        {
+            SelectedManager = previousId is Guid id
+                ? AvailableManagers.FirstOrDefault(m => m.Id == id)
+                : AvailableManagers.FirstOrDefault(m =>
+                    string.Equals(m.FullName, previousName, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            _suppressLookupSync = false;
+        }
+    }
+
+    private void PreserveCurrentCustomerLookup(Guid? customerId, string? customerName)
+    {
+        if (AvailableCustomers.Count != 0 ||
+            string.IsNullOrWhiteSpace(customerName))
+        {
+            return;
+        }
+
+        AvailableCustomers.Add(new CustomerLookupItem
+        {
+            Id = customerId ?? Guid.Empty,
+            FullName = customerName,
+            Phone = Header.CustomerPhone,
+            City = Header.CustomerCity,
+            TypeDisplay = "Локальные данные заказа"
+        });
+    }
+
+    private void PreserveCurrentManagerLookup(Guid? managerId, string? managerName)
+    {
+        if (AvailableManagers.Count != 0 ||
+            string.IsNullOrWhiteSpace(managerName))
+        {
+            return;
+        }
+
+        var lookup = new ManagerLookupItem
+        {
+            Id = managerId ?? Guid.Empty,
+            FullName = managerName,
+            Position = "Локальные данные заказа"
+        };
+        AvailableManagers.Add(lookup);
+        ManagerNames.Add(lookup.FullName);
     }
 
     partial void OnSelectedCustomerChanged(CustomerLookupItem? value)
@@ -684,9 +780,16 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         OnPropertyChanged(nameof(CustomerName));
         OnPropertyChanged(nameof(CustomerPhone));
         OnPropertyChanged(nameof(ObjectAddress));
+        OnPropertyChanged(nameof(DealerName));
+        OnPropertyChanged(nameof(CustomerCity));
+        OnPropertyChanged(nameof(CustomerCode));
         OnPropertyChanged(nameof(ContractNumber));
         OnPropertyChanged(nameof(OrderManagerName));
         OnPropertyChanged(nameof(OrderNumberDisplay));
+        OnPropertyChanged(nameof(OrderDate));
+        OnPropertyChanged(nameof(ContractDate));
+        NotifyOrderDateParts();
+        NotifyContractDateParts();
         RecalculateAll();
     }
 
@@ -701,6 +804,7 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
         }
 
         Order.SelectedConstruction = value;
+        _ = _workspace.SwitchToConstructionAsync(value.Id);
         value.Cost.PropertyChanged += OnCostPropertyChanged;
         SyncSelectedConstructionModel();
         SyncPreviewFromActiveConstruction();
@@ -739,15 +843,37 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void SelectConstructionCard(OrderConstructionLookupItemViewModel? card)
+    private async Task SelectConstructionCardAsync(OrderConstructionLookupItemViewModel? card)
     {
         if (card is null)
         {
             return;
         }
 
-        SelectedConstructionCard = card;
-        SelectedConstruction = card.Construction;
+        await _workspace.SwitchToConstructionAsync(card.Id);
+    }
+
+    [RelayCommand]
+    private async Task ConfirmConstructionDeliveryAsync(
+        OrderConstructionLookupItemViewModel? card)
+    {
+        if (card is null || !card.CanConfirmDelivery)
+        {
+            return;
+        }
+
+        var confirmed = await _orderErpDialogService.ShowConfirmationAsync(
+            $"Подтвердить доставку конструкции «{card.Name}» клиенту?\n\n" +
+            "После подтверждения статус изменится на «Завершен / Продан».",
+            "Подтверждение доставки",
+            "Подтвердить доставку");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        card.ConfirmDelivery(DateTimeOffset.UtcNow);
+        _workspace.NotifyModified();
     }
 
     [ObservableProperty]
@@ -958,17 +1084,9 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
 
     private void RebuildConstructions()
     {
-        Constructions.Clear();
-        foreach (var item in Order.Constructions.ToList())
-        {
-            Constructions.Add(item);
-        }
-
         if (Constructions.Count == 0)
         {
             Order.EnsureDefaultConstruction();
-            RebuildConstructions();
-            return;
         }
 
         RebuildConstructionModels();
@@ -979,15 +1097,37 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
 
     private void RebuildConstructionModels()
     {
-        DetachConstructionModels();
-        ConstructionModels.Clear();
-
-        foreach (var construction in Order.Constructions.ToList())
+        var activeIds = Order.Constructions.Select(item => item.Id).ToHashSet();
+        for (var index = ConstructionModels.Count - 1; index >= 0; index--)
         {
-            var previewEditor = construction.Id == SelectedConstruction?.Id ? PreviewEditor : null;
-            var model = new ConstructionModel(construction, previewEditor);
-            model.PropertyChanged += OnConstructionModelPropertyChanged;
-            ConstructionModels.Add(model);
+            var existing = ConstructionModels[index];
+            if (activeIds.Contains(existing.Id))
+            {
+                continue;
+            }
+
+            existing.PropertyChanged -= OnConstructionModelPropertyChanged;
+            existing.Detach();
+            ConstructionModels.RemoveAt(index);
+        }
+
+        for (var targetIndex = 0; targetIndex < Order.Constructions.Count; targetIndex++)
+        {
+            var construction = Order.Constructions[targetIndex];
+            var model = ConstructionModels.FirstOrDefault(item => item.Id == construction.Id);
+            if (model is null)
+            {
+                model = new ConstructionModel(construction);
+                model.PropertyChanged += OnConstructionModelPropertyChanged;
+                ConstructionModels.Insert(targetIndex, model);
+                continue;
+            }
+
+            var currentIndex = ConstructionModels.IndexOf(model);
+            if (currentIndex != targetIndex)
+            {
+                ConstructionModels.Move(currentIndex, targetIndex);
+            }
         }
 
         SyncSelectedConstructionModel();
@@ -1049,6 +1189,12 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
             RebuildConstructionCards();
         }
         else if (e.PropertyName is nameof(ConstructionModel.Name))
+        {
+            RebuildConstructionCards();
+        }
+        else if (e.PropertyName is nameof(ConstructionModel.Status)
+                 or nameof(ConstructionModel.ManufactureDate)
+                 or nameof(ConstructionModel.DeliveryDate))
         {
             RebuildConstructionCards();
         }
@@ -1190,13 +1336,19 @@ public sealed partial class OrderSheetViewModel : ViewModelBase
 
     private void RebuildConstructionCards()
     {
+        foreach (var card in _allConstructionCards)
+        {
+            card.Dispose();
+        }
+
         _allConstructionCards.Clear();
 
         foreach (var construction in Order.Constructions.OrderBy(c => c.Number).ToList())
         {
             _allConstructionCards.Add(new OrderConstructionLookupItemViewModel(
                 construction,
-                isActive: construction.Id == SelectedConstruction?.Id));
+                isActive: construction.Id == SelectedConstruction?.Id,
+                order: Order));
         }
 
         RefreshPagedConstructions();

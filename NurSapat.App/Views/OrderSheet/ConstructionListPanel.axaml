@@ -1,7 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
-             xmlns:controls="clr-namespace:NurSapat.Cad.UI.Controls;assembly=NurSapat.Cad.UI"
              x:Class="NurSapat.App.Views.OrderSheet.ConstructionListPanel"
              x:DataType="vm:OrderSheetViewModel"
              FontFamily="Inter, Segoe UI">
@@ -46,7 +45,12 @@
             <Setter Property="Padding" Value="8"/>
         </Style>
         <Style Selector="Border.cCardBorder:active">
-            <Setter Property="Background" Value="#EFF4FF"/>
+            <Setter Property="Background" Value="#F0F6FF"/>
+            <Setter Property="BorderBrush" Value="#2563EB"/>
+            <Setter Property="BorderThickness" Value="2"/>
+        </Style>
+        <Style Selector="ListBox.cList ListBoxItem:selected Border.cCardBorder">
+            <Setter Property="Background" Value="#F0F6FF"/>
             <Setter Property="BorderBrush" Value="#2563EB"/>
             <Setter Property="BorderThickness" Value="2"/>
         </Style>
@@ -102,38 +106,47 @@
                          IsVisible="{Binding !ShowConstructionCardsEmptyState}">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:OrderConstructionLookupItemViewModel">
-                            <Button Classes="cCard"
+                            <Border Classes="cCardBorder"
+                                    Classes.active="{Binding IsActive}"
                                     Height="72"
-                                    HorizontalAlignment="Stretch"
-                                    Command="{Binding $parent[UserControl].((vm:OrderSheetViewModel)DataContext).SelectConstructionCardCommand}"
-                                    CommandParameter="{Binding}">
-                                <Border Classes="cCardBorder"
-                                        Classes.active="{Binding IsActive}"
-                                        Height="72"
-                                        HorizontalAlignment="Stretch">
-                                    <Grid ColumnDefinitions="48,*" ColumnSpacing="8">
-                                        <Border Grid.Column="0"
-                                                Width="48"
-                                                Height="48"
-                                                Background="#F8FAFC"
-                                                BorderBrush="#E5EAF3"
-                                                BorderThickness="1"
+                                    HorizontalAlignment="Stretch">
+                                <Grid ColumnDefinitions="48,*" ColumnSpacing="8">
+                                    <Button Grid.Column="0"
+                                            Width="24"
+                                            Height="24"
+                                            Padding="0"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            CornerRadius="6"
+                                            Cursor="Hand"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Command="{Binding $parent[UserControl].((vm:OrderSheetViewModel)DataContext).ConfirmConstructionDeliveryCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip.Tip="{Binding StatusToolTip}"
+                                            AutomationProperties.Name="{Binding StatusTitle}">
+                                        <Border Width="24"
+                                                Height="24"
                                                 CornerRadius="6"
-                                                ClipToBounds="True"
-                                                VerticalAlignment="Center">
-                                            <Viewbox Stretch="Uniform"
-                                                     StretchDirection="DownOnly"
-                                                     Margin="2">
-                                                <controls:CadCanvasControl Editor="{Binding PreviewEditor}"
-                                                                           AutoFitOnResize="True"
-                                                                           IsThumbnailPreview="True"
-                                                                           IsEnabled="False"
-                                                                           IsHitTestVisible="False"
-                                                                           Width="44"
-                                                                           Height="44"/>
-                                            </Viewbox>
+                                                Background="{Binding StatusBackground}">
+                                            <TextBlock Text="{Binding StatusIcon}"
+                                                       Foreground="White"
+                                                       FontSize="14"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
                                         </Border>
-                                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                    </Button>
+
+                                    <Button Grid.Column="1"
+                                            Classes="cCard"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch"
+                                            Command="{Binding $parent[UserControl].((vm:OrderSheetViewModel)DataContext).SelectConstructionCardCommand}"
+                                            CommandParameter="{Binding}">
+                                        <StackPanel Spacing="2"
+                                                    VerticalAlignment="Center"
+                                                    HorizontalAlignment="Stretch">
                                             <TextBlock Text="{Binding Name}"
                                                        FontSize="12"
                                                        FontWeight="SemiBold"
@@ -146,9 +159,9 @@
                                                        FontSize="11"
                                                        Foreground="#94A3B8"/>
                                         </StackPanel>
-                                    </Grid>
-                                </Border>
-                            </Button>
+                                    </Button>
+                                </Grid>
+                            </Border>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
@@ -169,7 +182,9 @@
                     <TextBlock Text="+ Добавить конструкцию"
                                FontSize="12"
                                FontWeight="SemiBold"
-                               Foreground="#2563EB"/>
+                               Foreground="#2563EB"
+                               VerticalAlignment="Center"
+                               Cursor="Hand"/>
                 </Button>
 
                 <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" ColumnSpacing="6">

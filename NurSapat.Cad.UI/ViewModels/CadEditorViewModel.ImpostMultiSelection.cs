@@ -7,16 +7,18 @@ namespace NurSapat.Cad.UI.ViewModels;
 
 public sealed partial class CadEditorViewModel
 {
+    private const double HorizontalImpostLineSelectionToleranceMm = 0.5;
     private readonly List<ImpostTarget> _selectedImposts = [];
     private readonly List<ImpostDragStart> _impostDragStarts = [];
     private double _impostDragPointerStartAxis;
+    private double _impostDragReferenceStartAxis;
 
     public IReadOnlyList<ImpostTarget> SelectedImposts => _selectedImposts;
 
     private bool TrySelectImpostForOffset(
         ImpostTarget hit,
         GridLineOrientation targetOrientation,
-        bool isControlPressed,
+        bool isMultiSelectPressed,
         double pointerAxis)
     {
         if (hit.Orientation != targetOrientation)
@@ -24,10 +26,21 @@ public sealed partial class CadEditorViewModel
             return false;
         }
 
+        // Horizontal profiles are stored as independent cell segments. For the
+        // offset tool Alt explicitly selects their logical Y-line; a regular
+        // click keeps the segment local.
+        if (targetOrientation == GridLineOrientation.Horizontal)
+        {
+            return TrySelectHorizontalImpostLine(
+                hit,
+                pointerAxis,
+                selectWholeLine: isMultiSelectPressed);
+        }
+
         RemoveTargetsOfOtherOrientation(targetOrientation);
         var existing = _selectedImposts.FindIndex(target => IsSameImpost(target, hit));
 
-        if (isControlPressed && existing >= 0)
+        if (isMultiSelectPressed && existing >= 0)
         {
             _selectedImposts.RemoveAt(existing);
             _selectedMullion = _selectedImposts.FirstOrDefault();
@@ -41,14 +54,14 @@ public sealed partial class CadEditorViewModel
         BeginConstructionDrag();
         TryResolveImpostAxis(hit, targetOrientation, out var hitAxisBeforeAlignment);
         var alignedOnSelection = false;
-        if (!isControlPressed)
+        if (!isMultiSelectPressed)
         {
             _selectedImposts.Clear();
         }
 
-        if (existing < 0 || !isControlPressed)
+        if (existing < 0 || !isMultiSelectPressed)
         {
-            if (isControlPressed && _selectedImposts.Count > 0
+            if (isMultiSelectPressed && _selectedImposts.Count > 0
                 && !TryAlignImpostToGroupReference(hit, targetOrientation))
             {
                 CancelConstructionDrag();
@@ -56,7 +69,7 @@ public sealed partial class CadEditorViewModel
                 return false;
             }
 
-            alignedOnSelection = isControlPressed && _selectedImposts.Count > 0;
+            alignedOnSelection = isMultiSelectPressed && _selectedImposts.Count > 0;
             _selectedImposts.Add(hit);
         }
 
@@ -77,6 +90,68 @@ public sealed partial class CadEditorViewModel
         StatusText = _selectedImposts.Count > 1
             ? $"Выбрано импостов: {_selectedImposts.Count}. Перемещается вся группа"
             : "Импост выделен — перетащите или измените L/H";
+        return true;
+    }
+
+    private bool TrySelectHorizontalImpostLine(
+        ImpostTarget hit,
+        double pointerAxis,
+        bool selectWholeLine)
+    {
+        if (!TryResolveImpostAxis(hit, GridLineOrientation.Horizontal, out var targetAxis))
+        {
+            return false;
+        }
+
+        BeginConstructionDrag();
+        RebuildGridLines();
+        _selectedImposts.Clear();
+
+        if (selectWholeLine)
+        {
+            foreach (var line in GridLines.OfOrientation(GridLineOrientation.Horizontal))
+            {
+                if (line.Kind != GridLineKind.Physical
+                    || Math.Abs(line.Coordinate - targetAxis) >= HorizontalImpostLineSelectionToleranceMm
+                    || line.SourceNodeId is not Guid nodeId
+                    || FrameRoot?.FindNodeById(nodeId) is not { } node)
+                {
+                    continue;
+                }
+
+                var target = new ImpostTarget
+                {
+                    SplitNode = node,
+                    UniformGapIndex = line.UniformGapIndex,
+                    GridLineId = line.Id,
+                    Orientation = GridLineOrientation.Horizontal
+                };
+
+                if (!_selectedImposts.Any(selected => IsSameImpost(selected, target)))
+                {
+                    _selectedImposts.Add(target);
+                }
+            }
+        }
+
+        if (!_selectedImposts.Any(target => IsSameImpost(target, hit)))
+        {
+            _selectedImposts.Add(hit);
+        }
+
+        _selectedMullion = hit;
+        if (!TryBeginImpostGroupDrag(GridLineOrientation.Horizontal, pointerAxis))
+        {
+            CancelConstructionDrag();
+            ClearImpostMultiSelection();
+            _selectedMullion = null;
+            return false;
+        }
+
+        NotifyImpostMultiSelectionChanged();
+        StatusText = _selectedImposts.Count > 1
+            ? $"Выбрана горизонтальная линия: {_selectedImposts.Count} сегмента(ов)"
+            : "Выбран один сегмент горизонтального импоста";
         return true;
     }
 
@@ -117,6 +192,11 @@ public sealed partial class CadEditorViewModel
         }
 
         _impostDragPointerStartAxis = pointerAxis;
+        _impostDragReferenceStartAxis = _selectedMullion is { } selected
+            && selected.Orientation == orientation
+            && TryResolveImpostAxis(selected, orientation, out var selectedAxis)
+                ? selectedAxis
+                : _impostDragStarts[0].Axis;
         return _impostDragStarts.Count > 0;
     }
 
@@ -131,8 +211,9 @@ public sealed partial class CadEditorViewModel
         }
 
         var delta = pointerAxis - _impostDragPointerStartAxis;
+        var sharedAxis = RoundMm(_impostDragReferenceStartAxis + delta);
         var destinations = _impostDragStarts
-            .Select(item => (item.Target, Axis: RoundMm(item.Axis + delta)))
+            .Select(item => (item.Target, Axis: sharedAxis))
             .ToList();
 
         if (destinations.Any(item => !IsAxisWithinTargetRange(item.Target, orientation, item.Axis)))
@@ -169,6 +250,65 @@ public sealed partial class CadEditorViewModel
 
         return true;
     }
+
+    private bool TryMoveSelectedImpostGroupToAxis(
+        GridLineOrientation orientation,
+        double axis)
+    {
+        var targets = _selectedImposts
+            .Where(target => target.Orientation == orientation)
+            .ToList();
+        if (targets.Count == 0 && _selectedMullion?.Orientation == orientation)
+        {
+            targets.Add(_selectedMullion);
+        }
+
+        var destinationAxis = RoundMm(axis);
+        if (targets.Count == 0
+            || targets.Any(target => !IsAxisWithinTargetRange(target, orientation, destinationAxis)))
+        {
+            StatusText = "Движение группы ограничено границей одной из ячеек";
+            return false;
+        }
+
+        var originalAxes = new List<(ImpostTarget Target, double Axis)>(targets.Count);
+        foreach (var target in targets)
+        {
+            if (!TryResolveImpostAxis(target, orientation, out var originalAxis))
+            {
+                return false;
+            }
+
+            originalAxes.Add((target, originalAxis));
+        }
+
+        for (var i = 0; i < targets.Count; i++)
+        {
+            if (MoveImpost(targets[i], orientation, destinationAxis))
+            {
+                continue;
+            }
+
+            for (var rollbackIndex = i; rollbackIndex >= 0; rollbackIndex--)
+            {
+                var original = originalAxes[rollbackIndex];
+                MoveImpost(original.Target, orientation, original.Axis);
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool IsSelectedHorizontalImpostLineAtAxis(double axis) =>
+        _selectedImposts.Any(
+            target => target.Orientation == GridLineOrientation.Horizontal
+                && TryResolveImpostAxis(
+                    target,
+                    GridLineOrientation.Horizontal,
+                    out var selectedAxis)
+                && Math.Abs(selectedAxis - axis) < HorizontalImpostLineSelectionToleranceMm);
 
     private bool IsAxisWithinTargetRange(
         ImpostTarget target,
@@ -237,6 +377,7 @@ public sealed partial class CadEditorViewModel
         _selectedImposts.Clear();
         _impostDragStarts.Clear();
         OnPropertyChanged(nameof(SelectedImposts));
+        RequestSceneRefresh();
     }
 
     private sealed record ImpostDragStart(ImpostTarget Target, double Axis);

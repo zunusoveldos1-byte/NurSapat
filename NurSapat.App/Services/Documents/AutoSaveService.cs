@@ -30,7 +30,7 @@ public sealed class AutoSaveService : IAutoSaveService
     public AutoSaveService(IProjectSerializer serializer, EnvironmentSettings environmentSettings)
     {
         _serializer = serializer;
-        _autoSavePath = Path.Combine(environmentSettings.AppDataPath, "autosave", "autosave.nsp");
+        _autoSavePath = Path.Combine(environmentSettings.AppDataPath, "autosave", "autosave.zp");
     }
 
     public string? AutoSaveFilePath => File.Exists(_autoSavePath) ? _autoSavePath : null;

@@ -38,7 +38,7 @@
                 <TextBlock Text="Введите имя новой рабочей конфигурации (автора):"
                            TextWrapping="Wrap"/>
                 <TextBox Text="{Binding ProfileName}"
-                         PlaceholderText="Например: Anna"
+                         PlaceholderText="Например: Бексултан"
                          MinHeight="34"
                          VerticalContentAlignment="Center"/>
             </StackPanel>

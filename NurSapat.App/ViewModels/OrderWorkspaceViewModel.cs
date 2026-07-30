@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using NurSapat.App.Services;
 using NurSapat.App.Services.Dictionaries;
 using NurSapat.App.Services.Orders;
+using NurSapat.App.Services.Users;
 using NurSapat.App.Views.Dialogs;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models;
@@ -40,6 +41,7 @@ public sealed class OrderWorkspaceViewModel
         OrderCalculationService calculationService,
         ICustomersStore customersStore,
         IManagersStore managersStore,
+        IUserSessionService userSessionService,
         IOrderNumberService orderNumberService,
         IDictionaryWindowService dictionaryWindowService,
         OrderLifecycleService orderLifecycleService)
@@ -56,6 +58,7 @@ public sealed class OrderWorkspaceViewModel
             calculationService,
             customersStore,
             managersStore,
+            userSessionService,
             orderNumberService,
             dictionaryWindowService);
         Drawing = new OrderDrawingViewModel(this, cadEditor);
@@ -95,15 +98,11 @@ public sealed class OrderWorkspaceViewModel
 
         _orderLifecycleService.AssertCanEdit(Order);
 
-        var construction = Order.SelectedConstruction ?? Order.EnsureDefaultConstruction();
-        SyncCadToOrder();
+        var construction = GetCanvasConstruction();
+        CaptureConstructionState(construction);
 
-        construction.Geometry.DrawingJson = ConstructionDrawingStore.Serialize(_cadEditor.CaptureSnapshot());
-        construction.Cost.Quantity = _cadEditor.ConstructionQuantity;
-        construction.ProfileSystemName = _cadEditor.SelectedProfileSeries ?? string.Empty;
-        construction.Appearance.ColorName = _cadEditor.SelectedMaterialColor ?? construction.Appearance.ColorName;
-
-        if (_cadEditor.SelectedConstruction is { } item)
+        if (_cadEditor.SelectedConstruction is { } item
+            && item.OrderConstructionId == construction.Id)
         {
             construction.Name = item.Name;
             item.UpdateFrom(
@@ -140,11 +139,15 @@ public sealed class OrderWorkspaceViewModel
             return;
         }
 
+        if (!_cadEditor.IsViewOnlyMode)
+        {
+            CommitActiveConstructionGeometry();
+        }
+
         try
         {
             _isAddingConstruction = true;
             _isResettingCanvas = true;
-            CommitActiveConstructionGeometry();
 
             var source = Order.Constructions.FirstOrDefault(c => c.Id == sourceConstructionId);
             if (source is null)
@@ -152,7 +155,7 @@ public sealed class OrderWorkspaceViewModel
                 return;
             }
 
-            var number = Order.Constructions.Count + 1;
+            var number = GetNextConstructionNumber();
             var copy = CloneConstruction(source, number);
             Order.Constructions.Add(copy);
             Order.SelectedConstruction = copy;
@@ -189,21 +192,18 @@ public sealed class OrderWorkspaceViewModel
 
             try
             {
+                CommitActiveConstructionGeometry();
                 _isAddingConstruction = true;
                 _isResettingCanvas = true;
-                CommitActiveConstructionGeometry();
 
-                var number = Order.Constructions.Count + 1;
+                var number = GetNextConstructionNumber();
                 var construction = new OrderConstruction
                 {
                     Number = number,
                     Name = $"Конструкция {number}"
                 };
                 Order.Constructions.Add(construction);
-                Order.SelectedConstruction = construction;
-
-                _cadEditor.PrepareForNewConstruction();
-                _loadedConstructionId = construction.Id;
+                LoadConstructionToCanvas(construction);
                 ScheduleSyncConstructionListToCadEditor(construction.Id);
                 Sheet.ReloadFromOrder(construction.Id);
                 Sheet.RecalculateAll();
@@ -229,10 +229,14 @@ public sealed class OrderWorkspaceViewModel
             return;
         }
 
+        if (!_cadEditor.IsViewOnlyMode)
+        {
+            CommitActiveConstructionGeometry();
+        }
+
         try
         {
             _isResettingCanvas = true;
-            CommitActiveConstructionGeometry();
 
             var construction = Order.Constructions.FirstOrDefault(c => c.Id == constructionId);
             if (construction is null)
@@ -268,14 +272,17 @@ public sealed class OrderWorkspaceViewModel
             return;
         }
 
+        var removedIndex = Order.Constructions.IndexOf(construction);
         var wasActive = Order.SelectedConstruction?.Id == constructionId;
         Order.Constructions.Remove(construction);
 
         if (wasActive)
         {
-            var next = Order.Constructions[Math.Max(0, Order.Constructions.Count - 1)];
-            LoadConstructionToCanvas(next);
-            Sheet.ReloadFromOrder(next.Id);
+            var neighborIndex = Math.Min(removedIndex, Order.Constructions.Count - 1);
+            var neighbor = Order.Constructions[Math.Max(0, neighborIndex)];
+            LoadConstructionToCanvas(neighbor);
+            SyncConstructionListToCadEditor(neighbor.Id);
+            Sheet.ReloadFromOrder(neighbor.Id);
         }
         else
         {
@@ -291,39 +298,52 @@ public sealed class OrderWorkspaceViewModel
 
     public void LoadConstructionToCanvas(OrderConstruction construction)
     {
-        Order.SelectedConstruction = construction;
+        var wasResetting = _isResettingCanvas;
+        _isResettingCanvas = true;
+        try
+        {
+            Order.SelectedConstruction = construction;
+            construction.OrderDetails.ApplyTo(Order.Header);
+            _cadEditor.ResetConstructionScopedSettings();
+            _cadEditor.SetSelectedContourColor(construction.Appearance.ContourColorName);
 
-        var elements = construction.Geometry.Elements.ToList();
-        var snapshot = ConstructionDrawingStore.TryDeserialize(construction.Geometry.DrawingJson);
+            var elements = construction.Geometry.Elements.ToList();
+            var snapshot = ConstructionDrawingStore.TryDeserialize(construction.Geometry.DrawingJson);
 
-        if (snapshot is not null)
-        {
-            _cadEditor.ApplySnapshot(snapshot, elements);
-        }
-        else if (elements.Count > 0)
-        {
-            _cadEditor.SetDesignElements(elements);
-            _cadEditor.ScheduleInitialViewportFocus();
-        }
-        else
-        {
-            _cadEditor.PrepareForNewConstruction();
-        }
+            if (snapshot is not null)
+            {
+                _cadEditor.ApplySnapshot(snapshot, elements);
+            }
+            else if (elements.Count > 0)
+            {
+                _cadEditor.SetDesignElements(elements);
+                _cadEditor.ScheduleInitialViewportFocus();
+            }
+            else
+            {
+                _cadEditor.PrepareForNewConstruction();
+            }
 
-        _cadEditor.ConstructionQuantity = Math.Max(1, construction.Cost.Quantity);
-        if (!string.IsNullOrWhiteSpace(construction.ProfileSystemName))
-        {
+            _cadEditor.ConstructionQuantity = Math.Max(1, construction.Cost.Quantity);
             _cadEditor.SelectedProfileSeries = construction.ProfileSystemName;
+            _cadEditor.SetSelectedConstructionMaterial(construction.SelectedMaterialId);
+            _cadEditor.SelectedMaterialColor = construction.Appearance.ColorName;
+
+            _loadedConstructionId = construction.Id;
         }
-
-        _cadEditor.SelectedMaterialColor = construction.Appearance.ColorName;
-
-        _loadedConstructionId = construction.Id;
+        finally
+        {
+            _isResettingCanvas = wasResetting;
+        }
     }
 
     public void SyncCadToOrder()
     {
-        var construction = Order.SelectedConstruction ?? Order.EnsureDefaultConstruction();
+        CaptureConstructionState(GetCanvasConstruction());
+    }
+
+    private void CaptureConstructionState(OrderConstruction construction)
+    {
         var geometry = construction.Geometry;
         geometry.Elements.Clear();
         foreach (var element in _cadEditor.CanvasElements.ToList())
@@ -337,19 +357,55 @@ public sealed class OrderWorkspaceViewModel
             geometry.OuterWidthMm = (decimal)frame.Width;
             geometry.OuterHeightMm = (decimal)frame.Height;
         }
+        else
+        {
+            geometry.OuterWidthMm = 0;
+            geometry.OuterHeightMm = 0;
+        }
+
+        construction.Geometry.DrawingJson =
+            ConstructionDrawingStore.Serialize(_cadEditor.CaptureSnapshot());
+        construction.Cost.Quantity = _cadEditor.ConstructionQuantity;
+        construction.ProfileSystemName = _cadEditor.SelectedProfileSeries ?? string.Empty;
+        construction.SelectedMaterialId = _cadEditor.SelectedConstructionMaterialId;
+        construction.Appearance.ColorName =
+            _cadEditor.SelectedMaterialColor ?? construction.Appearance.ColorName;
+        construction.Appearance.ContourColorName = _cadEditor.SelectedContourColorName;
+        construction.OrderDetails.CaptureFrom(Order.Header);
     }
+
+    private OrderConstruction GetCanvasConstruction()
+    {
+        if (_loadedConstructionId is Guid loadedId)
+        {
+            var loaded = Order.Constructions.FirstOrDefault(item => item.Id == loadedId);
+            if (loaded is not null)
+            {
+                return loaded;
+            }
+        }
+
+        return Order.SelectedConstruction ?? Order.EnsureDefaultConstruction();
+    }
+
+    private int GetNextConstructionNumber() =>
+        Order.Constructions.Count == 0
+            ? 1
+            : Order.Constructions.Max(item => item.Number) + 1;
 
     public IReadOnlyList<GeometryElement> GetActiveGeometryElements()
     {
-        var construction = Order.SelectedConstruction ?? Order.EnsureDefaultConstruction();
+        var construction = GetCanvasConstruction();
         return construction.Geometry.Elements;
     }
 
     public void ReloadFromProject(ProjectDocumentData project)
     {
-        Sheet.ReloadFromOrder(project.ActiveConstructionId);
-        var construction = Order.SelectedConstruction ?? Order.EnsureDefaultConstruction();
+        var construction = project.ActiveConstructionId is Guid id
+            ? Order.Constructions.FirstOrDefault(item => item.Id == id) ?? Order.EnsureDefaultConstruction()
+            : Order.EnsureDefaultConstruction();
         LoadConstructionToCanvas(construction);
+        Sheet.ReloadFromOrder(construction.Id);
         SyncConstructionListToCadEditor(construction.Id);
         Drawing.ReloadFromOrder();
         ApplyCadReadOnlyStatus();
@@ -357,9 +413,9 @@ public sealed class OrderWorkspaceViewModel
 
     public void ResetWorkspace()
     {
-        Sheet.ReloadFromOrder(null);
         var construction = Order.EnsureDefaultConstruction();
         LoadConstructionToCanvas(construction);
+        Sheet.ReloadFromOrder(construction.Id);
         SyncConstructionListToCadEditor(construction.Id);
         Drawing.ReloadFromOrder();
         ApplyCadReadOnlyStatus();
@@ -373,6 +429,21 @@ public sealed class OrderWorkspaceViewModel
         _cadEditor.ConfirmRemoveConstructionHandler = message =>
             _orderErpDialogService.ShowConfirmDeleteAsync(message);
         _cadEditor.OpenConstructionsLookupHandler = OpenConstructionsLookupAsync;
+        _cadEditor.ConstructionQuantityChangedHandler = UpdateActiveConstructionQuantity;
+    }
+
+    private void UpdateActiveConstructionQuantity(int quantity)
+    {
+        if (_isResettingCanvas || _cadEditor.IsResettingCanvas)
+        {
+            return;
+        }
+
+        var construction = Order.SelectedConstruction ?? Order.EnsureDefaultConstruction();
+        construction.Cost.Quantity = Math.Max(1, quantity);
+        _cadEditor.SelectedConstruction?.UpdateQuantity(construction.Cost.Quantity);
+        Sheet.RecalculateAll();
+        NotifyModified();
     }
 
     public async Task OpenConstructionsLookupAsync()
@@ -425,24 +496,43 @@ public sealed class OrderWorkspaceViewModel
         activeConstructionId ??= Order.SelectedConstruction?.Id;
 
         var previousId = _cadEditor.SelectedConstruction?.OrderConstructionId;
-        var items = Order.Constructions
-            .OrderBy(c => c.Number)
-            .Select(construction =>
-            {
-                var item = new ConstructionItemViewModel(construction.Id, construction.Number, construction.Name);
-                item.UpdateFrom(
-                    construction.Name,
-                    construction.Number,
-                    construction.DimensionsDisplay,
-                    construction.QuantityDisplay);
-                return item;
-            })
-            .ToList();
-
-        _cadEditor.Constructions.Clear();
-        foreach (var item in items)
+        var ordered = Order.Constructions.OrderBy(item => item.Number).ToList();
+        var activeIds = ordered.Select(item => item.Id).ToHashSet();
+        for (var index = _cadEditor.Constructions.Count - 1; index >= 0; index--)
         {
-            _cadEditor.Constructions.Add(item);
+            if (!activeIds.Contains(_cadEditor.Constructions[index].OrderConstructionId))
+            {
+                _cadEditor.Constructions.RemoveAt(index);
+            }
+        }
+
+        for (var targetIndex = 0; targetIndex < ordered.Count; targetIndex++)
+        {
+            var construction = ordered[targetIndex];
+            var item = _cadEditor.Constructions.FirstOrDefault(
+                candidate => candidate.OrderConstructionId == construction.Id);
+            if (item is null)
+            {
+                item = new ConstructionItemViewModel(
+                    construction.Id,
+                    construction.Number,
+                    construction.Name);
+                _cadEditor.Constructions.Insert(targetIndex, item);
+            }
+            else
+            {
+                var currentIndex = _cadEditor.Constructions.IndexOf(item);
+                if (currentIndex != targetIndex)
+                {
+                    _cadEditor.Constructions.Move(currentIndex, targetIndex);
+                }
+            }
+
+            item.UpdateFrom(
+                construction.Name,
+                construction.Number,
+                construction.DimensionsDisplay,
+                construction.QuantityDisplay);
         }
 
         var selectedId = activeConstructionId ?? previousId;
@@ -460,15 +550,35 @@ public sealed class OrderWorkspaceViewModel
         var copy = new OrderConstruction
         {
             Number = number,
-            Name = $"{source.Name} (Копия)",
+            Name = $"{source.Name} (дубл)",
             ProfileSystemName = source.ProfileSystemName,
-            IsSelectedForCalculation = source.IsSelectedForCalculation
+            SelectedMaterialId = source.SelectedMaterialId,
+            IsSelectedForCalculation = source.IsSelectedForCalculation,
+            Status = source.Status,
+            ManufactureDate = source.ManufactureDate,
+            DeliveryDate = source.DeliveryDate,
+            Manager = source.Manager,
+            Supervisor = source.Supervisor,
+            Notes = source.Notes,
+            OrderDetails = source.OrderDetails.Clone(),
+            Appearance = new ConstructionAppearance
+            {
+                ColorName = source.Appearance.ColorName,
+                ColorHex = source.Appearance.ColorHex,
+                ContourColorName = source.Appearance.ContourColorName,
+                ChangeProfile = source.Appearance.ChangeProfile,
+                ChangeImposts = source.Appearance.ChangeImposts,
+                ChangeSashes = source.Appearance.ChangeSashes,
+                ChangeLayout = source.Appearance.ChangeLayout,
+                ChangeDecorativeElements = source.Appearance.ChangeDecorativeElements
+            }
         };
 
         copy.Geometry.OuterWidthMm = source.Geometry.OuterWidthMm;
         copy.Geometry.OuterHeightMm = source.Geometry.OuterHeightMm;
         copy.Geometry.DrawingJson = source.Geometry.DrawingJson;
         copy.Cost.Quantity = source.Cost.Quantity;
+        CopyCost(source.Cost, copy.Cost);
 
         foreach (var element in source.Geometry.Elements)
         {
@@ -488,6 +598,29 @@ public sealed class OrderWorkspaceViewModel
         }
 
         return copy;
+    }
+
+    private static void CopyCost(
+        NurSapat.Core.Models.Calculation.ConstructionCostBreakdown source,
+        NurSapat.Core.Models.Calculation.ConstructionCostBreakdown target)
+    {
+        target.ProfileCost = source.ProfileCost;
+        target.ComponentsCost = source.ComponentsCost;
+        target.SealantCost = source.SealantCost;
+        target.GlazingCost = source.GlazingCost;
+        target.HardwareCost = source.HardwareCost;
+        target.InstallationMaterialsCost = source.InstallationMaterialsCost;
+        target.Expenses = source.Expenses;
+        target.ExpensesMode = source.ExpensesMode;
+        target.LaborCost = source.LaborCost;
+        target.MaterialsWithoutMarkup = source.MaterialsWithoutMarkup;
+        target.ProfitabilityPercent = source.ProfitabilityPercent;
+        target.AdditionalExpensesPercent = source.AdditionalExpensesPercent;
+        target.AdditionalExpensesFixed = source.AdditionalExpensesFixed;
+        target.Discount1Percent = source.Discount1Percent;
+        target.DemolitionCost = source.DemolitionCost;
+        target.InstallationCost = source.InstallationCost;
+        target.Quantity = source.Quantity;
     }
 
     private static GeometryElement CloneElement(GeometryElement source) => new()

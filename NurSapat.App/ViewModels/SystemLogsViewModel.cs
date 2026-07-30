@@ -5,12 +5,15 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NurSapat.Core.Interfaces;
 using NurSapat.Core.Models;
+using NurSapat.App.Services.Users;
+using NurSapat.Infrastructure.Sync.Diagnostics;
 
 namespace NurSapat.App.ViewModels;
 
 public partial class SystemLogsViewModel : ObservableObject
 {
     private readonly ISystemLogRepository _systemLogRepository;
+    private readonly IUserSessionService _userSessionService;
 
     [ObservableProperty]
     private ObservableCollection<SystemLogEntry> _logs = new();
@@ -21,15 +24,36 @@ public partial class SystemLogsViewModel : ObservableObject
     [ObservableProperty]
     private bool _isBusy;
 
-    public SystemLogsViewModel(ISystemLogRepository systemLogRepository)
+    public SystemLogsViewModel(
+        ISystemLogRepository systemLogRepository,
+        IUserSessionService userSessionService)
     {
         _systemLogRepository = systemLogRepository;
-        _ = LoadAsync();
+        _userSessionService = userSessionService;
+        if (_userSessionService.IsOffline)
+        {
+            StatusMessage = "Системный журнал недоступен в оффлайн-режиме.";
+            StartupTrace.Info(
+                "[LOG] SystemLogsViewModel: оффлайн-режим, PostgreSQL не вызывается.");
+        }
+        else
+        {
+            _ = LoadAsync();
+        }
     }
 
     [RelayCommand]
     private async Task LoadAsync()
     {
+        if (_userSessionService.IsOffline)
+        {
+            Logs.Clear();
+            StatusMessage = "Системный журнал недоступен в оффлайн-режиме.";
+            StartupTrace.Info(
+                "[LOG] SystemLogsViewModel.LoadAsync: оффлайн-режим, PostgreSQL не вызывается.");
+            return;
+        }
+
         IsBusy = true;
         StatusMessage = "Загрузка журнала...";
 
@@ -43,6 +67,7 @@ public partial class SystemLogsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            StartupTrace.Error("[LOG] SystemLogsViewModel.LoadAsync", ex);
             StatusMessage = $"Не удалось загрузить журнал: {ex.Message}";
         }
         finally

@@ -4,12 +4,14 @@ using System.Text;
 namespace NurSapat.Infrastructure.Sync.Auth;
 
 /// <summary>
-/// Salted SHA-256 password hasher for local offline auth cache.
-/// Stored format: "{base64Salt}:{base64Hash}".
+/// PBKDF2-SHA256 password hasher for local-only configuration profiles.
+/// The primary login path uses the DPAPI-protected session cache.
 /// </summary>
 public static class OfflinePasswordHasher
 {
     private const int SaltSize = 16;
+    private const int Iterations = 210_000;
+    private const int HashSize = 32;
 
     public static string HashPassword(string password)
     {
@@ -17,7 +19,7 @@ public static class OfflinePasswordHasher
 
         var salt = RandomNumberGenerator.GetBytes(SaltSize);
         var hash = Hash(password, salt);
-        return $"{Convert.ToBase64String(salt)}:{Convert.ToBase64String(hash)}";
+        return $"pbkdf2-sha256${Iterations}${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
     }
 
     public static bool VerifyPassword(string password, string storedHash)
@@ -27,17 +29,20 @@ public static class OfflinePasswordHasher
             return false;
         }
 
-        var parts = storedHash.Split(':', 2);
-        if (parts.Length != 2)
+        var parts = storedHash.Split('$');
+        if (parts.Length != 4 ||
+            parts[0] != "pbkdf2-sha256" ||
+            !int.TryParse(parts[1], out var iterations) ||
+            iterations < 100_000)
         {
             return false;
         }
 
         try
         {
-            var salt = Convert.FromBase64String(parts[0]);
-            var expected = Convert.FromBase64String(parts[1]);
-            var actual = Hash(password, salt);
+            var salt = Convert.FromBase64String(parts[2]);
+            var expected = Convert.FromBase64String(parts[3]);
+            var actual = Hash(password, salt, iterations, expected.Length);
             return CryptographicOperations.FixedTimeEquals(actual, expected);
         }
         catch (FormatException)
@@ -46,12 +51,14 @@ public static class OfflinePasswordHasher
         }
     }
 
-    private static byte[] Hash(string password, byte[] salt)
-    {
-        var passwordBytes = Encoding.UTF8.GetBytes(password);
-        var payload = new byte[salt.Length + passwordBytes.Length];
-        Buffer.BlockCopy(salt, 0, payload, 0, salt.Length);
-        Buffer.BlockCopy(passwordBytes, 0, payload, salt.Length, passwordBytes.Length);
-        return SHA256.HashData(payload);
-    }
+    private static byte[] Hash(string password, byte[] salt) =>
+        Hash(password, salt, Iterations, HashSize);
+
+    private static byte[] Hash(string password, byte[] salt, int iterations, int size) =>
+        Rfc2898DeriveBytes.Pbkdf2(
+            password,
+            salt,
+            iterations,
+            HashAlgorithmName.SHA256,
+            size);
 }

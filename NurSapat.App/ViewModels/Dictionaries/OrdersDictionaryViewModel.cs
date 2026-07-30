@@ -135,7 +135,7 @@ public sealed partial class OrdersDictionaryViewModel : BaseDictionaryViewModel<
             return;
         }
 
-        var path = await _dialogService.ShowSaveFileDialogAsync($"{saved.OrderNumber.TrimStart('#')}.nsp");
+        var path = await _dialogService.ShowSaveFileDialogAsync($"{DateTime.Now:yyyyMMdd}.zp");
         if (string.IsNullOrWhiteSpace(path))
         {
             return;

@@ -317,13 +317,12 @@ public sealed class FrameNode
 
     public bool TrySplitVerticalHalf(ImpostLineStyle lineStyle = ImpostLineStyle.Dashed, double impostWidthMm = 0)
     {
-        if (!TrySplitVerticalAt(ResolveInsetAdjustedVerticalSplitCenterLocal(), lineStyle, impostWidthMm))
-        {
-            return false;
-        }
-
-        SplitRelativeCenter = 0.5;
-        return true;
+        var (axisLeft, axisRight) = ResolveVerticalCellAxisBoundsWorld();
+        var targetWorldX = axisLeft + (axisRight - axisLeft) / 2.0;
+        return TrySplitVerticalAt(
+            CadMath.RoundMm(targetWorldX - X),
+            lineStyle,
+            impostWidthMm);
     }
 
     public bool TrySplitHorizontalHalf(ImpostLineStyle lineStyle = ImpostLineStyle.Dashed, double impostWidthMm = 0)
@@ -522,10 +521,21 @@ public sealed class FrameNode
         var sectionCount = impostCount + 1;
         var currentStart = innerStart;
         var sizes = new List<double>(sectionCount);
+        var axisStart = 0.0;
+        var axisSpan = totalSpan;
+        if (orientation == SplitOrientation.Vertical)
+        {
+            var (axisLeft, axisRight) = ResolveVerticalCellAxisBoundsWorld();
+            axisStart = axisLeft - X;
+            axisSpan = axisRight - axisLeft;
+        }
 
         for (var section = 1; section < sectionCount; section++)
         {
-            var axis = totalSpan * section / sectionCount;
+            // Center-to-center division is based on the logical section
+            // boundaries (outer frame edge / neighbouring mullion axes), not
+            // on the physical clear body stored in FrameNode.Width.
+            var axis = axisStart + axisSpan * section / sectionCount;
             var profileStart = axis - impostWidth / 2.0;
             var size = CadMath.RoundMm(profileStart - currentStart);
             if (size < MinSplitSizeMm)
@@ -665,17 +675,6 @@ public sealed class FrameNode
     public bool TrySplitDoubleVerticalCentered(double frameProfileWidth, double impostWidthMm) =>
         TrySplitUniformWithVolume(
             SplitOrientation.Vertical,
-            impostCount: 1,
-            impostWidthMm,
-            frameProfileWidth,
-            ImpostLineStyle.Double);
-
-    /// <summary>
-    /// Двойной горизонтальный импост: 1 импост по центру (совместимость).
-    /// </summary>
-    public bool TrySplitDoubleHorizontalCentered(double frameProfileWidth, double impostWidthMm) =>
-        TrySplitUniformWithVolume(
-            SplitOrientation.Horizontal,
             impostCount: 1,
             impostWidthMm,
             frameProfileWidth,
@@ -848,6 +847,8 @@ public sealed class FrameNode
             return false;
         }
 
+        var preservedHorizontalAxes = CaptureHorizontalImpostAxes();
+
         ChildA.X = X;
         ChildA.Y = Y;
         ChildA.Width = leftWidth;
@@ -860,6 +861,7 @@ public sealed class FrameNode
         SplitRelativeCenter = Width > CadMath.Epsilon ? centerLocal / Width : 0.5;
         ChildA.RelayoutSubdivisionTree(0);
         ChildB.RelayoutSubdivisionTree(0);
+        RestoreHorizontalImpostAxes(preservedHorizontalAxes);
         return true;
     }
 
@@ -961,6 +963,7 @@ public sealed class FrameNode
             return false;
         }
 
+        var preservedHorizontalAxes = CaptureHorizontalImpostAxes();
         axisWorldX = Math.Clamp(CadMath.RoundMm(axisWorldX), minAxis, maxAxis);
         var newLeftWidth = CadMath.RoundMm(axisWorldX - leftCell.X - half);
         leftCell.Width = newLeftWidth;
@@ -986,8 +989,81 @@ public sealed class FrameNode
             cell.RelayoutSubdivisionTree(0);
         }
 
+        RestoreHorizontalImpostAxes(preservedHorizontalAxes);
         return true;
     }
+
+    /// <summary>
+    /// Horizontal impost axes are absolute world-Y coordinates. An X-only
+    /// relayout may change segment widths, but must never redistribute their
+    /// rows or return a manually shifted uniform split to its default center.
+    /// </summary>
+    private List<HorizontalImpostAxisSnapshot> CaptureHorizontalImpostAxes()
+    {
+        var snapshots = new List<HorizontalImpostAxisSnapshot>();
+        foreach (var node in EnumerateInternalNodes())
+        {
+            if (node.SplitOrientation != SplitOrientation.Horizontal)
+            {
+                continue;
+            }
+
+            if (node.IsUniformSplit)
+            {
+                for (var gapIndex = 0; gapIndex < node._uniformCells.Count - 1; gapIndex++)
+                {
+                    if (node.TryGetUniformImpostAxisWorld(
+                            SplitOrientation.Horizontal,
+                            gapIndex,
+                            out var axisWorldY))
+                    {
+                        snapshots.Add(new HorizontalImpostAxisSnapshot(
+                            node,
+                            gapIndex,
+                            axisWorldY));
+                    }
+                }
+
+                continue;
+            }
+
+            if (node.TryGetHorizontalImpostAxisWorldY(out var binaryAxisWorldY))
+            {
+                snapshots.Add(new HorizontalImpostAxisSnapshot(
+                    node,
+                    UniformGapIndex: null,
+                    binaryAxisWorldY));
+            }
+        }
+
+        return snapshots;
+    }
+
+    private static void RestoreHorizontalImpostAxes(
+        IReadOnlyList<HorizontalImpostAxisSnapshot> snapshots)
+    {
+        // EnumerateInternalNodes returns parents before descendants. Restoring
+        // in the same order ensures a parent relayout cannot overwrite a
+        // descendant axis after that descendant has already been restored.
+        foreach (var snapshot in snapshots)
+        {
+            if (snapshot.UniformGapIndex is int gapIndex)
+            {
+                snapshot.Node.TrySetUniformHorizontalImpostGapAxisWorldY(
+                    gapIndex,
+                    snapshot.AxisWorldY);
+            }
+            else
+            {
+                snapshot.Node.TrySetHorizontalImpostAxisWorldY(snapshot.AxisWorldY);
+            }
+        }
+    }
+
+    private sealed record HorizontalImpostAxisSnapshot(
+        FrameNode Node,
+        int? UniformGapIndex,
+        double AxisWorldY);
 
     /// <summary>
     /// Высоты световых проёмов снизу/сверху от горизонтального импоста.
@@ -1658,7 +1734,7 @@ public sealed class FrameNode
                 : DefaultImpostProfileMm;
 
     private static double ResolveImpostWidthForTool(WindowToolMode tool, double impostWidthMm) =>
-        tool is WindowToolMode.DoubleVerticalImpost or WindowToolMode.DoubleHorizontalImpost
+        tool is WindowToolMode.DoubleVerticalImpost
             ? ResolveImpostWidth(ImpostLineStyle.Double, impostWidthMm)
             : ResolveImpostWidth(ImpostLineStyle.Solid, impostWidthMm);
 
@@ -2702,6 +2778,71 @@ public sealed class FrameNode
         var edge = ResolveEdgeLightOpeningInsets();
         var innerWidth = Width - edge.Left - edge.Right;
         return CadMath.RoundMm(edge.Left + innerWidth / 2.0);
+    }
+
+    /// <summary>
+    /// Logical center-line bounds of this vertical section. Child geometry is
+    /// clipped to mullion faces, while dimensions and centered re-splits run
+    /// from outer edge to mullion axis (or between two neighbouring axes).
+    /// </summary>
+    public (double Left, double Right) ResolveVerticalCellAxisBoundsWorld()
+    {
+        if (Parent is null)
+        {
+            return (CadMath.RoundMm(X), CadMath.RoundMm(X + Width));
+        }
+
+        var parentBounds = Parent.ResolveVerticalCellAxisBoundsWorld();
+        if (Parent.SplitOrientation != SplitOrientation.Vertical)
+        {
+            return parentBounds;
+        }
+
+        if (Parent.IsUniformSplit)
+        {
+            var cellIndex = Parent._uniformCells.IndexOf(this);
+            if (cellIndex < 0)
+            {
+                return (CadMath.RoundMm(X), CadMath.RoundMm(X + Width));
+            }
+
+            var left = parentBounds.Left;
+            var right = parentBounds.Right;
+            if (cellIndex > 0
+                && Parent.TryGetUniformImpostAxisWorld(
+                    SplitOrientation.Vertical,
+                    cellIndex - 1,
+                    out var leftAxis))
+            {
+                left = leftAxis;
+            }
+
+            if (cellIndex < Parent._uniformCells.Count - 1
+                && Parent.TryGetUniformImpostAxisWorld(
+                    SplitOrientation.Vertical,
+                    cellIndex,
+                    out var rightAxis))
+            {
+                right = rightAxis;
+            }
+
+            return (CadMath.RoundMm(left), CadMath.RoundMm(right));
+        }
+
+        if (Parent.TryGetVerticalImpostAxisWorldX(out var parentAxis))
+        {
+            if (ReferenceEquals(Parent.ChildA, this))
+            {
+                return (parentBounds.Left, CadMath.RoundMm(parentAxis));
+            }
+
+            if (ReferenceEquals(Parent.ChildB, this))
+            {
+                return (CadMath.RoundMm(parentAxis), parentBounds.Right);
+            }
+        }
+
+        return (CadMath.RoundMm(X), CadMath.RoundMm(X + Width));
     }
 
     public double ResolveInsetAdjustedHorizontalSplitCenterLocal(double splitExtentLocal)

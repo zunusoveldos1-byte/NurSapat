@@ -1,0 +1,49 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Utilities"
+        x:Class="NurSapat.App.Views.Utilities.DatabaseBackupsWindow"
+        x:DataType="vm:UtilitiesViewModel"
+        Title="Резервные копии базы данных"
+        Width="760"
+        Height="520"
+        MinWidth="620"
+        MinHeight="420"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="20" RowSpacing="14">
+        <StackPanel>
+            <TextBlock Text="Резервные копии базы данных / проектов"
+                       FontSize="20"
+                       FontWeight="SemiBold"/>
+            <TextBlock Text="Архивы .zp, новые файлы отображаются первыми"
+                       Foreground="#64748B"/>
+        </StackPanel>
+
+        <ListBox Grid.Row="1"
+                 ItemsSource="{Binding BackupArchives}"
+                 SelectedItem="{Binding SelectedBackupArchive, Mode=TwoWay}">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:BackupArchiveItem">
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="18" Margin="8">
+                        <TextBlock Text="{Binding FileName}" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="1" Text="{Binding CreatedDisplay}" Foreground="#64748B"/>
+                        <TextBlock Grid.Column="2" Text="{Binding SizeDisplay}" Foreground="#64748B"/>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="8">
+            <Button Content="Создать копию"
+                    Command="{Binding CreateDatabaseBackupCommand}"/>
+            <Button Grid.Column="1"
+                    Content="Восстановить"
+                    Command="{Binding RestoreDatabaseBackupCommand}"/>
+            <Button Grid.Column="2"
+                    Content="Обновить"
+                    Command="{Binding RefreshBackupArchivesCommand}"/>
+            <Button Grid.Column="4"
+                    Content="Закрыть"
+                    Click="Close_Click"/>
+        </Grid>
+    </Grid>
+</Window>

@@ -3,7 +3,7 @@
         xmlns:vm="clr-namespace:NurSapat.Cad.UI.ViewModels"
         xmlns:behaviors="clr-namespace:NurSapat.Cad.UI.Behaviors;assembly=NurSapat.Cad.UI"
         Width="300"
-        Height="190"
+        Height="145"
         Title="Задать радиус"
         WindowStartupLocation="CenterOwner"
         CanResize="False"
@@ -16,17 +16,34 @@
 
     <Border Background="White" BorderBrush="#808080" BorderThickness="2" CornerRadius="8"
             PointerPressed="OnWindowPointerPressed">
-        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12" Margin="20">
+        <!-- Главный Grid отцентрирован внутри окна по вертикали -->
+        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12" Margin="20" VerticalAlignment="Center">
+            
+            <!-- Поле ввода радиуса -->
             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                 <TextBlock Text="R, мм" VerticalAlignment="Center"/>
                 <TextBox Grid.Column="1"
                          Text="{Binding RadiusText, Mode=TwoWay}"
                          behaviors:SignedDecimalInputBehavior.AllowNegative="False"/>
             </Grid>
+            
+            <!-- Сообщение об ошибке -->
             <TextBlock Grid.Row="1" Text="{Binding ValidationMessage}" Foreground="#DC2626" FontSize="11"/>
+            
+            <!-- Кнопки: растянуты по ширине колонок, а текст внутри них отцентрирован -->
             <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="12">
-                <Button Content="OK" Command="{Binding ConfirmCommand}" HorizontalAlignment="Stretch"/>
-                <Button Grid.Column="1" Content="Отмена" Command="{Binding CancelCommand}" HorizontalAlignment="Stretch"/>
+                <Button Content="OK" 
+                        Command="{Binding ConfirmCommand}" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+                
+                <Button Grid.Column="1" 
+                        Content="Отмена" 
+                        Command="{Binding CancelCommand}" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
             </Grid>
         </Grid>
     </Border>

@@ -27,6 +27,7 @@ public sealed partial class OrderSheetViewModel
             }
 
             Header.DealerName = value;
+            ActiveConstruction.OrderDetails.DealerName = value;
             OnPropertyChanged();
             ProjectModified?.Invoke(this, EventArgs.Empty);
         }
@@ -43,6 +44,7 @@ public sealed partial class OrderSheetViewModel
             }
 
             Header.CustomerCity = value;
+            ActiveConstruction.OrderDetails.CustomerCity = value;
             OnPropertyChanged();
             ProjectModified?.Invoke(this, EventArgs.Empty);
         }
@@ -59,6 +61,7 @@ public sealed partial class OrderSheetViewModel
             }
 
             Header.CustomerCode = value;
+            ActiveConstruction.OrderDetails.CustomerCode = value;
             OnPropertyChanged();
             ProjectModified?.Invoke(this, EventArgs.Empty);
         }
@@ -75,6 +78,7 @@ public sealed partial class OrderSheetViewModel
             }
 
             Header.OrderDate = value.Value.DateTime;
+            ActiveConstruction.OrderDetails.OrderDate = Header.OrderDate;
             OnPropertyChanged();
             NotifyOrderDateParts();
             ProjectModified?.Invoke(this, EventArgs.Empty);
@@ -111,6 +115,7 @@ public sealed partial class OrderSheetViewModel
             }
 
             Header.ContractDate = newValue;
+            ActiveConstruction.OrderDetails.ContractDate = newValue;
             OnPropertyChanged();
             NotifyContractDateParts();
             ProjectModified?.Invoke(this, EventArgs.Empty);
@@ -172,6 +177,7 @@ public sealed partial class OrderSheetViewModel
         }
 
         Header.OrderDate = composed;
+        ActiveConstruction.OrderDetails.OrderDate = composed;
         OnPropertyChanged(nameof(OrderDate));
         NotifyOrderDateParts();
         ProjectModified?.Invoke(this, EventArgs.Empty);
@@ -198,6 +204,7 @@ public sealed partial class OrderSheetViewModel
         }
 
         Header.ContractDate = composed;
+        ActiveConstruction.OrderDetails.ContractDate = composed;
         OnPropertyChanged(nameof(ContractDate));
         NotifyContractDateParts();
         ProjectModified?.Invoke(this, EventArgs.Empty);

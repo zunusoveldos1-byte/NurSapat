@@ -323,6 +323,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
     /// <summary>Варианты глобального цвета контура чертежа (рама, импосты, створки, размеры и т.д.).</summary>
     public IReadOnlyList<ContourColorOption> ContourColorOptions => ContourColorOptionList;
 
+    public string SelectedContourColorName => SelectedContourColorOption.Option.ToString();
+
     public IReadOnlyList<CadDrawingTemplate> DrawingTemplates => _templateStore.Templates;
 
     [ObservableProperty]
@@ -456,6 +458,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private ConstructionItemViewModel? _selectedConstruction;
 
     [ObservableProperty]
+    private int _selectedConstructionNumber = 1;
+
+    [ObservableProperty]
     private bool _showAllMaterials;
 
     [ObservableProperty]
@@ -547,9 +552,12 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     public Func<Task>? OpenConstructionsLookupHandler { get; set; }
 
+    public Action<int>? ConstructionQuantityChangedHandler { get; set; }
+
     public Func<Task>? OpenStandardStructuresHandler { get; set; }
 
     private bool _suppressConstructionSelectionCallback;
+    private bool _suppressConstructionNumberCallback;
     private bool _isResettingCanvas;
     private int _canvasResetDepth;
     private Guid? _activeOrderConstructionId;
@@ -1399,6 +1407,17 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         if (hit.ImpostTarget is { } target)
         {
+            if (TryResolveImpostAxis(
+                    target,
+                    GridLineOrientation.Horizontal,
+                    out var currentAxis)
+                && IsSelectedHorizontalImpostLineAtAxis(currentAxis))
+            {
+                return TryMoveSelectedImpostGroupToAxis(
+                    GridLineOrientation.Horizontal,
+                    newAxisWorldY);
+            }
+
             return MoveHorizontalImpost(target, newAxisWorldY);
         }
 
@@ -4467,38 +4486,72 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         if (CurrentToolMode == WindowToolMode.DoubleHorizontalImpost)
         {
-            var width = GetImpostProfileWidth(CurrentToolMode);
-            var style = GetImpostLineStyle(CurrentToolMode);
-            if (RecordPlacement("Импост двойной горизонтальный", () =>
-                    TrySplitDoubleHorizontalImpostIntoSegments(leaf!, worldPoint.Y, width, style)))
+            // Capture the exact clicked cell before opening the asynchronous
+            // count dialog. The result must never be applied to FrameRoot or
+            // to neighbouring vertical sections.
+            var targetCellId = leaf!.NodeId;
+            var countResult = await _dialogService.ShowImpostCountAsync(
+                targetCellId,
+                initialCount: 1);
+            if (countResult is not { Count: >= 1 })
             {
-                RefreshAfterImpostAdded(CurrentToolMode);
-            }
-            else
-            {
-                StatusText = "Невозможно установить импост на этом уровне";
+                return;
             }
 
+            var targetCell = FrameRoot?.FindNodeById(countResult.TargetCellId);
+            if (targetCell is not { IsTerminalLeaf: true })
+            {
+                StatusText = "Выбранная ячейка больше недоступна";
+                return;
+            }
+
+            if (!targetCell.CanAcceptUniformSplit(
+                    SplitOrientation.Horizontal,
+                    countResult.Count,
+                    GetImpostProfileWidth(CurrentToolMode),
+                    ResolveFrameSplitInset(targetCell)))
+            {
+                StatusText = "Область слишком мала для деления";
+                return;
+            }
+
+            ApplyUniformImpostSplit(
+                targetCell,
+                countResult.Count,
+                CurrentToolMode);
             return;
         }
 
-        var impostCount = await _dialogService.ShowImpostCountAsync(1);
-        if (impostCount is not >= 1)
+        var genericTargetCellId = leaf!.NodeId;
+        var genericCountResult = await _dialogService.ShowImpostCountAsync(
+            genericTargetCellId,
+            initialCount: 1);
+        if (genericCountResult is not { Count: >= 1 })
         {
             return;
         }
 
-        if (!leaf!.CanAcceptUniformSplit(
+        var genericTargetCell = FrameRoot?.FindNodeById(genericCountResult.TargetCellId);
+        if (genericTargetCell is not { IsTerminalLeaf: true })
+        {
+            StatusText = "Выбранная ячейка больше недоступна";
+            return;
+        }
+
+        if (!genericTargetCell.CanAcceptUniformSplit(
                 GetImpostOrientation(CurrentToolMode),
-                impostCount.Value,
+                genericCountResult.Count,
                 GetImpostProfileWidth(CurrentToolMode),
-                ResolveFrameSplitInset(leaf)))
+                ResolveFrameSplitInset(genericTargetCell)))
         {
             StatusText = "Область слишком мала для деления";
             return;
         }
 
-        ApplyUniformImpostSplit(leaf, impostCount.Value, CurrentToolMode);
+        ApplyUniformImpostSplit(
+            genericTargetCell,
+            genericCountResult.Count,
+            CurrentToolMode);
     }
 
     public void RefreshSelection()
@@ -4587,6 +4640,8 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     partial void OnSelectedConstructionChanged(ConstructionItemViewModel? value)
     {
+        UpdateSelectedConstructionNumber(value);
+
         if (_suppressConstructionSelectionCallback
             || _isResettingCanvas
             || value is null
@@ -4601,6 +4656,116 @@ public sealed partial class CadEditorViewModel : ObservableObject
         }
 
         _ = SelectConstructionHandler(value.OrderConstructionId);
+    }
+
+    partial void OnSelectedConstructionNumberChanged(int value)
+    {
+        if (_suppressConstructionNumberCallback || Constructions.Count == 0)
+        {
+            return;
+        }
+
+        var normalized = Math.Clamp(value, 1, Constructions.Count);
+        if (normalized != value)
+        {
+            SetSelectedConstructionNumberSilently(normalized);
+        }
+
+        var target = Constructions[normalized - 1];
+        if (!ReferenceEquals(SelectedConstruction, target))
+        {
+            SelectedConstruction = target;
+        }
+    }
+
+    public Guid? SelectedConstructionMaterialId =>
+        SelectedConstructionMaterialOption?.MaterialId;
+
+    public void ResetConstructionScopedSettings()
+    {
+        _toolPresets.Clear();
+        _constructionMaterialByTool.Clear();
+        SelectedProfileSeriesItem = AvailableProfileSeries.FirstOrDefault();
+        FilteredConstructionMaterialOptions.Clear();
+        FilteredConstructionMaterialOptions.Add(ConstructionMaterialOption.None);
+        ApplySelectedConstructionMaterialOption(ConstructionMaterialOption.None);
+        SelectedMaterialColor = MaterialColors.FirstOrDefault();
+
+        var defaultContour = ContourColorOptionList.First(
+            option => option.Option == CadContourColorOption.Gray);
+        CadContourTheme.Apply(defaultContour.Option);
+        SelectedContourColorOption = defaultContour;
+    }
+
+    public void SetSelectedConstructionMaterial(Guid? materialId)
+    {
+        if (materialId is not Guid id)
+        {
+            ApplySelectedConstructionMaterialOption(ConstructionMaterialOption.None);
+            return;
+        }
+
+        var option = FilteredConstructionMaterialOptions
+            .FirstOrDefault(item => item.MaterialId == id);
+        if (option is null)
+        {
+            var material = ConstructionMaterialCatalog.All.FirstOrDefault(item => item.Id == id);
+            if (material is not null)
+            {
+                option = ConstructionMaterialOption.FromMaterial(material);
+                FilteredConstructionMaterialOptions.Add(option);
+            }
+        }
+
+        ApplySelectedConstructionMaterialOption(option ?? ConstructionMaterialOption.None);
+    }
+
+    public void SetSelectedContourColor(string? colorName)
+    {
+        var option = Enum.TryParse<CadContourColorOption>(
+            colorName,
+            ignoreCase: true,
+            out var parsed)
+            ? ContourColorOptionList.FirstOrDefault(item => item.Option == parsed)
+            : null;
+        option ??= ContourColorOptionList.First(item => item.Option == CadContourColorOption.Gray);
+        CadContourTheme.Apply(option.Option);
+        SelectedContourColorOption = option;
+    }
+
+    private void UpdateSelectedConstructionNumber(ConstructionItemViewModel? selected)
+    {
+        var index = selected is null ? -1 : Constructions.IndexOf(selected);
+        SetSelectedConstructionNumberSilently(index >= 0 ? index + 1 : 1);
+    }
+
+    private void SetSelectedConstructionNumberSilently(int number)
+    {
+        _suppressConstructionNumberCallback = true;
+        try
+        {
+            SelectedConstructionNumber = number;
+        }
+        finally
+        {
+            _suppressConstructionNumberCallback = false;
+        }
+    }
+
+    partial void OnConstructionQuantityChanged(int value)
+    {
+        var normalized = Math.Clamp(value, 1, 9999);
+        if (normalized != value)
+        {
+            ConstructionQuantity = normalized;
+            return;
+        }
+
+        SelectedConstruction?.UpdateQuantity(normalized);
+        if (!_isResettingCanvas)
+        {
+            ConstructionQuantityChangedHandler?.Invoke(normalized);
+        }
     }
 
     partial void OnShowAllMaterialsChanged(bool value) => QueueMaterialFilterRefresh();
@@ -4640,10 +4805,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
         QueueMaterialFilterRefresh();
 
-        if (value is not WindowToolMode.OffsetImpostVertical and not WindowToolMode.OffsetImpostHorizontal)
-        {
-            ClearImpostOffsetInteractionState();
-        }
+        // Any tool switch ends the current logical impost-line selection,
+        // including switching between the two offset tools.
+        ClearImpostOffsetInteractionState();
 
         if (value != WindowToolMode.ExtremeImpost)
         {
@@ -5004,7 +5168,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task OpenConstructionsLookupAsync()
+    private async Task OpenConstructionsLookupWindowAsync()
     {
         if (OpenConstructionsLookupHandler is not null)
         {
@@ -5034,20 +5198,30 @@ public sealed partial class CadEditorViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void IncrementQuantity()
+    private async Task SelectNextConstructionAsync()
     {
-        if (ConstructionQuantity < 9999)
+        var currentIndex = SelectedConstruction is null
+            ? -1
+            : Constructions.IndexOf(SelectedConstruction);
+
+        if (currentIndex >= 0 && currentIndex < Constructions.Count - 1)
         {
-            ConstructionQuantity++;
+            SelectedConstruction = Constructions[currentIndex + 1];
+            return;
         }
+
+        await AddConstructionAsync();
     }
 
     [RelayCommand]
-    private void DecrementQuantity()
+    private void SelectPreviousConstruction()
     {
-        if (ConstructionQuantity > 1)
+        var currentIndex = SelectedConstruction is null
+            ? -1
+            : Constructions.IndexOf(SelectedConstruction);
+        if (currentIndex > 0)
         {
-            ConstructionQuantity--;
+            SelectedConstruction = Constructions[currentIndex - 1];
         }
     }
 
@@ -5764,7 +5938,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
 
     private void KonAddExecute()
     {
-        var nextNumber = Constructions.Count + 1;
+        var nextNumber = Constructions.Count == 0
+            ? 1
+            : Constructions.Max(item => item.Number) + 1;
         var item = new ConstructionItemViewModel(Guid.NewGuid(), nextNumber, $"Конструкция {nextNumber}");
         Constructions.Add(item);
         SelectedConstruction = item;
@@ -5793,11 +5969,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         }
 
         var name = SelectedConstruction.Name;
-        var number = SelectedConstruction.Number;
-        var dims = SelectedConstruction.DimensionsDisplay;
-        var profile = SelectedProfileSeries ?? name;
-        var message =
-            $"Вы уверены, что хотите удалить Конструкцию №{number} ({profile}, {dims})? Это действие нельзя отменить.";
+        var message = $"Вы точно хотите удалить конструкцию \"{name}\"?";
 
         var confirmed = ConfirmRemoveConstructionHandler is not null
             ? await ConfirmRemoveConstructionHandler(message)
@@ -6249,6 +6421,14 @@ public sealed partial class CadEditorViewModel : ObservableObject
                 return false;
             }
 
+            // The double-horizontal tool is a completion macro. The clicked
+            // leaf may already be a child of an existing horizontal segment,
+            // so feasibility is checked per missing column by the macro.
+            if (mode == WindowToolMode.DoubleHorizontalImpost)
+            {
+                return true;
+            }
+
             if (mode == WindowToolMode.SlantedImpost)
             {
                 if (!leaf.CanAccept(mode, GetImpostProfileWidth(mode)))
@@ -6546,8 +6726,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
     private static ImpostLineStyle GetImpostLineStyle(WindowToolMode mode) => mode switch
     {
         WindowToolMode.RealVerticalImpost or WindowToolMode.RealHorizontalImpost
-            or WindowToolMode.MullionVertical or WindowToolMode.MullionHorizontal => ImpostLineStyle.Solid,
-        WindowToolMode.DoubleVerticalImpost or WindowToolMode.DoubleHorizontalImpost => ImpostLineStyle.Double,
+            or WindowToolMode.MullionVertical or WindowToolMode.MullionHorizontal
+            or WindowToolMode.DoubleHorizontalImpost => ImpostLineStyle.Solid,
+        WindowToolMode.DoubleVerticalImpost => ImpostLineStyle.Double,
         WindowToolMode.SlantedImpost => ImpostLineStyle.Slanted,
         _ => ImpostLineStyle.Dashed
     };
@@ -6867,7 +7048,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(DraggingMullionWorldX));
         OnPropertyChanged(nameof(IsImpostPanelActive));
         OnPropertyChanged(nameof(IsVerticalImpostDragging));
-        StatusText = "Импост выделен — перетащите или измените L/H";
+        StatusText = _selectedImposts.Count > 1
+            ? $"Выбрано вертикальных импостов: {_selectedImposts.Count}"
+            : "Вертикальный импост выделен — перетащите или измените L/H";
         RequestSceneRefresh();
         return true;
     }
@@ -6923,7 +7106,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         RequestSceneRefresh();
     }
 
-    public bool TryPressHorizontalImpostOffset(CadPoint worldPoint, bool isControlPressed = false)
+    public bool TryPressHorizontalImpostOffset(CadPoint worldPoint, bool isAltPressed = false)
     {
         if (CurrentToolMode != WindowToolMode.OffsetImpostHorizontal || FrameRoot is null)
         {
@@ -6935,6 +7118,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         var hit = HitTestHorizontalImpost(worldPoint);
         if (hit is null || hit.Orientation != GridLineOrientation.Horizontal)
         {
+            ClearImpostOffsetInteractionState();
             StatusText = "Кликните по горизонтальному импосту";
             return false;
         }
@@ -6942,7 +7126,7 @@ public sealed partial class CadEditorViewModel : ObservableObject
         if (!TrySelectImpostForOffset(
                 hit,
                 GridLineOrientation.Horizontal,
-                isControlPressed,
+                isAltPressed,
                 worldPoint.Y))
         {
             return false;
@@ -6955,7 +7139,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(DraggingMullionWorldY));
         OnPropertyChanged(nameof(IsImpostPanelActive));
         OnPropertyChanged(nameof(IsHorizontalImpostDragging));
-        StatusText = "Импост выделен — перетащите или измените L/H";
+        StatusText = _selectedImposts.Count > 1
+            ? $"Выбрана горизонтальная линия: {_selectedImposts.Count} сегмента(ов)"
+            : "Выбран один сегмент — перетащите или измените размер";
         RequestSceneRefresh();
         return true;
     }
@@ -7262,7 +7448,9 @@ public sealed partial class CadEditorViewModel : ObservableObject
             return false;
         }
 
-        return MoveHorizontalImpost(_selectedMullion, axisWorldY);
+        return TryMoveSelectedImpostGroupToAxis(
+            GridLineOrientation.Horizontal,
+            axisWorldY);
     }
 
     private bool ShouldBlockImpostPanelSideEffects() =>

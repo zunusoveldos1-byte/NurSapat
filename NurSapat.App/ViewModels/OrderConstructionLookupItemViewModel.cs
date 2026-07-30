@@ -1,34 +1,36 @@
+using System.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using NurSapat.App.Services;
 using NurSapat.Cad.UI.ViewModels;
+using NurSapat.Core.Models;
 using NurSapat.Core.Models.Orders;
 
 namespace NurSapat.App.ViewModels;
 
-public sealed class OrderConstructionLookupItemViewModel
+public sealed class OrderConstructionLookupItemViewModel : ObservableObject, IDisposable
 {
-    private const double StandardCardWidth = 220;
-    private const double WideCardWidth = 456;
-    private const double CardHeightValue = 340;
+    private const double CardWidthValue = 230;
+    private const double CardHeightValue = 360;
     private const double CardInnerPadding = 24;
-    private const double StandardPreviewWidth = StandardCardWidth - CardInnerPadding;
-    private const double WidePreviewWidth = WideCardWidth - CardInnerPadding;
-    private const double PreviewHeight = 248;
-    private const double WideAspectThreshold = 0.85;
-    private const decimal WideWidthThresholdMm = 1300m;
+    private const double PreviewWidth = CardWidthValue - CardInnerPadding;
+    private const double PreviewHeight = 260;
+    private readonly Order? _order;
 
-    public OrderConstructionLookupItemViewModel(OrderConstruction construction, bool isActive)
+    public OrderConstructionLookupItemViewModel(
+        OrderConstruction construction,
+        bool isActive,
+        Order? order = null)
     {
         Construction = construction;
         IsActive = isActive;
-
-        ColumnSpan = ComputeColumnSpan(
-            construction.Geometry.OuterWidthMm,
-            construction.Geometry.OuterHeightMm);
-        CardWidth = ColumnSpan == 2 ? WideCardWidth : StandardCardWidth;
-        PreviewZoneWidth = ColumnSpan == 2 ? WidePreviewWidth : StandardPreviewWidth;
+        _order = order;
 
         PreviewEditor = new CadEditorViewModel();
         ConstructionDrawingStore.ApplyPreview(PreviewEditor, construction);
+        if (_order is not null)
+        {
+            _order.Payment.PropertyChanged += OnPaymentChanged;
+        }
     }
 
     public OrderConstruction Construction { get; }
@@ -47,13 +49,85 @@ public sealed class OrderConstructionLookupItemViewModel
 
     public bool IsActive { get; }
 
-    public int ColumnSpan { get; }
+    public ConstructionReadinessStatus EffectiveStatus
+    {
+        get
+        {
+            if (Construction.Status == ConstructionReadinessStatus.CancelledOrAbandoned ||
+                _order?.Status == OrderStatus.Cancelled)
+            {
+                return ConstructionReadinessStatus.CancelledOrAbandoned;
+            }
 
-    public double CardWidth { get; }
+            if (Construction.Status == ConstructionReadinessStatus.CompletedAndSold ||
+                Construction.DeliveryDate is not null ||
+                _order?.Status == OrderStatus.Shipped)
+            {
+                return ConstructionReadinessStatus.CompletedAndSold;
+            }
+
+            if (Construction.Status == ConstructionReadinessStatus.ReadyAndPaid)
+            {
+                return ConstructionReadinessStatus.ReadyAndPaid;
+            }
+
+            var isMade = Construction.ManufactureDate is not null ||
+                         _order?.Status is OrderStatus.Assembled or OrderStatus.ReadyForShipment;
+            var isPaid = _order is null ||
+                         (_order.Payment.AgreedAmount > 0 && _order.Payment.Debt <= 0);
+            return isMade && isPaid
+                ? ConstructionReadinessStatus.ReadyAndPaid
+                : ConstructionReadinessStatus.RequiresPaymentOrSaved;
+        }
+    }
+
+    public string StatusBackground => EffectiveStatus switch
+    {
+        ConstructionReadinessStatus.CompletedAndSold => "#2563EB",
+        ConstructionReadinessStatus.ReadyAndPaid => "#16A34A",
+        ConstructionReadinessStatus.CancelledOrAbandoned => "#DC2626",
+        _ => "#CA8A04"
+    };
+
+    public string StatusIcon => EffectiveStatus switch
+    {
+        ConstructionReadinessStatus.CompletedAndSold => "✓",
+        ConstructionReadinessStatus.ReadyAndPaid => "✓",
+        ConstructionReadinessStatus.CancelledOrAbandoned => "×",
+        _ => "!"
+    };
+
+    public string StatusTitle => EffectiveStatus switch
+    {
+        ConstructionReadinessStatus.CompletedAndSold => "Завершен / Продан",
+        ConstructionReadinessStatus.ReadyAndPaid =>
+            "Сделан / Оплачен (Ожидает доставки)",
+        ConstructionReadinessStatus.CancelledOrAbandoned => "Отменен / Заброшен",
+        _ => "Требует оплаты / Сохранен"
+    };
+
+    public string StatusToolTip => EffectiveStatus switch
+    {
+        ConstructionReadinessStatus.CompletedAndSold =>
+            $"{StatusTitle}\nКонструкция полностью сделана, оплачена и доставлена клиенту.",
+        ConstructionReadinessStatus.ReadyAndPaid =>
+            $"{StatusTitle}\nИзделие готово и оплачено. Нажмите, чтобы подтвердить доставку.",
+        ConstructionReadinessStatus.CancelledOrAbandoned =>
+            $"{StatusTitle}\nЗаказ был отменен или помещен в архив.",
+        _ =>
+            $"{StatusTitle}\nКонструкция сформирована, но не оплачена или ожидает сохранения и оплаты."
+    };
+
+    public bool CanConfirmDelivery =>
+        EffectiveStatus == ConstructionReadinessStatus.ReadyAndPaid;
+
+    public int ColumnSpan => 1;
+
+    public double CardWidth => CardWidthValue;
 
     public double CardHeight => CardHeightValue;
 
-    public double PreviewZoneWidth { get; }
+    public double PreviewZoneWidth => PreviewWidth;
 
     public double PreviewZoneHeight => PreviewHeight;
 
@@ -67,19 +141,43 @@ public sealed class OrderConstructionLookupItemViewModel
         GridColumn = column;
     }
 
-    private static int ComputeColumnSpan(decimal outerWidthMm, decimal outerHeightMm)
+    public void ConfirmDelivery(DateTimeOffset deliveredAtUtc)
     {
-        if (outerWidthMm <= 0 || outerHeightMm <= 0)
+        if (!CanConfirmDelivery)
         {
-            return 1;
+            return;
         }
 
-        if (outerWidthMm >= WideWidthThresholdMm)
-        {
-            return 2;
-        }
+        Construction.Status = ConstructionReadinessStatus.CompletedAndSold;
+        Construction.DeliveryDate = deliveredAtUtc;
+        NotifyStatusChanged();
+    }
 
-        var aspect = (double)outerWidthMm / (double)outerHeightMm;
-        return aspect >= WideAspectThreshold ? 2 : 1;
+    public void Dispose()
+    {
+        if (_order is not null)
+        {
+            _order.Payment.PropertyChanged -= OnPaymentChanged;
+        }
+    }
+
+    private void OnPaymentChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(OrderPayment.AgreedAmount)
+            or nameof(OrderPayment.PaidAmount)
+            or nameof(OrderPayment.Debt))
+        {
+            NotifyStatusChanged();
+        }
+    }
+
+    private void NotifyStatusChanged()
+    {
+        OnPropertyChanged(nameof(EffectiveStatus));
+        OnPropertyChanged(nameof(StatusBackground));
+        OnPropertyChanged(nameof(StatusIcon));
+        OnPropertyChanged(nameof(StatusTitle));
+        OnPropertyChanged(nameof(StatusToolTip));
+        OnPropertyChanged(nameof(CanConfirmDelivery));
     }
 }

@@ -3,7 +3,7 @@ using NurSapat.Core.Models.Orders;
 namespace NurSapat.Core.Models.Project;
 
 /// <summary>
-/// Корневой DTO файла проекта NurSapat (*.nsp).
+/// Корневой DTO архива проекта NurSapat (*.zp).
 /// </summary>
 public sealed class ProjectDocumentData
 {
@@ -102,9 +102,16 @@ public sealed class ConstructionProjectData
 
     public bool IsSelectedForCalculation { get; set; } = true;
 
+    public ConstructionReadinessStatus Status { get; set; } =
+        ConstructionReadinessStatus.RequiresPaymentOrSaved;
+
     public string ProfileSystemName { get; set; } = "";
 
+    public Guid? SelectedMaterialId { get; set; }
+
     public ConstructionAppearanceData Appearance { get; set; } = new();
+
+    public ConstructionOrderDetailsData OrderDetails { get; set; } = new();
 
     public DateTimeOffset? ManufactureDate { get; set; }
 
@@ -123,6 +130,53 @@ public sealed class ConstructionProjectData
     public ConstructionMetricsData Metrics { get; set; } = new();
 
     public List<CostSpecificationLineData> SpecificationLines { get; set; } = [];
+}
+
+public sealed class ConstructionOrderDetailsData
+{
+    public bool IsInitialized { get; set; }
+
+    public DateTime OrderDate { get; set; } = DateTime.Today;
+
+    public Guid? CustomerId { get; set; }
+
+    public string CustomerName { get; set; } = string.Empty;
+
+    public string CustomerPhone { get; set; } = string.Empty;
+
+    public string SiteAddress { get; set; } = string.Empty;
+
+    public string CustomerCity { get; set; } = string.Empty;
+
+    public string CustomerCode { get; set; } = string.Empty;
+
+    public Guid? DealerId { get; set; }
+
+    public string DealerName { get; set; } = string.Empty;
+
+    public Guid? ManagerId { get; set; }
+
+    public string OrderManagerName { get; set; } = string.Empty;
+
+    public string ContractNumber { get; set; } = string.Empty;
+
+    public DateTime? ContractDate { get; set; }
+
+    public DateTime? ProductionDate { get; set; }
+
+    public DateTime? DeliveryDate { get; set; }
+
+    public DateTime? InstallationDate { get; set; }
+
+    public bool HasDelivery { get; set; }
+
+    public bool HasInstallation { get; set; }
+
+    public string ProfileNote { get; set; } = string.Empty;
+
+    public string ProductionNote { get; set; } = string.Empty;
+
+    public string Note { get; set; } = string.Empty;
 }
 
 public sealed class CostSpecificationLineData
@@ -151,6 +205,8 @@ public sealed class ConstructionAppearanceData
     public string ColorName { get; set; } = "Белый";
 
     public string ColorHex { get; set; } = "#FFFFFF";
+
+    public string ContourColorName { get; set; } = "Gray";
 
     public bool ChangeProfile { get; set; } = true;
 

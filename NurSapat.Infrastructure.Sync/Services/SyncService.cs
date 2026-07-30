@@ -1,9 +1,13 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NurSapat.Infrastructure.Sync.Abstractions;
 using NurSapat.Infrastructure.Sync.Auth;
 using NurSapat.Infrastructure.Sync.Models;
+using NurSapat.Infrastructure.Sync.Options;
 using NurSapat.Infrastructure.Sync.Remote;
 using Supabase.Postgrest;
+using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace NurSapat.Infrastructure.Sync.Services;
 
@@ -14,8 +18,11 @@ public sealed class SyncService : ISyncService
     private readonly IOfflineOrderRepository _orders;
     private readonly IConnectivityMonitor _connectivity;
     private readonly ISupabaseAuthService _auth;
+    private readonly ILocalDbService _localDb;
+    private readonly SyncOptions _options;
     private readonly ILogger<SyncService>? _logger;
     private readonly SemaphoreSlim _cycleGate = new(1, 1);
+    private readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(30) };
 
     public SyncService(
         SupabaseClientFactory clientFactory,
@@ -23,6 +30,8 @@ public sealed class SyncService : ISyncService
         IOfflineOrderRepository orders,
         IConnectivityMonitor connectivity,
         ISupabaseAuthService auth,
+        ILocalDbService localDb,
+        IOptions<SyncOptions> options,
         ILogger<SyncService>? logger = null)
     {
         _clientFactory = clientFactory;
@@ -30,6 +39,8 @@ public sealed class SyncService : ISyncService
         _orders = orders;
         _connectivity = connectivity;
         _auth = auth;
+        _localDb = localDb;
+        _options = options.Value;
         _logger = logger;
     }
 
@@ -55,6 +66,8 @@ public sealed class SyncService : ISyncService
 
         try
         {
+            await PullCompleteMirrorAsync(cancellationToken).ConfigureAwait(false);
+
             var client = await _clientFactory.GetClientAsync(cancellationToken).ConfigureAwait(false);
 
             var materialsResponse = await client
@@ -117,10 +130,45 @@ public sealed class SyncService : ISyncService
 
             var pendingMaterials = await _materials.GetPendingAsync(cancellationToken).ConfigureAwait(false);
             var pendingOrders = await _orders.GetPendingAsync(cancellationToken).ConfigureAwait(false);
+            var pendingMirrorRows = _localDb.IsUnlocked
+                ? await _localDb.GetPendingRowsAsync(cancellationToken).ConfigureAwait(false)
+                : [];
 
             var pushedMaterials = 0;
             var pushedOrders = 0;
             var failed = 0;
+
+            foreach (var pending in pendingMirrorRows)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    await PushMirrorRowAsync(pending, cancellationToken).ConfigureAwait(false);
+                    await _localDb.MarkSyncedAsync(
+                        pending.TableName,
+                        pending.LocalKey,
+                        cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (IsTransient(ex))
+                {
+                    failed++;
+                    _logger?.LogWarning(
+                        ex,
+                        "Generic mirror push for {Table}/{Key} deferred.",
+                        pending.TableName,
+                        pending.LocalKey);
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    failed++;
+                    _logger?.LogError(
+                        ex,
+                        "Generic mirror push for {Table}/{Key} failed.",
+                        pending.TableName,
+                        pending.LocalKey);
+                }
+            }
 
             foreach (var material in pendingMaterials)
             {
@@ -209,4 +257,204 @@ public sealed class SyncService : ISyncService
     private static bool IsTransient(Exception ex) =>
         ex is HttpRequestException or TaskCanceledException or TimeoutException ||
         ex.InnerException is HttpRequestException or TaskCanceledException;
+
+    private async Task PullCompleteMirrorAsync(CancellationToken cancellationToken)
+    {
+        if (!_localDb.IsUnlocked || _auth.CurrentSession is null)
+        {
+            return;
+        }
+
+        var schemas = await ReadRemoteSchemaAsync(cancellationToken).ConfigureAwait(false);
+        if (schemas.Count == 0)
+        {
+            _logger?.LogWarning(
+                "Supabase OpenAPI returned no visible tables; typed sync remains active.");
+            return;
+        }
+
+        await _localDb.EnsureMirrorSchemaAsync(schemas, cancellationToken).ConfigureAwait(false);
+        foreach (var table in schemas)
+        {
+            if (table.Name.Equals(_options.MaterialsTable, StringComparison.OrdinalIgnoreCase) ||
+                table.Name.Equals(_options.OrdersTable, StringComparison.OrdinalIgnoreCase))
+            {
+                // These two tables use conflict-aware strongly typed repositories below.
+                continue;
+            }
+
+            try
+            {
+                var rows = await ReadAllRowsAsync(table.Name, cancellationToken)
+                    .ConfigureAwait(false);
+                await _localDb.MergeRemoteRowsAsync(table.Name, rows, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger?.LogWarning(
+                    ex,
+                    "Table {Table} could not be refreshed; its existing local mirror was preserved.",
+                    table.Name);
+            }
+        }
+    }
+
+    private async Task<IReadOnlyList<RemoteTableSchema>> ReadRemoteSchemaAsync(
+        CancellationToken cancellationToken)
+    {
+        using var request = CreateRestRequest(HttpMethod.Get, string.Empty);
+        request.Headers.Accept.ParseAdd("application/openapi+json");
+        using var response = await _httpClient.SendAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken)
+            .ConfigureAwait(false);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        var root = document.RootElement;
+        JsonElement definitions;
+        if (root.TryGetProperty("definitions", out var v2Definitions))
+        {
+            definitions = v2Definitions;
+        }
+        else if (root.TryGetProperty("components", out var components) &&
+                 components.TryGetProperty("schemas", out var v3Definitions))
+        {
+            definitions = v3Definitions;
+        }
+        else
+        {
+            return [];
+        }
+
+        var tables = new List<RemoteTableSchema>();
+        foreach (var definition in definitions.EnumerateObject())
+        {
+            if (!definition.Value.TryGetProperty("properties", out var properties))
+            {
+                continue;
+            }
+
+            var required = definition.Value.TryGetProperty("required", out var requiredElement)
+                ? requiredElement.EnumerateArray()
+                    .Select(item => item.GetString() ?? string.Empty)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase)
+                : [];
+            var columns = new List<RemoteColumnSchema>();
+            foreach (var property in properties.EnumerateObject())
+            {
+                var type = property.Value.TryGetProperty("type", out var typeElement)
+                    ? typeElement.GetString()
+                    : "string";
+                var format = property.Value.TryGetProperty("format", out var formatElement)
+                    ? formatElement.GetString()
+                    : null;
+                var description =
+                    property.Value.TryGetProperty("description", out var descriptionElement)
+                        ? descriptionElement.GetString() ?? string.Empty
+                        : string.Empty;
+                var primaryKey =
+                    description.Contains("primary key", StringComparison.OrdinalIgnoreCase) ||
+                    description.Contains("<pk", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(property.Name, "id", StringComparison.OrdinalIgnoreCase);
+                columns.Add(new RemoteColumnSchema(
+                    property.Name,
+                    ToSqliteType(type, format),
+                    !required.Contains(property.Name),
+                    primaryKey));
+            }
+
+            tables.Add(new RemoteTableSchema(definition.Name, columns));
+        }
+
+        return tables;
+    }
+
+    private async Task<IReadOnlyCollection<Dictionary<string, object?>>> ReadAllRowsAsync(
+        string table,
+        CancellationToken cancellationToken)
+    {
+        const int pageSize = 1000;
+        var rows = new List<Dictionary<string, object?>>();
+        for (var offset = 0; ; offset += pageSize)
+        {
+            using var request = CreateRestRequest(
+                HttpMethod.Get,
+                $"{Uri.EscapeDataString(table)}?select=*");
+            request.Headers.TryAddWithoutValidation(
+                "Range",
+                $"{offset}-{offset + pageSize - 1}");
+            using var response = await _httpClient.SendAsync(request, cancellationToken)
+                .ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            var page = await response.Content.ReadFromJsonAsync<List<Dictionary<string, object?>>>(
+                           cancellationToken: cancellationToken)
+                       ?? [];
+            rows.AddRange(page);
+            if (page.Count < pageSize)
+            {
+                break;
+            }
+        }
+
+        return rows;
+    }
+
+    private async Task PushMirrorRowAsync(
+        PendingMirrorRow pending,
+        CancellationToken cancellationToken)
+    {
+        if (pending.Operation == "delete")
+        {
+            if (!pending.Values.TryGetValue("id", out var id) || id is null)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot delete {pending.TableName}: the mirrored row has no id.");
+            }
+
+            using var delete = CreateRestRequest(
+                HttpMethod.Delete,
+                $"{Uri.EscapeDataString(pending.TableName)}?id=eq.{Uri.EscapeDataString(id.ToString()!)}");
+            using var deleteResponse = await _httpClient.SendAsync(delete, cancellationToken)
+                .ConfigureAwait(false);
+            deleteResponse.EnsureSuccessStatusCode();
+            return;
+        }
+
+        using var request = CreateRestRequest(
+            HttpMethod.Post,
+            Uri.EscapeDataString(pending.TableName));
+        request.Headers.TryAddWithoutValidation("Prefer", "resolution=merge-duplicates");
+        request.Content = JsonContent.Create(pending.Values);
+        using var response = await _httpClient.SendAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
+    private HttpRequestMessage CreateRestRequest(HttpMethod method, string relative)
+    {
+        var request = new HttpRequestMessage(
+            method,
+            $"{_options.SupabaseUrl.TrimEnd('/')}/rest/v1/{relative}");
+        request.Headers.TryAddWithoutValidation("apikey", _options.SupabaseAnonKey);
+        var token = _auth.CurrentSession?.AccessToken;
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            request.Headers.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        }
+
+        return request;
+    }
+
+    private static string ToSqliteType(string? type, string? format) =>
+        (type, format) switch
+        {
+            ("integer", _) or ("boolean", _) => "INTEGER",
+            ("number", _) => "REAL",
+            ("string", "byte") or ("string", "binary") => "BLOB",
+            _ => "TEXT"
+        };
 }

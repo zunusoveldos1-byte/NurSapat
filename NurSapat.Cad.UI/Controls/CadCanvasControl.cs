@@ -802,7 +802,7 @@ public sealed class CadCanvasControl : Control
             e.Handled = true;
             if (Editor.TryPressHorizontalImpostOffset(
                     cadEvent.WorldPoint,
-                    e.KeyModifiers.HasFlag(KeyModifiers.Control)))
+                    e.KeyModifiers.HasFlag(KeyModifiers.Alt)))
             {
                 e.Pointer.Capture(this);
             }

@@ -12,6 +12,14 @@ public interface ICachedUserRepository
         string plainPassword,
         CancellationToken cancellationToken = default);
 
+    Task ImportRememberedCredentialAsync(
+        Guid userId,
+        string email,
+        string passwordHash,
+        DateTimeOffset lastOnlineUtc,
+        DateTimeOffset lastLocalAppRunUtc,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Creates a brand-new local-only profile (Guid generated on device).
     /// Throws if email already exists in the cache.
@@ -22,6 +30,13 @@ public interface ICachedUserRepository
         CancellationToken cancellationToken = default);
 
     Task<CachedUser?> FindByEmailAsync(string email, CancellationToken cancellationToken = default);
+
+    Task TouchLastLocalAppRunAsync(
+        Guid userId,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteByEmailAsync(string email, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Verifies email/password against the local cache.

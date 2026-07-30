@@ -9,4 +9,8 @@ public sealed class CachedUser
     public string PasswordHash { get; set; } = string.Empty;
 
     public DateTimeOffset LastLoginAt { get; set; }
+
+    public DateTimeOffset LastOnlineUtc { get; set; }
+
+    public DateTimeOffset LastLocalAppRunUtc { get; set; }
 }

@@ -25,13 +25,13 @@
             <controls:ErpDialogTitleBar Grid.Row="0"
                                         x:Name="TitleBar"
                                         Title="{Binding Title}"
-                                        IsWarning="True"
+                                        IsWarning="{Binding IsDanger}"
                                         CloseRequested="OnTitleBarClose"/>
 
             <Border Grid.Row="1" Margin="16,16,16,8" Classes="erp-error-card">
                 <TextBlock Text="{Binding ConfirmationMessage}"
                            TextWrapping="Wrap"
-                           Foreground="#991B1B"
+                           Foreground="#334155"
                            FontSize="13"
                            VerticalAlignment="Center"/>
             </Border>
@@ -44,10 +44,20 @@
                             <TextBlock Text="Отмена"/>
                         </StackPanel>
                     </Button>
-                    <Button Classes="mat-danger" Command="{Binding ConfirmCommand}">
+                    <Button Classes="mat-danger"
+                            Command="{Binding ConfirmCommand}"
+                            IsVisible="{Binding IsDanger}">
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="🗑" FontSize="11" Foreground="White"/>
-                            <TextBlock Text="Да, удалить" Foreground="White"/>
+                            <TextBlock Text="{Binding ConfirmIcon}" Foreground="White"/>
+                            <TextBlock Text="{Binding ConfirmText}" Foreground="White"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="mat-primary"
+                            Command="{Binding ConfirmCommand}"
+                            IsVisible="{Binding !IsDanger}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="{Binding ConfirmIcon}" Foreground="White"/>
+                            <TextBlock Text="{Binding ConfirmText}" Foreground="White"/>
                         </StackPanel>
                     </Button>
                 </StackPanel>

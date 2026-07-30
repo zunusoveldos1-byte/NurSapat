@@ -20,6 +20,7 @@ public partial class LoginView : UserControl
             // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
             vm.RequestClose += OnRequestClose;
             vm.LoadSavedCredentials();
+            vm.Activate();
         }
     }
 
@@ -29,6 +30,7 @@ public partial class LoginView : UserControl
         if (DataContext is LoginViewModel vm)
         {
             vm.RequestClose -= OnRequestClose;
+            vm.Deactivate();
         }
         base.OnDetachedFromVisualTree(e);
     }

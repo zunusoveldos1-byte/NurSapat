@@ -112,7 +112,9 @@ internal static class SqliteSchema
                 id TEXT NOT NULL PRIMARY KEY,
                 email TEXT NOT NULL,
                 password_hash TEXT NOT NULL,
-                last_login_at TEXT NOT NULL
+                last_login_at TEXT NOT NULL,
+                last_online_utc TEXT NOT NULL,
+                last_local_app_run_utc TEXT NOT NULL
             );
 
             CREATE UNIQUE INDEX IF NOT EXISTS ix_cached_users_email
@@ -132,5 +134,54 @@ internal static class SqliteSchema
             """;
 
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        await EnsureColumnAsync(
+            connection,
+            "cached_users",
+            "last_online_utc",
+            "TEXT NOT NULL DEFAULT ''",
+            cancellationToken).ConfigureAwait(false);
+        await EnsureColumnAsync(
+            connection,
+            "cached_users",
+            "last_local_app_run_utc",
+            "TEXT NOT NULL DEFAULT ''",
+            cancellationToken).ConfigureAwait(false);
+
+        await using var migrateCachedUsers = connection.CreateCommand();
+        migrateCachedUsers.CommandText = """
+            UPDATE cached_users
+            SET last_online_utc = last_login_at
+            WHERE last_online_utc = '';
+
+            UPDATE cached_users
+            SET last_local_app_run_utc = last_login_at
+            WHERE last_local_app_run_utc = '';
+            """;
+        await migrateCachedUsers.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task EnsureColumnAsync(
+        SqliteConnection connection,
+        string tableName,
+        string columnName,
+        string definition,
+        CancellationToken cancellationToken)
+    {
+        await using var inspect = connection.CreateCommand();
+        inspect.CommandText = $"PRAGMA table_info(\"{tableName}\");";
+        await using var reader = await inspect.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+        }
+
+        await reader.DisposeAsync().ConfigureAwait(false);
+        await using var alter = connection.CreateCommand();
+        alter.CommandText = $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {definition};";
+        await alter.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }

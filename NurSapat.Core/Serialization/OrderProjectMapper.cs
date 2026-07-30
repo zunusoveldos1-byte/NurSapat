@@ -33,7 +33,13 @@ public static class OrderProjectMapper
 
         foreach (var constructionData in data.Constructions)
         {
-            order.Constructions.Add(FromConstructionData(constructionData));
+            var construction = FromConstructionData(constructionData);
+            if (!construction.OrderDetails.IsInitialized)
+            {
+                construction.OrderDetails.CaptureFrom(order.Header);
+            }
+
+            order.Constructions.Add(construction);
         }
 
         ApplyTotalsData(order.Totals, data.Totals);
@@ -137,7 +143,10 @@ public static class OrderProjectMapper
         Number = construction.Number,
         Name = construction.Name,
         IsSelectedForCalculation = construction.IsSelectedForCalculation,
+        Status = construction.Status,
         ProfileSystemName = construction.ProfileSystemName,
+        SelectedMaterialId = construction.SelectedMaterialId,
+        OrderDetails = ToOrderDetailsData(construction.OrderDetails),
         ManufactureDate = construction.ManufactureDate,
         DeliveryDate = construction.DeliveryDate,
         Manager = construction.Manager,
@@ -158,7 +167,10 @@ public static class OrderProjectMapper
             Number = data.Number,
             Name = data.Name,
             IsSelectedForCalculation = data.IsSelectedForCalculation,
+            Status = data.Status,
             ProfileSystemName = data.ProfileSystemName,
+            SelectedMaterialId = data.SelectedMaterialId,
+            OrderDetails = FromOrderDetailsData(data.OrderDetails),
             ManufactureDate = data.ManufactureDate,
             DeliveryDate = data.DeliveryDate,
             Manager = data.Manager,
@@ -179,10 +191,71 @@ public static class OrderProjectMapper
         return construction;
     }
 
+    private static ConstructionOrderDetailsData ToOrderDetailsData(ConstructionOrderDetails details) => new()
+    {
+        IsInitialized = details.IsInitialized,
+        OrderDate = details.OrderDate,
+        CustomerId = details.CustomerId,
+        CustomerName = details.CustomerName,
+        CustomerPhone = details.CustomerPhone,
+        SiteAddress = details.SiteAddress,
+        CustomerCity = details.CustomerCity,
+        CustomerCode = details.CustomerCode,
+        DealerId = details.DealerId,
+        DealerName = details.DealerName,
+        ManagerId = details.ManagerId,
+        OrderManagerName = details.OrderManagerName,
+        ContractNumber = details.ContractNumber,
+        ContractDate = details.ContractDate,
+        ProductionDate = details.ProductionDate,
+        DeliveryDate = details.DeliveryDate,
+        InstallationDate = details.InstallationDate,
+        HasDelivery = details.HasDelivery,
+        HasInstallation = details.HasInstallation,
+        ProfileNote = details.ProfileNote,
+        ProductionNote = details.ProductionNote,
+        Note = details.Note
+    };
+
+    private static ConstructionOrderDetails FromOrderDetailsData(ConstructionOrderDetailsData? data)
+    {
+        if (data is null)
+        {
+            return new ConstructionOrderDetails { IsInitialized = false };
+        }
+
+        return new ConstructionOrderDetails
+        {
+            IsInitialized = data.IsInitialized,
+            OrderDate = data.OrderDate,
+            CustomerId = data.CustomerId,
+            CustomerName = data.CustomerName,
+            CustomerPhone = data.CustomerPhone,
+            SiteAddress = data.SiteAddress,
+            CustomerCity = data.CustomerCity,
+            CustomerCode = data.CustomerCode,
+            DealerId = data.DealerId,
+            DealerName = data.DealerName,
+            ManagerId = data.ManagerId,
+            OrderManagerName = data.OrderManagerName,
+            ContractNumber = data.ContractNumber,
+            ContractDate = data.ContractDate,
+            ProductionDate = data.ProductionDate,
+            DeliveryDate = data.DeliveryDate,
+            InstallationDate = data.InstallationDate,
+            HasDelivery = data.HasDelivery,
+            HasInstallation = data.HasInstallation,
+            ProfileNote = data.ProfileNote,
+            ProductionNote = data.ProductionNote,
+            Note = data.Note
+        };
+    }
+
     private static ConstructionAppearanceData ToAppearanceData(ConstructionAppearance appearance) => new()
     {
         ColorName = appearance.ColorName,
         ColorHex = appearance.ColorHex,
+        ContourColorName = appearance.ContourColorName,
         ChangeProfile = appearance.ChangeProfile,
         ChangeImposts = appearance.ChangeImposts,
         ChangeSashes = appearance.ChangeSashes,
@@ -201,6 +274,7 @@ public static class OrderProjectMapper
         {
             ColorName = data.ColorName,
             ColorHex = data.ColorHex,
+            ContourColorName = data.ContourColorName,
             ChangeProfile = data.ChangeProfile,
             ChangeImposts = data.ChangeImposts,
             ChangeSashes = data.ChangeSashes,

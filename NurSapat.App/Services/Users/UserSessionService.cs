@@ -8,7 +8,9 @@ public interface IUserSessionService
 
     bool IsAdministrator { get; }
 
-    void SetCurrentUser(UserAccountItem user);
+    bool IsOffline { get; }
+
+    void SetCurrentUser(UserAccountItem user, bool isOffline = false);
 
     void Clear();
 }
@@ -19,7 +21,17 @@ public sealed class UserSessionService : IUserSessionService
 
     public bool IsAdministrator => CurrentUser?.Permissions.CanManageUsers == true;
 
-    public void SetCurrentUser(UserAccountItem user) => CurrentUser = user.Clone();
+    public bool IsOffline { get; private set; }
 
-    public void Clear() => CurrentUser = null;
+    public void SetCurrentUser(UserAccountItem user, bool isOffline = false)
+    {
+        CurrentUser = user.Clone();
+        IsOffline = isOffline;
+    }
+
+    public void Clear()
+    {
+        CurrentUser = null;
+        IsOffline = false;
+    }
 }

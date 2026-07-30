@@ -88,6 +88,8 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
 
     public string ConfigurationStatusText { get; private set; } = "Admin · — · KGS";
 
+    public bool IsOffline => _userSessionService.IsOffline;
+
     public ObservableCollection<RecentProjectMenuItem> RecentProjects { get; } = new();
 
     // ДОБАВЛЕНО: Свойства для галочек в меню
@@ -129,6 +131,9 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
 
     [RelayCommand]
     private Task Exit() => _documentManager.ExitToLoginAsync();
+
+    [RelayCommand]
+    private Task Logout() => _documentManager.ExitToLoginAsync();
 
     [RelayCommand]
     private async Task OpenOrderSettingsAsync()
@@ -570,23 +575,25 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
             ["customers"] = new ErpReferenceHubViewModel(
                 "Клиенты",
                 "Справочник заказчиков, дилеров и контактных данных.",
-                _customersStore.GetAll().Count,
+                GetOnlineCatalogCount(() => _customersStore.GetAll().Count),
                 () => Customers(),
                 () => Customers()),
             ["materials"] = new ErpReferenceHubViewModel(
                 "Материалы и цены",
                 "Профили, стеклопакеты, фурнитура и прайс-листы.",
-                materialsDetailStore.GetAll().Count,
+                GetOnlineCatalogCount(() => materialsDetailStore.GetAll().Count),
                 () => Materials()),
             ["profile-systems"] = new ErpReferenceHubViewModel(
                 "Системы профилей",
                 "Каталог профильных серий и производственных систем.",
-                profileSeriesStore.GetAll().Count,
+                GetOnlineCatalogCount(() => profileSeriesStore.GetAll().Count),
                 () => Series()),
             ["hardware"] = new ErpReferenceHubViewModel(
                 "Фурнитура",
                 "Справочник фурнитуры, ручек и комплектующих.",
-                materialsDetailStore.GetAll().Count(item => item.Section == MaterialSection.Hardware),
+                GetOnlineCatalogCount(() =>
+                    materialsDetailStore.GetAll()
+                        .Count(item => item.Section == MaterialSection.Hardware)),
                 () => Materials()),
             ["additional"] = additionalDashboardViewModel,
             ["help"] = new ErpReferenceHubViewModel(
@@ -598,6 +605,16 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
 
         Navigate("cad");
         RefreshConfigurationDisplay();
+    }
+
+    private int GetOnlineCatalogCount(Func<int> getCount)
+    {
+        if (_userSessionService.IsOffline)
+        {
+            return 0;
+        }
+
+        return getCount();
     }
 
     private void OnEnvironmentProfileChanged(object? sender, EventArgs e) =>

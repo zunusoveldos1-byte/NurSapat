@@ -9,6 +9,8 @@ public sealed record SizeInputResult(double Width, double Height, double X, doub
 
 public sealed record VertexCoordinateDialogResult(double X, double Y);
 
+public sealed record ImpostCountDialogResult(Guid TargetCellId, int Count);
+
 public interface ICadDialogService
 {
     Task<SizeInputResult?> ShowSizeInputAsync(
@@ -19,7 +21,7 @@ public interface ICadDialogService
 
     Task<NewConstructionSizeInputResult?> ShowNewConstructionSizeInputAsync(NewConstructionOptions options);
 
-    Task<int?> ShowImpostCountAsync(int initialCount = 1);
+    Task<ImpostCountDialogResult?> ShowImpostCountAsync(Guid targetCellId, int initialCount = 1);
 
     Task<DecorativeSpokeDialogResult?> ShowDecorativeSpokeDialogAsync(bool isArchedGlazing);
 

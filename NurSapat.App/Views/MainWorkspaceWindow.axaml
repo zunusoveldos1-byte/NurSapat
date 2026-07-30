@@ -138,7 +138,7 @@
                     <MenuItem Header="Печать" Command="{Binding PrintOrderCommand}"/>
                     <MenuItem Header="Параметры печати" Command="{Binding PrintSettingsCommand}"/>
                     <Separator/>
-                    <MenuItem Header="Выход" InputGesture="Alt+X" Command="{Binding ExitCommand}"/>
+                    <MenuItem Header="Выход из аккаунта" InputGesture="Alt+X" Command="{Binding LogoutCommand}"/>
                 </MenuItem>
 
                 <MenuItem Header="Заказ">
@@ -208,6 +208,7 @@
                     <MenuItem Header="Калькулятор" Command="{Binding Utilities.LaunchCalculatorCommand}"/>
                     <Separator/>
                     <MenuItem Header="Сжать базу" Command="{Binding Utilities.CompressDatabaseCommand}"/>
+                    <MenuItem Header="Резервные копии базы данных" Command="{Binding Utilities.OpenDatabaseBackupsCommand}"/>
                     <MenuItem Header="Сформировать дилерскую базу" Command="{Binding Utilities.CreateDealerBaseCommand}"/>
                     <MenuItem Header="Установить пароль на базу" Command="{Binding Utilities.SetDatabasePasswordCommand}"/>
                     <MenuItem Header="Корпоративный узел" Command="{Binding Utilities.OpenCorporateNodeCommand}"/>

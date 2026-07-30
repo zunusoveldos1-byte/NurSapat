@@ -7,6 +7,7 @@
         Title="Список конструкций"
         Width="1200"
         Height="900"
+        WindowState="Maximized"
         CanResize="False"
         WindowStartupLocation="CenterOwner"
         WindowDecorations="None"
@@ -195,14 +196,11 @@
                     <ListBox.Styles>
                         <Style Selector="ListBoxItem">
                             <Setter Property="Padding" Value="0"/>
-                            <Setter Property="Margin" Value="0,0,16,16"/>
+                            <Setter Property="Margin" Value="8"/>
                             <Setter Property="Background" Value="Transparent"/>
                             <Setter Property="BorderThickness" Value="0"/>
                             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                             <Setter Property="VerticalContentAlignment" Value="Stretch"/>
-                            <Setter Property="Grid.Row" Value="{Binding GridRow}"/>
-                            <Setter Property="Grid.Column" Value="{Binding GridColumn}"/>
-                            <Setter Property="Grid.ColumnSpan" Value="{Binding ColumnSpan}"/>
                         </Style>
                         <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
                             <Setter Property="Background" Value="Transparent"/>
@@ -213,9 +211,9 @@
                     </ListBox.Styles>
                     <ListBox.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <Grid ColumnDefinitions="*,*,*,*"
-                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
-                                  Margin="10"/>
+                            <WrapPanel Width="1000"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Top"/>
                         </ItemsPanelTemplate>
                     </ListBox.ItemsPanel>
                 </ListBox>

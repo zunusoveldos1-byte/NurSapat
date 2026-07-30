@@ -7,6 +7,8 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using NurSapat.Cad.Core.Viewport;
+using NurSapat.App.Services.Users;
+using NurSapat.Infrastructure.Sync.Diagnostics;
 
 namespace NurSapat.App.ViewModels;
 
@@ -38,6 +40,7 @@ public sealed partial class AdditionalDashboardViewModel : ObservableObject
 
     private readonly CadEditorViewModel _cadEditor;
     private readonly ICurrencyService _currencyService;
+    private readonly IUserSessionService _userSessionService;
     private readonly HashSet<string> _addedCurrencyCodes = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _manuallyEditedCurrencyCodes = new(StringComparer.OrdinalIgnoreCase);
     private CurrencySyncResult? _lastSyncResult;
@@ -205,11 +208,13 @@ public sealed partial class AdditionalDashboardViewModel : ObservableObject
     public AdditionalDashboardViewModel(
         OrderCalculationState orderState,
         CadEditorViewModel cadEditor,
-        ICurrencyService currencyService)
+        ICurrencyService currencyService,
+        IUserSessionService userSessionService)
     {
         OrderState = orderState;
         _cadEditor = cadEditor;
         _currencyService = currencyService;
+        _userSessionService = userSessionService;
 
         EnsureTemplateImpacts();
         EnsureAutomationRules();
@@ -225,7 +230,17 @@ public sealed partial class AdditionalDashboardViewModel : ObservableObject
 
         OrderState.PropertyChanged += OnOrderStateChanged;
         OrderState.ActivityLog.CollectionChanged += OnActivityLogChanged;
-        _ = LoadRatesAsync();
+        if (_userSessionService.IsOffline)
+        {
+            _lastSyncResult = new CurrencySyncResult(CurrencySyncStatus.Offline, null, null);
+            StartupTrace.Info(
+                "[LOG] AdditionalDashboardViewModel: оффлайн-режим, " +
+                "загрузка курсов из PostgreSQL/сети пропущена.");
+        }
+        else
+        {
+            _ = LoadRatesAsync();
+        }
     }
 
     [RelayCommand]
@@ -453,6 +468,17 @@ public sealed partial class AdditionalDashboardViewModel : ObservableObject
 
     public async Task LoadRatesAsync()
     {
+        if (_userSessionService.IsOffline)
+        {
+            CurrencyRates.Clear();
+            _lastSyncResult = new CurrencySyncResult(CurrencySyncStatus.Offline, null, null);
+            NotifyCurrencyStatus();
+            StartupTrace.Info(
+                "[LOG] AdditionalDashboardViewModel.LoadRatesAsync: " +
+                "оффлайн-режим, удалённые источники не вызываются.");
+            return;
+        }
+
         if (IsLoadingRates)
         {
             return;
@@ -487,7 +513,7 @@ public sealed partial class AdditionalDashboardViewModel : ObservableObject
         catch (Exception ex)
         {
             _lastSyncResult = new CurrencySyncResult(CurrencySyncStatus.Offline, null, null);
-            System.Diagnostics.Debug.WriteLine($"LoadRatesAsync: {ex.Message}");
+            StartupTrace.Error("[LOG] AdditionalDashboardViewModel.LoadRatesAsync", ex);
         }
         finally
         {
@@ -774,7 +800,9 @@ public sealed partial class AdditionalDashboardViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"BuildRateRowAsync({code}): {ex.Message}");
+            StartupTrace.Error(
+                $"[LOG] AdditionalDashboardViewModel.BuildRateRowAsync({code})",
+                ex);
             return null;
         }
     }

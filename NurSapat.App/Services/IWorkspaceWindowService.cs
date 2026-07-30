@@ -4,5 +4,5 @@ public interface IWorkspaceWindowService
 {
     void OpenWorkspace();
 
-    void ReturnToLogin();
+    Task ReturnToLoginAsync();
 }

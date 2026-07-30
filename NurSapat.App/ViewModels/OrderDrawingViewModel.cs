@@ -100,6 +100,15 @@ public sealed partial class OrderDrawingViewModel : ViewModelBase
 
     private void OnCadEditorPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (!_cadEditor.IsViewOnlyMode
+            && e.PropertyName is nameof(CadEditorViewModel.SelectedProfileSeriesItem)
+                or nameof(CadEditorViewModel.SelectedConstructionMaterialOption)
+                or nameof(CadEditorViewModel.SelectedMaterialColor)
+                or nameof(CadEditorViewModel.SelectedContourColorOption))
+        {
+            _workspace.CommitActiveConstructionGeometry();
+        }
+
         if (e.PropertyName != nameof(CadEditorViewModel.CurrentToolMode))
         {
             return;

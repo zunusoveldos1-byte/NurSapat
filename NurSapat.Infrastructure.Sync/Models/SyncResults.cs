@@ -15,12 +15,22 @@ public sealed class AuthResult
     public string? ErrorMessage { get; init; }
     public AuthSessionInfo? Session { get; init; }
     public bool IsOffline { get; init; }
+    public bool TimeTamperingDetected { get; init; }
 
-    public static AuthResult Ok(AuthSessionInfo session) =>
-        new() { Success = true, Session = session };
+    public static AuthResult Ok(AuthSessionInfo session, bool offline = false) =>
+        new() { Success = true, Session = session, IsOffline = offline };
 
-    public static AuthResult Fail(string message, bool offline = false) =>
-        new() { Success = false, ErrorMessage = message, IsOffline = offline };
+    public static AuthResult Fail(
+        string message,
+        bool offline = false,
+        bool timeTamperingDetected = false) =>
+        new()
+        {
+            Success = false,
+            ErrorMessage = message,
+            IsOffline = offline,
+            TimeTamperingDetected = timeTamperingDetected
+        };
 }
 
 public sealed class SyncCycleResult

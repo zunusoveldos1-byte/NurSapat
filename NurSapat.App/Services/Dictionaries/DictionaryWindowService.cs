@@ -14,6 +14,8 @@ using NurSapat.App.Views.Materials;
 using NurSapat.App.Views.Stock;
 using NurSapat.App.Views.Settings;
 using NurSapat.App.Views.Config;
+using NurSapat.App.Services.Users;
+using NurSapat.Infrastructure.Sync.Diagnostics;
 
 namespace NurSapat.App.Services.Dictionaries;
 
@@ -70,6 +72,7 @@ public sealed class DictionaryWindowService(IServiceProvider serviceProvider) : 
 {
     public async Task ShowMaterialsAsync(Window? owner)
     {
+        if (SkipRemoteDictionaryInOfflineMode(nameof(ShowMaterialsAsync))) return;
         var viewModel = serviceProvider.GetRequiredService<MaterialsDictionaryViewModel>();
         await viewModel.InitializeAsync();
         await ShowDialogSafeAsync(new MaterialsDictionaryWindow(viewModel), owner);
@@ -105,6 +108,7 @@ public sealed class DictionaryWindowService(IServiceProvider serviceProvider) : 
 
     public async Task ShowUsersAsync(Window? owner)
     {
+        if (SkipRemoteDictionaryInOfflineMode(nameof(ShowUsersAsync))) return;
         var viewModel = serviceProvider.GetRequiredService<UsersDictionaryViewModel>();
         await viewModel.InitializeAsync();
         await ShowDialogSafeAsync(new UsersDictionaryWindow(viewModel), owner);
@@ -119,6 +123,7 @@ public sealed class DictionaryWindowService(IServiceProvider serviceProvider) : 
 
     public async Task ShowCustomersAsync(Window? owner)
     {
+        if (SkipRemoteDictionaryInOfflineMode(nameof(ShowCustomersAsync))) return;
         var viewModel = serviceProvider.GetRequiredService<CustomersDictionaryViewModel>();
         await viewModel.InitializeAsync();
         await ShowDialogSafeAsync(new CustomersDictionaryWindow(viewModel), owner);
@@ -126,6 +131,7 @@ public sealed class DictionaryWindowService(IServiceProvider serviceProvider) : 
 
     public async Task<CustomerItem?> ShowCustomersForSelectionAsync(Window? owner)
     {
+        if (SkipRemoteDictionaryInOfflineMode(nameof(ShowCustomersForSelectionAsync))) return null;
         var viewModel = serviceProvider.GetRequiredService<CustomersDictionaryViewModel>();
         viewModel.ConfigureForOrderSelection();
         await viewModel.InitializeAsync();
@@ -148,6 +154,7 @@ public sealed class DictionaryWindowService(IServiceProvider serviceProvider) : 
 
     public async Task ShowOrdersAsync(Window? owner)
     {
+        if (SkipRemoteDictionaryInOfflineMode(nameof(ShowOrdersAsync))) return;
         var viewModel = serviceProvider.GetRequiredService<OrdersDictionaryViewModel>();
         await viewModel.InitializeAsync();
         await ShowDialogSafeAsync(new OrdersDictionaryWindow(viewModel), owner);
@@ -155,6 +162,7 @@ public sealed class DictionaryWindowService(IServiceProvider serviceProvider) : 
 
     public async Task ShowStockMaterialsAsync(Window? owner)
     {
+        if (SkipRemoteDictionaryInOfflineMode(nameof(ShowStockMaterialsAsync))) return;
         var viewModel = serviceProvider.GetRequiredService<StockMaterialsViewModel>();
         await viewModel.InitializeAsync();
         await ShowDialogSafeAsync(new StockMaterialsWindow(viewModel), owner);
@@ -162,6 +170,7 @@ public sealed class DictionaryWindowService(IServiceProvider serviceProvider) : 
 
     public async Task ShowExchangeRatesAsync(Window? owner)
     {
+        if (SkipRemoteDictionaryInOfflineMode(nameof(ShowExchangeRatesAsync))) return;
         var viewModel = serviceProvider.GetRequiredService<ExchangeRatesDictionaryViewModel>();
         await viewModel.InitializeAsync();
         await ShowDialogSafeAsync(new ExchangeRatesDictionaryWindow(viewModel), owner);
@@ -176,6 +185,7 @@ public sealed class DictionaryWindowService(IServiceProvider serviceProvider) : 
 
     public async Task ShowStockFinishedGoodsAsync(Window? owner)
     {
+        if (SkipRemoteDictionaryInOfflineMode(nameof(ShowStockFinishedGoodsAsync))) return;
         var viewModel = serviceProvider.GetRequiredService<StockFinishedGoodsViewModel>();
         await viewModel.InitializeAsync();
         await ShowDialogSafeAsync(new StockFinishedGoodsWindow(viewModel), owner);
@@ -183,6 +193,7 @@ public sealed class DictionaryWindowService(IServiceProvider serviceProvider) : 
 
     public async Task ShowSuppliersAsync(Window? owner)
     {
+        if (SkipRemoteDictionaryInOfflineMode(nameof(ShowSuppliersAsync))) return;
         var viewModel = serviceProvider.GetRequiredService<SuppliersDictionaryViewModel>();
         await viewModel.InitializeAsync();
         await ShowDialogSafeAsync(new SuppliersDictionaryWindow(viewModel), owner);
@@ -190,6 +201,7 @@ public sealed class DictionaryWindowService(IServiceProvider serviceProvider) : 
 
     public async Task ShowOrderTemplatesAsync(Window? owner)
     {
+        if (SkipRemoteDictionaryInOfflineMode(nameof(ShowOrderTemplatesAsync))) return;
         var viewModel = serviceProvider.GetRequiredService<OrderTemplatesDictionaryViewModel>();
         await viewModel.InitializeAsync();
         await ShowDialogSafeAsync(new OrderTemplatesDictionaryWindow(viewModel), owner);
@@ -217,6 +229,7 @@ public sealed class DictionaryWindowService(IServiceProvider serviceProvider) : 
 
     public async Task ShowConstructionElementsAsync(Window? owner)
     {
+        if (SkipRemoteDictionaryInOfflineMode(nameof(ShowConstructionElementsAsync))) return;
         var viewModel = serviceProvider.GetRequiredService<ConstructionElementsViewModel>();
         await viewModel.InitializeAsync();
         await ShowDialogSafeAsync(new ConstructionElementsWindow(viewModel), owner);
@@ -240,6 +253,20 @@ public sealed class DictionaryWindowService(IServiceProvider serviceProvider) : 
         }
 
         window.Show();
+    }
+
+    private bool SkipRemoteDictionaryInOfflineMode(string operation)
+    {
+        var session = serviceProvider.GetRequiredService<IUserSessionService>();
+        if (!session.IsOffline)
+        {
+            return false;
+        }
+
+        StartupTrace.Info(
+            $"[LOG] DictionaryWindowService.{operation}: оффлайн-режим, " +
+            "PostgreSQL-справочник не загружается.");
+        return true;
     }
 
     private static Window? ResolveMainWindow()

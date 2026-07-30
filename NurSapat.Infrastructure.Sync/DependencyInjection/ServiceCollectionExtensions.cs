@@ -17,11 +17,15 @@ public static class ServiceCollectionExtensions
         services.Configure<SyncOptions>(configuration.GetSection(SyncOptions.SectionName));
 
         services.AddSingleton<SqliteConnectionFactory>();
-        services.AddSingleton<FileSessionPersistence>();
+        services.AddSingleton<ProtectedSessionCache>();
+        services.AddSingleton<DatabaseSaltStore>();
         services.AddSingleton<SupabaseClientFactory>();
 
-        services.AddSingleton<IConnectivityMonitor, HttpConnectivityMonitor>();
-        services.AddSingleton<ISupabaseAuthService, SupabaseAuthService>();
+        services.AddSingleton<INetworkStatusService, NetworkStatusService>();
+        services.AddSingleton<IConnectivityMonitor>(
+            provider => provider.GetRequiredService<INetworkStatusService>());
+        services.AddSingleton<ILocalDbService, LocalDbService>();
+        services.AddSingleton<ISupabaseAuthService, AuthService>();
         services.AddSingleton<ICachedUserRepository, CachedUserRepository>();
         services.AddSingleton<IGitHubReleaseCache, GitHubReleaseCache>();
         services.AddSingleton<IOfflineMaterialRepository, OfflineMaterialRepository>();

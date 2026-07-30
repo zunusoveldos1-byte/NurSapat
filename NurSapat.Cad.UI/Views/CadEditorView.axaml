@@ -232,7 +232,12 @@
                     <ComboBox Width="150"
                               MinWidth="130"
                               ItemsSource="{Binding Constructions}"
-                              SelectedItem="{Binding SelectedConstruction}"/>
+                              SelectedItem="{Binding SelectedConstruction, Mode=TwoWay}"/>
+                    <Button Classes="mini"
+                            Content="☰"
+                            FontSize="16"
+                            ToolTip.Tip="Открыть окно просмотра конструкций"
+                            Command="{Binding OpenConstructionsLookupWindowCommand}"/>
                 </StackPanel>
 
                 <!-- 4. Цвет контура -->
@@ -297,19 +302,16 @@
                             HorizontalAlignment="Left">
                     <Button Classes="mini"
                             Content="+"
-                            ToolTip.Tip="Увеличить количество"
-                            Command="{Binding IncrementQuantityCommand}"/>
-                    <Button Classes="mini"
-                            Content="−"
-                            ToolTip.Tip="Уменьшить количество"
-                            Command="{Binding DecrementQuantityCommand}"/>
-                    <TextBlock Classes="paramLabel"
-                               Text="Количество"
-                               Margin="4,0,0,0"/>
+                            ToolTip.Tip="Следующая конструкция"
+                            Command="{Binding SelectNextConstructionCommand}"/>
                     <TextBox Width="52"
-                             Text="{Binding ConstructionQuantity}"
+                             Text="{Binding SelectedConstructionNumber, Mode=TwoWay}"
                              TextAlignment="Center"
                              VerticalContentAlignment="Center"/>
+                    <Button Classes="mini"
+                            Content="−"
+                            ToolTip.Tip="Предыдущая конструкция"
+                            Command="{Binding SelectPreviousConstructionCommand}"/>
                 </StackPanel>
 
             </Grid>

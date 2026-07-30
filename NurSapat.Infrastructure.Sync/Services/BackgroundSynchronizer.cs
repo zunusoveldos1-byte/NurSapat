@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NurSapat.Infrastructure.Sync.Abstractions;
+using NurSapat.Infrastructure.Sync.Models;
 using NurSapat.Infrastructure.Sync.Options;
 
 namespace NurSapat.Infrastructure.Sync.Services;
@@ -12,7 +13,8 @@ namespace NurSapat.Infrastructure.Sync.Services;
 public sealed class BackgroundSynchronizer : IBackgroundSynchronizer
 {
     private readonly ISyncService _syncService;
-    private readonly IConnectivityMonitor _connectivity;
+    private readonly INetworkStatusService _network;
+    private readonly ISupabaseAuthService _auth;
     private readonly SyncOptions _options;
     private readonly ILogger<BackgroundSynchronizer>? _logger;
 
@@ -23,12 +25,14 @@ public sealed class BackgroundSynchronizer : IBackgroundSynchronizer
 
     public BackgroundSynchronizer(
         ISyncService syncService,
-        IConnectivityMonitor connectivity,
+        INetworkStatusService network,
+        ISupabaseAuthService auth,
         IOptions<SyncOptions> options,
         ILogger<BackgroundSynchronizer>? logger = null)
     {
         _syncService = syncService;
-        _connectivity = connectivity;
+        _network = network;
+        _auth = auth;
         _options = options.Value;
         _logger = logger;
     }
@@ -49,6 +53,7 @@ public sealed class BackgroundSynchronizer : IBackgroundSynchronizer
         }
 
         _cts = new CancellationTokenSource();
+        _network.StatusChanged += OnNetworkStatusChanged;
         _loop = Task.Run(() => RunLoopAsync(_cts.Token));
         _logger?.LogInformation(
             "BackgroundSynchronizer started (interval {Seconds}s).",
@@ -79,6 +84,7 @@ public sealed class BackgroundSynchronizer : IBackgroundSynchronizer
             _cts?.Dispose();
             _cts = null;
             _loop = null;
+            _network.StatusChanged -= OnNetworkStatusChanged;
         }
     }
 
@@ -91,7 +97,13 @@ public sealed class BackgroundSynchronizer : IBackgroundSynchronizer
 
         try
         {
-            if (!await _connectivity.IsOnlineAsync(cancellationToken).ConfigureAwait(false))
+            if (!_auth.IsAuthenticated)
+            {
+                return;
+            }
+
+            var status = await _network.CheckNowAsync(cancellationToken).ConfigureAwait(false);
+            if (status.Quality != NetworkQuality.Excellent)
             {
                 return;
             }
@@ -130,7 +142,8 @@ public sealed class BackgroundSynchronizer : IBackgroundSynchronizer
         {
             try
             {
-                var online = await _connectivity.IsOnlineAsync(cancellationToken).ConfigureAwait(false);
+                var status = await _network.CheckNowAsync(cancellationToken).ConfigureAwait(false);
+                var online = status.Quality == NetworkQuality.Excellent;
                 if (online)
                 {
                     // On network recovery — push immediately.
@@ -161,6 +174,14 @@ public sealed class BackgroundSynchronizer : IBackgroundSynchronizer
             {
                 break;
             }
+        }
+    }
+
+    private void OnNetworkStatusChanged(object? sender, NetworkStatusSnapshot status)
+    {
+        if (status.Quality == NetworkQuality.Excellent && IsRunning)
+        {
+            _ = TriggerNowAsync();
         }
     }
 }

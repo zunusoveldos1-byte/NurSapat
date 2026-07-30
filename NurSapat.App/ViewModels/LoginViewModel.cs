@@ -4,9 +4,11 @@ using NurSapat.App.Models.Users;
 using NurSapat.App.Services;
 using NurSapat.App.Services.Users;
 using NurSapat.Infrastructure.Sync.Abstractions;
+using NurSapat.Infrastructure.Sync.Diagnostics;
 using NurSapat.Infrastructure.Sync.Models;
 using NurSapat.App.Services.Persistence;
 using System;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 
 namespace NurSapat.App.ViewModels;
@@ -14,7 +16,7 @@ namespace NurSapat.App.ViewModels;
 public partial class LoginViewModel : ObservableObject
 {
     private readonly ISupabaseAuthService _authService;
-    private readonly ICachedUserRepository _cachedUsers;
+    private readonly INetworkStatusService _networkStatus;
     private readonly ISyncService _syncService;
     private readonly IUserSessionService _sessionService;
     private readonly SettingsService _settings;
@@ -45,6 +47,7 @@ public partial class LoginViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            StartupTrace.Error("[LOG] LoginViewModel.OpenUrl", ex);
             ErrorMessage = $"Не удалось открыть ссылку: {ex.Message}";
         }
     }
@@ -54,7 +57,7 @@ public partial class LoginViewModel : ObservableObject
 
     public LoginViewModel(
         ISupabaseAuthService authService,
-        ICachedUserRepository cachedUsers,
+        INetworkStatusService networkStatus,
         ISyncService syncService,
         IUserSessionService sessionService,
         SettingsService settings,
@@ -63,13 +66,14 @@ public partial class LoginViewModel : ObservableObject
         IApplicationPersistenceInitializer persistenceInitializer)
     {
         _authService = authService;
-        _cachedUsers = cachedUsers;
+        _networkStatus = networkStatus;
         _syncService = syncService;
         _sessionService = sessionService;
         _settings = settings;
         _workspaceWindowService = workspaceWindowService;
         _mainWindowViewModel = mainWindowViewModel;
         _persistenceInitializer = persistenceInitializer;
+        ApplyNetworkStatus(_networkStatus.Current);
     }
 
     [ObservableProperty]
@@ -97,22 +101,29 @@ public partial class LoginViewModel : ObservableObject
     [ObservableProperty]
     private bool _isLoggedIn;
 
+    [ObservableProperty]
+    private string _networkStatusDisplay = "⚪ Проверка сети…";
+
     public char PasswordChar => IsPasswordVisible ? '\0' : '*';
 
     public void LoadSavedCredentials()
     {
-        if (_settings.GetValue<bool>("RememberMe", false))
-        {
-            Username = _settings.GetValue<string>("SavedUsername", "") ?? "";
-            Password = _settings.GetValue<string>("SavedPassword", "") ?? "";
-            RememberMe = true;
-        }
-        else
-        {
-            Username = "";
-            Password = "";
-            RememberMe = false;
-        }
+        Username = "";
+        Password = "";
+        RememberMe = false;
+    }
+
+    public void Activate()
+    {
+        _networkStatus.StatusChanged -= OnNetworkStatusChanged;
+        _networkStatus.StatusChanged += OnNetworkStatusChanged;
+        _networkStatus.Start();
+        ApplyNetworkStatus(_networkStatus.Current);
+    }
+
+    public void Deactivate()
+    {
+        _networkStatus.StatusChanged -= OnNetworkStatusChanged;
     }
 
     [RelayCommand]
@@ -131,33 +142,30 @@ public partial class LoginViewModel : ObservableObject
 
         try
         {
-            var result = await _authService.SignInAsync(email, password).ConfigureAwait(true);
+            AuthResult result;
+            try
+            {
+                result = await _authService
+                    .SignInAsync(email, password, RememberMe)
+                    .ConfigureAwait(true);
+            }
+            catch (Exception ex) when (IsNetworkFailure(ex))
+            {
+                StartupTrace.Error(
+                    "[LOG] LoginViewModel: сетевой сбой online sign-in; переход к offline login",
+                    ex);
+                // Defense in depth: even an SDK-specific DNS wrapper that escaped
+                // AuthService must be converted to local credential validation.
+                result = await _authService
+                    .TryOfflineLoginAsync(email, password)
+                    .ConfigureAwait(true);
+            }
 
             if (result.Success && result.Session is not null)
             {
-                await _cachedUsers.UpsertSuccessfulLoginAsync(
-                    result.Session.UserId,
-                    result.Session.Email.Length > 0 ? result.Session.Email : email,
-                    password).ConfigureAwait(true);
-
-                await CompleteLoginAsync(result.Session, bootstrapSync: true).ConfigureAwait(true);
-                return;
-            }
-
-            if (result.IsOffline)
-            {
-                var offlineSession = await _cachedUsers
-                    .TryAuthenticateOfflineAsync(email, password)
-                    .ConfigureAwait(true);
-
-                if (offlineSession is not null)
-                {
-                    _authService.EstablishLocalSession(offlineSession);
-                    await CompleteLoginAsync(offlineSession, bootstrapSync: false).ConfigureAwait(true);
-                    return;
-                }
-
-                ErrorMessage = "Нет сети. Неверный email/пароль или этот пользователь ещё не входил онлайн на этом устройстве.";
+                await CompleteLoginAsync(
+                    result.Session,
+                    isOffline: result.IsOffline).ConfigureAwait(true);
                 return;
             }
 
@@ -165,18 +173,7 @@ public partial class LoginViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            // Network failures bubbling as exceptions → same offline fallback.
-            var offlineSession = await _cachedUsers
-                .TryAuthenticateOfflineAsync(email, password)
-                .ConfigureAwait(true);
-
-            if (offlineSession is not null)
-            {
-                _authService.EstablishLocalSession(offlineSession);
-                await CompleteLoginAsync(offlineSession, bootstrapSync: false).ConfigureAwait(true);
-                return;
-            }
-
+            StartupTrace.Error("[LOG] LoginViewModel.LoginAsync", ex);
             ErrorMessage = $"Ошибка входа: {ex.Message}";
         }
         finally
@@ -207,9 +204,10 @@ public partial class LoginViewModel : ObservableObject
         {
             await _authService.SignOutAsync().ConfigureAwait(true);
         }
-        catch
+        catch (Exception ex)
         {
-            // Local session still cleared below.
+            StartupTrace.Error("[LOG] LoginViewModel.LogoutAsync", ex);
+            // Local session is still cleared below.
         }
 
         _sessionService.Clear();
@@ -217,30 +215,21 @@ public partial class LoginViewModel : ObservableObject
         RequestClose?.Invoke();
     }
 
-    private async Task CompleteLoginAsync(AuthSessionInfo session, bool bootstrapSync)
+    private async Task CompleteLoginAsync(AuthSessionInfo session, bool isOffline)
     {
-        try
+        var bootstrapSync = !isOffline;
+        if (bootstrapSync)
         {
-            await _persistenceInitializer.EnsureReadyAsync().ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            ErrorMessage =
-                $"Вход Supabase выполнен, но база ERP недоступна: {GetDatabaseError(ex)}";
-            return;
-        }
-
-        if (RememberMe)
-        {
-            _settings.SetValue("RememberMe", true);
-            _settings.SetValue("SavedUsername", Username);
-            _settings.SetValue("SavedPassword", Password);
-        }
-        else
-        {
-            _settings.SetValue("RememberMe", false);
-            _settings.SetValue("SavedUsername", "");
-            _settings.SetValue("SavedPassword", "");
+            try
+            {
+                await _persistenceInitializer.EnsureReadyAsync().ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                ErrorMessage =
+                    $"Вход Supabase выполнен, но база ERP недоступна: {GetDatabaseError(ex)}";
+                return;
+            }
         }
 
         var account = new UserAccountItem
@@ -252,7 +241,7 @@ public partial class LoginViewModel : ObservableObject
         };
 
         _settings.CurrentUserId = account.Id;
-        _sessionService.SetCurrentUser(account);
+        _sessionService.SetCurrentUser(account, isOffline);
         _workspaceWindowService.OpenWorkspace();
         IsLoggedIn = true;
 
@@ -281,7 +270,63 @@ public partial class LoginViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Bootstrap sync after login: {ex.Message}");
+            StartupTrace.Error("[LOG] LoginViewModel: bootstrap sync after login", ex);
         }
+    }
+
+    private void OnNetworkStatusChanged(object? sender, NetworkStatusSnapshot status)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplyNetworkStatus(status));
+    }
+
+    private void ApplyNetworkStatus(NetworkStatusSnapshot status)
+    {
+        var indicator = status.Quality switch
+        {
+            NetworkQuality.Excellent => "🟢",
+            NetworkQuality.Poor => "🟡",
+            NetworkQuality.Offline => "🟠",
+            _ => "⚪"
+        };
+        NetworkStatusDisplay = $"{indicator} {status.DisplayText}";
+    }
+
+    private static bool IsNetworkFailure(Exception ex)
+    {
+        var pending = new System.Collections.Generic.Stack<Exception>();
+        pending.Push(ex);
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+            if (current is HttpRequestException or SocketException or
+                TaskCanceledException or TimeoutException)
+            {
+                return true;
+            }
+
+            var message = current.Message;
+            if (!string.IsNullOrWhiteSpace(message) &&
+                (message.Contains("Этот хост неизвестен", StringComparison.OrdinalIgnoreCase) ||
+                 message.Contains("No such host is known", StringComparison.OrdinalIgnoreCase) ||
+                 message.Contains("Name or service not known", StringComparison.OrdinalIgnoreCase) ||
+                 message.Contains("Host not found", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            if (current is AggregateException aggregate)
+            {
+                foreach (var inner in aggregate.InnerExceptions)
+                {
+                    pending.Push(inner);
+                }
+            }
+            else if (current.InnerException is not null)
+            {
+                pending.Push(current.InnerException);
+            }
+        }
+
+        return false;
     }
 }

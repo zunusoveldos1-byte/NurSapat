@@ -139,7 +139,7 @@ public sealed class PostgreSqlOrdersStore : IOrdersStore
     }
 }
 
-/// <summary>Maps between ProjectDocumentData (.nsp / workspace) and domain Order for PostgreSQL persistence.</summary>
+/// <summary>Maps between ProjectDocumentData (.zp / workspace) and domain Order for PostgreSQL persistence.</summary>
 public static class ProjectOrderMapper
 {
     public static Order FromProject(ProjectDocumentData project)

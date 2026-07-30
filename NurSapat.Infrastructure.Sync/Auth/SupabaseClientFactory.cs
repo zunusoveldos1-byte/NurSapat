@@ -8,18 +8,15 @@ namespace NurSapat.Infrastructure.Sync.Auth;
 public sealed class SupabaseClientFactory
 {
     private readonly SyncOptions _options;
-    private readonly FileSessionPersistence _sessionPersistence;
     private readonly ILogger<SupabaseClientFactory>? _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private Client? _client;
 
     public SupabaseClientFactory(
         IOptions<SyncOptions> options,
-        FileSessionPersistence sessionPersistence,
         ILogger<SupabaseClientFactory>? logger = null)
     {
         _options = options.Value;
-        _sessionPersistence = sessionPersistence;
         _logger = logger;
     }
 
@@ -49,8 +46,7 @@ public sealed class SupabaseClientFactory
             var supabaseOptions = new SupabaseOptions
             {
                 AutoRefreshToken = true,
-                AutoConnectRealtime = false,
-                SessionHandler = _sessionPersistence
+                AutoConnectRealtime = false
             };
 
             var client = new Client(_options.SupabaseUrl.TrimEnd('/'), _options.SupabaseAnonKey, supabaseOptions);
@@ -58,6 +54,19 @@ public sealed class SupabaseClientFactory
             _client = client;
             _logger?.LogInformation("Supabase client initialized for {Url}", _options.SupabaseUrl);
             return _client;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task ResetAsync()
+    {
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            _client = null;
         }
         finally
         {

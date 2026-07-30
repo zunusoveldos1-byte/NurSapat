@@ -80,7 +80,7 @@ public sealed class OrderEntity
 
     public Guid? SelectedConstructionId { get; set; }
 
-    /// <summary>Optional path to the last .nsp export/backup; working order data lives in PostgreSQL.</summary>
+    /// <summary>Optional path to the last .zp export/backup; working order data lives in PostgreSQL.</summary>
     public string? ExportFilePath { get; set; }
 
     public CustomerEntity? Customer { get; set; }

@@ -20,12 +20,16 @@ public interface IDocumentManager
 
     Task<bool> OpenOrderAsync(string? filePath = null, CancellationToken cancellationToken = default);
 
-    /// <summary>Opens an order from the persistent store (PostgreSQL) when no .nsp file is required.</summary>
+    /// <summary>Opens an order from the persistent store (PostgreSQL) when no .zp file is required.</summary>
     Task<bool> OpenOrderFromDatabaseAsync(Guid orderId, CancellationToken cancellationToken = default);
 
     Task<bool> SaveOrderAsync(CancellationToken cancellationToken = default);
 
     Task<bool> SaveOrderToPathAsync(string path, CancellationToken cancellationToken = default);
+
+    Task<bool> CreateBackupAsync(string path, CancellationToken cancellationToken = default);
+
+    Task<bool> RestorePreparedBackupAsync(string path, CancellationToken cancellationToken = default);
 
     Task<bool> SaveAsCopyAsync(CancellationToken cancellationToken = default);
 

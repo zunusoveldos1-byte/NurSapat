@@ -270,6 +270,20 @@
             </Grid>
         </Grid>
 
+        <!-- Единственное дополнение к исходной форме: сетевой статус. -->
+        <Border HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="0,0,16,12"
+                Padding="10,5"
+                CornerRadius="12"
+                Background="#F1F5F9"
+                ZIndex="10">
+            <TextBlock Text="{Binding NetworkStatusDisplay}"
+                       Foreground="#475569"
+                       FontSize="12"
+                       FontWeight="Medium"/>
+        </Border>
+
         <Grid IsVisible="{Binding IsContactModalOpen}"
               ZIndex="100"
               IsHitTestVisible="{Binding IsContactModalOpen}">

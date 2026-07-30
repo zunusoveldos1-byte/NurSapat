@@ -71,14 +71,16 @@ public sealed class CadDialogService : ICadDialogService
             viewModel.ResultAnchor);
     }
 
-    public async Task<int?> ShowImpostCountAsync(int initialCount = 1)
+    public async Task<ImpostCountDialogResult?> ShowImpostCountAsync(
+        Guid targetCellId,
+        int initialCount = 1)
     {
         if (!TryGetOwner(out var owner))
         {
             return null;
         }
 
-        var viewModel = new ImpostCountViewModel(initialCount);
+        var viewModel = new ImpostCountViewModel(targetCellId, initialCount);
         var window = new ImpostCountWindow
         {
             DataContext = viewModel
@@ -91,7 +93,9 @@ public sealed class CadDialogService : ICadDialogService
             return null;
         }
 
-        return viewModel.ResultCount;
+        return new ImpostCountDialogResult(
+            viewModel.TargetCellId,
+            viewModel.ResultCount);
     }
 
     public async Task<DecorativeSpokeDialogResult?> ShowDecorativeSpokeDialogAsync(bool isArchedGlazing)

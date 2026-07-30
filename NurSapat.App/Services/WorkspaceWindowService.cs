@@ -6,6 +6,7 @@ using NurSapat.App.Services.Users;
 using NurSapat.App.ViewModels;
 using NurSapat.App.Views;
 using NurSapat.Infrastructure.Sync.Abstractions;
+using NurSapat.Infrastructure.Sync.Diagnostics;
 
 namespace NurSapat.App.Services;
 
@@ -20,23 +21,37 @@ public sealed class WorkspaceWindowService(IServiceProvider serviceProvider) : I
             return;
         }
 
-        var workspaceWindow = _serviceProvider.GetRequiredService<MainWorkspaceWindow>();
-        var workspaceVm = _serviceProvider.GetRequiredService<MainWorkspaceViewModel>();
-        var documentManager = _serviceProvider.GetRequiredService<IDocumentManager>();
+        try
+        {
+            StartupTrace.Info("[LOG] DI: создание MainWorkspaceWindow...");
+            var workspaceWindow = _serviceProvider.GetRequiredService<MainWorkspaceWindow>();
+            StartupTrace.Info("[LOG] DI: создание MainWorkspaceViewModel...");
+            var workspaceVm = _serviceProvider.GetRequiredService<MainWorkspaceViewModel>();
+            StartupTrace.Info("[LOG] DI: MainWorkspaceViewModel создан успешно.");
+            var documentManager = _serviceProvider.GetRequiredService<IDocumentManager>();
 
-        workspaceWindow.DataContext = workspaceVm;
-        workspaceVm.InitializeDocumentLifecycle();
+            workspaceWindow.DataContext = workspaceVm;
+            StartupTrace.Info("[LOG] MainWorkspaceViewModel.InitializeDocumentLifecycle...");
+            workspaceVm.InitializeDocumentLifecycle();
 
-        var oldMainWindow = desktop.MainWindow;
-        desktop.MainWindow = workspaceWindow;
-        workspaceWindow.Show();
-        oldMainWindow?.Close();
+            var oldMainWindow = desktop.MainWindow;
+            desktop.MainWindow = workspaceWindow;
+            workspaceWindow.Show();
+            oldMainWindow?.Close();
 
-        _ = documentManager.TryRecoverAutoSaveAsync();
-        documentManager.StartAutoSave();
+            _ = documentManager.TryRecoverAutoSaveAsync();
+            documentManager.StartAutoSave();
+        }
+        catch (Exception ex)
+        {
+            StartupTrace.Error(
+                "[LOG] Ошибка создания/инициализации MainWorkspaceViewModel или MainWorkspaceWindow",
+                ex);
+            throw;
+        }
     }
 
-    public void ReturnToLogin()
+    public async Task ReturnToLoginAsync()
     {
         if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
         {
@@ -48,8 +63,9 @@ public sealed class WorkspaceWindowService(IServiceProvider serviceProvider) : I
 
         _serviceProvider.GetRequiredService<IUserSessionService>().Clear();
 
-        // Best-effort cloud sign-out (HTTPS). Does not touch Postgres.
-        _ = SignOutSupabaseSafeAsync();
+        // AuthService clears DPAPI tokens and the SQLCipher key before awaiting
+        // the best-effort remote Supabase sign-out.
+        await SignOutSupabaseSafeAsync();
 
         var loginWindow = _serviceProvider.GetRequiredService<MainWindow>();
         var shell = _serviceProvider.GetRequiredService<MainWindowViewModel>();
@@ -76,9 +92,11 @@ public sealed class WorkspaceWindowService(IServiceProvider serviceProvider) : I
                 await auth.SignOutAsync().ConfigureAwait(false);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore network errors on logout.
+            StartupTrace.Error(
+                "[LOG] Logout: SignOutSupabaseSafeAsync завершился ошибкой",
+                ex);
         }
     }
 }
