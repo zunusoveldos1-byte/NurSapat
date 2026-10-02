@@ -1,0 +1,131 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dialogs.Edit"
+        xmlns:models="clr-namespace:NurSapat.App.Models.EditDialogs"
+        x:Class="NurSapat.App.Views.Dialogs.Edit.CopyDrawingDialogWindow"
+        x:DataType="vm:CopyDrawingDialogViewModel"
+        Title="{DynamicResource Edit_CopyDialog_Title}"
+        MinWidth="760"
+        MinHeight="520"
+        Width="860"
+        Height="560"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="0"
+        Background="#F6F9FD"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/EditDialogStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Background="White"
+            BorderBrush="#808080"
+            BorderThickness="2"
+            CornerRadius="10"
+            PointerPressed="OnWindowPointerPressed">
+        <Grid RowDefinitions="Auto,*" Margin="20">
+            <TextBlock Grid.Row="0"
+                       Classes="edit-dialog-section-title"
+                       Text="{DynamicResource Edit_CopyDialog_Title}"
+                       Margin="0,0,0,16"/>
+
+            <Grid Grid.Row="1" ColumnDefinitions="*,300" ColumnSpacing="16">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="16">
+                        <Border Classes="edit-dialog-card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Classes="edit-dialog-section-title"
+                                           Text="{DynamicResource Edit_CopyDialog_Format}"/>
+                                <RadioButton GroupName="Format"
+                                             IsChecked="True"
+                                             Content="{DynamicResource Edit_CopyDialog_Format_Bmp}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="edit-dialog-card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Classes="edit-dialog-section-title"
+                                           Text="{DynamicResource Edit_CopyDialog_Parameters}"/>
+                                <CheckBox Content="{DynamicResource Edit_CopyDialog_Param_DimensionLines}"
+                                          IsChecked="{Binding IncludeDimensionLines}"/>
+                                <CheckBox Content="{DynamicResource Edit_CopyDialog_Param_Axes}"
+                                          IsChecked="{Binding IncludeAxes}"/>
+                                <CheckBox Content="{DynamicResource Edit_CopyDialog_Param_Labels}"
+                                          IsChecked="{Binding IncludeLabels}"/>
+                                <CheckBox Content="{DynamicResource Edit_CopyDialog_Param_Dimensions}"
+                                          IsChecked="{Binding IncludeDimensions}"/>
+                                <CheckBox Content="{DynamicResource Edit_CopyDialog_Param_Sashes}"
+                                          IsChecked="{Binding IncludeSashes}"/>
+                                <CheckBox Content="{DynamicResource Edit_CopyDialog_Param_Imposts}"
+                                          IsChecked="{Binding IncludeImposts}"/>
+                                <CheckBox Content="{DynamicResource Edit_CopyDialog_Param_Glazing}"
+                                          IsChecked="{Binding IncludeGlazing}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="edit-dialog-card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Classes="edit-dialog-section-title"
+                                           Text="{DynamicResource Edit_CopyDialog_Background}"/>
+                                <RadioButton GroupName="Background"
+                                             IsChecked="True"
+                                             Content="{DynamicResource Edit_CopyDialog_Background_White}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="edit-dialog-card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Classes="edit-dialog-section-title"
+                                           Text="{DynamicResource Edit_CopyDialog_Scale}"/>
+                                <NumericUpDown Minimum="10"
+                                               Maximum="500"
+                                               Value="{Binding ScalePercent}"
+                                               FormatString="0'%'"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="edit-dialog-card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Classes="edit-dialog-section-title"
+                                           Text="{DynamicResource Edit_CopyDialog_Resolution}"/>
+                                <ComboBox ItemsSource="{Binding ResolutionOptions}"
+                                          SelectedItem="{Binding SelectedResolution}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding StringFormat={}{0} dpi}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <StackPanel Grid.Column="1" Spacing="16">
+                    <Border Classes="edit-dialog-card edit-preview-frame">
+                        <Grid>
+                            <TextBlock Text="{Binding PreviewPlaceholderText}"
+                                       Classes="edit-dialog-body"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Foreground="#94A3B8"/>
+                        </Grid>
+                    </Border>
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                        <Button Grid.Column="0"
+                                Classes="edit-dialog-primary"
+                                Content="{DynamicResource Edit_CopyDialog_Copy}"
+                                Command="{Binding CopyCommand}"/>
+                        <Button Grid.Column="1"
+                                Classes="edit-dialog-action"
+                                Content="{DynamicResource Edit_CopyDialog_Cancel}"
+                                Command="{Binding CancelCommand}"/>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

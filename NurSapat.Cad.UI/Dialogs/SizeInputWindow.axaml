@@ -1,0 +1,99 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.Cad.UI.ViewModels"
+        xmlns:behaviors="clr-namespace:NurSapat.Cad.UI.Behaviors;assembly=NurSapat.Cad.UI"
+        Width="320"
+        Height="320"
+        Title="Введите размеры"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="0"
+        x:Class="NurSapat.Cad.UI.Dialogs.SizeInputWindow"
+        x:DataType="vm:SizeInputViewModel"
+        FontFamily="Inter"
+        SizeToContent="Height">
+
+    <Border Background="White"
+            BorderBrush="#808080"
+            BorderThickness="2"
+            CornerRadius="8"
+            PointerPressed="OnWindowPointerPressed">
+
+        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12" Margin="20">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                <TextBlock Text="X, мм" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="1"
+                         Text="{Binding CoordinateXText, Mode=TwoWay}"
+                         behaviors:SignedDecimalInputBehavior.AllowNegative="True"/>
+
+                <TextBlock Grid.Row="1" Text="Y, мм" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="1"
+                         Grid.Column="1"
+                         Text="{Binding CoordinateYText, Mode=TwoWay}"
+                         behaviors:SignedDecimalInputBehavior.AllowNegative="True"/>
+
+                <TextBlock Grid.Row="2"
+                           Text="Ширина (L), мм"
+                           VerticalAlignment="Center"
+                           PointerPressed="OnWidthLabelPointerPressed"/>
+                <TextBox Grid.Row="2"
+                         Grid.Column="1"
+                         x:Name="WidthBox"
+                         Text="{Binding WidthText, Mode=TwoWay}"
+                         behaviors:SignedDecimalInputBehavior.AllowNegative="False"
+                         GotFocus="OnTextBoxGotFocus"/>
+
+                <TextBlock Grid.Row="3"
+                           Text="Высота (H), мм"
+                           VerticalAlignment="Center"
+                           PointerPressed="OnHeightLabelPointerPressed"/>
+                <TextBox Grid.Row="3"
+                         Grid.Column="1"
+                         x:Name="HeightBox"
+                         Text="{Binding HeightText, Mode=TwoWay}"
+                         behaviors:SignedDecimalInputBehavior.AllowNegative="False"
+                         GotFocus="OnTextBoxGotFocus"/>
+
+                <StackPanel Grid.Row="4"
+                            Grid.ColumnSpan="2"
+                            Spacing="4"
+                            Margin="0,4,0,0"
+                            IsVisible="{Binding ShowAnchorOptions}">
+                    <TextBlock Text="Точка привязки" FontSize="11" Foreground="#64748B"/>
+                    <ComboBox ItemsSource="{Binding AnchorOptionList}"
+                              SelectedItem="{Binding SelectedAnchorOption, Mode=TwoWay}"
+                              HorizontalAlignment="Stretch"
+                              MinHeight="28">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Label}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
+            </Grid>
+
+            <TextBlock Grid.Row="1"
+                       Text="{Binding ValidationMessage}"
+                       Foreground="#DC2626"
+                       FontSize="11"
+                       TextWrapping="Wrap"/>
+
+            <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="12">
+                <Button Content="OK"
+                        Command="{Binding ConfirmCommand}"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+                <Button Grid.Column="1"
+                        Content="Отмена"
+                        Command="{Binding CancelCommand}"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

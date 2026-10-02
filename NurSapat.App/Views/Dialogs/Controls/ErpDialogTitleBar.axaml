@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NurSapat.App.Views.Dialogs.Controls.ErpDialogTitleBar"
+             x:Name="Root"
+             Classes="erp-dialog-titlebar"
+             Padding="0"
+             Margin="0"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch">
+
+    <Border x:Name="TitleBarBorder" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
+        <Grid Height="32" ColumnDefinitions="*,Auto">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Image Source="/Assets/app-icon.ico"
+                       Width="16"
+                       Height="16"
+                       Margin="8,0,4,0"/>
+                <TextBlock Text="{Binding Title, ElementName=Root}"
+                           VerticalAlignment="Center"
+                           FontSize="12"
+                           Foreground="White"/>
+            </StackPanel>
+            <Button Grid.Column="1"
+                    Classes="mat-chrome-btn close"
+                    Click="OnCloseClick"
+                    Content="✕"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"/>
+        </Grid>
+    </Border>
+</UserControl>

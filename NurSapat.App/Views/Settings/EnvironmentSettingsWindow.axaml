@@ -1,0 +1,836 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+        xmlns:settings="clr-namespace:NurSapat.App.Models.Settings"
+        xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+        x:Class="NurSapat.App.Views.Settings.EnvironmentSettingsWindow"
+        x:DataType="vm:EnvironmentSettingsViewModel"
+        Width="1000"
+        Height="780"
+        MinWidth="800"
+        MinHeight="580"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="32,*,Auto">
+            <Border Grid.Row="0"
+                    Classes="mat-titlebar"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="8"
+                                VerticalAlignment="Center"
+                                Margin="16,0,0,0">
+                        <Image Source="/Assets/logo.ico" Width="16" Height="16" VerticalAlignment="Center"/>
+                        <TextBlock Classes="mat-titlebar-text" Text="Настройки среды"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="0,0,8,0">
+                        <Button Classes="mat-chrome-btn"
+                                Click="OnMinimizeClick"
+                                Content="—"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"/>
+                        <Button Classes="mat-chrome-btn"
+                                Click="OnMaximizeClick"
+                                Content="▢"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"/>
+                        <Button Classes="mat-chrome-btn close"
+                                Click="OnCloseClick"
+                                Content="✕"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <TabControl Grid.Row="1" Margin="12,0,12,0">
+                <TabItem Header="Общие">
+                    <ScrollViewer Padding="0,8,0,8">
+                        <StackPanel Spacing="14">
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                                <Border Grid.Column="0" Classes="mat-card">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Classes="mat-section-title"
+                                                   Text="Реквизиты предприятия производителя"/>
+                                        <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+                                            <TextBlock Text="Производитель" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Column="1" Text="{Binding CompanyName}"/>
+
+                                            <TextBlock Grid.Row="1" Text="Адрес" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding LegalAddress}"/>
+
+                                            <TextBlock Grid.Row="2" Text="Р/СЧ" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding CheckingAccount}"/>
+
+                                            <TextBlock Grid.Row="3" Text="МФО" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Mfo}"/>
+
+                                            <TextBlock Grid.Row="4" Text="Код" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding OkpoCode}"/>
+
+                                            <TextBlock Grid.Row="5" Text="Банк" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding BankName}"/>
+
+                                            <TextBlock Grid.Row="6" Text="Копия архивов" VerticalAlignment="Center"/>
+                                            <Grid Grid.Row="6" Grid.Column="1" ColumnDefinitions="*,Auto">
+                                                <TextBox Grid.Column="0" Text="{Binding BackupPath}" IsReadOnly="True"/>
+                                                <Button Grid.Column="1"
+                                                        Classes="mat-toolbar"
+                                                        Content="..."
+                                                        Command="{Binding PickBackupPathCommand}"
+                                                        Margin="8,0,0,0"
+                                                        MinWidth="40"
+                                                        HorizontalContentAlignment="Center"
+                                                        VerticalContentAlignment="Center"/>
+                                            </Grid>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Grid.Column="1" Classes="mat-card" Background="#F8FAFC">
+                                    <Grid ColumnDefinitions="240,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+                                        <TextBlock Text="Национальная валюта" VerticalAlignment="Center"/>
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding CurrencyOptions}"
+                                                  SelectedItem="{Binding NationalCurrency}"/>
+
+                                        <TextBlock Grid.Row="1" Text="На листе заказа суммы указывать в" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <ComboBox Grid.Row="1"
+                                                  Grid.Column="1"
+                                                  ItemsSource="{Binding CurrencyOptions}"
+                                                  SelectedItem="{Binding OrderViewCurrency}"/>
+
+                                        <TextBlock Grid.Row="2" Text="НДС (%)" VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="2"
+                                                       Grid.Column="1"
+                                                       Minimum="0"
+                                                       Maximum="100"
+                                                       Increment="1"
+                                                       FormatString="N0"
+                                                       Value="{Binding VatPercent}"/>
+
+                                        <TextBlock Grid.Row="3" Text="НДС" VerticalAlignment="Center"/>
+                                        <ComboBox Grid.Row="3"
+                                                  Grid.Column="1"
+                                                  ItemsSource="{Binding VatModeOptions}"
+                                                  SelectedItem="{Binding SelectedVatModeOption}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate DataType="settings:VatModeOption">
+                                                    <TextBlock Text="{Binding DisplayName}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+
+                                        <TextBlock Grid.Row="4" Text="Установка импоста кратно, мм." VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <NumericUpDown Grid.Row="4"
+                                                       Grid.Column="1"
+                                                       Minimum="1"
+                                                       Increment="1"
+                                                       FormatString="N0"
+                                                       Value="{Binding ImpostStepMm}"/>
+
+                                        <TextBlock Grid.Row="5" Text="Архив базы, дней" VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="5"
+                                                       Grid.Column="1"
+                                                       Minimum="1"
+                                                       Increment="1"
+                                                       FormatString="N0"
+                                                       Value="{Binding ArchiveDays}"/>
+
+                                        <TextBlock Grid.Row="6" Text="Точность отображения сумм" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <NumericUpDown Grid.Row="6"
+                                                       Grid.Column="1"
+                                                       Minimum="0"
+                                                       Maximum="6"
+                                                       Increment="1"
+                                                       FormatString="N0"
+                                                       Value="{Binding PriceAccuracy}"/>
+
+                                        <TextBlock Grid.Row="7" Text="Язык" VerticalAlignment="Center"/>
+                                        <ComboBox Grid.Row="7"
+                                                  Grid.Column="1"
+                                                  ItemsSource="{Binding LanguageOptions}"
+                                                  SelectedItem="{Binding InterfaceLanguage}"/>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                            <Border Classes="mat-card">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Classes="mat-section-title" Text="Оформление"/>
+                                    <CheckBox Content="Сделать цвет фона &quot;листа заказа&quot; серым (вместо белого)"
+                                              IsChecked="{Binding IsOrderBackgroundGray}"/>
+                                    <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="12">
+                                        <CheckBox Content="Установить размер шрифта для списков"
+                                                  IsChecked="{Binding IsCustomFontEnabled}"
+                                                  VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Column="1"
+                                                       Minimum="8"
+                                                       Maximum="24"
+                                                       Increment="1"
+                                                       FormatString="N0"
+                                                       Value="{Binding FontSize}"
+                                                       Width="80"
+                                                       IsEnabled="{Binding IsCustomFontEnabled}"/>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="10">
+                                        <TextBlock Text="Цвет &quot;выделенных&quot; элементов в списке:"
+                                                   VerticalAlignment="Center"/>
+                                        <Border Grid.Column="1"
+                                                Width="24"
+                                                Height="24"
+                                                CornerRadius="4"
+                                                BorderBrush="#CBD5E1"
+                                                BorderThickness="1"
+                                                Background="{Binding SelectedElementsBrush}"/>
+                                        <Button Grid.Column="2"
+                                                Classes="mat-toolbar"
+                                                Content="Выбрать цвет"
+                                                Command="{Binding PickSelectedColorCommand}"
+                                                HorizontalContentAlignment="Center"
+                                                VerticalContentAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+                <TabItem Header="Раскрой">
+                    <ScrollViewer Padding="0,8,0,8">
+                        <Grid RowDefinitions="*,*" RowSpacing="14">
+                            <Border Grid.Row="0" Classes="mat-card">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Classes="mat-section-title"
+                                               Text="Раскрой профиля (ПВХ / Алюминий)"/>
+                                    <Grid ColumnDefinitions="280,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12">
+                                        <TextBlock Text="Уровень раскроя профиля" VerticalAlignment="Center"/>
+                                        <StackPanel Grid.Column="1" Spacing="4">
+                                            <ComboBox ItemsSource="{Binding ProfileCutLevelOptions}"
+                                                      SelectedItem="{Binding SelectedProfileCutLevelOption}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate DataType="settings:ProfileCutLevelOption">
+                                                        <TextBlock Text="{Binding DisplayName}"/>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <TextBlock Text="Рекомендуется сложный"
+                                                       FontSize="12"
+                                                       Foreground="#64748B"/>
+                                        </StackPanel>
+
+                                        <TextBlock Grid.Row="1"
+                                                   Text="Обработка обрезков профиля"
+                                                   VerticalAlignment="Center"
+                                                   TextWrapping="Wrap"/>
+                                        <ComboBox Grid.Row="1"
+                                                  Grid.Column="1"
+                                                  ItemsSource="{Binding ProfileWasteModeOptions}"
+                                                  SelectedItem="{Binding SelectedProfileWasteModeOption}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate DataType="settings:ProfileWasteModeOption">
+                                                    <TextBlock Text="{Binding DisplayName}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+
+                                        <CheckBox Grid.Row="2"
+                                                  Grid.ColumnSpan="2"
+                                                  Content="Не допускать попадание длины обрезков в зону между «неликвидом» и «мусором»"
+                                                  IsChecked="{Binding AvoidDeadZoneCuts}"/>
+
+                                        <CheckBox Grid.Row="3"
+                                                  Grid.ColumnSpan="2"
+                                                  Content="Делать параллельный раскрой профиля на две палки (для двухголовочной пилы)"
+                                                  IsChecked="{Binding ParallelCutTwoBars}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Row="1" Classes="mat-card" Background="#F8FAFC">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Classes="mat-section-title"
+                                               Text="Раскрой стекла / Стеклопакетов"/>
+                                    <Grid ColumnDefinitions="320,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
+                                        <TextBlock Text="Неликвидный обрезок, если длина стороны меньше, мм."
+                                                   VerticalAlignment="Center"
+                                                   TextWrapping="Wrap"/>
+                                        <NumericUpDown Grid.Column="1"
+                                                       Minimum="0"
+                                                       Increment="1"
+                                                       FormatString="N0"
+                                                       Value="{Binding MinGlassCutLengthMm}"/>
+
+                                        <TextBlock Grid.Row="1"
+                                                   Text="Неликвидный обрезок, если площадь меньше, м.кв."
+                                                   VerticalAlignment="Center"
+                                                   TextWrapping="Wrap"/>
+                                        <NumericUpDown Grid.Row="1"
+                                                       Grid.Column="1"
+                                                       Minimum="0"
+                                                       Increment="0.01"
+                                                       FormatString="N2"
+                                                       Value="{Binding MinGlassCutAreaM2}"/>
+
+                                        <TextBlock Grid.Row="2"
+                                                   Text="Обработка обрезков стекла"
+                                                   VerticalAlignment="Center"
+                                                   TextWrapping="Wrap"/>
+                                        <ComboBox Grid.Row="2"
+                                                  Grid.Column="1"
+                                                  ItemsSource="{Binding GlassWasteModeOptions}"
+                                                  SelectedItem="{Binding SelectedGlassWasteModeOption}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate DataType="settings:GlassWasteModeOption">
+                                                    <TextBlock Text="{Binding DisplayName}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </ScrollViewer>
+                </TabItem>
+                <TabItem Header="Корпоративный узел">
+                    <ScrollViewer Padding="0,8,0,8">
+                        <StackPanel Spacing="14">
+                            <Border Classes="mat-card">
+                                <Grid ColumnDefinitions="280,*" RowDefinitions="Auto,Auto" RowSpacing="12">
+                                    <TextBlock Text="Почтовый адрес узла (для Дилера)"
+                                               VerticalAlignment="Center"
+                                               TextWrapping="Wrap"/>
+                                    <TextBox Grid.Column="1" Text="{Binding CentralOfficeEmail}"/>
+
+                                    <TextBlock Grid.Row="1"
+                                               Text="Свой почтовый адрес (для Центрального офиса)"
+                                               VerticalAlignment="Center"
+                                               TextWrapping="Wrap"/>
+                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding OwnEmail}"/>
+                                </Grid>
+                            </Border>
+
+                            <Border Classes="mat-card" Background="#F8FAFC">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Classes="mat-section-title"
+                                               Text="Подключение к почтовому серверу"/>
+                                    <Grid ColumnDefinitions="*,16,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+                                        <StackPanel Grid.Column="0" Spacing="10">
+                                            <TextBlock Text="SMTP Сервер"/>
+                                            <TextBox Text="{Binding SmtpServer}"/>
+                                            <TextBlock Text="Порт"/>
+                                            <NumericUpDown Minimum="1"
+                                                           Maximum="65535"
+                                                           Increment="1"
+                                                           FormatString="N0"
+                                                           Value="{Binding SmtpPort}"/>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2" Spacing="10">
+                                            <TextBlock Text="POP3 Сервер"/>
+                                            <TextBox Text="{Binding Pop3Server}"/>
+                                            <TextBlock Text="Порт"/>
+                                            <NumericUpDown Minimum="1"
+                                                           Maximum="65535"
+                                                           Increment="1"
+                                                           FormatString="N0"
+                                                           Value="{Binding Pop3Port}"/>
+                                        </StackPanel>
+
+                                        <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Text="Пользователь"/>
+                                        <TextBox Grid.Row="2" Grid.ColumnSpan="3" Text="{Binding MailUser}"/>
+
+                                        <TextBlock Grid.Row="3" Grid.ColumnSpan="3" Text="Пароль"/>
+                                        <TextBox Grid.Row="4"
+                                                 Grid.ColumnSpan="3"
+                                                 PasswordChar="*"
+                                                 Text="{Binding MailPassword}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+                <TabItem Header="Печать">
+                    <ScrollViewer Padding="0,8,0,8">
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                            <Border Grid.Column="0" Classes="mat-card">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Classes="mat-section-title"
+                                               Text="Наклейки на стеклопакеты"/>
+                                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                                        <TextBlock Text="Ширина наклейки, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding GlassStickerWidth}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="1" Text="Высота наклейки, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="1" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding GlassStickerHeight}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="2" Text="Ширина рамки, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="2" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding GlassStickerFrameWidth}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="3" Text="Высота рамки, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="3" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding GlassStickerFrameHeight}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="4" Text="Отступ слева, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="4" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding GlassStickerLeftMargin}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="5" Text="Отступ сверху, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="5" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding GlassStickerTopMargin}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="6" Text="Зазор по ширине, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="6" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding GlassStickerHorizontalGap}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="7" Text="Зазор по высоте, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="7" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding GlassStickerVerticalGap}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="8" Text="Количество по ширине" VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="8" Grid.Column="1" Minimum="1" Increment="1" FormatString="N0"
+                                                       Value="{Binding GlassStickersColumns}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="9" Text="Количество по высоте" VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="9" Grid.Column="1" Minimum="1" Increment="1" FormatString="N0"
+                                                       Value="{Binding GlassStickersRows}" HorizontalAlignment="Left" Width="80"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Classes="mat-card" Background="#F8FAFC">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Classes="mat-section-title"
+                                               Text="Наклейки на профиль"/>
+                                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                                        <TextBlock Text="Ширина наклейки, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding ProfileStickerWidth}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="1" Text="Высота наклейки, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="1" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding ProfileStickerHeight}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="2" Text="Ширина рамки, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="2" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding ProfileStickerFrameWidth}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="3" Text="Высота рамки, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="3" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding ProfileStickerFrameHeight}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="4" Text="Отступ слева, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="4" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding ProfileStickerLeftMargin}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="5" Text="Отступ сверху, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="5" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding ProfileStickerTopMargin}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="6" Text="Зазор по ширине, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="6" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding ProfileStickerHorizontalGap}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="7" Text="Зазор по высоте, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="7" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding ProfileStickerVerticalGap}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="8" Text="Количество по ширине" VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="8" Grid.Column="1" Minimum="1" Increment="1" FormatString="N0"
+                                                       Value="{Binding ProfileStickersColumns}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="9" Text="Количество по высоте" VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="9" Grid.Column="1" Minimum="1" Increment="1" FormatString="N0"
+                                                       Value="{Binding ProfileStickersRows}" HorizontalAlignment="Left" Width="80"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Classes="mat-card">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Classes="mat-section-title"
+                                               Text="Параметры отображения шапки документов"/>
+                                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10">
+                                        <TextBlock Text="Ширина, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding HeaderWidth}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="1" Text="Высота, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="1" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding HeaderHeight}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="2" Text="Отступ слева, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="2" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding HeaderLeftMargin}" HorizontalAlignment="Left" Width="80"/>
+
+                                        <TextBlock Grid.Row="3" Text="Отступ сверху, мм." VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="3" Grid.Column="1" Minimum="0" Increment="0.1" FormatString="N1"
+                                                       Value="{Binding HeaderTopMargin}" HorizontalAlignment="Left" Width="80"/>
+                                    </Grid>
+
+                                    <TextBlock Text="{Binding HeaderStatusText}"
+                                               TextWrapping="Wrap"
+                                               Foreground="#64748B"/>
+
+                                    <Button Classes="mat-toolbar"
+                                            Content="Загрузить Бланк/Шапку"
+                                            Command="{Binding LoadHeaderCommand}"
+                                            HorizontalAlignment="Left"
+                                            HorizontalContentAlignment="Center"
+                                            VerticalContentAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </ScrollViewer>
+                </TabItem>
+                <TabItem Header="Утилиты">
+                    <Grid Margin="0,8,0,0" RowDefinitions="Auto,*,Auto" RowSpacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button Classes="mat-toolbar"
+                                    Content="+"
+                                    ToolTip.Tip="Добавить"
+                                    Command="{Binding AddUtilityCommand}"
+                                    Width="36"
+                                    Height="32"
+                                    Foreground="#16A34A"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"/>
+                            <Button Classes="mat-toolbar"
+                                    Content="✎"
+                                    ToolTip.Tip="Редактировать"
+                                    Command="{Binding EditUtilityCommand}"
+                                    Width="36"
+                                    Height="32"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"/>
+                            <Button Classes="mat-toolbar"
+                                    Content="✕"
+                                    ToolTip.Tip="Удалить"
+                                    Command="{Binding DeleteUtilityCommand}"
+                                    Width="36"
+                                    Height="32"
+                                    Foreground="#DC2626"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"/>
+                        </StackPanel>
+
+                        <dg:DataGrid Grid.Row="1"
+                                     ItemsSource="{Binding ExternalUtilities}"
+                                     SelectedItem="{Binding SelectedExternalUtility}"
+                                     AutoGenerateColumns="False"
+                                     CanUserSortColumns="False"
+                                     GridLinesVisibility="Horizontal"
+                                     BorderBrush="#E2E8F0"
+                                     BorderThickness="1"
+                                     IsReadOnly="True"
+                                     DoubleTapped="OnUtilityDoubleTapped">
+                            <dg:DataGrid.Columns>
+                                <dg:DataGridTextColumn Header="№"
+                                                       Binding="{Binding Number}"
+                                                       Width="48"
+                                                       SortMemberPath="Number"/>
+                                <dg:DataGridTextColumn Header="Наименование"
+                                                       Binding="{Binding Name}"
+                                                       Width="2*"
+                                                       SortMemberPath="Name"/>
+                                <dg:DataGridTextColumn Header="Файл"
+                                                       Binding="{Binding FilePath}"
+                                                       Width="3*"
+                                                       SortMemberPath="FilePath"/>
+                            </dg:DataGrid.Columns>
+                        </dg:DataGrid>
+
+                        <TextBlock Grid.Row="2"
+                                   Text="Изменения в меню произойдут только после перезапуска программы."
+                                   Foreground="#64748B"/>
+                    </Grid>
+                </TabItem>
+                <TabItem Header="Опции">
+                    <ScrollViewer Padding="0,8,0,8">
+                        <StackPanel Spacing="12">
+                            <Border Classes="mat-card">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Classes="mat-section-title" Text="Общие"/>
+                                    <CheckBox Content="По складу делать списания по партиям (первый пришел - первый ушел)"
+                                              IsChecked="{Binding IsFifoInventoryWriteOff}"/>
+                                    <CheckBox Content="При автоматическом списании материалов по заказу проверять на наличие необходимого количества"
+                                              IsChecked="{Binding CheckMaterialAvailabilityOnAutoWriteOff}"/>
+                                    <Grid ColumnDefinitions="*,200" ColumnSpacing="12">
+                                        <TextBlock Text="При экспорте заказов в DBF дублирующиеся заказы сверять по полю"
+                                                   VerticalAlignment="Center"
+                                                   TextWrapping="Wrap"/>
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding DbfExportDuplicateCheckFieldOptions}"
+                                                  SelectedItem="{Binding DbfExportDuplicateCheckField}"/>
+                                    </Grid>
+                                    <CheckBox Content="При экспорте заказов в DBF не допускать экспортирование заказов без номера заказа"
+                                              IsChecked="{Binding PreventDbfExportWithoutOrderNumber}"/>
+                                    <CheckBox Content="При экспорте заказов в DBF использовать альтернативное удаление записей (затирать пустыми значениями)"
+                                              IsChecked="{Binding UseAlternativeDeleteInDbfExport}"/>
+                                    <CheckBox Content="Вести протокол базы данных"
+                                              IsChecked="{Binding EnableDatabaseLogging}"/>
+                                    <CheckBox Content="Формировать без цен заявки на материалы и фурнитуру по группе заказов"
+                                              IsChecked="{Binding GenerateMaterialRequestsWithoutPrices}"/>
+                                    <CheckBox Content="Напоминать, если долгое время не делалась процедура &quot;сжатие базы&quot;"
+                                              IsChecked="{Binding RemindDatabaseCompression}"/>
+                                    <CheckBox Content="Автоматически пересчитывать заказ при его сохранении или печати"
+                                              IsChecked="{Binding AutoRecalculateOrderOnSaveOrPrint}"/>
+                                    <CheckBox Content="По умолчанию автоматически обновлять заказы в соответствии с шаблоном"
+                                              IsChecked="{Binding AutoUpdateOrdersByTemplateByDefault}"/>
+                                    <CheckBox Content="Москитную сетку устанавливать только в створку (запретить установку в габарит конструкции)"
+                                              IsChecked="{Binding RestrictMosquitoNetToSashOnly}"/>
+                                    <CheckBox Content="При отображении мест установки соединителей для импоста точкой отсчета считать кромку рамы, а не кромку импоста"
+                                              IsChecked="{Binding ImpostConnectorOriginAtFrameEdge}"/>
+                                    <CheckBox Content="Автоматически блокировать заказ при &quot;экспорте списания во внешний склад&quot;"
+                                              IsChecked="{Binding LockOrderOnExternalStockExport}"/>
+                                    <CheckBox Content="Автоматически менять шаблон при смене дилера на листе заказа, на шаблон, применимый для данного дилера"
+                                              IsChecked="{Binding AutoChangeTemplateOnDealerChange}"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Classes="mat-card" Background="#F8FAFC">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Classes="mat-section-title" Text="Этапы выполнения заказа"/>
+                                    <CheckBox Content="По окончании этапа &quot;договор&quot; автоматически устанавливать &quot;оговоренную сумму&quot;"
+                                              IsChecked="{Binding SetAgreedAmountOnContractEnd}"/>
+                                    <CheckBox Content="По окончании этапа &quot;договор&quot; автоматически блокировать изменения заказа"
+                                              IsChecked="{Binding LockOrderModificationsOnContractEnd}"/>
+                                    <CheckBox Content="По окончании этапа &quot;списание материалов&quot; автоматически списывать материалы со &quot;встроенного&quot; склада"
+                                              IsChecked="{Binding AutoWriteOffFromInternalStockOnMaterialWriteOffEnd}"/>
+                                    <CheckBox Content="По окончании этапа &quot;списание материалов&quot; автоматически формировать экспорт списания во &quot;внешний&quot; склад"
+                                              IsChecked="{Binding AutoExportToExternalStockOnMaterialWriteOffEnd}"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+                <TabItem Header="Прочие">
+                    <ScrollViewer Padding="0,8,0,8">
+                        <StackPanel Spacing="12">
+                            <Border Classes="mat-card">
+                                <Grid ColumnDefinitions="*,16,*">
+                                    <StackPanel Grid.Column="0" Spacing="8">
+                                        <Grid ColumnDefinitions="*,72">
+                                            <TextBlock Text="Толщина стандартной линии"
+                                                       VerticalAlignment="Center"/>
+                                            <NumericUpDown Grid.Column="1"
+                                                           Minimum="1"
+                                                           Maximum="10"
+                                                           Increment="1"
+                                                           FormatString="N0"
+                                                           Value="{Binding StandardLineWidth}"/>
+                                        </Grid>
+                                        <TextBlock Text="Определяет толщину линий на экране и распечатках. По умолчанию: 3"
+                                                   FontSize="12"
+                                                   Foreground="#64748B"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2" Spacing="8">
+                                        <Grid ColumnDefinitions="*,72" ColumnSpacing="8">
+                                            <TextBlock Text="От даты заказа до даты изготовления, дней"
+                                                       VerticalAlignment="Center"
+                                                       TextWrapping="Wrap"/>
+                                            <NumericUpDown Grid.Column="1"
+                                                           Minimum="0"
+                                                           Increment="1"
+                                                           FormatString="N0"
+                                                           Value="{Binding DaysToProduction}"/>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,72" ColumnSpacing="8">
+                                            <TextBlock Text="От даты заказа до даты монтажа, дней"
+                                                       VerticalAlignment="Center"
+                                                       TextWrapping="Wrap"/>
+                                            <NumericUpDown Grid.Column="1"
+                                                           Minimum="0"
+                                                           Increment="1"
+                                                           FormatString="N0"
+                                                           Value="{Binding DaysToInstallation}"/>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,72" ColumnSpacing="8">
+                                            <TextBlock Text="Количество дней, за которое предупреждать дилера об окончании действия дилерской базы или пароля"
+                                                       VerticalAlignment="Center"
+                                                       TextWrapping="Wrap"/>
+                                            <NumericUpDown Grid.Column="1"
+                                                           Minimum="0"
+                                                           Increment="1"
+                                                           FormatString="N0"
+                                                           Value="{Binding DealerExpiryWarningDays}"/>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                            <TextBlock Text="В расчетах использовать склад"
+                                                       VerticalAlignment="Center"/>
+                                            <ComboBox Grid.Column="1"
+                                                      ItemsSource="{Binding CalculationWarehouseOptions}"
+                                                      SelectedItem="{Binding CalculationWarehouseName}"
+                                                      PlaceholderText="Не выбран"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <Grid ColumnDefinitions="*,12,*" ColumnSpacing="0">
+                                <Border Grid.Column="0" Classes="mat-card">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Classes="mat-section-title" Text="Нумерация заказов"/>
+                                        <Grid ColumnDefinitions="*,72" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                                            <TextBlock Text="Код подразделения (дилера)"
+                                                       VerticalAlignment="Center"
+                                                       TextWrapping="Wrap"/>
+                                            <TextBox Grid.Column="1" Text="{Binding BranchCode}"/>
+
+                                            <TextBlock Grid.Row="1"
+                                                       Text="Разделитель между кодом и номером заказа"
+                                                       VerticalAlignment="Center"
+                                                       TextWrapping="Wrap"/>
+                                            <TextBox Grid.Row="1"
+                                                     Grid.Column="1"
+                                                     Text="{Binding OrderNumberSeparator}"/>
+
+                                            <CheckBox Grid.Row="2"
+                                                      Grid.ColumnSpan="2"
+                                                      Content="Добавлять код подразделения в номер заказа"
+                                                      IsChecked="{Binding IncludeBranchCodeInOrderNumber}"/>
+
+                                            <Button Grid.Row="3"
+                                                    Grid.ColumnSpan="2"
+                                                    Classes="mat-toolbar"
+                                                    Content="Изменить нумерацию заказов"
+                                                    Command="{Binding ChangeOrderNumberingCommand}"
+                                                    HorizontalContentAlignment="Center"
+                                                    VerticalContentAlignment="Center"/>
+                                            <Button Grid.Row="4"
+                                                    Grid.ColumnSpan="2"
+                                                    Classes="mat-toolbar"
+                                                    Content="Восстановить «исходную» нумерацию заказов"
+                                                    Command="{Binding RestoreOrderNumberingCommand}"
+                                                    HorizontalContentAlignment="Center"
+                                                    VerticalContentAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <StackPanel Grid.Column="2" Spacing="10">
+                                    <Button Classes="mat-toolbar"
+                                            Content="Пересохранить все заказы в сжатом формате"
+                                            Command="{Binding CompressAllOrdersCommand}"
+                                            HorizontalAlignment="Stretch"
+                                            HorizontalContentAlignment="Center"
+                                            VerticalContentAlignment="Center"/>
+
+                                    <Border Classes="mat-card" Background="#F8FAFC">
+                                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,*">
+                                            <TextBlock Grid.ColumnSpan="2"
+                                                       Classes="mat-section-title"
+                                                       Text="Экспорт чертежа в Base4.DBF"/>
+                                            <StackPanel Grid.Row="1" Spacing="8" Margin="0,8,12,0">
+                                                <Grid ColumnDefinitions="Auto,72" ColumnSpacing="8">
+                                                    <TextBlock Text="Ширина, точек" VerticalAlignment="Center"/>
+                                                    <NumericUpDown Grid.Column="1"
+                                                                   Minimum="1"
+                                                                   Increment="1"
+                                                                   FormatString="N0"
+                                                                   Value="{Binding ExportImageWidth}"/>
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,72" ColumnSpacing="8">
+                                                    <TextBlock Text="Высота, точек" VerticalAlignment="Center"/>
+                                                    <NumericUpDown Grid.Column="1"
+                                                                   Minimum="1"
+                                                                   Increment="1"
+                                                                   FormatString="N0"
+                                                                   Value="{Binding ExportImageHeight}"/>
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,72" ColumnSpacing="8">
+                                                    <TextBlock Text="Точек на 1 дюйм" VerticalAlignment="Center"/>
+                                                    <NumericUpDown Grid.Column="1"
+                                                                   Minimum="1"
+                                                                   Increment="1"
+                                                                   FormatString="N0"
+                                                                   Value="{Binding ExportImageDpi}"/>
+                                                </Grid>
+                                            </StackPanel>
+
+                                            <Border Grid.Row="1"
+                                                    Grid.Column="1"
+                                                    BorderBrush="#E2E8F0"
+                                                    BorderThickness="1"
+                                                    CornerRadius="8"
+                                                    Padding="10"
+                                                    Margin="0,8,0,0">
+                                                <StackPanel Spacing="6">
+                                                    <TextBlock Text="Формат файла"
+                                                               FontWeight="SemiBold"
+                                                               Margin="0,0,0,4"/>
+                                                    <RadioButton Content="BMP"
+                                                                 GroupName="ExportImageFormat"
+                                                                 IsChecked="{Binding IsExportImageFormatBmp}"/>
+                                                    <RadioButton Content="JPG"
+                                                                 GroupName="ExportImageFormat"
+                                                                 IsChecked="{Binding IsExportImageFormatJpg}"/>
+                                                    <RadioButton Content="EMF"
+                                                                 GroupName="ExportImageFormat"
+                                                                 IsChecked="{Binding IsExportImageFormatEmf}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+
+                            <Border Classes="mat-card">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Classes="mat-section-title"
+                                               Text="Наименование информационных полей в заказчиках"/>
+                                    <Grid ColumnDefinitions="80,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
+                                        <TextBlock Text="Поле 1" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" Text="{Binding InfoField1Name}"/>
+
+                                        <TextBlock Grid.Row="1" Text="Поле 2" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding InfoField2Name}"/>
+
+                                        <TextBlock Grid.Row="2" Text="Поле 3" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding InfoField3Name}"/>
+
+                                        <TextBlock Grid.Row="3" Text="Поле 4" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding InfoField4Name}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
+
+            <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Classes="mat-toolbar"
+                            Content="Закрыть"
+                            Command="{Binding CloseCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Classes="mat-primary"
+                            Content="ОК"
+                            Command="{Binding SaveCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

@@ -1,0 +1,59 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.Cad.UI.ViewModels"
+        Width="320"
+        Height="180"
+        Title="Количество импостов"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="0"
+        x:Class="NurSapat.Cad.UI.Dialogs.ImpostCountWindow"
+        x:DataType="vm:ImpostCountViewModel"
+        FontFamily="Inter">
+
+    <!-- Серая рамка вокруг всего окна -->
+    <Border Background="White" 
+            BorderBrush="#808080" 
+            BorderThickness="2" 
+            CornerRadius="8"
+            PointerPressed="OnWindowPointerPressed">
+        
+        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12" Margin="20">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Сколько импостов добавить в ячейку?"
+                           TextWrapping="Wrap"/>
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                    <TextBlock Text="Количество" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1"
+                             Text="{Binding CountText, Mode=TwoWay}"/>
+                </Grid>
+                <TextBlock Text="1 импост → 2 проёма, 2 импоста → 3 проёма и т.д."
+                           FontSize="11"
+                           Foreground="#64748B"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <TextBlock Grid.Row="1"
+                       Text="{Binding ValidationMessage}"
+                       Foreground="#DC2626"
+                       FontSize="11"
+                       TextWrapping="Wrap"/>
+
+            <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="12">
+                <Button Content="OK"
+                        Command="{Binding ConfirmCommand}"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+                <Button Grid.Column="1"
+                        Content="Отмена"
+                        Command="{Binding CancelCommand}"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

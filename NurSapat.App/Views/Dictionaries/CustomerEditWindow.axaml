@@ -1,0 +1,132 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dictionaries"
+        x:Class="NurSapat.App.Views.Dictionaries.CustomerEditWindow"
+        x:DataType="vm:CustomerEditViewModel"
+        Width="760"
+        Height="760"
+        MinWidth="680"
+        MinHeight="640"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="32,*,Auto">
+            <Border Grid.Row="0" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="16,0,0,0">
+                        <Image Source="/Assets/logo.ico" Width="16" Height="16" VerticalAlignment="Center"/>
+                        <TextBlock Classes="mat-titlebar-text" Text="{Binding WindowTitle}"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="mat-chrome-btn close" Click="OnCloseClick" Content="✕" Margin="0,0,8,0"/>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Row="1" Margin="12,0,12,0" Padding="0,0,0,12">
+                <StackPanel Spacing="14">
+                    <Border Classes="mat-card">
+                        <StackPanel Spacing="10">
+                            <TextBlock Classes="mat-section-title" Text="Основное"/>
+                            <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+                                <TextBlock Grid.Row="0" Text="Наименование" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding FullName}"/>
+
+                                <TextBlock Grid.Row="1" Text="Телефон" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Phone}"/>
+
+                                <TextBlock Grid.Row="2" Text="Тип" VerticalAlignment="Center"/>
+                                <ComboBox Grid.Row="2" Grid.Column="1"
+                                          ItemsSource="{Binding CustomerTypes}"
+                                          SelectedItem="{Binding Type}"/>
+
+                                <TextBlock Grid.Row="3" Text="Оборот, сом" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="3" Grid.Column="1"
+                                         Text="{Binding TurnoverDisplay}"
+                                         IsReadOnly="True"
+                                         Classes="mat-readonly"/>
+
+                                <TextBlock Grid.Row="4" Text="Долг, сом" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="4" Grid.Column="1"
+                                         Text="{Binding DebtDisplay}"
+                                         IsReadOnly="True"/>
+
+                                <TextBlock Grid.Row="5" Text="Примечание" VerticalAlignment="Top" Margin="0,6,0,0"/>
+                                <TextBox Grid.Row="5" Grid.Column="1"
+                                         Text="{Binding Note}"
+                                         AcceptsReturn="True"
+                                         MinHeight="64"
+                                         TextWrapping="Wrap"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="mat-card" Background="#F8FAFC">
+                        <StackPanel Spacing="10">
+                            <TextBlock Classes="mat-section-title" Text="Юридические реквизиты"/>
+                            <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+                                <TextBlock Grid.Row="0" Text="Код ЗКПО" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding OkpoCode}"/>
+
+                                <TextBlock Grid.Row="1" Text="Банк" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding BankName}"/>
+
+                                <TextBlock Grid.Row="2" Text="Расчетный счет" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding CheckingAccount}"/>
+
+                                <TextBlock Grid.Row="3" Text="МФО" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Mfo}"/>
+
+                                <TextBlock Grid.Row="4" Text="Юридический адрес" VerticalAlignment="Top" Margin="0,6,0,0"/>
+                                <TextBox Grid.Row="4" Grid.Column="1"
+                                         Text="{Binding LegalAddress}"
+                                         AcceptsReturn="True"
+                                         MinHeight="56"
+                                         TextWrapping="Wrap"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="mat-card">
+                        <StackPanel Spacing="10">
+                            <TextBlock Classes="mat-section-title" Text="Дополнительная информация"/>
+                            <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+                                <TextBlock Grid.Row="0" Text="Город" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding City}"/>
+
+                                <TextBlock Grid.Row="1" Text="Фактический адрес" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ActualAddress}"/>
+
+                                <TextBlock Grid.Row="2" Text="Код дилера" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding DealerCode}"/>
+
+                                <TextBlock Grid.Row="3" Text="Заблокирован" VerticalAlignment="Center"/>
+                                <CheckBox Grid.Row="3" Grid.Column="1" IsChecked="{Binding IsBlocked}" Content="Нельзя выбирать в новых заказах"/>
+
+                                <TextBlock Grid.Row="4" Text="Дата создания" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding CreatedAtText}" IsReadOnly="True"/>
+
+                                <TextBlock Grid.Row="5" Text="Дата изменения" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding ModifiedAtText}" IsReadOnly="True"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Classes="mat-toolbar" Content="Отмена" Command="{Binding CancelCommand}"/>
+                    <Button Classes="mat-primary" Content="ОК" Command="{Binding SaveCommand}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

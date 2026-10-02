@@ -1,0 +1,93 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dialogs"
+        xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+        xmlns:controls="clr-namespace:NurSapat.App.Views.Dialogs.Controls"
+        x:Class="NurSapat.App.Views.Dialogs.CustomerSelectDialogWindow"
+        x:DataType="vm:CustomerSelectDialogViewModel"
+        Width="760"
+        Height="560"
+        MinWidth="680"
+        MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+        <StyleInclude Source="/Styles/ErpDialogStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="8">
+        <Grid RowDefinitions="32,Auto,*,Auto,Auto">
+            <controls:ErpDialogTitleBar Grid.Row="0"
+                                        x:Name="TitleBar"
+                                        Title="{Binding Title}"
+                                        CloseRequested="OnTitleBarClose"/>
+
+            <Grid Grid.Row="1" Margin="16,0,16,0" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <TextBox x:Name="SearchTextBox"
+                         Classes="erp-input"
+                         PlaceholderText="Поиск по ФИО или телефону..."
+                         Text="{Binding SearchText}"/>
+                <Button Grid.Column="1"
+                        Classes="mat-toolbar"
+                        Click="OnAddCustomerClick"
+                        MinWidth="168">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="＋"/>
+                        <TextBlock Text="Добавить нового"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <dg:DataGrid Grid.Row="2"
+                         Classes="erp-grid"
+                         Margin="16,0,16,0"
+                         ItemsSource="{Binding Customers}"
+                         SelectedItem="{Binding SelectedCustomer}"
+                         AutoGenerateColumns="False"
+                         IsReadOnly="True"
+                         CanUserReorderColumns="False"
+                         CanUserResizeColumns="True">
+                <dg:DataGrid.Columns>
+                    <dg:DataGridTextColumn Header="Наименование" Binding="{Binding FullName}" Width="*"/>
+                    <dg:DataGridTextColumn Header="Телефон" Binding="{Binding Phone}" Width="140"/>
+                    <dg:DataGridTextColumn Header="Тип" Binding="{Binding TypeDisplay}" Width="100"/>
+                    <dg:DataGridTextColumn Header="Город" Binding="{Binding City}" Width="120"/>
+                    <dg:DataGridTextColumn Header="Баланс, сом" Binding="{Binding CurrentBalance, StringFormat=N0}" Width="110"/>
+                </dg:DataGrid.Columns>
+            </dg:DataGrid>
+
+            <Border Grid.Row="3"
+                    Classes="erp-error-card"
+                    Margin="16,10,16,0"
+                    IsVisible="{Binding BalanceWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Text="{Binding BalanceWarning}"
+                           Foreground="#DC2626"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap"/>
+            </Border>
+
+            <Border Grid.Row="4" Classes="erp-dialog-footer">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Classes="mat-toolbar" Command="{Binding CancelCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="✕" FontSize="11"/>
+                            <TextBlock Text="Отмена"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="mat-primary" Command="{Binding ConfirmCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="✓" FontSize="11" Foreground="White"/>
+                            <TextBlock Text="Выбрать" Foreground="White"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

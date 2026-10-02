@@ -1,0 +1,120 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Settings"
+        x:Class="NurSapat.App.Views.Settings.ChangeConfigurationWindow"
+        x:DataType="vm:ChangeConfigurationViewModel"
+        Width="450"
+        Height="350"
+        MinWidth="420"
+        MinHeight="320"
+        WindowStartupLocation="CenterScreen"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="#EFF6FF"/>
+        </Style>
+        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#F8FAFC"/>
+        </Style>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="32,*,Auto">
+            <Border Grid.Row="0"
+                    Classes="mat-titlebar"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,46">
+                    <TextBlock Classes="mat-titlebar-text"
+                               Margin="16,0,0,0"
+                               Text="{Binding Title}"/>
+                    <Button Grid.Column="1"
+                            Classes="mat-chrome-btn close"
+                            Click="OnCloseClick"
+                            Content="✕"
+                            Width="46"
+                            Height="32"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1" Margin="16,0,16,0" RowDefinitions="Auto,*">
+                <TextBlock Grid.Row="0"
+                           Text="Выберите рабочую конфигурацию (автора) для загрузки персональных настроек среды, шаблонов и параметров списания склада:"
+                           TextWrapping="Wrap"
+                           Foreground="#475569"
+                           FontSize="12"
+                           Margin="0,0,0,10"/>
+
+                <Border Grid.Row="1"
+                        Background="#F8FAFC"
+                        BorderBrush="#E2E8F0"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="6">
+                    <ListBox ItemsSource="{Binding Profiles}"
+                             SelectedItem="{Binding SelectedProfile}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             DoubleTapped="OnProfileDoubleTapped">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ConfigurationProfileItemViewModel">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="{Binding ProfileName}"
+                                               FontSize="15"
+                                               FontWeight="SemiBold"
+                                               Foreground="#0F172A"/>
+                                    <TextBlock Text="{Binding LastActiveDisplay}"
+                                               FontSize="11"
+                                               Foreground="#64748B"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </Grid>
+
+            <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+                    <Button Grid.Column="0"
+                            Classes="mat-toolbar"
+                            Content="+ Новый автор"
+                            Command="{Binding CreateProfileCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Classes="mat-toolbar"
+                            Margin="8,0,0,0"
+                            Content="Удалить"
+                            Command="{Binding DeleteProfileCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="3"
+                            Classes="mat-primary"
+                            Margin="0,0,8,0"
+                            Content="ОК"
+                            Command="{Binding SelectProfileCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="4"
+                            Classes="mat-toolbar"
+                            Content="Отмена"
+                            Command="{Binding CloseCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

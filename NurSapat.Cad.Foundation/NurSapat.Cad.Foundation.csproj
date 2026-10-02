@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>NurSapat.Cad.Foundation</RootNamespace>
+    <Description>NurSapat CAD Foundation — ядро редактора: Scene Graph, Layers, Selection, Viewport, Commands, Rendering, Snapping, Events, Workspace.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <!-- Внутренних ProjectReference нет: Foundation — чистое ядро CAD.
+       Cad.Core ссылается на Foundation (мост наследованием), а не наоборот. -->
+
+</Project>

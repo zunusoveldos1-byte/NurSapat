@@ -7,4 +7,4 @@ public readonly record struct CadPointerEvent(
     ScreenPoint ScreenPoint,
     bool IsCtrlDown,
     bool IsShiftDown,
-    bool IsSpaceDown);
+    bool IsAltDown);

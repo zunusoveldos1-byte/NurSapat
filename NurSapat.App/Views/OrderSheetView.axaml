@@ -1,0 +1,58 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             xmlns:cards="clr-namespace:NurSapat.App.Views.OrderSheet"
+             x:Class="NurSapat.App.Views.OrderSheetView"
+             x:DataType="vm:OrderSheetViewModel"
+             FontFamily="Inter, Segoe UI">
+
+    <UserControl.Styles>
+        <StyleInclude Source="/Styles/OrderSheetStyles.axaml"/>
+    </UserControl.Styles>
+
+    <Grid Background="#F5F7FB" Margin="8" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+
+        <!-- Блок 1: Общие данные заказа (во всю ширину) -->
+        <cards:OrderGeneralInfoCard Grid.Row="0"/>
+
+        <!-- Основная сетка: Конструкции | Расчёт | Правая колонка -->
+        <Grid Grid.Row="1" ColumnDefinitions="20*,55*,25*" ColumnSpacing="8">
+
+            <!-- Левая колонка -->
+            <cards:ConstructionListPanel Grid.Column="0"/>
+
+            <!-- Центральная колонка -->
+            <Grid Grid.Column="1" RowDefinitions="*,Auto" RowSpacing="8">
+                <cards:ProductCalculationCard Grid.Row="0"/>
+                <cards:ProfitabilityCard Grid.Row="1"/>
+            </Grid>
+
+            <!-- Правая колонка: Предпросмотр * / Итог Auto -->
+            <Grid Grid.Column="2" RowDefinitions="*,Auto" RowSpacing="8">
+                <cards:OrderPreviewCard Grid.Row="0"/>
+                <cards:OrderSummaryCard Grid.Row="1"/>
+            </Grid>
+        </Grid>
+
+        <!-- Подвал: статус и кнопки сохранения -->
+        <Border Grid.Row="2"
+                Height="42"
+                Background="White"
+                BorderBrush="#E5EAF3"
+                BorderThickness="1"
+                CornerRadius="10"
+                Padding="12,0">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SaveStatusBulletText}" FontSize="12" Foreground="#475569" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding LastAutosaveTimeDisplay}" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <Button Classes="secondary" Content="Отмена" Command="{Binding CancelCommand}"/>
+                    <Button Classes="ghost" Content="Сохранить" Command="{Binding SaveCommand}"/>
+                    <Button Classes="primary" Content="Сохранить и закрыть" Command="{Binding SaveAndCloseCommand}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

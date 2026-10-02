@@ -1,0 +1,122 @@
+
+===== NurSapat.Cad.UI/Rendering/ConstructionSelectionRenderer.cs:1-120 =====
+1|using Avalonia;
+2|using Avalonia.Media;
+3|using NurSapat.Cad.Core.Geometry;
+4|using NurSapat.Cad.Core.Models;
+5|using NurSapat.Cad.UI.Models;
+6|using NurSapat.Cad.UI.Services;
+7|using NurSapat.Cad.UI.ViewModels;
+8|using NurSapat.Core.Models.Orders;
+9|using System.Linq;
+10|
+11|namespace NurSapat.Cad.UI.Rendering;
+12|
+13|public static class ConstructionSelectionRenderer
+14|{
+15|    private static readonly IPen SelectionPen = new Pen(
+16|        FrameVolumeRenderer.SelectionHighlightBrush,
+17|        2.5);
+18|    private static readonly IPen DummySelectionPen = new Pen(
+19|        FrameVolumeRenderer.DummySelectionHighlightBrush,
+20|        2.5,
+21|        new DashStyle(new double[] { 4, 3 }, 0));
+22|
+23|    public static void DrawHighlights(
+24|        DrawingContext context,
+25|        CadEditorViewModel editor,
+26|        IEnumerable<CadSelectableItem> selection)
+27|    {
+28|        if (editor.Viewport == null)
+29|        {
+30|            return;
+31|        }
+32|
+33|        foreach (var item in selection.ToList())
+34|        {
+35|            switch (item.Kind)
+36|            {
+37|                case CadSelectableKind.Frame:
+38|                    DrawFrameHighlight(context, editor);
+39|                    break;
+40|                case CadSelectableKind.Impost when item.ImpostNode is not null:
+41|                    DrawImpostHighlight(context, editor, item.ImpostNode, item.ImpostGapIndex);
+42|                    break;
+43|                case CadSelectableKind.ExtremeImpost
+44|                    when item.ImpostNode is not null && item.ElementId is Guid slotId:
+45|                    DrawExtremeImpostHighlight(context, editor, item.ImpostNode, slotId);
+46|                    break;
+47|                case CadSelectableKind.Sash when item.ElementId is Guid sashId:
+48|                    DrawSashProfileHighlight(context, editor, sashId);
+49|                    break;
+50|                case CadSelectableKind.Glazing when item.ElementId is Guid glazingId:
+51|                    DrawGeometryElementHighlight(context, editor, glazingId, GeometryElementKind.Glazing);
+52|                    break;
+53|                case CadSelectableKind.Bead when item.ElementId is Guid beadId:
+54|                    DrawGeometryElementHighlight(context, editor, beadId, GeometryElementKind.Bead);
+55|                    break;
+56|                case CadSelectableKind.SashHandle when item.ElementId is Guid handleSashId:
+57|                    DrawHardwareHighlight(context, editor, handleSashId, CadSelectableKind.SashHandle, 0);
+58|                    break;
+59|                case CadSelectableKind.SashHinge when item.ElementId is Guid hingeSashId:
+60|                    DrawHardwareHighlight(context, editor, hingeSashId, CadSelectableKind.SashHinge, item.HingeSlot);
+61|                    break;
+62|            }
+63|        }
+64|    }
+65|
+66|    private static void DrawFrameHighlight(DrawingContext context, CadEditorViewModel editor)
+67|    {
+68|        if (editor.FrameRoot is not FrameNode frame)
+69|        {
+70|            return;
+71|        }
+72|
+73|        if (frame.IsDummy)
+74|        {
+75|            DrawWorldRectOutline(
+76|                context,
+77|                editor,
+78|                new CadRect(frame.X, frame.Y + frame.Height, frame.Width, frame.Height),
+79|                DummySelectionPen);
+80|            return;
+81|        }
+82|
+83|        if (frame.TopProfile?.SegmentType == SegmentType.Arc &&
+84|            frame.TopProfile.ArcHeight > ProfileSegment.MinFlatArcHeightMm)
+85|        {
+86|            try
+87|            {
+88|                var contours = FrameProfileGeometry.BuildArchedFrameContours(
+89|                    frame.X,
+90|                    frame.Y,
+91|                    frame.Width,
+92|                    frame.Height,
+93|                    frame.TopProfile,
+94|                    editor.FrameThickness);
+95|            StrokeProfileBand(context, editor, contours.OuterLoop, contours.InnerLoop, SelectionPen);
+96|                return;
+97|            }
+98|            catch (InvalidOperationException)
+99|            {
+100|            }
+101|        }
+102|
+103|        if (ConstructionSelectionHelper.GetFrameBounds(editor) is not { } bounds)
+104|        {
+105|            return;
+106|        }
+107|
+108|        var inset = FrameProfileGeometry.ResolveInnerInset(
+109|            frame.Width,
+110|            frame.Height,
+111|            editor.FrameThickness);
+112|        DrawRectangularBandHighlight(
+113|            context,
+114|            editor,
+115|            frame.X,
+116|            frame.Y,
+117|            frame.X + frame.Width,
+118|            frame.Y + frame.Height,
+119|            frame.X + inset,
+120|            frame.Y + inset,

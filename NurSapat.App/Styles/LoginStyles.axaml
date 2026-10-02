@@ -1,0 +1,285 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Style Selector="Border.login-input">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Height" Value="56"/>
+        <Setter Property="Padding" Value="14,0,12,0"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.2"/>
+                <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.2"/>
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <Style Selector="Border.login-input:focus-within">
+        <Setter Property="BorderBrush" Value="#2563EB"/>
+        <Setter Property="BoxShadow" Value="0 0 0 3 #332563EB"/>
+    </Style>
+
+    <!-- Базовый стиль кнопки-ссылки -->
+    <Style Selector="Button.link-btn">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="Margin" Value="0"/>
+    <Setter Property="Foreground" Value="#0F172A"/>
+    <Setter Property="FontSize" Value="14"/>
+    <Setter Property="FontWeight" Value="Bold"/>
+    <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Opacity" Value="0.85"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+    <Setter Property="Transitions">
+        <Transitions>
+            <DoubleTransition Property="Opacity" Duration="0:0:0.15"/>
+        </Transitions>
+    </Setter>
+</Style>
+
+<Style Selector="Button.link-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+    <Setter Property="TextBlock.Foreground" Value="#000000"/>
+    <Setter Property="TextBlock.TextDecorations" Value="Underline"/>
+</Style>
+
+<Style Selector="Button.link-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+    <Setter Property="TextBlock.Foreground" Value="#222222"/>
+    <Setter Property="TextBlock.TextDecorations" Value="Underline"/>
+</Style>
+
+    <!-- Оформление текста при наведении -->
+    <Style Selector="Button.link-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="TextBlock.Foreground" Value="#000000"/>
+        <Setter Property="TextBlock.TextDecorations" Value="Underline"/>
+    </Style>
+
+    <!-- Оформление текста при зажатии -->
+    <Style Selector="Button.link-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="TextBlock.Foreground" Value="#222222"/>
+        <Setter Property="TextBlock.TextDecorations" Value="Underline"/>
+    </Style>
+
+    <Style Selector="Button.login-primary">
+        <Setter Property="Height" Value="56"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Background" Value="#2563EB"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="FontSize" Value="18"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <Style Selector="Button.login-primary:pointerover">
+        <Setter Property="Background" Value="#1D4ED8"/>
+    </Style>
+
+    <Style Selector="Button.login-primary:disabled">
+        <Setter Property="Background" Value="#93C5FD"/>
+        <Setter Property="Opacity" Value="0.85"/>
+    </Style>
+
+    <Style Selector="Button.login-secondary">
+        <Setter Property="Height" Value="52"/>
+        <Setter Property="MinHeight" Value="52"/>
+        <Setter Property="MaxHeight" Value="52"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
+        <Setter Property="Foreground" Value="#2563EB"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15"/>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <Style Selector="Button.login-secondary:pointerover">
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="BorderBrush" Value="#CBD5E1"/>
+    </Style>
+
+    <Style Selector="Button.icon-btn">
+        <Setter Property="Width" Value="32"/>
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="MinWidth" Value="32"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <Style Selector="Border.login-input TextBox:focus /template/ Border#PART_BorderElement">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    
+    <Style Selector="Border.login-input TextBox:pointerover /template/ Border#PART_BorderElement">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <Style Selector="Border.login-input TextBox:focus">
+        <Setter Property="Foreground" Value="#0F172A" />
+    </Style>
+
+    <Style Selector="Button.icon-btn:pointerover">
+        <Setter Property="Background" Value="#F1F5F9"/>
+    </Style>
+
+    <Style Selector="CheckBox.remember-me">
+        <Setter Property="Foreground" Value="#475569"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
+        <Setter Property="FontWeight" Value="Regular"/>
+    </Style>
+
+    <Style Selector="Border.contact-modal">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="CornerRadius" Value="16"/>
+        <Setter Property="Padding" Value="28,24"/>
+        <Setter Property="BoxShadow" Value="0 16 48 0 #40000000"/>
+    </Style>
+
+    <Style Selector="TextBlock.contact-modal-title">
+        <Setter Property="Foreground" Value="#0F172A"/>
+        <Setter Property="FontSize" Value="22"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
+        <Setter Property="LineHeight" Value="30"/>
+    </Style>
+
+    <Style Selector="TextBlock.contact-modal-description">
+        <Setter Property="Foreground" Value="#64748B"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="Regular"/>
+        <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
+        <Setter Property="LineHeight" Value="22"/>
+    </Style>
+
+    <Style Selector="TextBlock.contact-modal-label">
+        <Setter Property="Foreground" Value="#64748B"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="TextBlock.contact-modal-value">
+        <Setter Property="Foreground" Value="#0F172A"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+
+    <Style Selector="Button.contact-modal-close">
+        <Setter Property="Height" Value="48"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Background" Value="#DC2626"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Margin" Value="0,4,0,0"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+    </Style>
+
+        <!-- Стиль для обычных кнопок управления окном (Свернуть) -->
+    <Style Selector="Button.title-btn">
+        <Setter Property="Width" Value="32"/>
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Foreground" Value="#64748B"/>
+        <Setter Property="FontFamily" Value="Inter, Segoe UI"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <!-- Наведение на Свернуть (светло-серый фон) -->
+    <Style Selector="Button.title-btn:pointerover">
+        <Setter Property="Background" Value="#F1F5F9"/>
+    </Style>
+
+    <!-- Наведение на Закрыть (красный фон, как в стандартных окнах) -->
+    <Style Selector="Button.title-btn.close:pointerover">
+        <Setter Property="Background" Value="#FEE2E2"/>
+        <Setter Property="Foreground" Value="#B91C1C"/>
+    </Style>
+
+    <Style Selector="Button.dark-link-btn">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Foreground" Value="#E2E8F0"/> <Setter Property="Padding" Value="0"/>
+    <Setter Property="Margin" Value="0"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="FontSize" Value="14"/>
+    <Setter Property="Template">
+        <ControlTemplate>
+            <TextBlock Text="{TemplateBinding Content}"
+                       Foreground="{TemplateBinding Foreground}"
+                       VerticalAlignment="Center"/>
+        </ControlTemplate>
+    </Setter>
+</Style>
+
+<Style Selector="Button.dark-link-btn:pointerover TextBlock">
+    <Setter Property="Foreground" Value="#FFFFFF"/> <Setter Property="TextDecorations" Value="Underline"/> </Style>
+
+    <Style Selector="Button.contact-modal-close:pointerover">
+        <Setter Property="Background" Value="#B91C1C"/>
+    </Style>
+
+</Styles>

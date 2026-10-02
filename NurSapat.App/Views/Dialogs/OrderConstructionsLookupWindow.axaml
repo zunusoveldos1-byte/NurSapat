@@ -1,0 +1,231 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+        xmlns:controls="clr-namespace:NurSapat.Cad.UI.Controls;assembly=NurSapat.Cad.UI"
+        x:Class="NurSapat.App.Views.Dialogs.OrderConstructionsLookupWindow"
+        x:DataType="vm:OrderConstructionsLookupViewModel"
+        Title="Список конструкций"
+        Width="1200"
+        Height="900"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="#F6F9FD"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <Style Selector="Button.lookupAction">
+            <Setter Property="MinWidth" Value="120"/>
+            <Setter Property="MinHeight" Value="36"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.lookupCard">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        </Style>
+        <Style Selector="Button.lookupCard:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="ListBox.galleryList">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="Border.lookupCardBorder">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="12"/>
+        </Style>
+        <Style Selector="Border.lookupCardBorder.active">
+            <Setter Property="Background" Value="#EFF6FF"/>
+            <Setter Property="BorderBrush" Value="#3B82F6"/>
+            <Setter Property="BorderThickness" Value="2"/>
+        </Style>
+        <Style Selector="Border.lookupAddCardBorder">
+            <Setter Property="Background" Value="#FAFBFC"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="12"/>
+        </Style>
+        <Style Selector="Border.lookupPreviewZone">
+            <Setter Property="Background" Value="#F8FAFC"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="ClipToBounds" Value="True"/>
+        </Style>
+    </Window.Styles>
+
+    <Window.DataTemplates>
+        <DataTemplate DataType="vm:OrderConstructionLookupItemViewModel">
+            <Button Classes="lookupCard"
+                    Width="{Binding CardWidth}"
+                    Height="{Binding CardHeight}"
+                    Command="{Binding $parent[Window].((vm:OrderConstructionsLookupViewModel)DataContext).SelectConstructionCommand}"
+                    CommandParameter="{Binding}">
+                <Border Classes="lookupCardBorder"
+                        Classes.active="{Binding IsActive}"
+                        Width="{Binding CardWidth}"
+                        Height="{Binding CardHeight}">
+                    <Grid RowDefinitions="*,Auto" Height="{Binding CardHeight}">
+                        <Border Grid.Row="0"
+                                Background="White"
+                                BorderThickness="0"
+                                Width="{Binding PreviewZoneWidth}"
+                                Height="{Binding PreviewZoneHeight}"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Stretch"
+                                ClipToBounds="True">
+                            <Viewbox Stretch="Uniform"
+                                     StretchDirection="Both"
+                                     HorizontalAlignment="Center"
+                                     VerticalAlignment="Center">
+                                <controls:CadCanvasControl Editor="{Binding PreviewEditor}"
+                                                           AutoFitOnResize="True"
+                                                           IsThumbnailPreview="True"
+                                                           Width="{Binding PreviewZoneWidth}"
+                                                           Height="{Binding PreviewZoneHeight}"/>
+                            </Viewbox>
+                        </Border>
+
+                        <StackPanel Grid.Row="1"
+                                    Spacing="4"
+                                    Margin="0,10,0,0"
+                                    HorizontalAlignment="Center">
+                            <TextBlock Text="{Binding Name}"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="#0F172A"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="196"/>
+                            <TextBlock Text="{Binding DimensionsDisplay}"
+                                       FontSize="12"
+                                       Foreground="#64748B"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"/>
+                            <TextBlock Text="{Binding QuantityDisplay}"
+                                       FontSize="12"
+                                       Foreground="#64748B"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Button>
+        </DataTemplate>
+
+        <DataTemplate DataType="vm:OrderConstructionLookupAddItemViewModel">
+            <Button Classes="lookupCard"
+                    Width="{Binding CardWidth}"
+                    Height="{Binding CardHeight}"
+                    Command="{Binding $parent[Window].((vm:OrderConstructionsLookupViewModel)DataContext).AddNewConstructionCommand}"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center">
+                <Border Classes="lookupAddCardBorder"
+                        Width="{Binding CardWidth}"
+                        Height="{Binding CardHeight}">
+                    <StackPanel Spacing="12"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center">
+                        <TextBlock Text="+"
+                                   FontSize="48"
+                                   FontWeight="Light"
+                                   Foreground="#3B82F6"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"/>
+                        <TextBlock Text="Создать новую&#x0a;конструкцию"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="#475569"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="180"/>
+                    </StackPanel>
+                </Border>
+            </Button>
+        </DataTemplate>
+    </Window.DataTemplates>
+
+    <Border Background="#F6F9FD"
+            BorderBrush="#CBD5E1"
+            BorderThickness="1"
+            PointerPressed="OnPointerPressed">
+        <Grid RowDefinitions="Auto,*,Auto" Margin="24">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Text="Список конструкций"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="#0F172A"/>
+                    <TextBlock Text="Выберите конструкцию для редактирования на чертеже"
+                               FontSize="13"
+                               Foreground="#64748B"/>
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Classes="lookupAction"
+                        Content="Закрыть"
+                        Command="{Binding CloseCommand}"
+                        VerticalAlignment="Center"/>
+            </Grid>
+
+            <ScrollViewer Grid.Row="1"
+                          Margin="0,20,0,20"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <ListBox Classes="galleryList"
+                         x:CompileBindings="False"
+                         ItemsSource="{Binding GalleryItems}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem">
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="Margin" Value="0,0,16,16"/>
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Grid.Row" Value="{Binding GridRow}"/>
+                            <Setter Property="Grid.Column" Value="{Binding GridColumn}"/>
+                            <Setter Property="Grid.ColumnSpan" Value="{Binding ColumnSpan}"/>
+                        </Style>
+                        <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="Background" Value="Transparent"/>
+                        </Style>
+                        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="Background" Value="Transparent"/>
+                        </Style>
+                    </ListBox.Styles>
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Grid ColumnDefinitions="*,*,*,*"
+                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                  Margin="10"/>
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                </ListBox>
+            </ScrollViewer>
+
+            <TextBlock Grid.Row="2"
+                       Text="Нажмите на карточку, чтобы открыть конструкцию на чертеже"
+                       FontSize="12"
+                       Foreground="#94A3B8"
+                       HorizontalAlignment="Center"/>
+        </Grid>
+    </Border>
+</Window>
