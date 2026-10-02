@@ -1,0 +1,74 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+        xmlns:controls="clr-namespace:NurSapat.Cad.UI.Controls;assembly=NurSapat.Cad.UI"
+        x:Class="NurSapat.App.Views.Dialogs.PreviewWindow"
+        x:DataType="vm:PreviewWindowViewModel"
+        Width="920"
+        Height="760"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        TransparencyLevelHint="AcrylicBlur"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <Style Selector="Button.previewClose">
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="Foreground" Value="#64748B"/>
+        </Style>
+        <Style Selector="Button.previewClose:pointerover">
+            <Setter Property="Foreground" Value="#0F172A"/>
+        </Style>
+    </Window.Styles>
+
+    <Border Background="White"
+            BorderBrush="#E2E8F0"
+            BorderThickness="1"
+            CornerRadius="12"
+            ClipToBounds="True"
+            BoxShadow="0 12 40 0 #33000000"
+            PointerPressed="PointerPressed_OnDrag">
+        <Grid RowDefinitions="Auto,*">
+            <Grid ColumnDefinitions="*,Auto"
+                  Margin="16,12,12,8">
+                <TextBlock Text="{Binding Title}"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Foreground="#0F172A"
+                           VerticalAlignment="Center"/>
+                <Button Grid.Column="1"
+                        Classes="previewClose"
+                        Content="✕"
+                        Command="{Binding CloseCommand}"
+                        CommandParameter="{Binding $parent[Window]}"
+                        ToolTip.Tip="Закрыть"/>
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Margin="16,0,16,16"
+                    Background="#F8FAFC"
+                    BorderBrush="#E2E8F0"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    ClipToBounds="True">
+                <controls:CadCanvasControl Editor="{Binding PreviewEditor}"
+                                           AutoFitOnResize="True"
+                                           IsThumbnailPreview="False"
+                                           IsEnabled="False"
+                                           IsHitTestVisible="False"
+                                           HorizontalAlignment="Stretch"
+                                           VerticalAlignment="Stretch"/>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

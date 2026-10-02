@@ -1,0 +1,334 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Config"
+        xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+        x:Class="NurSapat.App.Views.Config.ConstructionElementsWindow"
+        x:DataType="vm:ConstructionElementsViewModel"
+        Width="1100"
+        Height="750"
+        MinWidth="960"
+        MinHeight="620"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="32,*,Auto">
+            <Border Grid.Row="0"
+                    Classes="mat-titlebar"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="8"
+                                VerticalAlignment="Center"
+                                Margin="16,0,0,0">
+                        <Image Source="/Assets/logo.ico" Width="16" Height="16" VerticalAlignment="Center"/>
+                        <TextBlock Classes="mat-titlebar-text" Text="{Binding Title}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="0,0,8,0">
+                        <Button Classes="mat-chrome-btn"
+                                Click="OnMinimizeClick"
+                                Content="—"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"/>
+                        <Button Classes="mat-chrome-btn"
+                                Click="OnMaximizeClick"
+                                Content="▢"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"/>
+                        <Button Classes="mat-chrome-btn close"
+                                Click="OnCloseClick"
+                                Content="✕"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1" Margin="12,0,12,0" ColumnDefinitions="300,4,*">
+                <!-- Левая панель -->
+                <Border Grid.Column="0" Classes="mat-card" Padding="10">
+                    <Grid RowDefinitions="Auto,*,Auto">
+                        <StackPanel Grid.Row="0" Spacing="8">
+                            <TextBlock Classes="mat-section-title" Text="Производитель профиля"/>
+                            <ComboBox ItemsSource="{Binding ManufacturerOptions}"
+                                      SelectedItem="{Binding SelectedManufacturer}"
+                                      MinHeight="34"
+                                      VerticalContentAlignment="Center"/>
+                        </StackPanel>
+
+                        <ScrollViewer Grid.Row="1" Margin="0,10,0,10">
+                            <StackPanel Spacing="10">
+                                <TextBlock Classes="mat-section-title" Text="Конечные разделы"/>
+                                <ListBox ItemsSource="{Binding TerminalSections}"
+                                         SelectedItem="{Binding SelectedSection}"
+                                         MinHeight="140">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ConstructionSectionItemViewModel">
+                                            <TextBlock Text="{Binding DisplayName}" Padding="4,2"/>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+
+                                <TextBlock Classes="mat-section-title" Text="Базовые разделы"/>
+                                <ListBox ItemsSource="{Binding BasicSections}"
+                                         SelectedItem="{Binding SelectedSection}"
+                                         MinHeight="180">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ConstructionSectionItemViewModel">
+                                            <TextBlock Text="{Binding DisplayName}" Padding="4,2"/>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <Grid Grid.Row="2" RowDefinitions="Auto,Auto,*">
+                            <TextBlock Classes="mat-section-title" Text="Элементы раздела"/>
+                            <StackPanel Grid.Row="1"
+                                        Orientation="Horizontal"
+                                        Spacing="6"
+                                        Margin="0,0,0,8">
+                                <Button Classes="mat-primary"
+                                        Content="Добавить элемент"
+                                        Command="{Binding AddElementCommand}"
+                                        HorizontalContentAlignment="Center"
+                                        VerticalContentAlignment="Center"/>
+                                <Button Classes="mat-toolbar"
+                                        Content="Удалить"
+                                        Command="{Binding DeleteElementCommand}"
+                                        HorizontalContentAlignment="Center"
+                                        VerticalContentAlignment="Center"/>
+                                <Button Classes="mat-toolbar"
+                                        Content="Копировать"
+                                        Command="{Binding CopyElementCommand}"
+                                        HorizontalContentAlignment="Center"
+                                        VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <ListBox Grid.Row="2"
+                                     ItemsSource="{Binding FilteredElements}"
+                                     SelectedItem="{Binding SelectedElement}"
+                                     MinHeight="120">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ConstructionElementItemViewModel">
+                                        <TextBlock Text="{Binding Name}" Padding="4,2"/>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <GridSplitter Grid.Column="1"
+                              Width="4"
+                              Background="#E2E8F0"
+                              ResizeDirection="Columns"/>
+
+                <!-- Правая область: динамический контент + привязка серий -->
+                <Grid Grid.Column="2" RowDefinitions="*,4,220">
+                    <Border Grid.Row="0" Classes="mat-card" Padding="12">
+                        <Grid RowDefinitions="Auto,*">
+                            <TextBlock Classes="mat-section-title"
+                                       Text="Параметры элемента"
+                                       Margin="0,0,0,10"/>
+
+                            <ScrollViewer Grid.Row="1">
+                                <StackPanel Spacing="12">
+                                    <Grid ColumnDefinitions="120,*" RowDefinitions="Auto" RowSpacing="8">
+                                        <TextBlock Text="Наименование" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" Text="{Binding ElementName}"/>
+                                    </Grid>
+
+                                    <!-- Профиль / коробка / створка / импост -->
+                                    <StackPanel IsVisible="{Binding IsProfilePanelVisible}" Spacing="10">
+                                        <TextBlock Classes="mat-section-title" Text="Технологические параметры профиля"/>
+                                        <Grid ColumnDefinitions="160,*,16,160,*"
+                                              RowDefinitions="Auto,Auto,Auto"
+                                              RowSpacing="8"
+                                              ColumnSpacing="8">
+                                            <TextBlock Text="Ширина, мм" VerticalAlignment="Center"/>
+                                            <NumericUpDown Grid.Column="1"
+                                                             Value="{Binding WidthMm}"
+                                                             Minimum="0"
+                                                             Increment="0.1"
+                                                             FormatString="0.##"/>
+
+                                            <TextBlock Grid.Column="3" Text="Высота, мм" VerticalAlignment="Center"/>
+                                            <NumericUpDown Grid.Column="4"
+                                                             Value="{Binding HeightMm}"
+                                                             Minimum="0"
+                                                             Increment="0.1"
+                                                             FormatString="0.##"/>
+
+                                            <TextBlock Grid.Row="1" Text="Толщина стенок, мм" VerticalAlignment="Center"/>
+                                            <NumericUpDown Grid.Row="1" Grid.Column="1"
+                                                             Value="{Binding WallThicknessMm}"
+                                                             Minimum="0"
+                                                             Increment="0.1"
+                                                             FormatString="0.##"/>
+
+                                            <TextBlock Grid.Row="1" Grid.Column="3" Text="Вес, кг" VerticalAlignment="Center"/>
+                                            <NumericUpDown Grid.Row="1" Grid.Column="4"
+                                                             Value="{Binding WeightKg}"
+                                                             Minimum="0"
+                                                             Increment="0.01"
+                                                             FormatString="0.###"/>
+
+                                            <TextBlock Grid.Row="2" Text="Артикул" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="4" Text="{Binding Article}"/>
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <!-- Остекление / стекло -->
+                                    <StackPanel IsVisible="{Binding IsGlazingPanelVisible}" Spacing="10">
+                                        <TextBlock Classes="mat-section-title" Text="Параметры стеклопакета"/>
+                                        <Grid ColumnDefinitions="160,*,16,160,*"
+                                              RowDefinitions="Auto,Auto"
+                                              RowSpacing="8"
+                                              ColumnSpacing="8">
+                                            <TextBlock Text="Формула" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Column="1" Text="{Binding GlassFormula}"/>
+
+                                            <TextBlock Grid.Column="3" Text="Толщина, мм" VerticalAlignment="Center"/>
+                                            <NumericUpDown Grid.Column="4"
+                                                             Value="{Binding GlassThicknessMm}"
+                                                             Minimum="0"
+                                                             Increment="0.1"
+                                                             FormatString="0.##"/>
+
+                                            <TextBlock Grid.Row="1" Text="Структура" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="4" Text="{Binding GlassStructure}"/>
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <!-- Фурнитура -->
+                                    <StackPanel IsVisible="{Binding IsHardwarePanelVisible}" Spacing="10">
+                                        <Grid ColumnDefinitions="*,Auto,Auto">
+                                            <TextBlock Classes="mat-section-title"
+                                                       Text="Автоподбор фурнитуры по габаритам створки (ШВФ, ВВФ)"/>
+                                            <Button Grid.Column="1"
+                                                    Classes="mat-toolbar"
+                                                    Margin="0,0,6,0"
+                                                    Content="Добавить строку"
+                                                    Command="{Binding AddHardwareRuleCommand}"
+                                                    HorizontalContentAlignment="Center"
+                                                    VerticalContentAlignment="Center"/>
+                                            <Button Grid.Column="2"
+                                                    Classes="mat-toolbar"
+                                                    Content="Удалить строку"
+                                                    Command="{Binding DeleteHardwareRuleCommand}"
+                                                    HorizontalContentAlignment="Center"
+                                                    VerticalContentAlignment="Center"/>
+                                        </Grid>
+                                        <dg:DataGrid ItemsSource="{Binding HardwareRules}"
+                                                     SelectedItem="{Binding SelectedHardwareRule}"
+                                                     AutoGenerateColumns="False"
+                                                     CanUserReorderColumns="False"
+                                                     CanUserResizeColumns="True"
+                                                     GridLinesVisibility="Horizontal"
+                                                     BorderBrush="#E2E8F0"
+                                                     BorderThickness="1"
+                                                     MinHeight="160">
+                                            <dg:DataGrid.Columns>
+                                                <dg:DataGridTextColumn Header="ШВФ от" Binding="{Binding MinWidthFalzMm}" Width="80"/>
+                                                <dg:DataGridTextColumn Header="ШВФ до" Binding="{Binding MaxWidthFalzMm}" Width="80"/>
+                                                <dg:DataGridTextColumn Header="ВВФ от" Binding="{Binding MinHeightFalzMm}" Width="80"/>
+                                                <dg:DataGridTextColumn Header="ВВФ до" Binding="{Binding MaxHeightFalzMm}" Width="80"/>
+                                                <dg:DataGridTextColumn Header="Ножницы" Binding="{Binding ScissorsCount}" Width="80"/>
+                                                <dg:DataGridTextColumn Header="Сред. запоры" Binding="{Binding MiddleLockCount}" Width="100"/>
+                                            </dg:DataGrid.Columns>
+                                        </dg:DataGrid>
+                                    </StackPanel>
+
+                                    <!-- Прочие разделы -->
+                                    <StackPanel IsVisible="{Binding IsGenericPanelVisible}" Spacing="10">
+                                        <TextBlock Classes="mat-section-title" Text="Общие параметры"/>
+                                        <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto" RowSpacing="8">
+                                            <TextBlock Text="Артикул" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Column="1" Text="{Binding Article}"/>
+                                            <TextBlock Grid.Row="1" Text="Примечание" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Notes}" AcceptsReturn="True" MinHeight="72"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+
+                    <GridSplitter Grid.Row="1"
+                                  Height="4"
+                                  Background="#E2E8F0"
+                                  ResizeDirection="Rows"/>
+
+                    <!-- Центральная нижняя панель: привязка серий -->
+                    <Border Grid.Row="2" Classes="mat-card" Padding="10">
+                        <Grid RowDefinitions="Auto,*,Auto">
+                            <TextBlock Classes="mat-section-title" Text="Используется для серий профиля"/>
+                            <dg:DataGrid Grid.Row="1"
+                                         Margin="0,8,0,8"
+                                         ItemsSource="{Binding SeriesBindings}"
+                                         SelectedItem="{Binding SelectedSeriesBinding}"
+                                         AutoGenerateColumns="False"
+                                         CanUserReorderColumns="False"
+                                         CanUserResizeColumns="True"
+                                         GridLinesVisibility="Horizontal"
+                                         BorderBrush="#E2E8F0"
+                                         BorderThickness="1">
+                                <dg:DataGrid.Columns>
+                                    <dg:DataGridCheckBoxColumn Header="Выбрано" Binding="{Binding IsLinked}" Width="90"/>
+                                    <dg:DataGridTextColumn Header="Серия профиля" Binding="{Binding Name}" Width="*"/>
+                                </dg:DataGrid.Columns>
+                            </dg:DataGrid>
+                            <StackPanel Grid.Row="2"
+                                        Orientation="Horizontal"
+                                        Spacing="8"
+                                        HorizontalAlignment="Left">
+                                <Button Classes="mat-primary"
+                                        Content="Добавить серию в привязку"
+                                        Command="{Binding AddSeriesToBindingCommand}"
+                                        HorizontalContentAlignment="Center"
+                                        VerticalContentAlignment="Center"/>
+                                <Button Classes="mat-toolbar"
+                                        Content="Исключить серию"
+                                        Command="{Binding ExcludeSeriesFromBindingCommand}"
+                                        HorizontalContentAlignment="Center"
+                                        VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+
+            <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                    <TextBlock VerticalAlignment="Center"
+                               Foreground="#64748B"
+                               Text="{Binding FilteredElements.Count, StringFormat=Элементов в разделе: {0}}"/>
+                    <Button Grid.Column="1"
+                            Classes="mat-primary"
+                            Margin="0,0,8,0"
+                            Content="ОК"
+                            Command="{Binding OkCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="2"
+                            Classes="mat-toolbar"
+                            Content="Закрыть"
+                            Command="{Binding CloseCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

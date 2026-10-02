@@ -1,14 +1,34 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using NurSapat.App.Services.Persistence;
+using NurSapat.App.ViewModels;
 using NurSapat.App.Views;
-using System;
+using NurSapat.Core.Interfaces.Currency;
+using NurSapat.Infrastructure.Persistence.DependencyInjection;
+using NurSapat.Infrastructure.Persistence.Seeding;
+using System.Diagnostics;
 
 namespace NurSapat.App;
 
-public partial class App(IServiceProvider provider) : Application
+public partial class App : Application
 {
+    private readonly IServiceProvider? _serviceProvider;
+
+    public static IServiceProvider? ServiceProvider { get; private set; }
+
+    public App(IServiceProvider serviceProvider)
+    {
+        _serviceProvider = serviceProvider;
+        ServiceProvider = serviceProvider;
+    }
+
+    public App()
+    {
+    }
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -18,10 +38,54 @@ public partial class App(IServiceProvider provider) : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // Только окно логина. Весь переход на Workspace делает Service.
-            desktop.MainWindow = provider.GetRequiredService<MainWindow>();
+            if (Avalonia.Controls.Design.IsDesignMode)
+            {
+                desktop.MainWindow = new MainWindow();
+            }
+            else
+            {
+                // Migrate/seed MUST complete before MainWindow resolves SettingsService /
+                // PG stores вЂ” otherwise sync EF calls deadlock on the Avalonia UI thread.
+                EnsurePersistenceReady();
+                desktop.MainWindow = _serviceProvider!.GetRequiredService<MainWindow>();
+                _ = SyncCurrencyRatesOnStartupAsync();
+            }
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private void EnsurePersistenceReady()
+    {
+        try
+        {
+            var configuration = _serviceProvider!.GetRequiredService<IConfiguration>();
+            if (!configuration.IsPostgreSqlPersistence())
+            {
+                return;
+            }
+
+            var seeder = _serviceProvider.GetRequiredService<InitialDataSeeder>();
+            PersistenceSync.Run(() => seeder.SeedAsync());
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Seed РїСЂРё СЃС‚Р°СЂС‚Рµ: {ex}");
+            Console.WriteLine($"!!! РќРµ СѓРґР°Р»РѕСЃСЊ РёРЅРёС†РёР°Р»РёР·РёСЂРѕРІР°С‚СЊ PostgreSQL: {ex}");
+            // Login/MainWindow still open; GetByUsername will surface a clear error if schema is broken.
+        }
+    }
+
+    private async Task SyncCurrencyRatesOnStartupAsync()
+    {
+        try
+        {
+            var currencyService = _serviceProvider!.GetRequiredService<ICurrencyService>();
+            await currencyService.CheckAndSyncRatesAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"РЎРёРЅС…СЂРѕРЅРёР·Р°С†РёСЏ РєСѓСЂСЃРѕРІ РќР‘РљР  РїСЂРё СЃС‚Р°СЂС‚Рµ: {ex.Message}");
+        }
     }
 }

@@ -1,0 +1,284 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ============ Cards ============ -->
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#E5EAF3"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="12"/>
+    </Style>
+
+    <Style Selector="Border.subcard">
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="BorderBrush" Value="#E5EAF3"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="8"/>
+    </Style>
+
+    <!-- ============ Typography ============ -->
+    <Style Selector="TextBlock.cardTitle">
+        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#0F172A"/>
+    </Style>
+
+    <Style Selector="TextBlock.sectionTitle">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#0F172A"/>
+    </Style>
+
+    <Style Selector="TextBlock.fieldLabel">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Foreground" Value="#667085"/>
+        <Setter Property="Margin" Value="0,0,0,4"/>
+    </Style>
+
+    <Style Selector="TextBlock.body">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Foreground" Value="#0F172A"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="TextBlock.muted">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Foreground" Value="#667085"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- ============ Inputs (uniform height 32) ============ -->
+    <Style Selector="TextBox.field">
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="MaxHeight" Value="32"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="BorderBrush" Value="#E5EAF3"/>
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="Padding" Value="8,5"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="TextBox.field-readonly">
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="MaxHeight" Value="32"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="BorderBrush" Value="#E5EAF3"/>
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="Foreground" Value="#334155"/>
+        <Setter Property="Padding" Value="8,5"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="TextBox.date-part">
+        <Setter Property="Padding" Value="4,5"/>
+        <Setter Property="MinWidth" Value="0"/>
+    </Style>
+
+    <Style Selector="ComboBox.field">
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="MaxHeight" Value="32"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="BorderBrush" Value="#E5EAF3"/>
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="Padding" Value="8,0"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    </Style>
+
+    <Style Selector="DatePicker.field">
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="MaxHeight" Value="32"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="BorderBrush" Value="#E5EAF3"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    </Style>
+
+    <Style Selector="DatePicker.field /template/ Button#PART_FlyoutButton">
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="BorderBrush" Value="#E5EAF3"/>
+    </Style>
+
+    <!-- ============ Reference / small square buttons ============ -->
+    <Style Selector="Button.ref">
+        <Setter Property="Width" Value="32"/>
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="MinWidth" Value="32"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#E5EAF3"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.ref:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#EEF2FF"/>
+    </Style>
+
+    <Style Selector="Button.icon">
+        <Setter Property="Width" Value="30"/>
+        <Setter Property="Height" Value="30"/>
+        <Setter Property="MinWidth" Value="30"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#E5EAF3"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.icon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#F1F5F9"/>
+    </Style>
+    <Style Selector="Button.icon:disabled">
+        <Setter Property="Opacity" Value="0.4"/>
+    </Style>
+
+    <!-- ============ Big outline action buttons ============ -->
+    <Style Selector="Button.bigAction">
+        <Setter Property="Height" Value="56"/>
+        <Setter Property="MinHeight" Value="56"/>
+        <Setter Property="MaxHeight" Value="56"/>
+        <Setter Property="Padding" Value="2"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#E5EAF3"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.bigAction:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#EEF2FF"/>
+    </Style>
+
+    <!-- ============ Primary / secondary footer buttons ============ -->
+    <Style Selector="Button.primary">
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="Padding" Value="14,0"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Background" Value="#2563EB"/>
+        <Setter Property="BorderBrush" Value="#2563EB"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#1D4ED8"/>
+    </Style>
+
+    <Style Selector="Button.secondary">
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="Padding" Value="14,0"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#CBD5E1"/>
+        <Setter Property="Foreground" Value="#334155"/>
+        <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+
+    <Style Selector="Button.ghost">
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="Padding" Value="14,0"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#2563EB"/>
+        <Setter Property="Foreground" Value="#2563EB"/>
+        <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+
+    <!-- ============ KPI cards ============ -->
+    <Style Selector="Border.kpi">
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="BorderBrush" Value="#E5EAF3"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="6,4"/>
+        <Setter Property="MinHeight" Value="48"/>
+        <Setter Property="MaxHeight" Value="56"/>
+        <Setter Property="Margin" Value="0"/>
+    </Style>
+    <Style Selector="TextBlock.kpiValue">
+        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="#0F172A"/>
+    </Style>
+    <Style Selector="TextBlock.kpiLabel">
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Foreground" Value="#667085"/>
+        <Setter Property="Margin" Value="0,0,0,2"/>
+    </Style>
+
+    <!-- ============ Expander ============ -->
+    <Style Selector="Expander.section">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="#E5EAF3"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    </Style>
+    <Style Selector="Expander.section /template/ ToggleButton#ExpanderHeader">
+        <Setter Property="MinHeight" Value="30"/>
+        <Setter Property="MaxHeight" Value="30"/>
+        <Setter Property="Padding" Value="8,0"/>
+    </Style>
+
+    <!-- ============ Table (header + rows) ============ -->
+    <Style Selector="TextBlock.th">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#667085"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="TextBlock.td">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Foreground" Value="#0F172A"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Border.tableHeader">
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="MinHeight" Value="24"/>
+    </Style>
+    <Style Selector="Border.tableRow">
+        <Setter Property="BorderBrush" Value="#EEF2F7"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        <Setter Property="Padding" Value="8,3"/>
+        <Setter Property="MinHeight" Value="24"/>
+    </Style>
+
+    <!-- ============ Total strip ============ -->
+    <Style Selector="Border.totalStrip">
+        <Setter Property="Background" Value="#EEF4FF"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="10,6"/>
+    </Style>
+    <Style Selector="TextBlock.totalValue">
+        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="#1D4ED8"/>
+    </Style>
+
+</Styles>

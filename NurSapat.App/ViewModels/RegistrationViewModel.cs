@@ -1,7 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using NurSapat.Core.Interfaces;
-using NurSapat.Core.Models;
+using NurSapat.App.Models.Users;
+using NurSapat.App.Services.Users;
 using System;
 using System.Threading.Tasks;
 
@@ -9,7 +9,7 @@ namespace NurSapat.App.ViewModels;
 
 public partial class RegistrationViewModel : ObservableObject
 {
-    private readonly IUserRepository _userRepo;
+    private readonly IUsersStore _usersStore;
     private readonly MainWindowViewModel _mainVM;
 
     [ObservableProperty]
@@ -27,9 +27,9 @@ public partial class RegistrationViewModel : ObservableObject
     [ObservableProperty]
     private bool _isBusy;
 
-    public RegistrationViewModel(IUserRepository userRepo, MainWindowViewModel mainVM)
+    public RegistrationViewModel(IUsersStore usersStore, MainWindowViewModel mainVM)
     {
-        _userRepo = userRepo;
+        _usersStore = usersStore;
         _mainVM = mainVM;
     }
 
@@ -51,15 +51,16 @@ public partial class RegistrationViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            var existing = await _userRepo.GetByUsernameAsync(Username);
+            await Task.Yield();
+            var existing = _usersStore.GetByUsername(Username);
             if (existing != null)
             {
                 ErrorMessage = "Пользователь с таким именем уже существует";
                 return;
             }
 
-            var newUser = User.Create(Username, Password);
-            await _userRepo.CreateAsync(newUser);
+            var newUser = UserAccountItem.Create(Username, Password, 2, UserPermissions.CreateOperator());
+            _usersStore.Add(newUser);
             _mainVM.NavigateToLogin();
         }
         catch (Exception ex)

@@ -18,7 +18,7 @@
                            FontSize="26"
                            FontWeight="SemiBold"
                            Foreground="{StaticResource TextBrush}"/>
-				<TextBlock Text="Базовые параметры расчетного ядра. На следующем этапе они будут сохраняться в настройках предприятия."
+				<TextBlock Text="Базовые параметры расчётного ядра. Значения сохраняются в настройках предприятия и профиле конфигурации."
                            Foreground="{StaticResource SecondaryTextBrush}"
                            TextWrapping="Wrap"/>
 				<Grid ColumnDefinitions="260,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="18">

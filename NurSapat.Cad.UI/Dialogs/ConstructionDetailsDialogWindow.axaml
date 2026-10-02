@@ -1,0 +1,67 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.Cad.UI.ViewModels"
+        Width="780"
+        Height="480"
+        Title="Перечень элементов"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="0"
+        x:Class="NurSapat.Cad.UI.Dialogs.ConstructionDetailsDialogWindow"
+        x:DataType="vm:ConstructionDetailsDialogViewModel"
+        FontFamily="Inter">
+
+    <Border Background="White"
+            BorderBrush="#808080"
+            BorderThickness="2"
+            CornerRadius="8"
+            PointerPressed="OnWindowPointerPressed">
+        <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" Margin="16" RowSpacing="10">
+            <TextBlock Text="Перечень элементов конструкции" FontWeight="SemiBold" FontSize="14"/>
+
+            <Grid Grid.Row="1" ColumnDefinitions="110,*,110,120,110,90,60" Margin="4,0">
+                <TextBlock Text="Тип" FontWeight="SemiBold"/>
+                <TextBlock Grid.Column="1" Text="Метка" FontWeight="SemiBold"/>
+                <TextBlock Grid.Column="2" Text="Размер" FontWeight="SemiBold"/>
+                <TextBlock Grid.Column="3" Text="Материал" FontWeight="SemiBold"/>
+                <TextBlock Grid.Column="4" Text="Серия" FontWeight="SemiBold"/>
+                <TextBlock Grid.Column="5" Text="Объём" FontWeight="SemiBold"/>
+                <TextBlock Grid.Column="6" Text="Учёт" FontWeight="SemiBold"/>
+            </Grid>
+
+            <Border Grid.Row="2" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4">
+                <ScrollViewer>
+                    <ItemsControl ItemsSource="{Binding Rows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ConstructionDetailsRow">
+                                <Grid ColumnDefinitions="110,*,110,120,110,90,60" Margin="4,3">
+                                    <TextBlock Text="{Binding Kind}" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Size}"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding Material}" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding Series}" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Grid.Column="5" Text="{Binding Volume}"/>
+                                    <TextBlock Grid.Column="6" Text="{Binding Billable}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+
+            <StackPanel Grid.Row="3" Spacing="2">
+                <TextBlock Text="{Binding TotalVolumeText}"/>
+                <TextBlock Text="{Binding BillableCountText}" Foreground="#64748B"/>
+            </StackPanel>
+
+            <Button Grid.Row="4"
+                    Content="Закрыть"
+                    Command="{Binding CloseCommand}"
+                    HorizontalAlignment="Right"
+                    MinWidth="100"
+                    HorizontalContentAlignment="Center"/>
+        </Grid>
+    </Border>
+</Window>

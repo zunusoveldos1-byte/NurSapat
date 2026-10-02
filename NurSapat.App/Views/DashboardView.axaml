@@ -1,16 +1,18 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             xmlns:dictVm="clr-namespace:NurSapat.App.ViewModels.Dictionaries"
+             xmlns:matVm="clr-namespace:NurSapat.App.ViewModels.Materials"
              xmlns:views="clr-namespace:NurSapat.App.Views"
+             xmlns:dictViews="clr-namespace:NurSapat.App.Views.Dictionaries"
              x:Class="NurSapat.App.Views.DashboardView"
              x:DataType="vm:DashboardViewModel">
 	<Grid ColumnDefinitions="220,*">
-		<!-- Левая панель меню -->
 		<Border Grid.Column="0" Background="{StaticResource SurfaceBrush}">
 			<ListBox ItemsSource="{Binding MenuItems}"
-						SelectedItem="{Binding SelectedMenuItem, Mode=TwoWay}"
-						Background="Transparent"
-						BorderThickness="0">
+					 SelectedItem="{Binding SelectedMenuItem, Mode=TwoWay}"
+					 Background="Transparent"
+					 BorderThickness="0">
 				<ListBox.ItemTemplate>
 					<DataTemplate>
 						<TextBlock Text="{Binding Title}"
@@ -21,17 +23,19 @@
 			</ListBox>
 		</Border>
 
-		<!-- Правая область контента -->
 		<ContentControl Grid.Column="1" Content="{Binding SelectedContent}">
 			<ContentControl.DataTemplates>
-				<!-- Для заглушек используем просто TextBlock -->
-				<DataTemplate DataType="vm:PlaceholderViewModel">
-					<Border Background="{StaticResource BackgroundBrush}"
-                            VerticalAlignment="Center" HorizontalAlignment="Center">
-						<TextBlock Text="{Binding Title}"
-                                   FontSize="48"
-                                   Foreground="{StaticResource SecondaryTextBrush}"/>
-					</Border>
+				<DataTemplate DataType="dictVm:CustomersDictionaryViewModel">
+					<dictViews:EmbeddedCustomersDictionaryView/>
+				</DataTemplate>
+				<DataTemplate DataType="matVm:MaterialsDictionaryViewModel">
+					<dictViews:EmbeddedMaterialsDictionaryView/>
+				</DataTemplate>
+				<DataTemplate DataType="dictVm:OrdersDictionaryViewModel">
+					<dictViews:EmbeddedOrdersDictionaryView/>
+				</DataTemplate>
+				<DataTemplate DataType="vm:OrderDrawingViewModel">
+					<views:OrderDrawingView/>
 				</DataTemplate>
 				<DataTemplate DataType="vm:SystemLogsViewModel">
 					<views:SystemLogsView/>

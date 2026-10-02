@@ -1,0 +1,83 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             xmlns:controls="clr-namespace:NurSapat.Cad.UI.Controls;assembly=NurSapat.Cad.UI"
+             x:Class="NurSapat.App.Views.OrderSheet.OrderPreviewCard"
+             x:DataType="vm:OrderSheetViewModel"
+             FontFamily="Inter, Segoe UI">
+
+    <UserControl.Styles>
+        <StyleInclude Source="/Styles/OrderSheetStyles.axaml"/>
+
+        <Style Selector="Button.pTool">
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="MinWidth" Value="28"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#E5EAF3"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.pTool:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#F1F5F9"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="8">
+        <Grid RowDefinitions="Auto,*">
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+                <TextBlock Classes="cardTitle" FontSize="14" Text="Предпросмотр" VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <Border MinWidth="30" Height="26" Padding="8,0"
+                            Background="#EFF4FF" BorderBrush="#2563EB" BorderThickness="1" CornerRadius="6">
+                        <TextBlock Text="2D" FontSize="11" FontWeight="SemiBold" Foreground="#1D4ED8"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <Button Classes="pTool" Command="{Binding PreviewFitToScreenCommand}" ToolTip.Tip="По размеру">
+                        <TextBlock Text="&#xE9A6;" FontFamily="Segoe MDL2 Assets" FontSize="11"/>
+                    </Button>
+                    <Button Classes="pTool" Command="{Binding ExpandPreviewCommand}" ToolTip.Tip="Развернуть">
+                        <TextBlock Text="&#xE740;" FontFamily="Segoe MDL2 Assets" FontSize="11"/>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Background="#F8FAFC"
+                    BorderBrush="#E5EAF3"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    ClipToBounds="True">
+                <Panel>
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2" Margin="6"
+                                IsVisible="{Binding ShowPreviewPlaceholder}">
+                        <TextBlock Text="Нет эскиза" FontSize="12" Foreground="#667085" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Задайте габариты или откройте чертёж"
+                                   FontSize="11" Foreground="#94A3B8"
+                                   TextAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+                    <controls:CadCanvasControl x:Name="ConstructionPreviewCanvas"
+                                               Editor="{Binding PreviewEditor}"
+                                               AutoFitOnResize="True"
+                                               HorizontalAlignment="Stretch"
+                                               VerticalAlignment="Stretch"
+                                               IsVisible="{Binding !ShowPreviewPlaceholder}"/>
+
+                    <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top" Spacing="4" Margin="0,6,6,0">
+                        <Button Classes="pTool" Command="{Binding PreviewZoomInCommand}" ToolTip.Tip="Увеличить">
+                            <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="11"/>
+                        </Button>
+                        <Button Classes="pTool" Command="{Binding PreviewZoomOutCommand}" ToolTip.Tip="Уменьшить">
+                            <TextBlock Text="&#xE738;" FontFamily="Segoe MDL2 Assets" FontSize="11"/>
+                        </Button>
+                    </StackPanel>
+                </Panel>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

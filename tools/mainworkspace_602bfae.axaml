@@ -1,0 +1,144 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+        x:Class="NurSapat.App.Views.MainWorkspaceWindow"
+        x:DataType="vm:MainWorkspaceViewModel"
+        Title="NurSapat CAD/ERP — [Новый чертеж]"
+        Width="1536"
+        Height="960"
+        MinWidth="1180"
+        MinHeight="720"
+        WindowState="Maximized"
+        Background="#F6F9FD">
+    <Window.Styles>
+        <Style Selector="TextBlock.icon"><Setter Property="FontFamily" Value="Segoe MDL2 Assets"/><Setter Property="FontSize" Value="21"/><Setter Property="Foreground" Value="#0B1D4D"/></Style>
+        
+        <!-- Стиль для классического меню -->
+        <Style Selector="MenuItem"><Setter Property="Padding" Value="12,4"/></Style>
+
+        <!-- Стиль для вкладок -->
+        <Style Selector="Button.tab">
+            <Setter Property="Height" Value="48"/>
+            <Setter Property="Padding" Value="20,0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#333333"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.tab.active">
+            <Setter Property="Foreground" Value="#1A73E8"/>
+            <Setter Property="BorderBrush" Value="#1A73E8"/>
+            <Setter Property="BorderThickness" Value="0,0,0,2"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,*">
+        <!-- ВЕРХНЯЯ ПАНЕЛЬ (Меню) -->
+        <Border Grid.Row="0" Background="White" BorderBrush="#DDE5F0" BorderThickness="0,0,0,1">
+            <Menu VerticalAlignment="Center" Margin="12,0,0,0">
+                <!-- Файл -->
+                <MenuItem Header="Файл">
+                    <MenuItem Header="Создать новый заказ" InputGesture="Ctrl+N" Command="{Binding NewOrderCommand}"/>
+                    <MenuItem Header="Открыть заказ" Command="{Binding OpenOrderCommand}"/>
+                    <MenuItem Header="Сохранить заказ" InputGesture="Ctrl+S" Command="{Binding SaveOrderCommand}"/>
+                    <MenuItem Header="Сохранить как копию" Command="{Binding SaveAsCopyOrderCommand}"/>
+                    <MenuItem Header="Закрыть заказ" InputGesture="Ctrl+E" Command="{Binding CloseOrderCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Печать" Command="{Binding PrintOrderCommand}"/>
+                    <MenuItem Header="Параметры печати" Command="{Binding PrintSettingsCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Выход" InputGesture="Alt+X" Command="{Binding ExitCommand}"/>
+                </MenuItem>
+
+                <!-- Правка -->
+                <MenuItem Header="Правка">
+                    <MenuItem Header="Копировать" Command="{Binding CopyDrawingCommand}"/>
+                    <MenuItem Header="Вставить" Command="{Binding PasteDrawingCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Сменить элементы конструкции" Command="{Binding ChangeConstructionElementsCommand}"/>
+                    <MenuItem Header="Сменить элементы заказа" Command="{Binding ChangeOrderElementsCommand}"/>
+                </MenuItem>
+
+                <!-- Вид -->
+                <MenuItem Header="Вид">
+                    <MenuItem Header="Таблица затрат" Command="{Binding CostTableCommand}"/>
+                    <MenuItem Header="Сообщения" Command="{Binding MessagesCommand}"/>
+                </MenuItem>
+
+                <!-- Справочники -->
+                <MenuItem Header="Справочники">
+                    <MenuItem Header="Материалы" Command="{Binding MaterialsCommand}"/>
+                    <MenuItem Header="Заказчики" Command="{Binding CustomersCommand}"/>
+                    <MenuItem Header="Заказы" Command="{Binding OrdersCommand}"/>
+                    <MenuItem Header="Склад (материалы)" Command="{Binding StockMaterialsCommand}"/>
+                    <MenuItem Header="Склад (обрезки профиля)" Command="{Binding StockProfileCutsCommand}"/>
+                    <MenuItem Header="Склад (обрезки стекла)" Command="{Binding StockGlassCutsCommand}"/>
+                    <MenuItem Header="Склад (готовая продукция)" Command="{Binding StockFinishedCommand}"/>
+                    <MenuItem Header="Типовые конструкции" Command="{Binding StandardStructuresCommand}"/>
+                    <MenuItem Header="Пользователи" Command="{Binding UsersCommand}"/>
+                    <MenuItem Header="Курсы валют" Command="{Binding ExchangeRatesCommand}"/>
+                    <MenuItem Header="Серии" Command="{Binding SeriesCommand}"/>
+                    <MenuItem Header="Производители" Command="{Binding ManufacturersCommand}"/>
+                    <MenuItem Header="Поставщики" Command="{Binding SuppliersCommand}"/>
+                    <MenuItem Header="Шаблоны заказов" Command="{Binding OrderTemplatesCommand}"/>
+                    <MenuItem Header="Наименования конструкций" Command="{Binding StructureNamesCommand}"/>
+                </MenuItem>
+
+                <!-- Настройки -->
+                <MenuItem Header="Настройки">
+                    <MenuItem Header="Среда" Command="{Binding EnvironmentCommand}"/>
+                    <MenuItem Header="Смена конфигурации" Command="{Binding ChangeConfigurationCommand}"/>
+                    <MenuItem Header="Элементы конструкции" Command="{Binding ConstructionElementsCommand}"/>
+                </MenuItem>
+
+                <!-- Сервис -->
+                <MenuItem Header="Сервис">
+                    <MenuItem Header="Экспорт списания (DBF)" Command="{Binding ExportWriteOffDBFCommand}"/>
+                    <MenuItem Header="Экспорт списания (XLS)" Command="{Binding ExportWriteOffXLSCommand}"/>
+                    <MenuItem Header="Импорт москитных сеток" Command="{Binding ImportMosquitoNetCommand}"/>
+                    <MenuItem Header="Импорт доп. изделий" Command="{Binding ImportAccessoriesCommand}"/>
+                </MenuItem>
+
+                <!-- Утилиты -->
+                <MenuItem Header="Утилиты">
+                    <MenuItem Header="Сжать базу" Command="{Binding CompressDatabaseCommand}"/>
+                    <MenuItem Header="Сформировать дилерскую базу" Command="{Binding GenerateDealerDatabaseCommand}"/>
+                    <MenuItem Header="Установить пароль на базу" Command="{Binding SetDatabasePasswordCommand}"/>
+                    <MenuItem Header="Корпоративный узел" Command="{Binding CorporateNodeCommand}"/>
+                    <MenuItem Header="Сформировать производственную базу" Command="{Binding GenerateProductionDatabaseCommand}"/>
+                    <MenuItem Header="Обновить производственную базу" Command="{Binding UpdateProductionDatabaseCommand}"/>
+                </MenuItem>
+
+                <!-- Помощь -->
+                <MenuItem Header="Помощь">
+                    <MenuItem Header="Справка" Command="{Binding HelpCommand}"/>
+                    <MenuItem Header="Что нового?" Command="{Binding WhatIsNewCommand}"/>
+                    <MenuItem Header="Обновить программу" Command="{Binding UpdateProgramCommand}"/>
+                    <MenuItem Header="Консультация" Command="{Binding ConsultationCommand}"/>
+                    <MenuItem Header="О программе" Command="{Binding AboutCommand}"/>
+                </MenuItem>
+            </Menu>
+        </Border>
+
+        <!-- ПАНЕЛЬ ВКЛАДОК (Под меню) -->
+        <Border Grid.Row="1" Background="White" BorderBrush="#DDE5F0" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Stretch">
+                <Button Classes="tab" Classes.active="{Binding IsCadSelected}" 
+                        Command="{Binding NavigationCommand}" CommandParameter="cad" Content="Чертеж"/>
+                <Button Classes="tab" Classes.active="{Binding IsOrdersSelected}" 
+                        Command="{Binding NavigationCommand}" CommandParameter="orders" Content="Лист заказа"/>
+                <Button Classes="tab" Classes.active="{Binding IsAdditionalSelected}" 
+                        Command="{Binding NavigationCommand}" CommandParameter="additional" Content="Дополнительно"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ОСНОВНОЙ КОНТЕНТ (Рабочая область) -->
+        <Border Grid.Row="2" Background="#F6F9FD">
+            <ContentControl Content="{Binding CurrentContent}"/>
+        </Border>
+    </Grid>
+</Window>

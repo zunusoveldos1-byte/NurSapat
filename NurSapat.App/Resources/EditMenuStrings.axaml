@@ -1,0 +1,73 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- Меню «Правка» -->
+    <x:String x:Key="Edit_Menu_Edit">Правка</x:String>
+    <x:String x:Key="Edit_Menu_CopyDrawing">Копировать чертеж</x:String>
+    <x:String x:Key="Edit_Menu_CopyWithoutDimensions">Без размерных линий (BMP)</x:String>
+    <x:String x:Key="Edit_Menu_CopyWithDimensions">С размерными линиями (BMP)</x:String>
+    <x:String x:Key="Edit_Menu_ChangeConstructionColor">Сменить цвет конструкции...</x:String>
+    <x:String x:Key="Edit_Menu_ChangeOrderColor">Сменить цвет заказа...</x:String>
+
+    <!-- Копирование чертежа -->
+    <x:String x:Key="Edit_CopyDialog_Title">Копирование чертежа</x:String>
+    <x:String x:Key="Edit_CopyDialog_Format">Формат</x:String>
+    <x:String x:Key="Edit_CopyDialog_Format_Bmp">BMP</x:String>
+    <x:String x:Key="Edit_CopyDialog_Parameters">Параметры</x:String>
+    <x:String x:Key="Edit_CopyDialog_Param_DimensionLines">Размерные линии</x:String>
+    <x:String x:Key="Edit_CopyDialog_Param_Axes">Оси</x:String>
+    <x:String x:Key="Edit_CopyDialog_Param_Labels">Подписи</x:String>
+    <x:String x:Key="Edit_CopyDialog_Param_Dimensions">Размеры</x:String>
+    <x:String x:Key="Edit_CopyDialog_Param_Sashes">Створки</x:String>
+    <x:String x:Key="Edit_CopyDialog_Param_Imposts">Импосты</x:String>
+    <x:String x:Key="Edit_CopyDialog_Param_Glazing">Стеклопакеты</x:String>
+    <x:String x:Key="Edit_CopyDialog_Background">Фон</x:String>
+    <x:String x:Key="Edit_CopyDialog_Background_White">Белый</x:String>
+    <x:String x:Key="Edit_CopyDialog_Scale">Масштаб</x:String>
+    <x:String x:Key="Edit_CopyDialog_Resolution">Разрешение</x:String>
+    <x:String x:Key="Edit_CopyDialog_Resolution_96">96 dpi</x:String>
+    <x:String x:Key="Edit_CopyDialog_Resolution_144">144 dpi</x:String>
+    <x:String x:Key="Edit_CopyDialog_Resolution_300">300 dpi</x:String>
+    <x:String x:Key="Edit_CopyDialog_Resolution_600">600 dpi</x:String>
+    <x:String x:Key="Edit_CopyDialog_Preview">Предпросмотр</x:String>
+    <x:String x:Key="Edit_CopyDialog_Copy">Копировать</x:String>
+    <x:String x:Key="Edit_CopyDialog_Cancel">Отмена</x:String>
+
+    <!-- Цвет конструкции -->
+    <x:String x:Key="Edit_ConstructionColor_Title">Цвет конструкции</x:String>
+    <x:String x:Key="Edit_ConstructionColor_Settings">Настройки</x:String>
+    <x:String x:Key="Edit_ConstructionColor_ChangeProfile">Изменить профиль</x:String>
+    <x:String x:Key="Edit_ConstructionColor_Imposts">Импосты</x:String>
+    <x:String x:Key="Edit_ConstructionColor_Sashes">Створки</x:String>
+    <x:String x:Key="Edit_ConstructionColor_Layout">Раскладку</x:String>
+    <x:String x:Key="Edit_ConstructionColor_Decorative">Декоративные элементы</x:String>
+    <x:String x:Key="Edit_ConstructionColor_RecentColors">Последние цвета</x:String>
+    <x:String x:Key="Edit_ConstructionColor_StandardColors">Стандартные цвета</x:String>
+    <x:String x:Key="Edit_ConstructionColor_Apply">Применить</x:String>
+    <x:String x:Key="Edit_ConstructionColor_Cancel">Отмена</x:String>
+    <x:String x:Key="Edit_ConstructionColor_Preview">Предпросмотр</x:String>
+
+    <!-- Цвет заказа -->
+    <x:String x:Key="Edit_OrderColor_Title">Изменение цвета заказа</x:String>
+    <x:String x:Key="Edit_OrderColor_Warning">Изменения будут применены ко всем конструкциям заказа.</x:String>
+    <x:String x:Key="Edit_OrderColor_ConstructionCount">Количество конструкций</x:String>
+    <x:String x:Key="Edit_OrderColor_AllConstructions">Все конструкции</x:String>
+    <x:String x:Key="Edit_OrderColor_AllSashes">Все створки</x:String>
+    <x:String x:Key="Edit_OrderColor_AllImposts">Все импосты</x:String>
+    <x:String x:Key="Edit_OrderColor_AllDecorative">Все декоративные элементы</x:String>
+    <x:String x:Key="Edit_OrderColor_Apply">Изменить</x:String>
+    <x:String x:Key="Edit_OrderColor_Cancel">Отмена</x:String>
+    <x:String x:Key="Edit_OrderColor_Preview">Предпросмотр</x:String>
+
+    <x:String x:Key="Edit_Common_Cancel">Отмена</x:String>
+
+    <sys:Int32 x:Key="Edit_Dialog_CardRadius">10</sys:Int32>
+    <Color x:Key="Edit_Dialog_CardBorder">#E6EAF2</Color>
+    <Thickness x:Key="Edit_Dialog_CardPadding">20</Thickness>
+    <sys:Double x:Key="Edit_Dialog_CardGap">16</sys:Double>
+    <sys:Double x:Key="Edit_Dialog_TitleFontSize">16</sys:Double>
+    <sys:Double x:Key="Edit_Dialog_BodyFontSize">13</sys:Double>
+    <sys:Double x:Key="Edit_Dialog_ActionButtonHeight">36</sys:Double>
+
+</ResourceDictionary>

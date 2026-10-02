@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Materials"
+             xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+             x:Class="NurSapat.App.Views.Dictionaries.EmbeddedMaterialsDictionaryView"
+             x:DataType="vm:MaterialsDictionaryViewModel">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="16">
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+            <TextBox PlaceholderText="Поиск..." Text="{Binding SearchText}" MinHeight="36"/>
+            <Button Grid.Column="1" Content="Добавить" Command="{Binding AddCommand}"/>
+            <Button Grid.Column="2" Content="Редактировать" Command="{Binding EditCommand}"/>
+            <Button Grid.Column="3" Content="Удалить" Command="{Binding DeleteCommand}"/>
+        </Grid>
+        <dg:DataGrid Grid.Row="1" Margin="0,12,0,12"
+                     ItemsSource="{Binding FilteredItems}"
+                     SelectedItem="{Binding SelectedItem}"
+                     AutoGenerateColumns="False"
+                     IsReadOnly="True">
+            <dg:DataGrid.Columns>
+                <dg:DataGridTextColumn Header="Артикул" Binding="{Binding Article}" Width="120"/>
+                <dg:DataGridTextColumn Header="Наименование" Binding="{Binding Name}" Width="2*"/>
+                <dg:DataGridTextColumn Header="Цена" Binding="{Binding PriceDisplay}" Width="120"/>
+            </dg:DataGrid.Columns>
+        </dg:DataGrid>
+        <TextBlock Grid.Row="2" Text="{Binding FilteredItems.Count, StringFormat=Материалов: {0}}" Foreground="#64748B"/>
+    </Grid>
+</UserControl>

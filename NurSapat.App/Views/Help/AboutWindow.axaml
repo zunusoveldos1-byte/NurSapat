@@ -1,0 +1,133 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Help"
+        xmlns:controls="clr-namespace:NurSapat.App.Views.Help.Controls"
+        x:Class="NurSapat.App.Views.Help.AboutWindow"
+        x:DataType="vm:AboutViewModel"
+        Title="О программе"
+        Width="560"
+        Height="680"
+        MinWidth="480"
+        MinHeight="560"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <!-- Стиль для ссылки-кнопки -->
+        <Style Selector="Button.svc-link">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <!-- Фирменный синий цвет ссылки -->
+            <Setter Property="Foreground" Value="#2563EB"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <!-- Эффект при наведении (PointerOver) -->
+        <Style Selector="Button.svc-link:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <!-- Меняем цвет на более темный при наведении -->
+            <Setter Property="Foreground" Value="#1D4ED8"/>
+        </Style>
+
+        <!-- Эффект при нажатии (Pressed) -->
+        <Style Selector="Button.svc-link:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#1E40AF"/>
+        </Style>
+    </Window.Styles>
+
+    <controls:ServiceWindowShell WindowTitle="О программе">
+        <controls:ServiceWindowShell.BodyContent>
+            <ScrollViewer Classes="svc-scroll">
+                <StackPanel Spacing="16" HorizontalAlignment="Stretch">
+                    <StackPanel HorizontalAlignment="Center" Spacing="8">
+                        <Border Classes="svc-about-logo">
+                            <Image Source="/Assets/Logo.png"
+                                   Width="56"
+                                   Height="56"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock Classes="svc-heading"
+                                   Text="{Binding ProductName}"
+                                   TextAlignment="Center"/>
+                        <TextBlock Classes="svc-lead"
+                                   Text="{Binding ProductSubtitle}"
+                                   TextAlignment="Center"/>
+                    </StackPanel>
+
+                    <Border Classes="svc-version-pill">
+                        <StackPanel Spacing="6">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="svc-label" Text="Версия программы"/>
+                                <TextBlock Grid.Column="1" Classes="svc-value" Text="{Binding AppVersion}"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="svc-label" Text="Версия сборки"/>
+                                <TextBlock Grid.Column="1" Classes="svc-value" Text="{Binding BuildVersion}"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Classes="svc-body"
+                               Text="{Binding Copyright}"
+                               TextAlignment="Center"/>
+
+                    <Border Classes="svc-tech-card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="svc-subheading" Text="Информация о лицензии"/>
+                            <TextBlock Classes="svc-body" Text="{Binding LicenseInfo}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="svc-tech-card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="svc-subheading" Text="Используемые технологии"/>
+                            <ItemsControl ItemsSource="{Binding Technologies}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Classes="svc-tech-item" Text="{Binding StringFormat=• {0}}"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="6">
+                        <Button Classes="svc-link"
+                                Content="{Binding WebsiteDisplay, StringFormat=Сайт: {0}}"
+                                Command="{Binding OpenWebsiteCommand}"
+                                HorizontalAlignment="Center"
+                                HorizontalContentAlignment="Center"/>
+
+                        <Button Classes="svc-link"
+                                Content="Техническая поддержка"
+                                Command="{Binding OpenSupportCommand}"
+                                HorizontalAlignment="Center"
+                                HorizontalContentAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </controls:ServiceWindowShell.BodyContent>
+
+        <controls:ServiceWindowShell.FooterContent>
+            <Button Classes="mat-toolbar"
+                    Content="Закрыть"
+                    Command="{Binding CloseCommand}"
+                    HorizontalAlignment="Right"
+                    MinWidth="100"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"/>
+        </controls:ServiceWindowShell.FooterContent>
+    </controls:ServiceWindowShell>
+</Window>

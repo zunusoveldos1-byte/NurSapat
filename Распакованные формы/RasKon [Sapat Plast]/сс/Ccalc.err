@@ -1,0 +1,99 @@
+04.12.2017 16:54:36(ver:8.34.00.24574.6) WIN-CUEIPEMARM7 Не найдена информации о курсах валют на 04.12.2017. Операция не может быть выполнена, введите курсы валют для этой даты либо ранее.
+----------Delphi exception, type ECursesItemNotFound, message: Не найдена информации о курсах валют на 04.12.2017. Операция не может быть выполнена, введите курсы валют для этой даты либо ранее.
+----------Exception code: 250477278
+----------Exception flags: 3
+----------Number of parameters: 7
+----------(no debug info) Find error: 73B0CBB2 (dbg:7370BBB2)
+----------call stack - 0 : (no debug info) Find error: 00A157BF (dbg:006147BF)
+----------call stack - 1 : (no debug info) Find error: 008E2D4E (dbg:004E1D4E)
+----------call stack - 2 : (no debug info) Find error: 008E2E5F (dbg:004E1E5F)
+----------call stack - 3 : (no debug info) Find error: 004F5C38 (dbg:000F4C38)
+----------call stack - 4 : (no debug info) Find error: 004AAB35 (dbg:000A9B35)
+----------call stack - 5 : (no debug info) Find error: 004AF03C (dbg:000AE03C)
+----------call stack - 6 : (no debug info) Find error: 004F61B5 (dbg:000F51B5)
+----------call stack - 7 : (no debug info) Find error: 004AA75B (dbg:000A975B)
+----------call stack - 8 : (no debug info) Find error: 004AF18C (dbg:000AE18C)
+----------call stack - 9 : (no debug info) Find error: 004AF03C (dbg:000AE03C)
+----------call stack - 10 : (no debug info) Find error: 004AE753 (dbg:000AD753)
+----------call stack - 11 : (no debug info) Find error: 00439502 (dbg:00038502)
+----------call stack - 12 : (no debug info) Find error: 73DD3427 (dbg:739D2427)
+----------call stack - 13 : (no debug info) Find error: 73DC588F (dbg:739C488F)
+----------call stack - 14 : (no debug info) Find error: 73DB1378 (dbg:739B0378)
+----------call stack - 15 : (no debug info) Find error: 73DB109B (dbg:739B009B)
+----------call stack - 16 : (no debug info) Find error: 71B7CBA8 (dbg:7177BBA8)
+----------call stack - 17 : (no debug info) Find error: 71B4710F (dbg:7174610F)
+----------call stack - 18 : (no debug info) Find error: 71B7D7AE (dbg:7177C7AE)
+----------call stack - 19 : (no debug info) Find error: 71B82406 (dbg:71781406)
+----------call stack - 20 : (no debug info) Find error: 71B8020C (dbg:7177F20C)
+----------call stack - 21 : (no debug info) Find error: 71B7E23F (dbg:7177D23F)
+----------call stack - 22 : (no debug info) Find error: 73DD3427 (dbg:739D2427)
+----------call stack - 23 : (no debug info) Find error: 73DC588F (dbg:739C488F)
+----------call stack - 24 : (no debug info) Find error: 73DBB313 (dbg:739BA313)
+----------call stack - 25 : (no debug info) Find error: 004AF138 (dbg:000AE138)
+----------call stack - 26 : (no debug info) Find error: 004AF03C (dbg:000AE03C)
+----------call stack - 27 : (no debug info) Find error: 004F61B5 (dbg:000F51B5)
+----------call stack - 28 : (no debug info) Find error: 004AE753 (dbg:000AD753)
+----------call stack - 29 : (no debug info) Find error: 00439502 (dbg:00038502)
+----------call stack - 30 : (no debug info) Find error: 73DD3427 (dbg:739D2427)
+----------call stack - 31 : (no debug info) Find error: 73DC588F (dbg:739C488F)
+----------call stack - 32 : (no debug info) Find error: 73DBB313 (dbg:739BA313)
+----------call stack - 33 : (no debug info) Find error: 71B6805B (dbg:7176705B)
+----------call stack - 34 : (no debug info) Find error: 71B6812F (dbg:7176712F)
+----------call stack - 35 : (no debug info) Find error: 71B67EDD (dbg:71766EDD)
+----------call stack - 36 : (no debug info) Find error: 73DD3427 (dbg:739D2427)
+----------call stack - 37 : (no debug info) Find error: 73DC588F (dbg:739C488F)
+----------call stack - 38 : (no debug info) Find error: 73DB1378 (dbg:739B0378)
+----------call stack - 39 : (no debug info) Find error: 73DB109B (dbg:739B009B)
+----------call stack - 40 : (no debug info) Find error: 0043BC1D (dbg:0003AC1D)
+----------call stack - 41 : (no debug info) Find error: 004F17F7 (dbg:000F07F7)
+----------call stack - 42 : (no debug info) Find error: 004F969F (dbg:000F869F)
+----------call stack - 43 : (no debug info) Find error: 008DEE9A (dbg:004DDE9A)
+----------call stack - 44 : (no debug info) Find error: 008D0928 (dbg:004CF928)
+----------call stack - 45 : (no debug info) Find error: 008E5078 (dbg:004E4078)
+----------call stack - 46 : (no debug info) Find error: 008E4F9D (dbg:004E3F9D)
+----------call stack - 47 : (no debug info) Find error: 00438812 (dbg:00037812)
+----------call stack - 48 : (no debug info) Find error: 004AF03C (dbg:000AE03C)
+----------call stack - 49 : (no debug info) Find error: 004C3AC5 (dbg:000C2AC5)
+----------call stack - 50 : (no debug info) Find error: 004AE753 (dbg:000AD753)
+----------call stack - 51 : (no debug info) Find error: 00439502 (dbg:00038502)
+----------call stack - 52 : (no debug info) Find error: 73DD3427 (dbg:739D2427)
+----------call stack - 53 : (no debug info) Find error: 73DC588F (dbg:739C488F)
+----------call stack - 54 : (no debug info) Find error: 73DC521E (dbg:739C421E)
+----------call stack - 55 : (no debug info) Find error: 73DC4FEC (dbg:739C3FEC)
+----------call stack - 56 : (no debug info) Find error: 004CC3AE (dbg:000CB3AE)
+--------------------------------------------------------
+04.12.2017 17:50:54(ver:8.34.00.24574.6) WIN-CUEIPEMARM7 OLE error 800A01A8
+----------Delphi exception, type EOleSysError, message: OLE error 800A01A8
+----------Exception code: 250477278
+----------Exception flags: 3
+----------Number of parameters: 7
+----------(no debug info) Find error: 73B0CBB2 (dbg:7370BBB2)
+----------call stack - 0 : (no debug info) Find error: 004DE9BE (dbg:000DD9BE)
+----------call stack - 1 : (no debug info) Find error: 004DE9F1 (dbg:000DD9F1)
+----------call stack - 2 : (no debug info) Find error: 004DE90C (dbg:000DD90C)
+----------call stack - 3 : (no debug info) Find error: 0041FAD8 (dbg:0001EAD8)
+----------call stack - 4 : (no debug info) Find error: 007F90FE (dbg:003F80FE)
+----------call stack - 5 : (no debug info) Find error: 007F9229 (dbg:003F8229)
+----------call stack - 6 : (no debug info) Find error: 007F944C (dbg:003F844C)
+----------call stack - 7 : (no debug info) Find error: 00801F7C (dbg:00400F7C)
+----------call stack - 8 : (no debug info) Find error: 007F424B (dbg:003F324B)
+----------call stack - 9 : (no debug info) Find error: 00438812 (dbg:00037812)
+----------call stack - 10 : (no debug info) Find error: 004AA75B (dbg:000A975B)
+----------call stack - 11 : (no debug info) Find error: 004AE9CC (dbg:000AD9CC)
+----------call stack - 12 : (no debug info) Find error: 0048A5D5 (dbg:000895D5)
+----------call stack - 13 : (no debug info) Find error: 004AE753 (dbg:000AD753)
+----------call stack - 14 : (no debug info) Find error: 00439502 (dbg:00038502)
+----------call stack - 15 : (no debug info) Find error: 73DD3427 (dbg:739D2427)
+----------call stack - 16 : (no debug info) Find error: 73DC588F (dbg:739C488F)
+----------call stack - 17 : (no debug info) Find error: 73DC521E (dbg:739C421E)
+----------call stack - 18 : (no debug info) Find error: 73DC4FEC (dbg:739C3FEC)
+----------call stack - 19 : (no debug info) Find error: 004CC3AE (dbg:000CB3AE)
+--------------------------------------------------------
+17.12.2017 15:20:44(ver:8.34.00.24574.6) WIN-CUEIPEMARM7 Неверное имя пользователя или пароль.
+02.06.2018 23:06:01(ver:8.34.00.24574.6) ADMIN Неверное имя пользователя или пароль.
+03.06.2018 14:05:38(ver:8.34.00.24574.6) ADMIN Неверное имя пользователя или пароль.
+21.11.2018 15:28:42(ver:8.34.00.24574.6) ADMIN Неверное имя пользователя или пароль.
+07.12.2018 11:43:54(ver:8.34.00.24574.6) ADMIN Неверное имя пользователя или пароль.
+07.12.2018 12:26:17(ver:8.34.00.24574.6) ADMIN Неверное имя пользователя или пароль.
+07.12.2018 12:49:01(ver:8.34.00.24574.6) ADMIN Неверное имя пользователя или пароль.
+07.12.2018 12:53:58(ver:8.34.00.24574.6) ADMIN Неверное имя пользователя или пароль.

@@ -1,0 +1,47 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dictionaries"
+        x:Class="NurSapat.App.Views.Dictionaries.OrderTemplateParametersWindow"
+        x:DataType="vm:OrderTemplateParametersViewModel"
+        Width="620"
+        Height="460"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="32,*,Auto">
+            <Border Grid.Row="0" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
+                <TextBlock Classes="mat-titlebar-text" Text="Шаблонные параметры заказа" Margin="16,0,0,0" VerticalAlignment="Center"/>
+            </Border>
+            <Border Grid.Row="1" Classes="mat-card" Margin="12,0,12,0">
+                <Grid ColumnDefinitions="220,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+                    <TextBlock Text="Примечание по умолчанию" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" Text="{Binding DefaultOrderNote}" AcceptsReturn="True" MinHeight="72"/>
+                    <TextBlock Grid.Row="1" Text="Срок производства, дн." VerticalAlignment="Center"/>
+                    <NumericUpDown Grid.Row="1" Grid.Column="1" Minimum="1" Increment="1" Value="{Binding DefaultProductionDays}"/>
+                    <TextBlock Grid.Row="2" Text="Предоплата, %" VerticalAlignment="Center"/>
+                    <NumericUpDown Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="100" Increment="5" Value="{Binding DefaultPrepaymentPercent}"/>
+                    <TextBlock Grid.Row="3" Text="Дилерская скидка" VerticalAlignment="Center"/>
+                    <CheckBox Grid.Row="3" Grid.Column="1" IsChecked="{Binding ApplyDealerDiscount}" Content="Применять скидку"/>
+                    <TextBlock Grid.Row="4" Text="Скидка, %" VerticalAlignment="Center"/>
+                    <NumericUpDown Grid.Row="4" Grid.Column="1" Minimum="0" Maximum="100" Increment="1" Value="{Binding DealerDiscountPercent}"/>
+                </Grid>
+            </Border>
+            <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="{Binding ValidationMessage}" Foreground="#DC2626"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="mat-toolbar" Content="Отмена" Command="{Binding CancelCommand}"/>
+                        <Button Classes="mat-primary" Content="ОК" Command="{Binding SaveCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

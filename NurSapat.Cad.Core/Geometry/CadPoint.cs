@@ -10,6 +10,8 @@ public readonly record struct CadPoint(double X, double Y)
         var dy = other.Y - Y;
         return Math.Sqrt(dx * dx + dy * dy);
     }
+    public bool IsNear(CadPoint other, double tolerance) =>
+    Math.Abs(X - other.X) < tolerance && Math.Abs(Y - other.Y) < tolerance;
 
     public CadPoint Round(int digits = 6) => new(Math.Round(X, digits), Math.Round(Y, digits));
 

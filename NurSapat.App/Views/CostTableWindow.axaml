@@ -1,0 +1,80 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+        xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+        x:Class="NurSapat.App.Views.CostTableWindow"
+        x:DataType="vm:CostTableViewModel"
+        Title="Таблица затрат"
+        Width="980"
+        Height="620"
+        MinWidth="760"
+        MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="Inter"
+        Background="#F6F9FD">
+
+    <Border Background="White"
+            BorderBrush="#E2E8F0"
+            BorderThickness="1"
+            CornerRadius="10"
+            Margin="16"
+            Padding="20">
+        <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
+            <StackPanel Grid.Row="0" Spacing="4">
+                <TextBlock Text="Таблица затрат"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Foreground="#0F172A"/>
+                <TextBlock Text="{Binding ConstructionTitle}"
+                           FontSize="13"
+                           Foreground="#64748B"/>
+            </StackPanel>
+
+            <dg:DataGrid Grid.Row="1"
+                         ItemsSource="{Binding Items}"
+                         AutoGenerateColumns="False"
+                         IsReadOnly="True"
+                         GridLinesVisibility="Horizontal"
+                         BorderBrush="#E2E8F0"
+                         BorderThickness="1"
+                         CanUserReorderColumns="False"
+                         CanUserResizeColumns="True"
+                         CanUserSortColumns="True">
+                <dg:DataGrid.Columns>
+                    <dg:DataGridTextColumn Header="Наименование материала"
+                                           Binding="{Binding MaterialName}"
+                                           Width="*"
+                                           MinWidth="200"/>
+                    <dg:DataGridTextColumn Header="Тип материала"
+                                           Binding="{Binding MaterialTypeDisplay}"
+                                           Width="130"/>
+                    <dg:DataGridTextColumn Header="Количество"
+                                           Binding="{Binding Quantity, StringFormat={}{0:N2}}"
+                                           Width="110"/>
+                    <dg:DataGridTextColumn Header="Ед. изм."
+                                           Binding="{Binding Unit}"
+                                           Width="90"/>
+                    <dg:DataGridTextColumn Header="Цена за единицу"
+                                           Binding="{Binding UnitPriceDisplay}"
+                                           Width="140"/>
+                    <dg:DataGridTextColumn Header="Итого"
+                                           Binding="{Binding TotalCostDisplay}"
+                                           Width="130"/>
+                </dg:DataGrid.Columns>
+            </dg:DataGrid>
+
+            <Border Grid.Row="2"
+                    Background="#F8FAFC"
+                    BorderBrush="#E2E8F0"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16,12">
+                <TextBlock Text="{Binding TotalCostDisplay}"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="#0F172A"
+                           HorizontalAlignment="Right"/>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

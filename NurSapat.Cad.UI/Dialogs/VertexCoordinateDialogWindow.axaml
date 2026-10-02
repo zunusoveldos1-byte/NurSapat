@@ -1,0 +1,57 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.Cad.UI.ViewModels"
+        xmlns:behaviors="clr-namespace:NurSapat.Cad.UI.Behaviors;assembly=NurSapat.Cad.UI"
+        Width="320"
+        Height="210"
+        Title="{Binding Title}"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="0"
+        x:Class="NurSapat.Cad.UI.Dialogs.VertexCoordinateDialogWindow"
+        x:DataType="vm:VertexCoordinateDialogViewModel"
+        FontFamily="Inter">
+
+    <Border Background="White"
+            BorderBrush="#808080"
+            BorderThickness="2"
+            CornerRadius="8"
+            PointerPressed="OnWindowPointerPressed">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12" Margin="20">
+            <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
+
+            <Grid Grid.Row="1" ColumnDefinitions="Auto,*" ColumnSpacing="16" RowDefinitions="Auto,Auto" RowSpacing="8">
+                <TextBlock Text="X, мм" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="1"
+                         Text="{Binding CoordinateXText, Mode=TwoWay}"
+                         behaviors:SignedDecimalInputBehavior.AllowNegative="True"/>
+
+                <TextBlock Grid.Row="1" Text="Y, мм" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="1"
+                         Grid.Column="1"
+                         Text="{Binding CoordinateYText, Mode=TwoWay}"
+                         behaviors:SignedDecimalInputBehavior.AllowNegative="True"/>
+            </Grid>
+
+            <TextBlock Grid.Row="2"
+                       Text="{Binding ValidationMessage}"
+                       Foreground="#DC2626"
+                       FontSize="11"
+                       TextWrapping="Wrap"/>
+
+            <Grid Grid.Row="3" ColumnDefinitions="*,*" ColumnSpacing="12">
+                <Button Content="OK"
+                        Command="{Binding ConfirmCommand}"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"/>
+                <Button Grid.Column="1"
+                        Content="Отмена"
+                        Command="{Binding CancelCommand}"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"/>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>
