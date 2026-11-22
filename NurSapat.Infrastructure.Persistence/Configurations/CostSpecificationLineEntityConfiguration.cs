@@ -18,6 +18,7 @@ public sealed class CostSpecificationLineEntityConfiguration : IEntityTypeConfig
         builder.Property(entity => entity.Quantity).HasPrecision(18, 4);
         builder.Property(entity => entity.UnitPrice).HasPrecision(18, 4);
         builder.Property(entity => entity.WastePercent).HasPrecision(9, 2);
+        builder.Property(entity => entity.PriceSourceJson).HasColumnType("jsonb");
 
         builder.HasIndex(entity => entity.OrderConstructionId);
         builder.HasIndex(entity => entity.MaterialId);

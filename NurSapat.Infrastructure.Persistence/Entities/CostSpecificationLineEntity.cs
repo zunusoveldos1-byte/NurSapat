@@ -24,5 +24,7 @@ public sealed class CostSpecificationLineEntity
 
     public decimal WastePercent { get; set; }
 
+    public string? PriceSourceJson { get; set; }
+
     public OrderConstructionEntity OrderConstruction { get; set; } = null!;
 }

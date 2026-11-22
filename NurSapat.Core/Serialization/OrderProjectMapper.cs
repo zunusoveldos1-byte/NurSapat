@@ -451,7 +451,8 @@ public static class OrderProjectMapper
         Quantity = line.Quantity,
         Unit = line.Unit,
         UnitPrice = line.UnitPrice,
-        WastePercent = line.WastePercent
+        WastePercent = line.WastePercent,
+        PriceSource = line.PriceSource
     };
 
     private static CostSpecificationLine FromSpecificationLineData(CostSpecificationLineData data)
@@ -467,7 +468,8 @@ public static class OrderProjectMapper
             Quantity = data.Quantity,
             Unit = data.Unit,
             UnitPrice = data.UnitPrice,
-            WastePercent = data.WastePercent
+            WastePercent = data.WastePercent,
+            PriceSource = data.PriceSource
         };
     }
 

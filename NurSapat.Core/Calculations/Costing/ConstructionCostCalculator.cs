@@ -46,11 +46,12 @@ public sealed class ConstructionCostCalculator
 
     private static IReadOnlyList<CostSpecificationLine> MergeLines(IEnumerable<CostSpecificationLine> lines)
     {
-        var merged = new Dictionary<string, CostSpecificationLine>(StringComparer.OrdinalIgnoreCase);
+        var merged = new Dictionary<(Guid, CostMaterialCategory, string, decimal, decimal, MaterialPriceSource?), CostSpecificationLine>();
 
         foreach (var line in lines)
         {
-            var key = $"{line.MaterialId:N}|{line.Unit}|{line.UnitPrice:0.####}";
+            var key = (line.MaterialId, line.Category, line.Unit.ToUpperInvariant(), line.UnitPrice,
+                line.WastePercent, line.PriceSource);
             if (merged.TryGetValue(key, out var existing))
             {
                 merged[key] = existing.WithMergedQuantity(line.Quantity);

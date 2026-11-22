@@ -19,7 +19,8 @@ public sealed record MaterialPriceQuote(
     MaterialPriceUnit Unit,
     decimal UnitPrice,
     decimal WastePercent,
-    string CurrencyCode = "KGS");
+    string CurrencyCode = "KGS",
+    MaterialPriceSource? Source = null);
 
 public interface IMaterialPriceCatalog
 {

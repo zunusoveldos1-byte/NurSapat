@@ -22,6 +22,9 @@ public sealed partial class CostTableViewModel : ViewModelBase
 
     public string TotalCostDisplay => $"Общая себестоимость: {TotalCost:N2} сом";
 
+    public string OrderPricingDisplay =>
+        $"Наценка {_workspace.Order.ProfitabilityPercent:0.##}% · Скидка по заказу {_workspace.Order.Header.TotalDiscountPercent:0.##}%";
+
     public CostTableViewModel(OrderWorkspaceViewModel workspace)
     {
         _workspace = workspace;
@@ -45,10 +48,13 @@ public sealed partial class CostTableViewModel : ViewModelBase
                 Items.Add(new CostItemViewModel
                 {
                     MaterialName = line.MaterialName,
+                    Article = line.Article,
                     MaterialType = MapCategory(line.Category),
                     Quantity = line.Quantity,
                     Unit = line.Unit,
-                    UnitPrice = line.UnitPrice
+                    UnitPrice = line.UnitPrice,
+                    WastePercent = line.WastePercent,
+                    PriceSource = line.PriceSource
                 });
             }
         }
@@ -63,7 +69,10 @@ public sealed partial class CostTableViewModel : ViewModelBase
         }
 
         AddCostLine("Накладные расходы", MaterialCostType.Consumables, cost.Expenses, "компл.");
-        AddCostLine("Работа", MaterialCostType.Consumables, cost.LaborCost, "компл.");
+        if (!construction.SpecificationLines.Any(line => line.Category == CostMaterialCategory.Labor))
+        {
+            AddCostLine("Работа", MaterialCostType.Consumables, cost.LaborCost, "компл.");
+        }
 
         RefreshTotals();
     }
@@ -138,5 +147,6 @@ public sealed partial class CostTableViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(TotalCost));
         OnPropertyChanged(nameof(TotalCostDisplay));
+        OnPropertyChanged(nameof(OrderPricingDisplay));
     }
 }

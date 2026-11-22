@@ -230,7 +230,7 @@ public sealed partial class OrdersDictionaryViewModel : BaseDictionaryViewModel<
     {
         OpenOrderCommand.NotifyCanExecuteChanged();
         SendEmailCommand.NotifyCanExecuteChanged();
-        OptimizeCutCommand.NotifyCanExecuteChanged();
+        ExportCutRequirementsCommand.NotifyCanExecuteChanged();
         GlazingAndNetRequestCommand.NotifyCanExecuteChanged();
         MaterialsRequestCommand.NotifyCanExecuteChanged();
         HardwareRequestCommand.NotifyCanExecuteChanged();
@@ -304,14 +304,9 @@ public sealed partial class OrdersDictionaryViewModel : BaseDictionaryViewModel<
     }
 
     [RelayCommand(CanExecute = nameof(HasSelectedOrders))]
-    private async Task OptimizeCut()
+    private async Task ExportCutRequirements()
     {
-        if (!await ConfirmOptimizeCutAsync())
-        {
-            return;
-        }
-
-        var result = await _batchOperationsService.OptimizeCutAsync(SelectedOrderModels());
+        var result = await _batchOperationsService.ExportCutRequirementsAsync(SelectedOrderModels());
         LogBatchResult(result);
     }
 
@@ -355,75 +350,4 @@ public sealed partial class OrdersDictionaryViewModel : BaseDictionaryViewModel<
         }
     }
 
-    private async Task<bool> ConfirmOptimizeCutAsync()
-    {
-        if (OwnerWindow is null)
-        {
-            return false;
-        }
-
-        var dialog = new Window
-        {
-            Title = "Подтверждение раскроя",
-            Width = 480,
-            Height = 210,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            CanResize = false
-        };
-
-        dialog.Content = BuildConfirmContent(
-            $"Выполнить раскрой материалов по {SelectedOrders.Count} выбранным заказам и списать обрезки со склада?",
-            confirmed => dialog.Close(confirmed));
-
-        return await dialog.ShowDialog<bool>(OwnerWindow);
-    }
-
-    private static Control BuildConfirmContent(string message, Action<bool> close)
-    {
-        var panel = new StackPanel
-        {
-            Margin = new Avalonia.Thickness(20),
-            Spacing = 16
-        };
-
-        panel.Children.Add(new TextBlock
-        {
-            Text = message,
-            TextWrapping = Avalonia.Media.TextWrapping.Wrap
-        });
-
-        var buttons = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"),
-            ColumnSpacing = 8
-        };
-
-        var cancelButton = new Button
-        {
-            Content = "Отмена",
-            MinWidth = 96,
-            MinHeight = 36,
-            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-            VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center
-        };
-        cancelButton.Click += (_, _) => close(false);
-        Grid.SetColumn(cancelButton, 1);
-
-        var okButton = new Button
-        {
-            Content = "Списать обрезки",
-            MinWidth = 140,
-            MinHeight = 36,
-            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-            VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center
-        };
-        okButton.Click += (_, _) => close(true);
-        Grid.SetColumn(okButton, 2);
-
-        buttons.Children.Add(cancelButton);
-        buttons.Children.Add(okButton);
-        panel.Children.Add(buttons);
-
-        return panel;
-    }
 }

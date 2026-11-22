@@ -331,6 +331,8 @@ class Program
 
         var configuration = new ConfigurationBuilder()
             .AddJsonFile(path, optional: true, reloadOnChange: false)
+            .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appsettings.Local.json"),
+                optional: true, reloadOnChange: false)
             .AddEnvironmentVariables()
             .Build();
 

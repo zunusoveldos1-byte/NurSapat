@@ -1,10 +1,23 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using NurSapat.App.Models.View;
+using NurSapat.Core.Models.Calculation;
 
 namespace NurSapat.App.ViewModels;
 
 public sealed partial class CostItemViewModel : ObservableObject
 {
+    public string Article { get; init; } = "—";
+
+    public decimal WastePercent { get; init; }
+
+    public MaterialPriceSource? PriceSource { get; init; }
+
+    public string PriceSourceDisplay => PriceSource is not { } source
+        ? "Источник не записан"
+        : source.ExchangeRateToKgs is decimal rate
+            ? $"{source.Name} · {source.ListedUnitPrice:N2} {source.CurrencyCode} × {rate:0.####} ({source.ExchangeRateDate:dd.MM.yyyy})"
+            : $"{source.Name} · {source.ListedUnitPrice:N2} {source.CurrencyCode}";
+
     [ObservableProperty]
     private string _materialName = string.Empty;
 

@@ -7,6 +7,7 @@ using NurSapat.Core.Models.Project;
 using NurSapat.Core.Serialization;
 using NurSapat.Core.Services.Orders;
 using NurSapat.App.Services.Utilities;
+using NurSapat.App.Services.Persistence;
 
 namespace NurSapat.App.Services.Documents;
 
@@ -27,6 +28,7 @@ public sealed class DocumentManager : IDocumentManager
     private readonly IOrdersStore _ordersStore;
     private readonly OrderLifecycleService _orderLifecycleService;
     private readonly IDatabaseBackupPayloadService _databaseBackupPayloadService;
+    private readonly IApplicationPersistenceInitializer _persistenceInitializer;
 
     private bool _isModified;
     private bool _suppressModification;
@@ -45,7 +47,8 @@ public sealed class DocumentManager : IDocumentManager
         IEnvironmentSettingsService environmentSettingsService,
         IOrdersStore ordersStore,
         OrderLifecycleService orderLifecycleService,
-        IDatabaseBackupPayloadService databaseBackupPayloadService)
+        IDatabaseBackupPayloadService databaseBackupPayloadService,
+        IApplicationPersistenceInitializer persistenceInitializer)
     {
         _workspace = workspace;
         _cadEditor = cadEditor;
@@ -59,6 +62,7 @@ public sealed class DocumentManager : IDocumentManager
         _ordersStore = ordersStore;
         _orderLifecycleService = orderLifecycleService;
         _databaseBackupPayloadService = databaseBackupPayloadService;
+        _persistenceInitializer = persistenceInitializer;
 
         _workspace.ProjectModified += OnProjectModified;
         _cadEditor.Commands.CommandExecuted += (_, _) => MarkModifiedIfAllowed();
@@ -219,11 +223,13 @@ public sealed class DocumentManager : IDocumentManager
 
     public async Task<bool> CreateBackupAsync(string path, CancellationToken cancellationToken = default)
     {
+        var tempPath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, $".backup-{Guid.NewGuid():N}.tmp");
         try
         {
-            path = EnsureZpExtension(path);
-            await _serializer.SaveAsync(CreateSnapshot(), path, cancellationToken);
-            await _databaseBackupPayloadService.AddDatabasePayloadAsync(path, cancellationToken);
+            await _serializer.SaveAsync(CreateSnapshot(), tempPath, cancellationToken);
+            await _databaseBackupPayloadService.AddDatabasePayloadAsync(tempPath, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            File.Move(tempPath, EnsureZpExtension(path), overwrite: true);
             return true;
         }
         catch (Exception ex)
@@ -232,6 +238,12 @@ public sealed class DocumentManager : IDocumentManager
                 $"Не удалось создать резервную копию: {ex.Message}",
                 cancellationToken);
             return false;
+        }
+        finally
+        {
+            try { File.Delete(tempPath); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
         }
     }
 
@@ -250,7 +262,7 @@ public sealed class DocumentManager : IDocumentManager
         return await LoadProjectFromFileAsync(
             path,
             cancellationToken,
-            skipNowSnapshot: true);
+            restoreDatabase: true);
     }
 
     public async Task<bool> SaveAsCopyAsync(CancellationToken cancellationToken = default)
@@ -403,30 +415,36 @@ public sealed class DocumentManager : IDocumentManager
         string path,
         CancellationToken cancellationToken,
         bool isAutoSaveRecovery = false,
-        bool skipNowSnapshot = false)
+        bool restoreDatabase = false)
     {
         try
         {
             var project = await _serializer.LoadAsync(path, cancellationToken);
             if (!isAutoSaveRecovery
-                && !skipNowSnapshot
+                && !restoreDatabase
                 && !await CreateNowSnapshotAsync(cancellationToken))
             {
                 return false;
             }
 
-            if (!isAutoSaveRecovery
-                && Path.GetExtension(path).Equals(ProjectFormat.Extension, StringComparison.OrdinalIgnoreCase))
+            if (restoreDatabase)
             {
+                var safetyPath = Path.Combine(GetBackupDirectory(),
+                    $"before-restore-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.zp");
+                if (!await CreateBackupAsync(safetyPath, cancellationToken))
+                {
+                    return false;
+                }
                 await _databaseBackupPayloadService.RestoreDatabasePayloadAsync(path, cancellationToken);
+                await _persistenceInitializer.PrepareRestoredDatabaseAsync(cancellationToken);
             }
 
             ApplyProject(project);
-            _filePath = isAutoSaveRecovery ? null : path;
-            _isModified = isAutoSaveRecovery;
+            _filePath = isAutoSaveRecovery || restoreDatabase ? null : path;
+            _isModified = isAutoSaveRecovery || restoreDatabase;
             _hasOpenDocument = true;
 
-            if (!isAutoSaveRecovery)
+            if (!isAutoSaveRecovery && !restoreDatabase)
             {
                 _recentFilesService.AddRecentFile(path);
                 _autoSaveService.ClearAutoSave();
@@ -450,12 +468,11 @@ public sealed class DocumentManager : IDocumentManager
             path = EnsureZpExtension(path);
             var snapshot = CreateSnapshot();
             await _serializer.SaveAsync(snapshot, path, cancellationToken);
-            await _databaseBackupPayloadService.AddDatabasePayloadAsync(path, cancellationToken);
+            _ordersStore.UpsertFromProject(snapshot, path);
             _filePath = path;
             _isModified = false;
             _recentFilesService.AddRecentFile(path);
             _autoSaveService.ClearAutoSave();
-            _ordersStore.UpsertFromProject(snapshot, path);
             RaiseStateChanged();
             return true;
         }
@@ -557,28 +574,27 @@ public sealed class DocumentManager : IDocumentManager
 
         try
         {
-            var backupDirectory = _environmentSettingsService.Current.BackupPath;
-            if (string.IsNullOrWhiteSpace(backupDirectory))
-            {
-                backupDirectory = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "NurSapat",
-                    "Backups");
-            }
-
+            var backupDirectory = GetBackupDirectory();
             Directory.CreateDirectory(backupDirectory);
-            var nowPath = Path.Combine(backupDirectory, $"now{ProjectFormat.Extension}");
+            var nowPath = Path.Combine(backupDirectory, $"now-project{ProjectFormat.Extension}");
             await _serializer.SaveAsync(CreateSnapshot(), nowPath, cancellationToken);
-            await _databaseBackupPayloadService.AddDatabasePayloadAsync(nowPath, cancellationToken);
             return true;
         }
         catch (Exception ex)
         {
             await _dialogService.ShowErrorAsync(
-                $"Не удалось создать страховую копию now.zp: {ex.Message}",
+                $"Не удалось сохранить снимок текущего проекта: {ex.Message}",
                 cancellationToken);
             return false;
         }
+    }
+
+    private string GetBackupDirectory()
+    {
+        var configured = _environmentSettingsService.Current.BackupPath;
+        return string.IsNullOrWhiteSpace(configured)
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NurSapat", "Backups")
+            : configured;
     }
 
     private static string EnsureZpExtension(string path) =>

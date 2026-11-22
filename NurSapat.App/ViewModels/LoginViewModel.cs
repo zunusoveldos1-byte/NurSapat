@@ -10,6 +10,13 @@ using NurSapat.App.Services.Persistence;
 using System;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
+using NurSapat.Infrastructure.Persistence;
+using NurSapat.Infrastructure.Persistence.Auth;
+using System.Text.Json;
 
 namespace NurSapat.App.ViewModels;
 
@@ -23,6 +30,8 @@ public partial class LoginViewModel : ObservableObject
     private readonly IWorkspaceWindowService _workspaceWindowService;
     private readonly MainWindowViewModel _mainWindowViewModel;
     private readonly IApplicationPersistenceInitializer _persistenceInitializer;
+    private readonly IConfiguration _configuration;
+    private readonly IServiceProvider _services;
 
     // Константные данные для контактов
     public string SupportPhoneDisplay => "+996 (559) 34-00-32";
@@ -63,7 +72,9 @@ public partial class LoginViewModel : ObservableObject
         SettingsService settings,
         IWorkspaceWindowService workspaceWindowService,
         MainWindowViewModel mainWindowViewModel,
-        IApplicationPersistenceInitializer persistenceInitializer)
+        IApplicationPersistenceInitializer persistenceInitializer,
+        IConfiguration configuration,
+        IServiceProvider services)
     {
         _authService = authService;
         _networkStatus = networkStatus;
@@ -73,6 +84,8 @@ public partial class LoginViewModel : ObservableObject
         _workspaceWindowService = workspaceWindowService;
         _mainWindowViewModel = mainWindowViewModel;
         _persistenceInitializer = persistenceInitializer;
+        _configuration = configuration;
+        _services = services;
         ApplyNetworkStatus(_networkStatus.Current);
     }
 
@@ -83,28 +96,65 @@ public partial class LoginViewModel : ObservableObject
     private string _password = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasError), nameof(HasFormError))]
     private string _errorMessage = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasError), nameof(HasUsernameError))]
+    private string _usernameError = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasError), nameof(HasPasswordError))]
+    private string _passwordError = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LoginButtonLabel))]
+    [NotifyCanExecuteChangedFor(nameof(GoToRegisterCommand))]
     private bool _isBusy;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PasswordChar))]
+    private bool _isRefreshingNetwork;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PasswordVisibilityLabel))]
     private bool _isPasswordVisible;
 
     [ObservableProperty]
     private bool _rememberMe;
 
     [ObservableProperty]
-    private bool _isContactModalOpen;
-
-    [ObservableProperty]
     private bool _isLoggedIn;
 
     [ObservableProperty]
-    private string _networkStatusDisplay = "⚪ Проверка сети…";
+    [NotifyPropertyChangedFor(nameof(NetworkStatusDisplay), nameof(HasGoodConnection), nameof(HasSlowConnection), nameof(IsServerOffline))]
+    private NetworkQuality _connectionQuality = NetworkQuality.Checking;
 
-    public char PasswordChar => IsPasswordVisible ? '\0' : '*';
+    public string PasswordVisibilityLabel => IsPasswordVisible ? "Скрыть пароль" : "Показать пароль";
+    public string LoginButtonLabel => IsBusy ? "Выполняется вход…" : "Войти";
+    public bool HasFormError => !string.IsNullOrWhiteSpace(ErrorMessage);
+    public bool HasUsernameError => !string.IsNullOrWhiteSpace(UsernameError);
+    public bool HasPasswordError => !string.IsNullOrWhiteSpace(PasswordError);
+    public bool HasError => HasFormError || HasUsernameError || HasPasswordError;
+    public bool HasGoodConnection => ConnectionQuality == NetworkQuality.Excellent;
+    public bool HasSlowConnection => ConnectionQuality == NetworkQuality.Poor;
+    public bool IsServerOffline => ConnectionQuality == NetworkQuality.Offline;
+    public string NetworkStatusDisplay => ConnectionQuality switch
+    {
+        NetworkQuality.Excellent => "Сервер доступен",
+        NetworkQuality.Poor => "Нестабильное подключение",
+        NetworkQuality.Offline => "Нет подключения к серверу",
+        _ => "Проверка подключения…"
+    };
+
+    private bool UsesLocalAuthentication => _configuration["Authentication:Mode"] == "LocalPostgreSQL";
+
+    partial void OnUsernameChanged(string value)
+    {
+        UsernameError = "";
+        PasswordError = "";
+    }
+
+    partial void OnPasswordChanged(string value) => PasswordError = "";
 
     public void LoadSavedCredentials()
     {
@@ -115,6 +165,12 @@ public partial class LoginViewModel : ObservableObject
 
     public void Activate()
     {
+        if (UsesLocalAuthentication)
+        {
+            RefreshNetworkStatusCommand.Execute(null);
+            return;
+        }
+
         _networkStatus.StatusChanged -= OnNetworkStatusChanged;
         _networkStatus.StatusChanged += OnNetworkStatusChanged;
         _networkStatus.Start();
@@ -129,19 +185,47 @@ public partial class LoginViewModel : ObservableObject
     [RelayCommand]
     private async Task LoginAsync()
     {
-        if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Password))
+        ErrorMessage = "";
+        UsernameError = string.IsNullOrWhiteSpace(Username) ? "Введите логин" : "";
+        PasswordError = string.IsNullOrWhiteSpace(Password) ? "Введите пароль" : "";
+        if (HasUsernameError || HasPasswordError)
         {
-            ErrorMessage = "Заполните все поля";
             return;
         }
 
         IsBusy = true;
-        ErrorMessage = "";
         var email = Username.Trim();
         var password = Password;
 
         try
         {
+            if (UsesLocalAuthentication)
+            {
+                await _persistenceInitializer.EnsureReadyAsync();
+                var user = await _services.GetRequiredService<LocalAuthenticationService>()
+                    .SignInAsync(email, password);
+                if (user is null)
+                {
+                    PasswordError = "Неверный логин или пароль";
+                    return;
+                }
+
+                var account = new UserAccountItem
+                {
+                    Id = user.Id,
+                    Username = user.Username,
+                    PasswordHash = user.PasswordHash,
+                    GroupNumber = user.GroupNumber,
+                    Permissions = JsonSerializer.Deserialize<UserPermissions>(user.PermissionsJson,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new UserPermissions()
+                };
+                _settings.CurrentUserId = account.Id;
+                _sessionService.SetCurrentUser(account, isOffline: false);
+                _workspaceWindowService.OpenWorkspace();
+                IsLoggedIn = true;
+                return;
+            }
+
             AuthResult result;
             try
             {
@@ -169,7 +253,21 @@ public partial class LoginViewModel : ObservableObject
                 return;
             }
 
-            ErrorMessage = result.ErrorMessage ?? "Неверный email или пароль";
+            if (result.ErrorMessage?.TrimEnd('.') is null or "" or "Неверный email или пароль" or "Неверный логин или пароль")
+            {
+                PasswordError = string.IsNullOrWhiteSpace(result.ErrorMessage)
+                    ? "Неверный email или пароль"
+                    : result.ErrorMessage;
+            }
+            else
+            {
+                ErrorMessage = result.ErrorMessage;
+            }
+        }
+        catch (PostgresException ex) when (UsesLocalAuthentication && ex.SqlState == PostgresErrorCodes.InvalidPassword)
+        {
+            StartupTrace.Error("[LOG] LoginViewModel.LoginAsync", ex);
+            ErrorMessage = "PostgreSQL отклонил пароль подключения. Запустите NurSapat через Start-NurSapat-Local.cmd или проверьте настройки базы.";
         }
         catch (Exception ex)
         {
@@ -182,20 +280,56 @@ public partial class LoginViewModel : ObservableObject
         }
     }
 
+    private bool CanGoToRegister() => !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanGoToRegister))]
+    private void GoToRegister()
+    {
+        if (UsesLocalAuthentication)
+        {
+            _mainWindowViewModel.NavigateToRegister();
+            return;
+        }
+
+        ErrorMessage = "Для регистрации обратитесь к администратору системы.";
+    }
+
     [RelayCommand]
-    private void GoToRegister() => _mainWindowViewModel.NavigateToRegister();
+    private async Task RefreshNetworkStatusAsync()
+    {
+        ConnectionQuality = NetworkQuality.Checking;
+        IsRefreshingNetwork = true;
+        try
+        {
+            if (!UsesLocalAuthentication)
+            {
+                ApplyNetworkStatus(await _networkStatus.CheckNowAsync());
+                return;
+            }
+
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+            var factory = _services.GetRequiredService<IDbContextFactory<NurSapatDbContext>>();
+            await using var database = await factory.CreateDbContextAsync(timeout.Token);
+            ConnectionQuality = await database.Database.CanConnectAsync(timeout.Token)
+                ? NetworkQuality.Excellent
+                : NetworkQuality.Offline;
+        }
+        catch (Exception ex)
+        {
+            StartupTrace.Error("[LOG] Проверка подключения к серверу", ex);
+            ConnectionQuality = NetworkQuality.Offline;
+        }
+        finally
+        {
+            IsRefreshingNetwork = false;
+        }
+    }
 
     [RelayCommand]
     private void TogglePasswordVisibility() => IsPasswordVisible = !IsPasswordVisible;
 
     [RelayCommand]
     private void Help() => ErrorMessage = "Обратитесь к администратору системы.";
-
-    [RelayCommand]
-    private void OpenContact() => IsContactModalOpen = true;
-
-    [RelayCommand]
-    private void CloseContact() => IsContactModalOpen = false;
 
     [RelayCommand]
     private async Task LogoutAsync()
@@ -279,17 +413,7 @@ public partial class LoginViewModel : ObservableObject
         Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplyNetworkStatus(status));
     }
 
-    private void ApplyNetworkStatus(NetworkStatusSnapshot status)
-    {
-        var indicator = status.Quality switch
-        {
-            NetworkQuality.Excellent => "🟢",
-            NetworkQuality.Poor => "🟡",
-            NetworkQuality.Offline => "🟠",
-            _ => "⚪"
-        };
-        NetworkStatusDisplay = $"{indicator} {status.DisplayText}";
-    }
+    private void ApplyNetworkStatus(NetworkStatusSnapshot status) => ConnectionQuality = status.Quality;
 
     private static bool IsNetworkFailure(Exception ex)
     {

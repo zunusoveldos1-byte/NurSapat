@@ -72,7 +72,8 @@ public sealed class UpdateWindowService(
             window.Closed += OnUpdateWindowClosed;
         }
 
-        var resolvedOwner = owner ?? await WaitForMainWindowAsync(TimeSpan.FromSeconds(8));
+        var resolvedOwner = GetVisibleOwner(owner) ?? await WaitForMainWindowAsync(TimeSpan.FromSeconds(8));
+        resolvedOwner = GetVisibleOwner(resolvedOwner);
         if (resolvedOwner is not null)
         {
             await window.ShowDialog(resolvedOwner);
@@ -117,7 +118,8 @@ public sealed class UpdateWindowService(
             }
         };
 
-        var resolvedOwner = owner ?? await WaitForMainWindowAsync(TimeSpan.FromSeconds(5));
+        var resolvedOwner = GetVisibleOwner(owner) ?? await WaitForMainWindowAsync(TimeSpan.FromSeconds(5));
+        resolvedOwner = GetVisibleOwner(resolvedOwner);
         if (resolvedOwner is not null)
         {
             await window.ShowDialog(resolvedOwner);
@@ -135,7 +137,7 @@ public sealed class UpdateWindowService(
         var deadline = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow < deadline)
         {
-            var main = GetMainWindow();
+            var main = GetVisibleOwner(null);
             if (main is not null)
             {
                 return main;
@@ -144,14 +146,19 @@ public sealed class UpdateWindowService(
             await Task.Delay(100);
         }
 
-        return GetMainWindow();
+        return GetVisibleOwner(null);
     }
 
-    private static Window? GetMainWindow()
+    private static Window? GetVisibleOwner(Window? preferred)
     {
+        if (preferred is { IsVisible: true })
+        {
+            return preferred;
+        }
+
         if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            return desktop.MainWindow;
+            return desktop.MainWindow is { IsVisible: true } main ? main : null;
         }
 
         return null;

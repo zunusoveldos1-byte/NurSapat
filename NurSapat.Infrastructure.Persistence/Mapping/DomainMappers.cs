@@ -1,3 +1,4 @@
+using System.Text.Json;
 using NurSapat.Core.Models;
 using NurSapat.Core.Models.Calculation;
 using NurSapat.Core.Models.Orders;
@@ -86,7 +87,8 @@ internal static class OrderMapper
         {
             Id = entity.Id,
             ProfitabilityPercent = entity.ProfitabilityPercent,
-            ExportFilePath = entity.ExportFilePath
+            ExportFilePath = entity.ExportFilePath,
+            WorkspaceStateJson = entity.WorkspaceStateJson
         };
 
         order.Header.OrderNumber = entity.OrderNumber;
@@ -149,6 +151,7 @@ internal static class OrderMapper
             Id = domain.Id,
             ProfitabilityPercent = domain.ProfitabilityPercent,
             ExportFilePath = domain.ExportFilePath,
+            WorkspaceStateJson = domain.WorkspaceStateJson,
             OrderNumber = domain.Header.OrderNumber,
             OrderDate = domain.Header.OrderDate,
             Status = (int)domain.Header.Status,
@@ -396,7 +399,8 @@ internal static class OrderMapper
         Quantity = entity.Quantity,
         Unit = entity.Unit,
         UnitPrice = entity.UnitPrice,
-        WastePercent = entity.WastePercent
+        WastePercent = entity.WastePercent,
+        PriceSource = entity.PriceSourceJson is { } json ? JsonSerializer.Deserialize<MaterialPriceSource>(json) : null
     };
 
     private static CostSpecificationLineEntity ToEntitySpecLine(CostSpecificationLine domain) => new()
@@ -410,6 +414,7 @@ internal static class OrderMapper
         Quantity = domain.Quantity,
         Unit = domain.Unit,
         UnitPrice = domain.UnitPrice,
-        WastePercent = domain.WastePercent
+        WastePercent = domain.WastePercent,
+        PriceSourceJson = domain.PriceSource is { } source ? JsonSerializer.Serialize(source) : null
     };
 }

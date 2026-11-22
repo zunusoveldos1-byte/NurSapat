@@ -100,7 +100,7 @@ public sealed class PersistenceIntegrityVerifier
             Id = Guid.NewGuid(),
             ProfitabilityPercent = 25m
         };
-        order.Header.OrderNumber = "TEST-ORD-001";
+        order.Header.OrderNumber = $"VERIFY-{order.Id:N}";
         order.Header.OrderDate = DateTime.Today;
         order.Header.Status = OrderStatus.Draft;
 
@@ -130,7 +130,8 @@ public sealed class PersistenceIntegrityVerifier
             Quantity = 12.5m,
             Unit = "м/п",
             UnitPrice = 1250m,
-            WastePercent = 5m
+            WastePercent = 5m,
+            PriceSource = new MaterialPriceSource("Каталог", 15m, "USD", 83.3333m, new DateTime(2026, 11, 21))
         });
         construction.Cost.ProfileCost = 15625m;
         construction.Cost.Quantity = 1;
@@ -139,18 +140,35 @@ public sealed class PersistenceIntegrityVerifier
         order.Payment.AgreedAmount = order.Totals.GrandTotal;
 
         await _orderRepository.SaveAsync(order, cancellationToken);
-        var loaded = await _orderRepository.GetByIdAsync(order.Id, cancellationToken);
-        if (loaded is null
-            || loaded.Header.OrderNumber != order.Header.OrderNumber
-            || loaded.Constructions.Count != 1
-            || loaded.Constructions[0].Geometry.Elements.Count != 1
-            || loaded.Constructions[0].SpecificationLines.Count != 1
-            || loaded.Constructions[0].SpecificationLines[0].Article != order.Constructions[0].SpecificationLines[0].Article)
+        try
         {
-            errors.Add("Order round-trip failed.");
-        }
+            var loaded = await _orderRepository.GetByIdAsync(order.Id, cancellationToken);
+            if (loaded is null
+                || loaded.Header.OrderNumber != order.Header.OrderNumber
+                || loaded.Constructions.Count != 1
+                || loaded.Constructions[0].Geometry.Elements.Count != 1
+                || loaded.Constructions[0].SpecificationLines.Count != 1
+                || loaded.Constructions[0].SpecificationLines[0].Article != order.Constructions[0].SpecificationLines[0].Article
+                || loaded.Constructions[0].SpecificationLines[0].PriceSource != construction.SpecificationLines[0].PriceSource)
+            {
+                errors.Add("Order round-trip failed.");
+                return;
+            }
 
-        await _orderRepository.DeleteAsync(order.Id, cancellationToken);
+            // Saving a reopened order reuses the existing construction and geometry IDs.
+            loaded.Constructions[0].Geometry.Elements[0].WidthMm = 1300m;
+            await _orderRepository.UpdateAsync(loaded, cancellationToken);
+            var updated = await _orderRepository.GetByIdAsync(order.Id, cancellationToken);
+            if (updated?.Constructions.Single().Geometry.Elements.Single().WidthMm != 1300m
+                || updated.Constructions.Single().SpecificationLines.Single().UnitPrice != 1250m)
+            {
+                errors.Add("Order update round-trip failed.");
+            }
+        }
+        finally
+        {
+            await _orderRepository.DeleteAsync(order.Id, cancellationToken);
+        }
     }
 
     private async Task VerifyWarehouseRoundTripAsync(List<string> errors, CancellationToken cancellationToken)

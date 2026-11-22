@@ -27,6 +27,8 @@ public sealed class Order
     /// <summary>Optional path to the last .zp export/backup file (not the system of record).</summary>
     public string? ExportFilePath { get; set; }
 
+    public string? WorkspaceStateJson { get; set; }
+
     public OrderConstruction? SelectedConstruction { get; set; }
 
     public OrderConstruction EnsureDefaultConstruction()

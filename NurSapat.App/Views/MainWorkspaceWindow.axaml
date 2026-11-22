@@ -143,6 +143,7 @@
 
                 <MenuItem Header="Заказ">
                     <MenuItem Header="Параметры заказа" Command="{Binding OpenOrderSettingsCommand}"/>
+                    <MenuItem Header="Проверка перед производством" Command="{Binding ReviewProductionCommand}"/>
                     <MenuItem Header="Заказчик" Command="{Binding SelectOrderCustomerCommand}"/>
                     <MenuItem Header="Менеджер" Command="{Binding SelectOrderManagerCommand}"/>
                     <MenuItem Header="Дилер" Command="{Binding SelectOrderDealerCommand}"/>

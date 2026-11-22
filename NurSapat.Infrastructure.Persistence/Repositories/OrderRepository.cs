@@ -92,15 +92,28 @@ public sealed class OrderRepository : IOrderRepository
             Lifecycle.AssertCanEdit(currentStatus);
         }
 
-        dbContext.OrderConstructions.RemoveRange(existing.Constructions);
         var replacement = OrderMapper.ToEntity(order);
         AttachConstructionRelations(replacement);
+
+        await using var transaction = dbContext.Database.IsRelational()
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+
+        // Children may use the same IDs (and construction numbers) in the replacement.
+        // Complete their removal before EF tracks the replacement graph, inside one transaction.
+        dbContext.OrderConstructions.RemoveRange(existing.Constructions);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         dbContext.Entry(existing).CurrentValues.SetValues(replacement);
         existing.SelectedConstructionId = replacement.SelectedConstructionId;
         existing.Constructions = replacement.Constructions;
+        dbContext.OrderConstructions.AddRange(existing.Constructions);
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)

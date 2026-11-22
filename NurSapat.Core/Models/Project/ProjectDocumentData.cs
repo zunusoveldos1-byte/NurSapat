@@ -1,4 +1,5 @@
 using NurSapat.Core.Models.Orders;
+using NurSapat.Core.Models.Calculation;
 
 namespace NurSapat.Core.Models.Project;
 
@@ -181,6 +182,8 @@ public sealed class ConstructionOrderDetailsData
 
 public sealed class CostSpecificationLineData
 {
+    public MaterialPriceSource? PriceSource { get; set; }
+
     public Guid MaterialId { get; set; }
 
     public Guid? ConstructionMaterialId { get; set; }

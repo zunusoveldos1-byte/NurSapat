@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls.Templates;
 using Avalonia.Platform.Storage;
 using NurSapat.App.ViewModels;
 using NurSapat.App.ViewModels.Dialogs.Edit;
@@ -226,6 +227,8 @@ public sealed class DialogService : IDialogService
         var listBox = new ListBox
         {
             ItemsSource = items,
+            ItemTemplate = new FuncDataTemplate<string>((item, _) =>
+                new TextBlock { Text = item, TextWrapping = Avalonia.Media.TextWrapping.Wrap }),
             Height = 280,
             Width = 360
         };

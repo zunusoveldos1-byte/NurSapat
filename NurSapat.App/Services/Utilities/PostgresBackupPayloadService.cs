@@ -8,6 +8,10 @@ namespace NurSapat.App.Services.Utilities;
 
 public interface IDatabaseBackupPayloadService
 {
+    string DatabaseTarget { get; }
+
+    Task<int> InspectDatabasePayloadAsync(string archivePath, CancellationToken cancellationToken = default);
+
     Task AddDatabasePayloadAsync(string archivePath, CancellationToken cancellationToken = default);
 
     Task RestoreDatabasePayloadAsync(string archivePath, CancellationToken cancellationToken = default);
@@ -23,6 +27,15 @@ public sealed class PostgresBackupPayloadService(DatabaseService databaseService
 {
     private const string DatabaseEntryName = "database.dump";
 
+    public string DatabaseTarget
+    {
+        get
+        {
+            var connection = new NpgsqlConnectionStringBuilder(databaseService.ConnectionString);
+            return $"{connection.Host}:{connection.Port} / {connection.Database}";
+        }
+    }
+
     public async Task AddDatabasePayloadAsync(
         string archivePath,
         CancellationToken cancellationToken = default)
@@ -35,11 +48,8 @@ public sealed class PostgresBackupPayloadService(DatabaseService databaseService
         var tempDump = Path.Combine(Path.GetTempPath(), $"nursapat-{Guid.NewGuid():N}.dump");
         try
         {
-            await RunPostgresToolAsync(
-                "pg_dump",
-                tempDump,
-                restore: false,
-                cancellationToken);
+            await RunPostgresToolAsync("pg_dump",
+                ["--format=custom", "--file", tempDump], cancellationToken);
 
             using var archive = ZipFile.Open(archivePath, ZipArchiveMode.Update);
             archive.GetEntry(DatabaseEntryName)?.Delete();
@@ -47,6 +57,27 @@ public sealed class PostgresBackupPayloadService(DatabaseService databaseService
                 tempDump,
                 DatabaseEntryName,
                 CompressionLevel.Optimal);
+        }
+        finally
+        {
+            TryDelete(tempDump);
+        }
+    }
+
+    public async Task<int> InspectDatabasePayloadAsync(
+        string archivePath,
+        CancellationToken cancellationToken = default)
+    {
+        var tempDump = Path.Combine(Path.GetTempPath(), $"nursapat-{Guid.NewGuid():N}.dump");
+        try
+        {
+            await ExtractDumpAsync(archivePath, tempDump, cancellationToken);
+            var contents = await RunPostgresToolAsync("pg_restore", ["--list", tempDump], cancellationToken,
+                connect: false);
+            var tableCount = contents.Split('\n').Count(line => line.Contains(" TABLE DATA ", StringComparison.Ordinal));
+            return tableCount > 0
+                ? tableCount
+                : throw new InvalidDataException("Снимок PostgreSQL не содержит данных таблиц.");
         }
         finally
         {
@@ -66,29 +97,19 @@ public sealed class PostgresBackupPayloadService(DatabaseService databaseService
         var tempDump = Path.Combine(Path.GetTempPath(), $"nursapat-{Guid.NewGuid():N}.dump");
         try
         {
-            using (var archive = ZipFile.OpenRead(archivePath))
-            {
-                var entry = archive.GetEntry(DatabaseEntryName)
-                    ?? throw new InvalidDataException(
-                        $"Архив не содержит снимок PostgreSQL ({DatabaseEntryName}).");
-                await using var source = entry.Open();
-                await using var target = new FileStream(
-                    tempDump,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.None,
-                    81920,
-                    useAsync: true);
-                await source.CopyToAsync(target, cancellationToken);
-            }
+            await ExtractDumpAsync(archivePath, tempDump, cancellationToken);
 
             NpgsqlConnection.ClearAllPools();
-            await RunPostgresToolAsync(
-                "pg_restore",
-                tempDump,
-                restore: true,
-                cancellationToken);
-            NpgsqlConnection.ClearAllPools();
+            try
+            {
+                await RunPostgresToolAsync("pg_restore",
+                    ["--single-transaction", "--clean", "--if-exists", "--no-owner", "--no-privileges",
+                        "--exit-on-error", tempDump], cancellationToken);
+            }
+            finally
+            {
+                NpgsqlConnection.ClearAllPools();
+            }
         }
         finally
         {
@@ -96,17 +117,24 @@ public sealed class PostgresBackupPayloadService(DatabaseService databaseService
         }
     }
 
-    private async Task RunPostgresToolAsync(
-        string executable,
-        string dumpPath,
-        bool restore,
-        CancellationToken cancellationToken)
+    private static async Task ExtractDumpAsync(
+        string archivePath, string targetPath, CancellationToken cancellationToken)
     {
-        var connection = new NpgsqlConnectionStringBuilder(databaseService.ConnectionString);
-        var host = connection.Host
-            ?? throw new InvalidOperationException("В строке подключения PostgreSQL не указан Host.");
-        var username = connection.Username
-            ?? throw new InvalidOperationException("В строке подключения PostgreSQL не указан Username.");
+        using var archive = ZipFile.OpenRead(archivePath);
+        var entry = archive.GetEntry(DatabaseEntryName)
+            ?? throw new InvalidDataException("Архив проекта не содержит резервную копию PostgreSQL.");
+        await using var source = entry.Open();
+        await using var target = new FileStream(targetPath, FileMode.CreateNew, FileAccess.Write,
+            FileShare.None, 81920, useAsync: true);
+        await source.CopyToAsync(target, cancellationToken);
+    }
+
+    private async Task<string> RunPostgresToolAsync(
+        string executable,
+        string[] arguments,
+        CancellationToken cancellationToken,
+        bool connect = true)
+    {
         var startInfo = new ProcessStartInfo
         {
             FileName = ResolvePostgresExecutable(executable),
@@ -115,30 +143,20 @@ public sealed class PostgresBackupPayloadService(DatabaseService databaseService
             RedirectStandardOutput = true,
             CreateNoWindow = true
         };
-        startInfo.Environment["PGPASSWORD"] = connection.Password ?? string.Empty;
-        startInfo.ArgumentList.Add("--host");
-        startInfo.ArgumentList.Add(host);
-        startInfo.ArgumentList.Add("--port");
-        startInfo.ArgumentList.Add(connection.Port.ToString());
-        startInfo.ArgumentList.Add("--username");
-        startInfo.ArgumentList.Add(username);
-        startInfo.ArgumentList.Add("--dbname");
-        startInfo.ArgumentList.Add(connection.Database ?? "postgres");
-
-        if (restore)
+        if (connect)
         {
-            startInfo.ArgumentList.Add("--clean");
-            startInfo.ArgumentList.Add("--if-exists");
-            startInfo.ArgumentList.Add("--no-owner");
-            startInfo.ArgumentList.Add("--no-privileges");
-            startInfo.ArgumentList.Add("--exit-on-error");
-            startInfo.ArgumentList.Add(dumpPath);
+            var connection = new NpgsqlConnectionStringBuilder(databaseService.ConnectionString);
+            startInfo.Environment["PGPASSWORD"] = connection.Password ?? string.Empty;
+            startInfo.Environment["PGCONNECT_TIMEOUT"] = Math.Max(connection.Timeout, 2).ToString();
+            startInfo.ArgumentList.Add("--no-password");
+            startInfo.ArgumentList.Add($"--host={connection.Host ?? throw new InvalidOperationException("Укажите сервер PostgreSQL.")}");
+            startInfo.ArgumentList.Add($"--port={connection.Port}");
+            startInfo.ArgumentList.Add($"--username={connection.Username ?? throw new InvalidOperationException("Укажите пользователя PostgreSQL.")}");
+            startInfo.ArgumentList.Add($"--dbname={connection.Database ?? throw new InvalidOperationException("Укажите имя базы PostgreSQL.")}");
         }
-        else
+        foreach (var argument in arguments)
         {
-            startInfo.ArgumentList.Add("--format=custom");
-            startInfo.ArgumentList.Add("--file");
-            startInfo.ArgumentList.Add(dumpPath);
+            startInfo.ArgumentList.Add(argument);
         }
 
         Process process;
@@ -157,16 +175,29 @@ public sealed class PostgresBackupPayloadService(DatabaseService databaseService
 
         using (process)
         {
-            var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-            var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
+            var errorTask = process.StandardError.ReadToEndAsync();
+            var outputTask = process.StandardOutput.ReadToEndAsync();
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill();
+                }
+                await process.WaitForExitAsync(CancellationToken.None);
+                throw;
+            }
             var error = await errorTask;
-            await outputTask;
+            var output = await outputTask;
             if (process.ExitCode != 0)
             {
                 throw new InvalidOperationException(
                     $"{executable} завершился с кодом {process.ExitCode}: {error}");
             }
+            return output;
         }
     }
 

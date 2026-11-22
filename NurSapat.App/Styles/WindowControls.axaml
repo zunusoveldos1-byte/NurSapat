@@ -1,0 +1,26 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Style Selector="Border.resize-grip">
+        <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="Button.window-action">
+        <Setter Property="Width" Value="32"/>
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="TabIndex" Value="20"/>
+    </Style>
+    <Style Selector="Button.window-action PathIcon">
+        <Setter Property="Width" Value="16"/>
+        <Setter Property="Height" Value="16"/>
+    </Style>
+    <Style Selector="Button.window-action.close:pointerover, Button.window-action.close:pressed">
+        <Setter Property="Background" Value="{DynamicResource AuthCloseHover}"/>
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="Button.window-action PathIcon.sun, Button.window-action.dark PathIcon.moon,
+                     Button.password-toggle PathIcon.eye-off, Button.password-toggle.revealed PathIcon.eye">
+        <Setter Property="Opacity" Value="0"/>
+    </Style>
+    <Style Selector="Button.window-action.dark PathIcon.sun, Button.password-toggle.revealed PathIcon.eye-off">
+        <Setter Property="Opacity" Value="1"/>
+    </Style>
+</Styles>

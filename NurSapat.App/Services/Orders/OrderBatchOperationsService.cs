@@ -1,8 +1,7 @@
 using NurSapat.App.Models.Orders;
 using NurSapat.App.Services.Dictionaries;
 using NurSapat.App.Services.Documents;
-using NurSapat.App.Services.Export;
-using NurSapat.App.Services.Stock;
+using NurSapat.Core.Models.Calculation;
 using NurSapat.Core.Models.Project;
 using NurSapat.Core.Models.Orders;
 using NurSapat.Core.Settings;
@@ -15,7 +14,7 @@ public interface IOrderBatchOperationsService
 {
     Task<OrderBatchResult> SendEmailAsync(IReadOnlyList<OrderHeaderItem> orders, CancellationToken cancellationToken = default);
 
-    Task<OrderBatchResult> OptimizeCutAsync(IReadOnlyList<OrderHeaderItem> orders, CancellationToken cancellationToken = default);
+    Task<OrderBatchResult> ExportCutRequirementsAsync(IReadOnlyList<OrderHeaderItem> orders, CancellationToken cancellationToken = default);
 
     Task<OrderBatchResult> CreateGlazingRequestAsync(IReadOnlyList<OrderHeaderItem> orders, CancellationToken cancellationToken = default);
 
@@ -32,27 +31,15 @@ public sealed class OrderBatchOperationsService : IOrderBatchOperationsService
 {
     private readonly IOrdersStore _ordersStore;
     private readonly IProjectSerializer _projectSerializer;
-    private readonly IExportService _exportService;
-    private readonly IStockProfileCutsStore _profileCutsStore;
-    private readonly IStockGlassCutsStore _glassCutsStore;
-    private readonly IStockMaterialsStore _stockMaterialsStore;
     private readonly EnvironmentSettings _environmentSettings;
 
     public OrderBatchOperationsService(
         IOrdersStore ordersStore,
         IProjectSerializer projectSerializer,
-        IExportService exportService,
-        IStockProfileCutsStore profileCutsStore,
-        IStockGlassCutsStore glassCutsStore,
-        IStockMaterialsStore stockMaterialsStore,
         EnvironmentSettings environmentSettings)
     {
         _ordersStore = ordersStore;
         _projectSerializer = projectSerializer;
-        _exportService = exportService;
-        _profileCutsStore = profileCutsStore;
-        _glassCutsStore = glassCutsStore;
-        _stockMaterialsStore = stockMaterialsStore;
         _environmentSettings = environmentSettings;
     }
 
@@ -87,71 +74,62 @@ public sealed class OrderBatchOperationsService : IOrderBatchOperationsService
         return new OrderBatchResult(true, "Отчёт сформирован и передан в почтовый клиент.", report.OutputFiles);
     }
 
-    public async Task<OrderBatchResult> OptimizeCutAsync(
+    public async Task<OrderBatchResult> ExportCutRequirementsAsync(
         IReadOnlyList<OrderHeaderItem> orders,
         CancellationToken cancellationToken = default)
     {
         var loaded = await LoadOrdersAsync(orders, cancellationToken);
-        if (loaded.Count == 0)
+        if (loaded.Count != orders.Count || loaded.Count == 0)
         {
-            return new OrderBatchResult(false, "Не удалось загрузить выбранные заказы.", []);
+            return new OrderBatchResult(false, "Не удалось загрузить все выбранные заказы.", []);
         }
 
-        var consumedProfiles = 0;
-        var consumedGlass = 0;
-
+        var lines = new List<string>
+        {
+            CsvRow("Заказ", "Конструкция", "Артикул", "Материал", "Количество с отходами",
+                "Ед. изм.", "Отходы, %")
+        };
         foreach (var project in loaded)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var area = project.Order.Constructions.Sum(c => c.Metrics.ProductAreaSqM);
-            var profileBars = Math.Max(1, (int)Math.Ceiling((double)area * 2.5));
-
-            for (var i = 0; i < profileBars; i++)
+            foreach (var construction in project.Order.Constructions.Where(item => item.IsSelectedForCalculation))
             {
-                var cut = _profileCutsStore.GetAll()
-                    .OrderByDescending(item => item.LengthMm)
-                    .FirstOrDefault();
-                if (cut is null)
+                cancellationToken.ThrowIfCancellationRequested();
+                var materials = construction.SpecificationLines
+                    .Where(line => line.Category is nameof(CostMaterialCategory.Profile) or nameof(CostMaterialCategory.Glazing))
+                    .ToList();
+                if (materials.Count == 0)
                 {
-                    break;
+                    return new OrderBatchResult(false,
+                        $"Заказ {project.Order.Header.OrderNumber}, конструкция {construction.Number}. Сначала выполните расчёт материалов.", []);
                 }
 
-                _profileCutsStore.Delete(cut.Id);
-                consumedProfiles++;
-            }
-
-            var glassPieces = Math.Max(1, (int)Math.Ceiling((double)area));
-            for (var i = 0; i < glassPieces; i++)
-            {
-                var cut = _glassCutsStore.GetAll()
-                    .OrderByDescending(item => item.WidthMm * item.HeightMm)
-                    .FirstOrDefault();
-                if (cut is null)
+                foreach (var line in materials)
                 {
-                    break;
+                    lines.Add(CsvRow(project.Order.Header.OrderNumber, construction.Number.ToString(),
+                        line.Article, line.MaterialName, (line.Quantity * Math.Max(1, construction.Cost.Quantity)).ToString("0.####"),
+                        line.Unit, line.WastePercent.ToString("0.##")));
                 }
-
-                _glassCutsStore.Delete(cut.Id);
-                consumedGlass++;
             }
+        }
+        if (lines.Count == 1)
+        {
+            return new OrderBatchResult(false, "В выбранных заказах нет конструкций для расчёта.", []);
         }
 
         var folder = EnsureExportsFolder();
-        var logPath = Path.Combine(folder, $"cut-optimization_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
-        var log = new StringBuilder()
-            .AppendLine("Раскрой материалов NurSapat")
-            .AppendLine($"Дата: {DateTime.Now:dd.MM.yyyy HH:mm}")
-            .AppendLine($"Заказов: {loaded.Count}")
-            .AppendLine($"Списано профильных обрезков: {consumedProfiles}")
-            .AppendLine($"Списано стекольных обрезков: {consumedGlass}")
-            .ToString();
-        await File.WriteAllTextAsync(logPath, log, cancellationToken);
-
-        return new OrderBatchResult(
-            true,
-            $"Раскрой выполнен. Списано обрезков: профиль — {consumedProfiles}, стекло — {consumedGlass}.",
-            [logPath]);
+        var filePath = Path.Combine(folder, $"cut-requirements_{DateTime.Now:yyyyMMdd_HHmmss_fff}.csv");
+        await File.WriteAllLinesAsync(filePath, lines, Encoding.UTF8, cancellationToken);
+        return new OrderBatchResult(true,
+            $"Ведомость потребности в профиле и стекле сохранена. Складские остатки не изменились. {filePath}", [filePath]);
     }
+
+    private static string CsvRow(params string[] values) =>
+        string.Join(';', values.Select(value =>
+        {
+            var first = value.AsSpan().TrimStart();
+            var safeValue = first.Length > 0 && first[0] is '=' or '+' or '-' or '@' ? "'" + value : value;
+            return "\"" + safeValue.Replace("\"", "\"\"") + "\"";
+        }));
 
     public Task<OrderBatchResult> CreateGlazingRequestAsync(
         IReadOnlyList<OrderHeaderItem> orders,
@@ -241,12 +219,11 @@ public sealed class OrderBatchOperationsService : IOrderBatchOperationsService
         var filePath = Path.Combine(folder, $"{prefix}_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
         var lines = new List<string> { title, "Заказ;Строка" };
 
-        for (var i = 0; i < loaded.Count; i++)
+        foreach (var project in loaded)
         {
-            var header = orders[i];
-            foreach (var line in lineFactory(loaded[i]))
+            foreach (var line in lineFactory(project))
             {
-                lines.Add($"{header.OrderNumber};{line}");
+                lines.Add($"{project.Order.Header.OrderNumber};{line}");
             }
         }
 
@@ -262,22 +239,22 @@ public sealed class OrderBatchOperationsService : IOrderBatchOperationsService
 
         foreach (var order in orders)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                if (!string.IsNullOrWhiteSpace(order.FilePath) && File.Exists(order.FilePath))
+                var project = _ordersStore.TryLoadProject(order.Id);
+                if (project is not null)
                 {
-                    var project = await _projectSerializer.LoadAsync(order.FilePath, cancellationToken);
                     result.Add(project);
                     continue;
                 }
 
-                var fromStore = _ordersStore.TryLoadProject(order.Id);
-                if (fromStore is not null)
+                if (!string.IsNullOrWhiteSpace(order.FilePath) && File.Exists(order.FilePath))
                 {
-                    result.Add(fromStore);
+                    result.Add(await _projectSerializer.LoadAsync(order.FilePath, cancellationToken));
                 }
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // Пропускаем повреждённые файлы / недоступные записи БД.
             }

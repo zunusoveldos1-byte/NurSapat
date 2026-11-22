@@ -1,5 +1,7 @@
 using System.Reflection;
+using System.Text.Json;
 using NurSapat.App.Models.Orders;
+using NurSapat.App.Services.Documents;
 using NurSapat.App.Services.Orders;
 using NurSapat.Core.Interfaces.Persistence;
 using NurSapat.Core.Models;
@@ -12,10 +14,12 @@ namespace NurSapat.App.Services.Persistence;
 public sealed class PostgreSqlOrdersStore : IOrdersStore
 {
     private readonly IOrderRepository _repository;
+    private readonly IProjectSerializer _projectSerializer;
 
-    public PostgreSqlOrdersStore(IOrderRepository repository)
+    public PostgreSqlOrdersStore(IOrderRepository repository, IProjectSerializer projectSerializer)
     {
         _repository = repository;
+        _projectSerializer = projectSerializer;
     }
 
     public IReadOnlyList<OrderHeaderItem> GetAll() =>
@@ -86,7 +90,29 @@ public sealed class PostgreSqlOrdersStore : IOrdersStore
     public ProjectDocumentData? TryLoadProject(Guid id)
     {
         var order = PersistenceSync.Run(() => _repository.GetByIdAsync(id));
-        return order is null ? null : ProjectOrderMapper.ToProject(order);
+        if (order is null)
+        {
+            return null;
+        }
+
+        var project = ProjectOrderMapper.ToProject(order);
+        if (order.WorkspaceStateJson is null && order.ExportFilePath is { Length: > 0 } path && File.Exists(path))
+        {
+            try
+            {
+                var archived = PersistenceSync.Run(() => _projectSerializer.LoadAsync(path));
+                if (archived.Order.Id == order.Id)
+                {
+                    project.Cad = archived.Cad;
+                    project.PrintSettings = archived.PrintSettings;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or FormatException)
+            {
+                // The PostgreSQL order is still available when its old export cannot be read.
+            }
+        }
+        return project;
     }
 
     private static OrderHeaderItem ToHeader(Order order)
@@ -142,24 +168,36 @@ public sealed class PostgreSqlOrdersStore : IOrdersStore
 /// <summary>Maps between ProjectDocumentData (.zp / workspace) and domain Order for PostgreSQL persistence.</summary>
 public static class ProjectOrderMapper
 {
+    private sealed record WorkspaceState(CadProjectData Cad, PrintSettings PrintSettings);
+
     public static Order FromProject(ProjectDocumentData project)
     {
         var id = project.Order.Id == Guid.Empty ? Guid.NewGuid() : project.Order.Id;
         var order = new Order { Id = id };
         OrderProjectMapper.ApplyData(order, project.Order);
         order.Id = id;
+        order.WorkspaceStateJson = JsonSerializer.Serialize(new WorkspaceState(project.Cad, project.PrintSettings));
+        order.SelectedConstruction = order.Constructions
+            .FirstOrDefault(construction => construction.Id == project.ActiveConstructionId)
+            ?? order.SelectedConstruction;
         return order;
     }
 
-    public static ProjectDocumentData ToProject(Order order) => new()
+    public static ProjectDocumentData ToProject(Order order)
     {
-        SchemaVersion = ProjectFormat.CurrentSchemaVersion,
-        AppVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0",
-        SavedAt = DateTimeOffset.UtcNow,
-        Order = OrderProjectMapper.ToData(order),
-        Cad = new CadProjectData(),
-        PrintSettings = new PrintSettings(),
-        ActiveConstructionId = order.SelectedConstruction?.Id
-            ?? order.Constructions.FirstOrDefault()?.Id
-    };
+        var state = order.WorkspaceStateJson is { Length: > 0 } json
+            ? JsonSerializer.Deserialize<WorkspaceState>(json)
+            : null;
+        return new ProjectDocumentData
+        {
+            SchemaVersion = ProjectFormat.CurrentSchemaVersion,
+            AppVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0",
+            SavedAt = DateTimeOffset.UtcNow,
+            Order = OrderProjectMapper.ToData(order),
+            Cad = state?.Cad ?? new CadProjectData(),
+            PrintSettings = state?.PrintSettings ?? new PrintSettings(),
+            ActiveConstructionId = order.SelectedConstruction?.Id
+                ?? order.Constructions.FirstOrDefault()?.Id
+        };
+    }
 }

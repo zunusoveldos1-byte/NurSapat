@@ -36,7 +36,7 @@
             <Button Content="Создать копию"
                     Command="{Binding CreateDatabaseBackupCommand}"/>
             <Button Grid.Column="1"
-                    Content="Восстановить"
+                    Content="Просмотр и восстановление"
                     Command="{Binding RestoreDatabaseBackupCommand}"/>
             <Button Grid.Column="2"
                     Content="Обновить"

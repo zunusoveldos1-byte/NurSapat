@@ -1,7 +1,9 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using NurSapat.App.Services.Help;
+using Avalonia.Threading;
+using NurSapat.App.Views;
+using NurSapat.Infrastructure.Sync.Diagnostics;
 using NurSapat.Infrastructure.Updates.Abstractions;
 
 namespace NurSapat.App.Services.Help;
@@ -12,6 +14,7 @@ public sealed class UpdateStartupCoordinator
     private readonly IUpdateWindowService _updateWindowService;
     private readonly IUpdateSettingsService _settingsService;
     private int _promptInFlight;
+    private bool _exiting;
 
     public UpdateStartupCoordinator(
         IAppUpdateService appUpdateService,
@@ -26,6 +29,14 @@ public sealed class UpdateStartupCoordinator
     public void Initialize(string[] args)
     {
         _appUpdateService.UpdateAvailable += OnUpdateAvailable;
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.Exit += (_, _) =>
+            {
+                _exiting = true;
+                _appUpdateService.UpdateAvailable -= OnUpdateAvailable;
+            };
+        }
         _appUpdateService.StartPeriodicChecks();
         _ = HandleStartupAsync(args);
     }
@@ -70,26 +81,37 @@ public sealed class UpdateStartupCoordinator
             return;
         }
 
-        // Уже открыто или показ в процессе — не плодим окна (Alt+Tab).
-        if (_updateWindowService.IsUpdateWindowOpen
-            || Interlocked.CompareExchange(ref _promptInFlight, 1, 0) != 0)
+        if (Interlocked.CompareExchange(ref _promptInFlight, 1, 0) != 0)
         {
-            if (_updateWindowService.IsUpdateWindowOpen)
-            {
-                await _updateWindowService.ShowAvailableUpdateAsync(GetActiveWindow(), result);
-            }
-
             return;
         }
 
         try
         {
-            var owner = GetActiveWindow() ?? await WaitForMainWindowAsync(TimeSpan.FromSeconds(10));
-            await _updateWindowService.ShowAvailableUpdateAsync(owner, result);
+            await Dispatcher.UIThread.InvokeAsync(() => ShowUpdateInWorkspaceAsync(result));
+        }
+        catch (Exception ex)
+        {
+            StartupTrace.Error("Не удалось показать уведомление об обновлении.", ex);
         }
         finally
         {
             Interlocked.Exchange(ref _promptInFlight, 0);
+        }
+    }
+
+    private async Task ShowUpdateInWorkspaceAsync(UpdateCheckResult result)
+    {
+        // The login window is replaced when the workspace opens.
+        while (!_exiting)
+        {
+            if (GetActiveWindow() is MainWorkspaceWindow { IsVisible: true } workspace)
+            {
+                await _updateWindowService.ShowAvailableUpdateAsync(workspace, result);
+                return;
+            }
+
+            await Task.Delay(200);
         }
     }
 

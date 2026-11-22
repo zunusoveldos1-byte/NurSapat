@@ -8,6 +8,8 @@ namespace NurSapat.App.Services.Persistence;
 public interface IApplicationPersistenceInitializer
 {
     Task EnsureReadyAsync(CancellationToken cancellationToken = default);
+
+    Task PrepareRestoredDatabaseAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed class ApplicationPersistenceInitializer(
@@ -17,9 +19,15 @@ public sealed class ApplicationPersistenceInitializer(
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _isReady;
 
-    public async Task EnsureReadyAsync(CancellationToken cancellationToken = default)
+    public Task EnsureReadyAsync(CancellationToken cancellationToken = default) =>
+        InitializeAsync(force: false, cancellationToken);
+
+    public Task PrepareRestoredDatabaseAsync(CancellationToken cancellationToken = default) =>
+        InitializeAsync(force: true, cancellationToken);
+
+    private async Task InitializeAsync(bool force, CancellationToken cancellationToken)
     {
-        if (_isReady || !configuration.IsPostgreSqlPersistence())
+        if (!configuration.IsPostgreSqlPersistence())
         {
             return;
         }
@@ -27,12 +35,13 @@ public sealed class ApplicationPersistenceInitializer(
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_isReady)
+            if (_isReady && !force)
             {
                 return;
             }
 
             var seeder = serviceProvider.GetRequiredService<InitialDataSeeder>();
+            _isReady = false;
             await seeder.SeedAsync(cancellationToken).ConfigureAwait(false);
             _isReady = true;
         }

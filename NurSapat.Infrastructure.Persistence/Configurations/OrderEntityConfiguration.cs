@@ -27,6 +27,7 @@ public sealed class OrderEntityConfiguration : IEntityTypeConfiguration<OrderEnt
         builder.Property(entity => entity.CurrencyCode).HasMaxLength(8).IsRequired();
         builder.Property(entity => entity.PaymentCurrencyCode).HasMaxLength(8).IsRequired();
         builder.Property(entity => entity.ExportFilePath).HasMaxLength(1024);
+        builder.Property(entity => entity.WorkspaceStateJson).HasColumnType("jsonb");
         builder.Property(entity => entity.ProfitabilityPercent).HasPrecision(9, 2);
         builder.Property(entity => entity.TotalDiscountPercent).HasPrecision(9, 2);
         builder.Property(entity => entity.TotalDiscountSum).HasPrecision(18, 2);

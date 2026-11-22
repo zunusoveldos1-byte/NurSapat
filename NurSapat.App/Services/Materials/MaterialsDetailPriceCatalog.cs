@@ -57,25 +57,23 @@ public sealed class MaterialsDetailPriceCatalog : IMaterialPriceCatalog
             : null;
     }
 
-    private MaterialPriceQuote ToQuote(MaterialDetail detail) =>
-        new(
+    private static MaterialPriceQuote ToQuote(MaterialDetail detail)
+    {
+        var colorPrice = detail.ColorPrices.FirstOrDefault(color => color.IsDefault)?.Price;
+        var hasColorPrice = colorPrice is > 0;
+        var price = hasColorPrice ? colorPrice!.Value : detail.BasePrice;
+        var currency = MaterialEnumLabels.Currency(detail.Currency);
+
+        return new MaterialPriceQuote(
             detail.Id,
             detail.Name,
             detail.Article,
             MapMainUnit(detail.MainUnit),
-            ResolvePrice(detail),
+            price,
             detail.WastePercent,
-            MaterialEnumLabels.Currency(detail.Currency));
-
-    private static decimal ResolvePrice(MaterialDetail detail)
-    {
-        var colorPrice = detail.ColorPrices.FirstOrDefault(color => color.IsDefault)?.Price;
-        if (colorPrice is > 0)
-        {
-            return colorPrice.Value;
-        }
-
-        return detail.BasePrice;
+            currency,
+            new MaterialPriceSource(hasColorPrice ? "Цена цвета по умолчанию" : "Базовая цена в справочнике",
+                price, currency));
     }
 
     private static MaterialPriceUnit MapMainUnit(MaterialMainUnit unit) => unit switch

@@ -45,11 +45,15 @@ public sealed class HistoricalCurrencyMaterialPriceCatalog : IMaterialPriceCatal
             return quote;
         }
 
-        var rate = _currencyService.GetRateForDateAsync(quote.CurrencyCode, _orderDate).GetAwaiter().GetResult();
+        var rate = _currencyService.FindRateRecordAsync(quote.CurrencyCode, _orderDate).GetAwaiter().GetResult()
+            ?? throw new InvalidOperationException(
+                $"Курс {quote.CurrencyCode} на {_orderDate:dd.MM.yyyy} или ближайшую предыдущую дату не найден.");
+        var source = quote.Source ?? new MaterialPriceSource("Каталог материалов", quote.UnitPrice, quote.CurrencyCode);
         return quote with
         {
-            UnitPrice = quote.UnitPrice * rate,
-            CurrencyCode = "KGS"
+            UnitPrice = quote.UnitPrice * rate.Rate,
+            CurrencyCode = "KGS",
+            Source = source with { ExchangeRateToKgs = rate.Rate, ExchangeRateDate = rate.RateDate }
         };
     }
 

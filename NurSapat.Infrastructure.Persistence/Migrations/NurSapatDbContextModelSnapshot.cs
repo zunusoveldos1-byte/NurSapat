@@ -145,6 +145,9 @@ namespace NurSapat.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OrderConstructionId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("PriceSourceJson")
+                        .HasColumnType("jsonb");
+
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)");
@@ -1131,6 +1134,9 @@ namespace NurSapat.Infrastructure.Persistence.Migrations
                     b.Property<string>("ExportFilePath")
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("WorkspaceStateJson")
+                        .HasColumnType("jsonb");
 
                     b.Property<bool>("HasDelivery")
                         .HasColumnType("boolean");

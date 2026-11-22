@@ -83,6 +83,8 @@ public sealed class OrderEntity
     /// <summary>Optional path to the last .zp export/backup; working order data lives in PostgreSQL.</summary>
     public string? ExportFilePath { get; set; }
 
+    public string? WorkspaceStateJson { get; set; }
+
     public CustomerEntity? Customer { get; set; }
 
     public ICollection<OrderConstructionEntity> Constructions { get; set; } = [];

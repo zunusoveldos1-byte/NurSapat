@@ -26,6 +26,8 @@ public sealed class CostSpecificationLine
 
     public decimal WastePercent { get; init; }
 
+    public MaterialPriceSource? PriceSource { get; init; }
+
     public decimal LineTotal =>
         decimal.Round(Quantity * UnitPrice, 2, MidpointRounding.AwayFromZero);
 
@@ -50,6 +52,7 @@ public sealed class CostSpecificationLine
             Quantity = Quantity + additionalQuantity,
             Unit = Unit,
             UnitPrice = UnitPrice,
-            WastePercent = WastePercent
+            WastePercent = WastePercent,
+            PriceSource = PriceSource
         };
 }

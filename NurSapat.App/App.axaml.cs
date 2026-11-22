@@ -91,6 +91,11 @@ public partial class App : Application
         {
             StartupTrace.Info("[LOG] Начало проверки сессии при старте...");
             var services = Services;
+            if (services.GetRequiredService<IConfiguration>()["Authentication:Mode"] == "LocalPostgreSQL")
+            {
+                ShowLoginWindow(desktop, services);
+                return;
+            }
             var sessionCache = services.GetRequiredService<ProtectedSessionCache>();
             StartupTrace.Info(
                 $"[LOG] Проверка файла session.dat: " +

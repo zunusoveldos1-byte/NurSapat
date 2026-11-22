@@ -28,7 +28,8 @@ internal static class CostLineBuilder
             Quantity = ApplyWaste(quantity, quote.WastePercent),
             Unit = unit,
             UnitPrice = quote.UnitPrice,
-            WastePercent = quote.WastePercent
+            WastePercent = quote.WastePercent,
+            PriceSource = quote.Source
         };
     }
 

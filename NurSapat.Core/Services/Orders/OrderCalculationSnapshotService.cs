@@ -116,7 +116,8 @@ public sealed class OrderCalculationSnapshotService
         decimal Quantity,
         string Unit,
         decimal UnitPrice,
-        decimal WastePercent)
+        decimal WastePercent,
+        MaterialPriceSource? PriceSource)
     {
         public static SnapshotItem From(Guid constructionId, CostSpecificationLine line) => new(
             constructionId,
@@ -128,7 +129,8 @@ public sealed class OrderCalculationSnapshotService
             line.Quantity,
             line.Unit,
             line.UnitPrice,
-            line.WastePercent);
+            line.WastePercent,
+            line.PriceSource);
 
         public CostSpecificationLine ToSpecificationLine() => new()
         {
@@ -140,7 +142,8 @@ public sealed class OrderCalculationSnapshotService
             Quantity = Quantity,
             Unit = Unit,
             UnitPrice = UnitPrice,
-            WastePercent = WastePercent
+            WastePercent = WastePercent,
+            PriceSource = PriceSource
         };
     }
 }

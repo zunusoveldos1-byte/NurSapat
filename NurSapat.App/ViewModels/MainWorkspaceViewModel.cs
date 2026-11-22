@@ -22,6 +22,7 @@ using NurSapat.App.ViewModels.Utilities;
 using NurSapat.App.Views;
 using NurSapat.Cad.UI.ViewModels;
 using NurSapat.Core.Models.Calculation;
+using NurSapat.Core.Services.Orders;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -138,7 +139,16 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
     [RelayCommand]
     private async Task OpenOrderSettingsAsync()
     {
+        if (!_documentManager.HasOpenDocument)
+        {
+            return;
+        }
+
         var order = _orderWorkspace.Order;
+        if (!OrderBusinessRules.IsCadReadOnly(order.Status))
+        {
+            _orderWorkspace.SyncCadToOrder();
+        }
         var confirmed = await _orderErpDialogService.ShowOrderSettingsAsync(
             order,
             _userSessionService.IsAdministrator);
@@ -148,8 +158,48 @@ public sealed partial class MainWorkspaceViewModel : ObservableObject
         }
 
         _orderWorkspace.ApplyCadReadOnlyStatus();
-        _orderWorkspace.RecalculateAll();
+        if (!OrderBusinessRules.IsCadReadOnly(order.Status))
+        {
+            _orderWorkspace.RecalculateAll();
+        }
         _orderWorkspace.NotifyModified();
+    }
+
+    [RelayCommand]
+    private async Task ReviewProductionAsync()
+    {
+        if (!_documentManager.HasOpenDocument)
+        {
+            return;
+        }
+
+        var order = _orderWorkspace.Order;
+        if (!OrderBusinessRules.IsCadReadOnly(order.Status))
+        {
+            _orderWorkspace.SyncCadToOrder();
+        }
+        var issues = OrderProductionValidator.Review(order);
+        if (issues.Count == 0)
+        {
+            if (ResolveOwnerWindow() is { } owner)
+            {
+                AppNotificationHelper.ShowSuccess(owner, "Проверка заказа завершена. Замечаний нет.");
+            }
+            return;
+        }
+
+        var labels = issues.Select((issue, index) =>
+            $"{index + 1}. {(issue.BlocksProduction ? "Ошибка" : "Проверить")} · {issue.Message}").ToArray();
+        var selected = await _dialogService.ShowListPickerAsync("Проверка перед производством", labels);
+        var selectedIndex = Array.IndexOf(labels, selected);
+        if (selectedIndex >= 0 && issues[selectedIndex] is { ConstructionId: Guid constructionId } issue)
+        {
+            await _orderWorkspace.EditConstructionInDrawingAsync(constructionId);
+            if (issue.ElementId is Guid elementId)
+            {
+                _orderWorkspace.Drawing.CadEditor.SelectProductionIssueElement(elementId);
+            }
+        }
     }
 
     [RelayCommand]

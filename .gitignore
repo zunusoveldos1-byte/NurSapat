@@ -361,3 +361,9 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# Local Docker credentials
+.env
+.dotnet-local/
+# Native local PostgreSQL data
+.postgres-local/
+/NurSapat.App/appsettings.Local.json

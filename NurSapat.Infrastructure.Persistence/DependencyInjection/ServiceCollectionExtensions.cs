@@ -44,6 +44,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IWarehouseRepository, WarehouseRepository>();
         services.AddSingleton<ICurrencyRateRepository, CurrencyRateRepository>();
         services.AddSingleton<IUserAccountRepository, UserAccountRepository>();
+        services.AddSingleton<NurSapat.Infrastructure.Persistence.Auth.LocalAuthenticationService>();
         services.AddSingleton<IOrderTemplateRepository, OrderTemplateRepository>();
         services.AddSingleton<IAppSettingRepository, AppSettingRepository>();
         services.AddSingleton<IOrderCalculationSnapshotRepository, OrderCalculationSnapshotRepository>();

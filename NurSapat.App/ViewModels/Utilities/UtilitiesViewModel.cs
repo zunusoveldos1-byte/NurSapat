@@ -1,4 +1,6 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Layout;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -21,6 +23,8 @@ public sealed partial class UtilitiesViewModel : ViewModelBase
     private readonly IDialogService _dialogService;
     private readonly IDocumentManager _documentManager;
     private readonly IDatabaseBackupPayloadService _databaseBackupPayloadService;
+    private readonly IProjectSerializer _projectSerializer;
+    private Window? _backupWindow;
 
     private Func<Window?>? _ownerResolver;
 
@@ -32,7 +36,8 @@ public sealed partial class UtilitiesViewModel : ViewModelBase
         IEnvironmentSettingsService environmentSettingsService,
         IDialogService dialogService,
         IDocumentManager documentManager,
-        IDatabaseBackupPayloadService databaseBackupPayloadService)
+        IDatabaseBackupPayloadService databaseBackupPayloadService,
+        IProjectSerializer projectSerializer)
     {
         _databaseUtilitiesService = databaseUtilitiesService;
         _dealerBaseService = dealerBaseService;
@@ -42,12 +47,19 @@ public sealed partial class UtilitiesViewModel : ViewModelBase
         _dialogService = dialogService;
         _documentManager = documentManager;
         _databaseBackupPayloadService = databaseBackupPayloadService;
+        _projectSerializer = projectSerializer;
     }
 
     public ObservableCollection<BackupArchiveItem> BackupArchives { get; } = [];
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RestoreDatabaseBackupCommand))]
     private BackupArchiveItem? _selectedBackupArchive;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CreateDatabaseBackupCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RestoreDatabaseBackupCommand))]
+    private bool _isBackupBusy;
 
     public void ConfigureOwnerResolver(Func<Window?> ownerResolver) =>
         _ownerResolver = ownerResolver;
@@ -163,6 +175,9 @@ public sealed partial class UtilitiesViewModel : ViewModelBase
         {
             DataContext = this
         };
+        _backupWindow = window;
+        window.Closing += (_, e) => e.Cancel = IsBackupBusy;
+        window.Closed += (_, _) => _backupWindow = null;
         if (owner is null)
         {
             window.Show();
@@ -172,9 +187,12 @@ public sealed partial class UtilitiesViewModel : ViewModelBase
         await window.ShowDialog(owner);
     }
 
-    [RelayCommand]
+    private bool CanCreateDatabaseBackup() => !IsBackupBusy;
+
+    [RelayCommand(CanExecute = nameof(CanCreateDatabaseBackup))]
     private async Task CreateDatabaseBackupAsync()
     {
+        IsBackupBusy = true;
         try
         {
             var directory = ResolveBackupDirectory();
@@ -198,9 +216,15 @@ public sealed partial class UtilitiesViewModel : ViewModelBase
             await _dialogService.ShowErrorAsync(
                 $"Не удалось создать резервную копию: {ex.Message}");
         }
+        finally
+        {
+            IsBackupBusy = false;
+        }
     }
 
-    [RelayCommand]
+    private bool CanRestoreDatabaseBackup() => !IsBackupBusy && SelectedBackupArchive is not null;
+
+    [RelayCommand(CanExecute = nameof(CanRestoreDatabaseBackup))]
     private async Task RestoreDatabaseBackupAsync()
     {
         var selected = SelectedBackupArchive;
@@ -220,31 +244,24 @@ public sealed partial class UtilitiesViewModel : ViewModelBase
             return;
         }
 
-        string? temporaryRestoreSource = null;
+        IsBackupBusy = true;
         try
         {
-            var backupDirectory = ResolveBackupDirectory();
-            Directory.CreateDirectory(backupDirectory);
-            var nowPath = Path.Combine(backupDirectory, "now.zp");
-
-            var restoreSource = selected.FullPath;
-            if (Path.GetFullPath(restoreSource).Equals(
-                    Path.GetFullPath(nowPath),
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                temporaryRestoreSource = Path.Combine(
-                    Path.GetTempPath(),
-                    $"nursapat-restore-{Guid.NewGuid():N}.zp");
-                File.Copy(restoreSource, temporaryRestoreSource, overwrite: true);
-                restoreSource = temporaryRestoreSource;
-            }
-
-            if (!await _documentManager.CreateBackupAsync(nowPath))
+            using var restoreSource = new FileStream(selected.FullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var project = await _projectSerializer.LoadAsync(selected.FullPath);
+            var tables = await _databaseBackupPayloadService.InspectDatabasePayloadAsync(selected.FullPath);
+            var preview = $"Файл: {selected.FileName}\n" +
+                $"Сохранён: {project.SavedAt.ToLocalTime():dd.MM.yyyy HH:mm:ss}\n" +
+                $"Заказ: {project.Order.Header.OrderNumber}\n" +
+                $"Конструкций в проекте: {project.Order.Constructions.Count}\n" +
+                $"Таблиц с данными в снимке: {tables}\n" +
+                $"База назначения: {_databaseBackupPayloadService.DatabaseTarget}";
+            if (!await ConfirmDatabaseRestoreAsync(preview))
             {
                 return;
             }
 
-            if (await _documentManager.RestorePreparedBackupAsync(restoreSource)
+            if (await _documentManager.RestorePreparedBackupAsync(selected.FullPath)
                 && _ownerResolver?.Invoke() is { } owner)
             {
                 AppNotificationHelper.ShowSuccess(owner, "Резервная копия восстановлена.");
@@ -257,20 +274,53 @@ public sealed partial class UtilitiesViewModel : ViewModelBase
         }
         finally
         {
-            if (temporaryRestoreSource is not null)
-            {
-                try
-                {
-                    File.Delete(temporaryRestoreSource);
-                }
-                catch
-                {
-                    // Temporary cleanup must not hide restore errors.
-                }
-            }
-
+            IsBackupBusy = false;
             RefreshBackupArchives();
         }
+    }
+
+    private async Task<bool> ConfirmDatabaseRestoreAsync(string preview)
+    {
+        var owner = _backupWindow ?? _ownerResolver?.Invoke();
+        if (owner is not { IsVisible: true })
+        {
+            return false;
+        }
+
+        var cancel = new Button { Content = "Отмена", IsCancel = true };
+        var restore = new Button { Content = "Восстановить базу" };
+        var dialog = new Window
+        {
+            Title = "Предварительный просмотр резервной копии",
+            Width = 510,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new StackPanel
+            {
+                Margin = new Thickness(24),
+                Spacing = 16,
+                Children =
+                {
+                    new TextBlock { Text = preview, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                    new TextBlock
+                    {
+                        Text = "Восстановление заменит данные таблиц в указанной базе. Перед операцией NurSapat сохранит отдельную страховочную копию.",
+                        TextWrapping = Avalonia.Media.TextWrapping.Wrap
+                    },
+                    new StackPanel
+                    {
+                        Orientation = Orientation.Horizontal,
+                        HorizontalAlignment = HorizontalAlignment.Right,
+                        Spacing = 8,
+                        Children = { cancel, restore }
+                    }
+                }
+            }
+        };
+        cancel.Click += (_, _) => dialog.Close(false);
+        restore.Click += (_, _) => dialog.Close(true);
+        return await dialog.ShowDialog<bool>(owner);
     }
 
     [RelayCommand]
@@ -284,6 +334,7 @@ public sealed partial class UtilitiesViewModel : ViewModelBase
         }
 
         foreach (var path in Directory.EnumerateFiles(directory, "*.zp")
+                     .Where(path => !Path.GetFileName(path).Equals("now-project.zp", StringComparison.OrdinalIgnoreCase))
                      .OrderByDescending(File.GetLastWriteTimeUtc))
         {
             var info = new FileInfo(path);

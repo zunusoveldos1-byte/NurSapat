@@ -112,8 +112,8 @@
                                 HorizontalContentAlignment="Center"
                                 VerticalContentAlignment="Center"/>
                         <Button Classes="mat-toolbar"
-                                Content="Раскрой материалов"
-                                Command="{Binding OptimizeCutCommand}"
+                                Content="Потребность для раскроя"
+                                Command="{Binding ExportCutRequirementsCommand}"
                                 HorizontalContentAlignment="Center"
                                 VerticalContentAlignment="Center"/>
                         <Button Classes="mat-toolbar"

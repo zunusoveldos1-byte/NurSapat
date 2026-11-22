@@ -58,9 +58,9 @@ public sealed partial class OrderSettingsDialogViewModel : ViewModelBase
 
     public DateTimeOffset? SelectedDateOffset
     {
-        get => Header.OrderDate != DateTime.MinValue
+        get => _selectedDateOffset ?? (Header.OrderDate != DateTime.MinValue
             ? new DateTimeOffset(Header.OrderDate.Date)
-            : DateTimeOffset.Now;
+            : DateTimeOffset.Now);
         set
         {
             if (!value.HasValue)
@@ -69,12 +69,11 @@ public sealed partial class OrderSettingsDialogViewModel : ViewModelBase
             }
 
             var date = value.Value.DateTime.Date;
-            if (_selectedDateOffset == value && Header.OrderDate == date)
+            if (_selectedDateOffset == value)
             {
                 return;
             }
 
-            Header.OrderDate = date;
             _selectedDateOffset = value;
             OnPropertyChanged(nameof(SelectedDateOffset));
 
@@ -130,6 +129,13 @@ public sealed partial class OrderSettingsDialogViewModel : ViewModelBase
 
         if (Status == OrderStatus.InProduction)
         {
+            var issue = OrderProductionValidator.Review(_order, OrderNumber).FirstOrDefault(item => item.BlocksProduction);
+            if (issue is not null)
+            {
+                ProductionBlockReason = issue.Message;
+                return;
+            }
+
             var dealer = Header.DealerId is Guid dealerId
                 ? _dealersCatalog.GetById(dealerId)
                 : null;

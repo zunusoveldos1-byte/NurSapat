@@ -42,6 +42,8 @@ public sealed class OrderSnapshotTests
 
         var restoredLine = Assert.Single(restoredOrder!.Constructions[0].SpecificationLines);
         Assert.Equal(100m, restoredLine.UnitPrice);
+        Assert.Equal(new MaterialPriceSource("Каталог", 1.25m, "USD", 80m, new DateTime(2026, 11, 21)),
+            restoredLine.PriceSource);
         Assert.Equal(200m, restoredOrder.Constructions[0].Cost.CostPrice);
         Assert.Equal(260m, restoredOrder.Totals.GrandTotal);
         Assert.Equal(storedSnapshot.TotalCostPrice, restoredOrder.Constructions[0].Cost.CostPrice);
@@ -103,7 +105,8 @@ public sealed class OrderSnapshotTests
             Article = "PROFILE-001",
             Quantity = 2m,
             Unit = "m",
-            UnitPrice = 100m
+            UnitPrice = 100m,
+            PriceSource = new MaterialPriceSource("Каталог", 1.25m, "USD", 80m, new DateTime(2026, 11, 21))
         });
         construction.Cost.ProfileCost = 200m;
         construction.Cost.ProfitabilityPercent = 30m;

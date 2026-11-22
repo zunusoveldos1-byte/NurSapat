@@ -2680,6 +2680,27 @@ public sealed partial class CadEditorViewModel : ObservableObject
         RequestSceneRefresh();
     }
 
+    public void SelectProductionIssueElement(Guid elementId)
+    {
+        var element = CanvasElements.FirstOrDefault(item => item.Id == elementId);
+        var selection = element?.Kind switch
+        {
+            GeometryElementKind.Frame or GeometryElementKind.ArchFrame => CadSelectableItem.Frame(),
+            GeometryElementKind.Sash or GeometryElementKind.SlidingSash => CadSelectableItem.Sash(elementId),
+            GeometryElementKind.Glazing => CadSelectableItem.Glazing(elementId),
+            _ => null
+        };
+        if (selection is null)
+        {
+            return;
+        }
+
+        _constructionSelection.Clear();
+        _constructionSelection.Add(selection);
+        SyncLegacySelectionFromConstruction();
+        RequestSceneRefresh();
+    }
+
     private void ClearConstructionSelection()
     {
         if (_constructionSelection.Count == 0 && _selectedMullion is null && SelectedElement is null && _selectedExtremeImpost is null)
