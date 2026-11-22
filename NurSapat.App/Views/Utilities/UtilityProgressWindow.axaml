@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Utilities"
+        x:Class="NurSapat.App.Views.Utilities.UtilityProgressWindow"
+        x:DataType="vm:UtilityProgressViewModel"
+        Width="420"
+        Height="160"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <StackPanel Margin="20" Spacing="14">
+            <TextBlock Text="{Binding StatusText}"
+                       TextWrapping="Wrap"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"/>
+            <ProgressBar IsIndeterminate="{Binding IsIndeterminate}"
+                         Height="8"
+                         Minimum="0"
+                         Maximum="100"/>
+        </StackPanel>
+    </Border>
+</Window>

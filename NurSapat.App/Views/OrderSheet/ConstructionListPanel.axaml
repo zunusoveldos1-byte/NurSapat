@@ -1,0 +1,242 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             x:Class="NurSapat.App.Views.OrderSheet.ConstructionListPanel"
+             x:DataType="vm:OrderSheetViewModel"
+             FontFamily="Inter, Segoe UI">
+
+    <UserControl.Styles>
+        <StyleInclude Source="/Styles/OrderSheetStyles.axaml"/>
+
+        <Style Selector="ListBox.cList">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="ListBox.cList ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        </Style>
+        <Style Selector="ListBox.cList ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="ListBox.cList ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+
+        <Style Selector="Button.cCard">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        </Style>
+        <Style Selector="Button.cCard:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="Border.cCardBorder">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#E5EAF3"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="8"/>
+        </Style>
+        <Style Selector="Border.cCardBorder:active">
+            <Setter Property="Background" Value="#F0F6FF"/>
+            <Setter Property="BorderBrush" Value="#2563EB"/>
+            <Setter Property="BorderThickness" Value="2"/>
+        </Style>
+        <Style Selector="ListBox.cList ListBoxItem:selected Border.cCardBorder">
+            <Setter Property="Background" Value="#F0F6FF"/>
+            <Setter Property="BorderBrush" Value="#2563EB"/>
+            <Setter Property="BorderThickness" Value="2"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="10">
+        <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto" RowSpacing="6">
+
+            <TextBlock Grid.Row="0" Classes="cardTitle" Text="Конструкции"/>
+
+            <TextBox Grid.Row="1"
+                     Classes="field"
+                     PlaceholderText="Поиск..."
+                     Text="{Binding ConstructionSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                <TextBox.InnerLeftContent>
+                    <TextBlock Text="&#xE721;"
+                               FontFamily="Segoe MDL2 Assets"
+                               FontSize="12"
+                               Foreground="#94A3B8"
+                               VerticalAlignment="Center"
+                               Margin="6,0,0,0"/>
+                </TextBox.InnerLeftContent>
+            </TextBox>
+
+            <TextBlock Grid.Row="2"
+                       Text="{Binding PageIndicatorText}"
+                       FontSize="11"
+                       Foreground="#94A3B8"
+                       HorizontalAlignment="Right"
+                       IsVisible="{Binding !ShowConstructionCardsEmptyState}"/>
+
+            <Panel Grid.Row="3">
+                <StackPanel VerticalAlignment="Center"
+                            Spacing="4"
+                            IsVisible="{Binding ShowConstructionCardsEmptyState}">
+                    <TextBlock Text="Нет конструкций."
+                               FontSize="12"
+                               Foreground="#0F172A"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="Добавьте конструкцию кнопкой ниже или на вкладке «Чертёж»."
+                               FontSize="11"
+                               Foreground="#94A3B8"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+
+                <ListBox Classes="cList"
+                         ItemsSource="{Binding PagedConstructionCards}"
+                         SelectedItem="{Binding SelectedConstructionCard, Mode=TwoWay}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         IsVisible="{Binding !ShowConstructionCardsEmptyState}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:OrderConstructionLookupItemViewModel">
+                            <Border Classes="cCardBorder"
+                                    Classes.active="{Binding IsActive}"
+                                    Height="72"
+                                    HorizontalAlignment="Stretch">
+                                <Grid ColumnDefinitions="48,*" ColumnSpacing="8">
+                                    <Button Grid.Column="0"
+                                            Width="24"
+                                            Height="24"
+                                            Padding="0"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            CornerRadius="6"
+                                            Cursor="Hand"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Command="{Binding $parent[UserControl].((vm:OrderSheetViewModel)DataContext).ConfirmConstructionDeliveryCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip.Tip="{Binding StatusToolTip}"
+                                            AutomationProperties.Name="{Binding StatusTitle}">
+                                        <Border Width="24"
+                                                Height="24"
+                                                CornerRadius="6"
+                                                Background="{Binding StatusBackground}">
+                                            <TextBlock Text="{Binding StatusIcon}"
+                                                       Foreground="White"
+                                                       FontSize="14"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                    </Button>
+
+                                    <Button Grid.Column="1"
+                                            Classes="cCard"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch"
+                                            Command="{Binding $parent[UserControl].((vm:OrderSheetViewModel)DataContext).SelectConstructionCardCommand}"
+                                            CommandParameter="{Binding}">
+                                        <StackPanel Spacing="2"
+                                                    VerticalAlignment="Center"
+                                                    HorizontalAlignment="Stretch">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#0F172A"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding DimensionsDisplay}"
+                                                       FontSize="11"
+                                                       Foreground="#667085"/>
+                                            <TextBlock Text="{Binding QuantityDisplay}"
+                                                       FontSize="11"
+                                                       Foreground="#94A3B8"/>
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Panel>
+
+            <!-- Панель управления списком -->
+            <StackPanel Grid.Row="4" Spacing="6">
+                <Button x:Name="AddConstructionButton"
+                        Height="34"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Background="White"
+                        BorderBrush="#2563EB"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Cursor="Hand"
+                        Command="{Binding AddConstructionCommand}">
+                    <TextBlock Text="+ Добавить конструкцию"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="#2563EB"
+                               VerticalAlignment="Center"
+                               Cursor="Hand"/>
+                </Button>
+
+                <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" ColumnSpacing="6">
+                    <Button x:Name="DuplicateButton" Grid.Column="0" Classes="icon"
+                            Command="{Binding DuplicateConstructionCommand}" ToolTip.Tip="Дублировать">
+                        <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#475569"/>
+                    </Button>
+                    <Button x:Name="EditButton" Grid.Column="1" Classes="icon"
+                            Command="{Binding EditConstructionCommand}" ToolTip.Tip="Изменить">
+                        <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#475569"/>
+                    </Button>
+                    <Button x:Name="DeleteButton" Grid.Column="2" Classes="icon"
+                            Command="{Binding DeleteConstructionCommand}" ToolTip.Tip="Удалить">
+                        <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#475569"/>
+                    </Button>
+                    <Button x:Name="PreviousPageButton" Grid.Column="4" Classes="icon"
+                            Command="{Binding GoToPreviousPageCommand}" IsEnabled="{Binding CanGoToPreviousPage}"
+                            ToolTip.Tip="Предыдущая страница">
+                        <TextBlock Text="&#xE70E;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#475569"/>
+                    </Button>
+                    <Button x:Name="NextPageButton" Grid.Column="5" Classes="icon"
+                            Command="{Binding GoToNextPageCommand}" IsEnabled="{Binding CanGoToNextPage}"
+                            ToolTip.Tip="Следующая страница">
+                        <TextBlock Text="&#xE70D;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#475569"/>
+                    </Button>
+                </Grid>
+            </StackPanel>
+
+            <!-- Три компактные кнопки -->
+            <Grid Grid.Row="5" ColumnDefinitions="*,*,*" ColumnSpacing="6">
+                <Button Grid.Column="0" Classes="bigAction" Command="{Binding RecalculateCommand}">
+                    <StackPanel Spacing="2" HorizontalAlignment="Center">
+                        <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="18"
+                                   Foreground="#2563EB" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Пересчитать" FontSize="11" Foreground="#334155" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="1" Classes="bigAction" Command="{Binding OpenParametersCommand}">
+                    <StackPanel Spacing="2" HorizontalAlignment="Center">
+                        <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="18"
+                                   Foreground="#2563EB" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Параметры" FontSize="11" Foreground="#334155" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="2" Classes="bigAction" Command="{Binding PrintCommand}">
+                    <StackPanel Spacing="2" HorizontalAlignment="Center">
+                        <TextBlock Text="&#xE749;" FontFamily="Segoe MDL2 Assets" FontSize="18"
+                                   Foreground="#2563EB" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Печать" FontSize="11" Foreground="#334155" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

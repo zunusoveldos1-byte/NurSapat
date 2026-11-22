@@ -1,0 +1,247 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Help"
+        xmlns:controls="clr-namespace:NurSapat.App.Views.Help.Controls"
+        x:Class="NurSapat.App.Views.Help.SupportWindow"
+        x:DataType="vm:SupportViewModel"
+        Title="Консультация"
+        Width="860"
+        Height="700"
+        MinWidth="720"
+        MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <!-- Базовый стиль карточки (Исправили высоту) -->
+        <Style Selector="Border.svc-support-card">
+            <Setter Property="Background" Value="#F8F9FA"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="BorderBrush" Value="#E9ECEF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Width" Value="350"/>
+            <!-- Используем MinHeight вместо жесткого Height, чтобы контенту хватало места -->
+            <Setter Property="MinHeight" Value="165"/>
+        </Style>
+
+        <!-- Цвета для Иконок (Кругляшки) -->
+        <Style Selector="Border.svc-support-icon.telegram">
+            <Setter Property="Background" Value="#E1F5FE"/>
+        </Style>
+        <Style Selector="Border.svc-support-icon.whatsapp">
+            <Setter Property="Background" Value="#E8F5E9"/>
+        </Style>
+        <Style Selector="Border.svc-support-icon.phone">
+            <Setter Property="Background" Value="#E8F5E9"/>
+        </Style>
+        <Style Selector="Border.svc-support-icon.email">
+            <Setter Property="Background" Value="#F5F5F5"/>
+        </Style>
+
+        <!-- Цвета и эффекты Кнопок (Фирменный стиль + Исправили высоту кнопок) -->
+        <Style Selector="Button.svc-support-action">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Height" Value="38"/> <!-- Четкая высота для идеального центрирования текста -->
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Telegram Button -->
+        <Style Selector="Button.svc-support-action.telegram">
+            <Setter Property="Background" Value="#24A1DE"/>
+        </Style>
+        <Style Selector="Button.svc-support-action.telegram:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#1A84B8"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+
+        <!-- WhatsApp Button -->
+        <Style Selector="Button.svc-support-action.whatsapp">
+            <Setter Property="Background" Value="#25D366"/>
+        </Style>
+        <Style Selector="Button.svc-support-action.whatsapp:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#1DA851"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+
+        <!-- Phone Button -->
+        <Style Selector="Button.svc-support-action.phone">
+            <Setter Property="Background" Value="#4CAF50"/>
+        </Style>
+        <Style Selector="Button.svc-support-action.phone:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#3E8E41"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+
+        <!-- Email Button -->
+        <Style Selector="Button.svc-support-action.email">
+            <Setter Property="Background" Value="#6E7D88"/>
+        </Style>
+        <Style Selector="Button.svc-support-action.email:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#57636C"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+    </Window.Styles>
+
+    <controls:ServiceWindowShell WindowTitle="Консультация">
+        <controls:ServiceWindowShell.BodyContent>
+            <ScrollViewer Classes="svc-scroll">
+                <StackPanel Spacing="20">
+                    <StackPanel HorizontalAlignment="Center" Spacing="10" Margin="0,0,0,8">
+                        <Image Source="/Assets/Logo.png"
+                               Width="72"
+                               Height="72"
+                               HorizontalAlignment="Center"/>
+                        <TextBlock Classes="svc-heading"
+                                   Text="Свяжитесь с технической поддержкой"
+                                   TextAlignment="Center"/>
+                    </StackPanel>
+
+                    <UniformGrid Columns="2" Rows="2" Margin="6">
+                        <!-- Telegram -->
+                        <Border Classes="svc-support-card" Margin="8" Padding="18">
+                            <!-- Заменили строку '*' на фиксированные 12 пикселей отступа -->
+                            <Grid RowDefinitions="Auto, Auto, 12, Auto">
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="15" Margin="0,0,0,10">
+                                    <Border Classes="svc-support-icon telegram" Width="44" Height="44" CornerRadius="22">
+                                        <Image Source="/Assets/Icons/telegram.png"
+                                               RenderOptions.BitmapInterpolationMode="HighQuality"
+                                               Width="24"
+                                               Height="24"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Classes="svc-support-title" Text="Telegram" FontWeight="SemiBold" FontSize="16"/>
+                                        <TextBlock Classes="svc-support-contact" Text="{Binding TelegramHandle}" Opacity="0.6" FontSize="13"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <Separator Grid.Row="1" Background="#10000000" Margin="0,0,0,0"/>
+
+                                <!-- Добавили Height="38" и VerticalContentAlignment="Center", убрали Padding -->
+                                <Button Grid.Row="3"
+                                        Classes="svc-support-action telegram"
+                                        Content="Открыть чат"
+                                        Command="{Binding OpenTelegramCommand}"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Center"
+                                        VerticalContentAlignment="Center"
+                                        Height="38"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- WhatsApp -->
+                        <Border Classes="svc-support-card" Margin="8" Padding="18">
+                            <Grid RowDefinitions="Auto, Auto, 12, Auto">
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="15" Margin="0,0,0,10">
+                                    <Border Classes="svc-support-icon whatsapp" Width="44" Height="44" CornerRadius="22">
+                                        <Image Source="/Assets/Icons/whatsapp.png"
+                                               RenderOptions.BitmapInterpolationMode="HighQuality"
+                                               Width="24"
+                                               Height="24"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Classes="svc-support-title" Text="WhatsApp" FontWeight="SemiBold" FontSize="16"/>
+                                        <TextBlock Classes="svc-support-contact" Text="{Binding WhatsAppDisplay}" Opacity="0.6" FontSize="13"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <Separator Grid.Row="1" Background="#10000000" Margin="0,0,0,0"/>
+
+                                <Button Grid.Row="3"
+                                        Classes="svc-support-action whatsapp"
+                                        Content="Написать в чат"
+                                        Command="{Binding OpenWhatsAppCommand}"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Center"
+                                        VerticalContentAlignment="Center"
+                                        Height="38"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Телефон -->
+                        <Border Classes="svc-support-card" Margin="8" Padding="18">
+                            <Grid RowDefinitions="Auto, Auto, 12, Auto">
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="15" Margin="0,0,0,10">
+                                    <!-- Круглая подложка с легким зеленым оттенком -->
+                                    <Border Classes="svc-support-icon phone"
+                                            Width="44"
+                                            Height="44"
+                                            CornerRadius="22"
+                                            Background="#1027E676">
+                                            <!-- Зеленый эмодзи -->
+                                            <TextBlock Text="📞"
+                                                       Foreground="#27E676"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="20"/>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Classes="svc-support-title" Text="Телефон" FontWeight="SemiBold" FontSize="16"/>
+                                        <TextBlock Classes="svc-support-contact" Text="{Binding PhoneDisplay}" Opacity="0.6" FontSize="13"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <Separator Grid.Row="1" Background="#10000000" Margin="0,0,0,0"/>
+
+                                <Button Grid.Row="3"
+                                        Classes="svc-support-action phone"
+                                        Content="Позвонить"
+                                        Command="{Binding OpenPhoneCommand}"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Center"
+                                        VerticalContentAlignment="Center"
+                                        Height="38"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Email -->
+                        <Border Classes="svc-support-card" Margin="8" Padding="18">
+                            <Grid RowDefinitions="Auto, Auto, 12, Auto">
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="15" Margin="0,0,0,10">
+                                    <Border Classes="svc-support-icon email" Width="44" Height="44" CornerRadius="22">
+                                        <TextBlock Text="✉" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="20"/>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Classes="svc-support-title" Text="Email" FontWeight="SemiBold" FontSize="16"/>
+                                        <TextBlock Classes="svc-support-contact" Text="{Binding EmailAddress}" Opacity="0.6" FontSize="13"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <Separator Grid.Row="1" Background="#10000000" Margin="0,0,0,0"/>
+
+                                <Button Grid.Row="3"
+                                        Classes="svc-support-action email"
+                                        Content="Отправить письмо"
+                                        Command="{Binding OpenEmailCommand}"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Center"
+                                        VerticalContentAlignment="Center"
+                                        Height="38"/>
+                            </Grid>
+                        </Border>
+                    </UniformGrid>
+                </StackPanel>
+            </ScrollViewer>
+        </controls:ServiceWindowShell.BodyContent>
+
+        <controls:ServiceWindowShell.FooterContent>
+            <Button Classes="mat-toolbar"
+                    Content="Закрыть"
+                    Command="{Binding CloseCommand}"
+                    HorizontalAlignment="Right"
+                    MinWidth="100"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"/>
+        </controls:ServiceWindowShell.FooterContent>
+    </controls:ServiceWindowShell>
+</Window>

@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NurSapat.App.Views.RegistrationTermsView"
+             KeyboardNavigation.TabNavigation="Cycle">
+    <Grid Background="#52050A16">
+        <Border Classes="auth-surface" MaxWidth="620" MaxHeight="560"
+                Margin="24" Padding="24" CornerRadius="14"
+                BorderBrush="{DynamicResource AuthBorder}" BorderThickness="1"
+                VerticalAlignment="Center">
+            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
+                <TextBlock Text="Пользовательское соглашение NurSapat"
+                           Classes="auth-text" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                <ScrollViewer x:Name="TermsScroll" Grid.Row="1" Focusable="True"
+                              HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                              AutomationProperties.Name="Текст пользовательского соглашения">
+                    <SelectableTextBlock x:Name="TermsText" TextWrapping="Wrap" Margin="0,0,12,0"
+                                         Foreground="{DynamicResource AuthText}" FontSize="14" LineHeight="21"/>
+                </ScrollViewer>
+                <Button Grid.Row="2" Classes="auth-primary" Content="Закрыть" Width="124"
+                        HorizontalAlignment="Right" Click="OnCloseClick"/>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

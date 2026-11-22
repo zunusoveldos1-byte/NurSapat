@@ -1,0 +1,57 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             x:Class="NurSapat.App.Views.OrderSheet.ProfitabilityCard"
+             x:DataType="vm:OrderSheetViewModel"
+             FontFamily="Inter, Segoe UI"
+             MaxHeight="110">
+
+    <UserControl.Styles>
+        <StyleInclude Source="/Styles/OrderSheetStyles.axaml"/>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="8,6">
+        <StackPanel Spacing="4">
+            <TextBlock Classes="cardTitle" FontSize="14" Text="Стоимость и рентабельность"/>
+
+            <UniformGrid Columns="6" Rows="1">
+                <Border Classes="kpi" Margin="0,0,3,0">
+                    <StackPanel>
+                        <TextBlock Classes="kpiLabel" Text="Общая стоимость"/>
+                        <TextBlock Classes="kpiValue" Text="{Binding KpiGrossCostDisplay}"/>
+                    </StackPanel>
+                </Border>
+                <Border Classes="kpi" Margin="3,0">
+                    <StackPanel>
+                        <TextBlock Classes="kpiLabel" Text="Чистая стоимость"/>
+                        <TextBlock Classes="kpiValue" Text="{Binding KpiNetCostDisplay}"/>
+                    </StackPanel>
+                </Border>
+                <Border Classes="kpi" Margin="3,0">
+                    <StackPanel>
+                        <TextBlock Classes="kpiLabel" Text="Прибыльность"/>
+                        <TextBlock Classes="kpiValue" Text="{Binding KpiProfitabilityDisplay}"/>
+                    </StackPanel>
+                </Border>
+                <Border Classes="kpi" Margin="3,0">
+                    <StackPanel>
+                        <TextBlock Classes="kpiLabel" Text="Рентабельность"/>
+                        <TextBlock Classes="kpiValue" Text="{Binding KpiRentabilityDisplay}"/>
+                    </StackPanel>
+                </Border>
+                <Border Classes="kpi" Margin="3,0">
+                    <StackPanel>
+                        <TextBlock Classes="kpiLabel" Text="Дисконты"/>
+                        <TextBlock Classes="kpiValue" Text="{Binding KpiDiscountDisplay}"/>
+                    </StackPanel>
+                </Border>
+                <Border Classes="kpi" Margin="3,0,0,0">
+                    <StackPanel>
+                        <TextBlock Classes="kpiLabel" Text="Стеклопакетность"/>
+                        <TextBlock Classes="kpiValue" Text="{Binding KpiGlazingDisplay}"/>
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+        </StackPanel>
+    </Border>
+</UserControl>

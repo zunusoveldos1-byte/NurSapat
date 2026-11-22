@@ -1,0 +1,88 @@
+﻿
+Name          Hint                                            GroupIndex OnClick           
+----          ----                                            ---------- -------           
+SpeedButton74 Добавить конструкцию                                       KonAddExecute     
+SpeedButton75 Удалить конструкцию                                        KonDelExecute     
+speedbutton15 Коробка                                         1          speedbtnclick     
+SpeedButton2  Импост вертикальный                             1          speedbtnclick     
+SpeedButton10 Остекление                                      1          speedbtnclick     
+SpeedButton18 Добавочный элемент 1                            1          speedbtnclick     
+SpeedButton21 Очистить всю конструкцию                                   SpeedButton21Click
+SpeedButton19 Добавочный элемент 2                            1          speedbtnclick     
+SpeedButton20 Установочные и дополнительные элементы                     N3Click           
+SpeedButton12 Гофра                                           1          speedbtnclick     
+SpeedButton34 Система штапика                                 1          speedbtnclick     
+SpeedButton11 Гофра                                           1          speedbtnclick     
+SpeedButton8  Створка                                         1          speedbtnclick     
+SpeedButton5  Пропорциональные горизонтальные стойки          1          speedbtnclick     
+SpeedButton4  Импост горизонтальный                           1          speedbtnclick     
+SpeedButton3  Пропорциональные вертикальные стойки            1          speedbtnclick     
+SpeedButton26 Удаление                                                   SpeedButton21Click
+SpeedButton25 Свойства объекта                                           SpeedButton25Click
+SpeedButton33 Выравнивание импостов                                      SpeedButton21Click
+SpeedButton27 Установить координаты вершины                              SpeedButton27Click
+SpeedButton6  Стойка                                          1          speedbtnclick     
+SpeedButton7  Гофра                                           1          speedbtnclick     
+SpeedButton9  Увеличить/уменьшить вид                         1          speedbtnclick     
+SpeedButton13 Переместить вид                                 1          speedbtnclick     
+SpeedButton14 Автомасштаб                                                N202Click         
+SpeedButton16 Сместить импост горизонтально                   1          speedbtnclick     
+SpeedButton17 Сместить импост вертикально                     1          speedbtnclick     
+SpeedButton1  Отменить действие                                          SpeedButton21Click
+SpeedButton22 Притвор                                         1          speedbtnclick     
+SpeedButton24 Фурнитура                                       1          speedbtnclick     
+SpeedButton28 Жалюзи                                          1          speedbtnclick     
+SpeedButton29 Жалюзи                                          1          speedbtnclick     
+SpeedButton30 Слайдинговая створка в'#13#10'одном направлении 1          speedbtnclick     
+SpeedButton31 Слайдинговая створка в'#13#10'двух направлениях 1          speedbtnclick     
+SpeedButton35 Ограничитель открывания                         1          speedbtnclick     
+SpeedButton36 Доводчик                                        1          speedbtnclick     
+SpeedButton37 Шпингалет                                       1          speedbtnclick     
+SpeedButton43 Пересчитать конструкцию                                    SpeedButton21Click
+SpeedButton39 Разбить профиль на двое                                    SpeedButton21Click
+SpeedButton40 Коробка фиктивная                               1          speedbtnclick     
+SpeedButton41 Импост фиктивный вертикальный                   1          speedbtnclick     
+SpeedButton45 Импост фиктивный горизонтальный                 1          speedbtnclick     
+SpeedButton23                                                 1          speedbtnclick     
+SpeedButton51 Шпингалет                                       1          speedbtnclick     
+SpeedButton52 Изменить габаритные размеры                                SpeedButton21Click
+SpeedButton53 Копировать конструкцию в буфер                             SpeedButton21Click
+SpeedButton54 Вставить конструкцию из буфера                             SpeedButton21Click
+SpeedButton56 Добавить в "Типовые конструкции"                           SpeedButton21Click
+SpeedButton57 Вставить из "типовых конструкций"                          SpeedButton21Click
+SpeedButton58 Детали                                                     SpeedButton21Click
+SpeedButton59 Выделение дуговых вершин                        1          speedbtnclick     
+SpeedButton60 Убрать дуговые/радиусные вершины                           SpeedButton21Click
+SpeedButton61 Выделение радиусных вершин                      1          speedbtnclick     
+SpeedButton62 Выделение объекта                               1          speedbtnclick     
+SpeedButton63 Выделение профиля                               1          speedbtnclick     
+SpeedButton64 Выделение вершины                               1          speedbtnclick     
+SpeedButton32 Установка стоек/ригелей в крайние положения     1          speedbtnclick     
+SpeedButton55 Карниз                                          1          speedbtnclick     
+SpeedButton65 Блок управления                                 1          speedbtnclick     
+SpeedButton46 Удалить последний установленный элемент                    SpeedButton21Click
+SpeedButton66 Сегмент                                         1          speedbtnclick     
+SpeedButton67 Задать высоту арки                                         SpeedButton21Click
+SpeedButton68 Разбить арку на сегменты                                   SpeedButton21Click
+SpeedButton69 Выравнивание стеклопакетов                                 SpeedButton21Click
+SpeedButton70 Остекление + автоподбор штапика                 1          speedbtnclick     
+SpeedButton72 Задать радиус                                              SpeedButton21Click
+SpeedButton44 Выделение элемента                              1          speedbtnclick     
+SpeedButton47 Линия разреза стоек                             1          speedbtnclick     
+SpeedButton48 Линия крепления стоек                           1          speedbtnclick     
+SpeedButton49 Коробка фиктивная круглая                       1          speedbtnclick     
+SpeedButton50 Выравнивание глухих просветов                              SpeedButton21Click
+SpeedButton83 Шпросс вертикальный                             1          speedbtnclick     
+SpeedButton84 Шпросс горизонтальный                           1          speedbtnclick     
+SpeedButton73 балконный комплект                              1          ChCheckBox1Click  
+ZkSBut1       Выбрать заказчика                                          ZkSBut1Click      
+ZkSBut2       Отказаться от заказчика                                    ZkSBut1Click      
+SpeedButton38                                                                              
+SpeedButton42                                                            N3Click           
+SpeedButton71 Печать                                                     ShowPrintExecute  
+SpeedButton77 Выбрать дилера                                             ZkSBut1Click      
+SpeedButton78 заблокирован                                               ZkSBut1Click      
+SpeedButton79 Фиксированная // за 1 м.кв. // %                           SpinEdit1Exit     
+SpeedButton76                                                            SpinEdit1Exit     
+
+

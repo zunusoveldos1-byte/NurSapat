@@ -1,0 +1,46 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+        x:Class="NurSapat.App.Views.SupportWindow"
+        x:DataType="vm:LoginViewModel"
+        Title="Контактная информация" Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen" ShowInTaskbar="False"
+        CanResize="False" WindowDecorations="None" TransparencyLevelHint="Transparent"
+        FontFamily="Inter, Segoe UI" Background="Transparent">
+    <Window.Styles>
+        <StyleInclude Source="/Styles/AuthButtons.axaml"/>
+        <StyleInclude Source="/Styles/LoginStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="auth-surface" CornerRadius="12" Padding="22"
+            BorderBrush="{DynamicResource AuthBorder}" BorderThickness="1">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Focusable="False">
+            <StackPanel Spacing="12">
+                <TextBlock Text="Контактная информация" Classes="auth-text"
+                           FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                <TextBlock Text="Служба поддержки NurSapat всегда на связи, поможем быстро и ответим на вопросы по работе ERP/CAD."
+                           Classes="auth-muted" FontSize="14"/>
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
+                    <TextBlock Text="Телефон" Classes="auth-muted" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Classes="auth-link" Command="{Binding OpenPhoneCommand}">
+                        <TextBlock Text="{Binding SupportPhoneDisplay}"/>
+                    </Button>
+                    <TextBlock Grid.Row="1" Text="Email" Classes="auth-muted" VerticalAlignment="Center"/>
+                    <Button Grid.Row="1" Grid.Column="1" Classes="auth-link" Command="{Binding OpenEmailCommand}">
+                        <TextBlock Text="{Binding SupportEmail}" TextWrapping="Wrap"/>
+                    </Button>
+                    <TextBlock Grid.Row="2" Text="Telegram" Classes="auth-muted" VerticalAlignment="Center"/>
+                    <Button Grid.Row="2" Grid.Column="1" Classes="auth-link" Command="{Binding OpenTelegramCommand}">
+                        <TextBlock Text="{Binding SupportTelegramUrl}" TextWrapping="Wrap"/>
+                    </Button>
+                    <TextBlock Grid.Row="3" Text="График" Classes="auth-muted"/>
+                    <TextBlock Grid.Row="3" Grid.Column="1" Text="Пн–пт, 09:00–18:00 (GMT+6)"
+                               Classes="auth-text" TextWrapping="Wrap"/>
+                </Grid>
+                <TextBlock Classes="auth-error" Classes.shown="{Binding HasFormError}" Text="{Binding ErrorMessage}"/>
+                <Button x:Name="CloseContactButton" Classes="auth-primary" Content="Закрыть"
+                        Click="OnCloseClick" IsCancel="True"/>
+            </StackPanel>
+        </ScrollViewer>
+    </Border>
+</Window>

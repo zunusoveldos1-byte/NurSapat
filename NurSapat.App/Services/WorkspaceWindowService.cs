@@ -1,9 +1,12 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Microsoft.Extensions.DependencyInjection;
+using NurSapat.App.Services.Documents;
+using NurSapat.App.Services.Users;
 using NurSapat.App.ViewModels;
 using NurSapat.App.Views;
-using System;
+using NurSapat.Infrastructure.Sync.Abstractions;
+using NurSapat.Infrastructure.Sync.Diagnostics;
 
 namespace NurSapat.App.Services;
 
@@ -13,24 +16,87 @@ public sealed class WorkspaceWindowService(IServiceProvider serviceProvider) : I
 
     public void OpenWorkspace()
     {
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // 1. Создаем рабочее окно и ViewModel
+            return;
+        }
+
+        try
+        {
+            StartupTrace.Info("[LOG] DI: СЃРѕР·РґР°РЅРёРµ MainWorkspaceWindow...");
             var workspaceWindow = _serviceProvider.GetRequiredService<MainWorkspaceWindow>();
+            StartupTrace.Info("[LOG] DI: СЃРѕР·РґР°РЅРёРµ MainWorkspaceViewModel...");
             var workspaceVm = _serviceProvider.GetRequiredService<MainWorkspaceViewModel>();
+            StartupTrace.Info("[LOG] DI: MainWorkspaceViewModel СЃРѕР·РґР°РЅ СѓСЃРїРµС€РЅРѕ.");
+            var documentManager = _serviceProvider.GetRequiredService<IDocumentManager>();
 
-            // 2. Привязываем DataContext
             workspaceWindow.DataContext = workspaceVm;
+            StartupTrace.Info("[LOG] MainWorkspaceViewModel.InitializeDocumentLifecycle...");
+            workspaceVm.InitializeDocumentLifecycle();
 
-            // 3. Сохраняем ссылку на старое окно (логин)
             var oldMainWindow = desktop.MainWindow;
-
-            // 4. Устанавливаем новое главное окно и показываем его
             desktop.MainWindow = workspaceWindow;
             workspaceWindow.Show();
-
-            // 5. Закрываем окно логина
             oldMainWindow?.Close();
+
+            _ = documentManager.TryRecoverAutoSaveAsync();
+            documentManager.StartAutoSave();
+        }
+        catch (Exception ex)
+        {
+            StartupTrace.Error(
+                "[LOG] РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ/РёРЅРёС†РёР°Р»РёР·Р°С†РёРё MainWorkspaceViewModel РёР»Рё MainWorkspaceWindow",
+                ex);
+            throw;
+        }
+    }
+
+    public async Task ReturnToLoginAsync()
+    {
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            return;
+        }
+
+        var documentManager = _serviceProvider.GetRequiredService<IDocumentManager>();
+        documentManager.StopAutoSave();
+
+        _serviceProvider.GetRequiredService<IUserSessionService>().Clear();
+
+        // AuthService clears DPAPI tokens and the SQLCipher key before awaiting
+        // the best-effort remote Supabase sign-out.
+        await SignOutSupabaseSafeAsync();
+
+        var loginWindow = _serviceProvider.GetRequiredService<MainWindow>();
+        var shell = _serviceProvider.GetRequiredService<MainWindowViewModel>();
+        shell.NavigateToLogin();
+        if (shell.CurrentView is LoginViewModel loginVm)
+        {
+            loginVm.LoadSavedCredentials();
+        }
+        loginWindow.DataContext = shell;
+
+        var oldMainWindow = desktop.MainWindow;
+        desktop.MainWindow = loginWindow;
+        loginWindow.Show();
+        oldMainWindow?.Close();
+    }
+
+    private async Task SignOutSupabaseSafeAsync()
+    {
+        try
+        {
+            var auth = _serviceProvider.GetService<ISupabaseAuthService>();
+            if (auth is not null)
+            {
+                await auth.SignOutAsync().ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            StartupTrace.Error(
+                "[LOG] Logout: SignOutSupabaseSafeAsync Р·Р°РІРµСЂС€РёР»СЃСЏ РѕС€РёР±РєРѕР№",
+                ex);
         }
     }
 }

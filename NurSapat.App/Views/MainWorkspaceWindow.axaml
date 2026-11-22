@@ -3,81 +3,250 @@
         xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
         x:Class="NurSapat.App.Views.MainWorkspaceWindow"
         x:DataType="vm:MainWorkspaceViewModel"
-        Title="NurSapat CAD/ERP"
-        Width="1280"
-        Height="820"
-        MinWidth="1024"
-        MinHeight="640"
+        Title="{Binding DocumentTitle}"
+        Icon="/Assets/logo.ico"
+        MinWidth="1180"
+        MinHeight="720"
         WindowState="Maximized"
-        Background="White">
+        WindowStartupLocation="CenterScreen"
+        WindowDecorations="None"
+        Background="#F6F9FD"
+        FontFamily="Inter, Segoe UI">
+    <Window.Styles>
+        <StyleInclude Source="/Styles/WorkspaceStyles.axaml"/>
+        <Style Selector="TextBlock.icon">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="21"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
+        </Style>
+    </Window.Styles>
 
-	<Grid RowDefinitions="Auto,Auto,*">
-		<!-- Меню (теперь белое) -->
-		<Border Background="White" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
-			<Menu Background="White" Foreground="#333333" FontSize="13" Padding="4,2">
-				<MenuItem Header="Чертеж" Padding="6,3">
-					<MenuItem Header="Новый чертеж" Command="{Binding NavigationCommand}" CommandParameter="cad"/>
-					<MenuItem Header="Архив/Сводный журнал" Command="{Binding NavigationCommand}" CommandParameter="archive"/>
-				</MenuItem>
-				<MenuItem Header="Правка" Padding="6,3">
-					<MenuItem Header="Отменить"/>
-					<MenuItem Header="Повторить"/>
-					<MenuItem Header="Вырезать"/>
-					<MenuItem Header="Копировать"/>
-					<MenuItem Header="Вставить"/>
-				</MenuItem>
-				<MenuItem Header="Вид" Padding="6,3">
-					<MenuItem Header="Панели инструментов"/>
-					<MenuItem Header="Сетка"/>
-					<MenuItem Header="Масштаб"/>
-				</MenuItem>
-				<MenuItem Header="Инструменты" Padding="6,3">
-					<MenuItem Header="CAD-редактор" Command="{Binding NavigationCommand}" CommandParameter="cad"/>
-					<MenuItem Header="Лист заказа" Command="{Binding NavigationCommand}" CommandParameter="orders"/>
-				</MenuItem>
-				<MenuItem Header="Шаблоны" Padding="6,3">
-					<MenuItem Header="CAD-шаблоны" Command="{Binding NavigationCommand}" CommandParameter="cad"/>
-				</MenuItem>
-				<MenuItem Header="Настройки" Padding="6,3">
-					<MenuItem Header="Технологические допуски" Command="{Binding NavigationCommand}" CommandParameter="production-options"/>
-					<MenuItem Header="Настройка окружения и папок БД" Command="{Binding NavigationCommand}" CommandParameter="environment"/>
-				</MenuItem>
-				<MenuItem Header="Справочники" Padding="6,3">
-					<MenuItem Header="Клиенты" Command="{Binding NavigationCommand}" CommandParameter="customers"/>
-					<MenuItem Header="Материалы и цены" Command="{Binding NavigationCommand}" CommandParameter="materials"/>
-					<MenuItem Header="Системы профилей" Command="{Binding NavigationCommand}" CommandParameter="profile-systems"/>
-					<MenuItem Header="Фурнитура" Command="{Binding NavigationCommand}" CommandParameter="hardware"/>
-				</MenuItem>
-				<MenuItem Header="Сервис" Padding="6,3">
-					<MenuItem Header="Коммерческий Экспорт/Импорт БД" Command="{Binding NavigationCommand}" CommandParameter="data-transfer"/>
-				</MenuItem>
-				<MenuItem Header="Помощь" Padding="6,3">
-					<MenuItem Header="Руководство пользователя" Command="{Binding NavigationCommand}" CommandParameter="help"/>
-				</MenuItem>
-			</Menu>
-		</Border>
+    <Grid RowDefinitions="32,Auto,Auto,*">
+        <!-- Кастомная верхняя панель -->
+        <Border Grid.Row="0"
+                Background="White"
+                BorderBrush="#E2E8F0"
+                BorderThickness="0,0,0,1"
+                PointerPressed="OnTitleBarPointerPressed">
+            <Grid ColumnDefinitions="*,Auto" Margin="16,0,12,0">
+                <TextBlock Text="{Binding DocumentTitle}"
+                           FontSize="14"
+                           FontWeight="Medium"
+                           Foreground="#0F172A"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"/>
 
-		<!-- Панель вкладок (еще компактнее) -->
-		<Border Grid.Row="1" Background="White" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
-			<Grid ColumnDefinitions="Auto,*">
-				<TabControl SelectedIndex="{Binding SelectedWorkspaceTabIndex}"
-								Background="White"
-								Foreground="#333333"
-								FontSize="11">
-					<TabItem Header="Чертеж" Padding="4,1" Height="12"/>
-					<TabItem Header="Лист заказа" Padding="4,1" Height="12"/>
-					<TabItem Header="Дополнительно" Padding="4,1" Height="12"/>
-				</TabControl>
-				<TextBlock Grid.Column="1"
-						   Text="{Binding CurrentTitle}"
-						   Foreground="#666666"
-						   VerticalAlignment="Center"
-						   Margin="12,0,0,0"
-						   FontSize="11"/>
-			</Grid>
-		</Border>
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="0"
+                            VerticalAlignment="Center">
+                    <Button Classes="workspace-title-btn"
+                            Click="OnMinimizeClick"
+                            ToolTip.Tip="Свернуть">
+                        <Viewbox Width="10" Height="10">
+                            <Canvas Width="10" Height="10">
+                                <Line StartPoint="1,5"
+                                      EndPoint="9,5"
+                                      Stroke="#64748B"
+                                      StrokeThickness="1.2"
+                                      StrokeLineCap="Round"/>
+                            </Canvas>
+                        </Viewbox>
+                    </Button>
+                    <Button x:Name="MaximizeButton"
+                            Classes="workspace-title-btn"
+                            Click="OnMaximizeClick"
+                            ToolTip.Tip="Развернуть">
+                        <Panel>
+                            <Viewbox x:Name="MaximizeIcon" Width="10" Height="10">
+                                <Canvas Width="10" Height="10">
+                                    <Rectangle Canvas.Left="1.5"
+                                               Canvas.Top="1.5"
+                                               Width="7"
+                                               Height="7"
+                                               Stroke="#64748B"
+                                               StrokeThickness="1.2"
+                                               Fill="Transparent"/>
+                                </Canvas>
+                            </Viewbox>
+                            <Viewbox x:Name="RestoreIcon"
+                                     Width="10"
+                                     Height="10"
+                                     IsVisible="False">
+                                <Canvas Width="10" Height="10">
+                                    <Rectangle Canvas.Left="3"
+                                               Canvas.Top="1"
+                                               Width="6"
+                                               Height="6"
+                                               Stroke="#64748B"
+                                               StrokeThickness="1.2"
+                                               Fill="Transparent"/>
+                                    <Rectangle Canvas.Left="1"
+                                               Canvas.Top="3"
+                                               Width="6"
+                                               Height="6"
+                                               Stroke="#64748B"
+                                               StrokeThickness="1.2"
+                                               Fill="Transparent"/>
+                                </Canvas>
+                            </Viewbox>
+                        </Panel>
+                    </Button>
+                    <Button Classes="workspace-title-btn close"
+                            Click="OnCloseClick"
+                            ToolTip.Tip="Закрыть">
+                        <Viewbox Width="10" Height="10">
+                            <Canvas Width="10" Height="10">
+                                <Line StartPoint="1,1"
+                                      EndPoint="9,9"
+                                      Stroke="#64748B"
+                                      StrokeThickness="1.2"
+                                      StrokeLineCap="Round"/>
+                                <Line StartPoint="9,1"
+                                      EndPoint="1,9"
+                                      Stroke="#64748B"
+                                      StrokeThickness="1.2"
+                                      StrokeLineCap="Round"/>
+                            </Canvas>
+                        </Viewbox>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
 
-		<!-- Основной контент (наследует белый фон окна) -->
-		<ContentControl Grid.Row="2" Content="{Binding CurrentContent}"/>
-	</Grid>
+        <!-- Меню -->
+        <Border Grid.Row="1"
+                Background="White"
+                BorderBrush="#E2E8F0"
+                BorderThickness="0,0,0,1">
+            <Menu VerticalAlignment="Center" Margin="12,0,0,0">
+                <MenuItem Header="Файл">
+                    <MenuItem Header="Создать новый заказ" InputGesture="Ctrl+N" Command="{Binding NewOrderCommand}"/>
+                    <MenuItem Header="Открыть заказ" Command="{Binding OpenOrderCommand}"/>
+                    <MenuItem Header="Сохранить заказ" InputGesture="Ctrl+S" Command="{Binding SaveOrderCommand}"/>
+                    <MenuItem Header="Сохранить как копию" Command="{Binding SaveAsCopyOrderCommand}"/>
+                    <MenuItem Header="Закрыть заказ" InputGesture="Ctrl+E" Command="{Binding CloseOrderCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Последние проекты" ItemsSource="{Binding RecentProjects}">
+                        <MenuItem.ItemTemplate>
+                            <DataTemplate>
+                                <MenuItem Header="{Binding DisplayName}" Command="{Binding OpenCommand}"/>
+                            </DataTemplate>
+                        </MenuItem.ItemTemplate>
+                    </MenuItem>
+                    <Separator/>
+                    <MenuItem Header="Печать" Command="{Binding PrintOrderCommand}"/>
+                    <MenuItem Header="Параметры печати" Command="{Binding PrintSettingsCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Выход из аккаунта" InputGesture="Alt+X" Command="{Binding LogoutCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="Заказ">
+                    <MenuItem Header="Параметры заказа" Command="{Binding OpenOrderSettingsCommand}"/>
+                    <MenuItem Header="Проверка перед производством" Command="{Binding ReviewProductionCommand}"/>
+                    <MenuItem Header="Заказчик" Command="{Binding SelectOrderCustomerCommand}"/>
+                    <MenuItem Header="Менеджер" Command="{Binding SelectOrderManagerCommand}"/>
+                    <MenuItem Header="Дилер" Command="{Binding SelectOrderDealerCommand}"/>
+                    <MenuItem Header="Режим цены" Command="{Binding OpenPriceModeCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="{DynamicResource Edit_Menu_Edit}">
+                    <MenuItem Header="{DynamicResource Edit_Menu_CopyDrawing}">
+                        <MenuItem Header="{DynamicResource Edit_Menu_CopyWithoutDimensions}"
+                                  Command="{Binding OpenCopyDrawingWithoutDimensionsCommand}"/>
+                        <MenuItem Header="{DynamicResource Edit_Menu_CopyWithDimensions}"
+                                  Command="{Binding OpenCopyDrawingWithDimensionsCommand}"/>
+                    </MenuItem>
+                    <Separator/>
+                    <MenuItem Header="{DynamicResource Edit_Menu_ChangeConstructionColor}"
+                              Command="{Binding OpenConstructionColorDialogCommand}"/>
+                    <MenuItem Header="{DynamicResource Edit_Menu_ChangeOrderColor}"
+                              Command="{Binding OpenOrderColorDialogCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="Вид">
+                    <MenuItem Header="Таблица затрат" Command="{Binding CostTableCommand}"/>
+                    <MenuItem Header="Сообщения" Command="{Binding MessagesCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="Справочники">
+                    <MenuItem Header="Материалы" Command="{Binding MaterialsCommand}"/>
+                    <MenuItem Header="Заказчики" Command="{Binding CustomersCommand}"/>
+                    <MenuItem Header="Менеджеры" Command="{Binding ManagersCommand}"/>
+                    <MenuItem Header="Заказы" Command="{Binding OrdersCommand}"/>
+                    <MenuItem Header="Склад (материалы)" Command="{Binding StockMaterialsCommand}"/>
+                    <MenuItem Header="Склад (обрезки профиля)" Command="{Binding StockProfileCutsCommand}"/>
+                    <MenuItem Header="Склад (обрезки стекла)" Command="{Binding StockGlassCutsCommand}"/>
+                    <MenuItem Header="Склад (готовая продукция)" Command="{Binding StockFinishedCommand}"/>
+                    <MenuItem Header="Типовые конструкции" Command="{Binding StandardStructuresCommand}"/>
+                    <MenuItem Header="Графические обозначения" Command="{Binding GraphicSymbolsCommand}"/>
+                    <MenuItem Header="Пользователи" Command="{Binding UsersCommand}"/>
+                    <MenuItem Header="Курсы валют" Command="{Binding ExchangeRatesCommand}"/>
+                    <MenuItem Header="Серии" Command="{Binding SeriesCommand}"/>
+                    <MenuItem Header="Производители" Command="{Binding ManufacturersCommand}"/>
+                    <MenuItem Header="Поставщики" Command="{Binding SuppliersCommand}"/>
+                    <MenuItem Header="Шаблоны заказов" Command="{Binding OrderTemplatesCommand}"/>
+                    <MenuItem Header="Наименования конструкций" Command="{Binding StructureNamesCommand}"/>
+                    <MenuItem Header="Цвета" Command="{Binding ColorsCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="Настройки">
+                    <MenuItem Header="Среда" Command="{Binding EnvironmentCommand}"/>
+                    <MenuItem Header="Смена конфигурации" Command="{Binding ChangeConfigurationCommand}"/>
+                    <MenuItem Header="Элементы конструкции" Command="{Binding ConstructionElementsCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="Сервис">
+                    <MenuItem Header="Экспорт списания DBF/JSON" Command="{Binding ExportDbfJsonCommand}"/>
+                    <MenuItem Header="Экспорт списания XLS" Command="{Binding ExportXlsCommand}"/>
+                    <MenuItem Header="Импорт / экспорт данных" Command="{Binding OpenDataTransferCommand}"/>
+                    <MenuItem Header="Журнал операций" Command="{Binding OpenArchiveCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Изменить пароль" Command="{Binding ChangePasswordCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="Утилиты">
+                    <MenuItem Header="Калькулятор" Command="{Binding Utilities.LaunchCalculatorCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Сжать базу" Command="{Binding Utilities.CompressDatabaseCommand}"/>
+                    <MenuItem Header="Резервные копии базы данных" Command="{Binding Utilities.OpenDatabaseBackupsCommand}"/>
+                    <MenuItem Header="Сформировать дилерскую базу" Command="{Binding Utilities.CreateDealerBaseCommand}"/>
+                    <MenuItem Header="Установить пароль на базу" Command="{Binding Utilities.SetDatabasePasswordCommand}"/>
+                    <MenuItem Header="Корпоративный узел" Command="{Binding Utilities.OpenCorporateNodeCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Сформировать производственную базу для обновления" Command="{Binding Utilities.ExportProductionBaseCommand}"/>
+                    <MenuItem Header="Обновить производственную базу" Command="{Binding Utilities.ImportProductionBaseCommand}"/>
+                </MenuItem>
+
+                <MenuItem Header="Справка">
+                    <MenuItem Header="Руководство пользователя" Command="{Binding OpenHelpGuideWindowCommand}"/>
+                    <MenuItem Header="Что нового?" Command="{Binding OpenWhatsNewWindowCommand}"/>
+                    <MenuItem Header="Обновить программу" Command="{Binding OpenUpdateWindowCommand}"/>
+                    <MenuItem Header="Консультация" Command="{Binding OpenSupportWindowCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="О программе" Command="{Binding OpenAboutWindowCommand}"/>
+                </MenuItem>
+            </Menu>
+        </Border>
+
+        <!-- Вкладки -->
+        <Border Grid.Row="2"
+                Background="White"
+                BorderBrush="#E2E8F0"
+                BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
+                <Button Classes="tab" Classes.active="{Binding IsCadSelected}"
+                        Command="{Binding NavigationCommand}" CommandParameter="cad" Content="Чертеж"/>
+                <Button Classes="tab" Classes.active="{Binding IsOrdersSelected}"
+                        Command="{Binding NavigationCommand}" CommandParameter="orders" Content="Лист заказа"/>
+                <Button Classes="tab" Classes.active="{Binding IsAdditionalSelected}"
+                        Command="{Binding NavigationCommand}" CommandParameter="additional" Content="Дополнительно"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Рабочая область -->
+        <Border Grid.Row="3" Background="#F6F9FD">
+            <ContentControl Content="{Binding CurrentContent}"/>
+        </Border>
+    </Grid>
 </Window>

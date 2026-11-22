@@ -28,4 +28,19 @@ public class UserRepository : IUserRepository
             @"INSERT INTO users (id, username, passwordhash, role) 
               VALUES (@Id, @Username, @PasswordHash, @Role)", user);
     }
+
+    public async Task<User?> GetByIdAsync(Guid id)
+    {
+        using var conn = _db.CreateConnection();
+        const string sql = "SELECT * FROM users WHERE id = @id LIMIT 1";
+        return await conn.QuerySingleOrDefaultAsync<User>(sql, new { id });
+    }
+
+    public async Task UpdatePasswordAsync(Guid id, string passwordHash)
+    {
+        using var conn = _db.CreateConnection();
+        await conn.ExecuteAsync(
+            "UPDATE users SET passwordhash = @passwordHash WHERE id = @id",
+            new { id, passwordHash });
+    }
 }

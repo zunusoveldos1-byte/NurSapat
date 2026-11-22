@@ -1,0 +1,59 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Style Selector="StackPanel.auth-field-group">
+        <Setter Property="Spacing" Value="6"/>
+    </Style>
+    <Style Selector="TextBlock.auth-label">
+        <Setter Property="Foreground" Value="{DynamicResource AuthText}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+    </Style>
+    <Style Selector="Border.auth-input">
+        <Setter Property="Background" Value="{DynamicResource AuthField}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AuthBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Height" Value="52"/>
+        <Setter Property="BoxShadow" Value="0 0 8 1 #002563EB"/>
+    </Style>
+    <Style Selector="Border.auth-input:focus-within">
+        <Setter Property="BorderBrush" Value="{DynamicResource AuthFocus}"/>
+        <Setter Property="BoxShadow" Value="0 0 8 1 #262563EB"/>
+    </Style>
+    <Style Selector="Border.auth-input.invalid">
+        <Setter Property="BorderBrush" Value="{DynamicResource AuthDanger}"/>
+    </Style>
+    <Style Selector="TextBox.auth-field">
+        <Setter Property="Foreground" Value="{DynamicResource AuthText}"/>
+        <Setter Property="CaretBrush" Value="{DynamicResource AuthText}"/>
+        <Setter Property="SelectionBrush" Value="{DynamicResource AuthFocus}"/>
+        <Setter Property="SelectionForegroundBrush" Value="White"/>
+        <Setter Property="PlaceholderForeground" Value="{DynamicResource AuthPlaceholder}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="16,0"/>
+        <Setter Property="FontSize" Value="15"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="TextBox.auth-field:pointerover /template/ Border#PART_BorderElement,
+                     TextBox.auth-field:focus-within /template/ Border#PART_BorderElement">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style Selector="TextBox.auth-field /template/ TextBlock#PART_Placeholder">
+        <Setter Property="Opacity" Value="1"/>
+    </Style>
+    <Style Selector="TextBox.auth-field:focus /template/ TextBlock#PART_Placeholder">
+        <Setter Property="Opacity" Value="0.86"/>
+    </Style>
+    <Style Selector="CheckBox.auth-remember">
+        <Setter Property="Foreground" Value="{DynamicResource AuthText}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="Padding" Value="8,0,0,0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="CheckBox.auth-remember:unchecked /template/ Border#NormalRectangle">
+        <Setter Property="BorderBrush" Value="{DynamicResource AuthMuted}"/>
+    </Style>
+</Styles>

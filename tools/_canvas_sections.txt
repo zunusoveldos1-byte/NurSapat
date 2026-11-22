@@ -1,0 +1,305 @@
+
+===== NurSapat.Cad.UI/Controls/CadCanvasControl.cs:1-80 =====
+1|using System.ComponentModel;
+2|using Avalonia;
+3|using Avalonia.Controls;
+4|using Avalonia.Input;
+5|using Avalonia.Media;
+6|using Avalonia.Threading;
+7|using NurSapat.Cad.Core.Geometry;
+8|using NurSapat.Cad.Core.Models;
+9|using NurSapat.Cad.Tools;
+10|using NurSapat.Cad.Tools.Tools;
+11|using NurSapat.Cad.UI.Diagnostics;
+12|using NurSapat.Cad.UI.Models;
+13|using NurSapat.Cad.UI.Rendering;
+14|using NurSapat.Cad.UI.ViewModels;
+15|using NurSapat.Core.Models.Orders;
+16|using System.Linq;
+17|using ToolPointerEvent = NurSapat.Cad.Tools.CadPointerEvent;
+18|
+19|namespace NurSapat.Cad.UI.Controls;
+20|
+21|public sealed class CadCanvasControl : Control
+22|{
+23|    private static bool IsDragCreateShapeTool(WindowToolMode mode) =>
+24|        mode is WindowToolMode.RealFrame
+25|            or WindowToolMode.FakeFrame
+26|            or WindowToolMode.FakeFrameTriangle
+27|            or WindowToolMode.FakeFrameArch
+28|            or WindowToolMode.FakeFrameCircle;
+29|
+30|    private static bool IsImpostSplitTool(WindowToolMode mode) =>
+31|        mode is WindowToolMode.FakeVerticalImpost or WindowToolMode.FakeHorizontalImpost
+32|            or WindowToolMode.RealVerticalImpost or WindowToolMode.RealHorizontalImpost
+33|            or WindowToolMode.DoubleVerticalImpost or WindowToolMode.DoubleHorizontalImpost
+34|            or WindowToolMode.SlantedImpost
+35|            or WindowToolMode.MullionVertical or WindowToolMode.MullionHorizontal;
+36|
+37|    private static readonly IBrush CanvasBrush = Brushes.White;
+38|    private static readonly IBrush CadStrokeBrush = new SolidColorBrush(Color.Parse("#AEAEAE"));
+39|    private static readonly Pen FramePen = new(CadStrokeBrush, 1.5);
+40|    private static readonly Pen MiterPreviewPen = new(new SolidColorBrush(FrameVolumeRenderer.MiterColor), 1.2);
+41|    private static readonly Pen SelectedFramePen = new(CadStrokeBrush, 2);
+42|    private static readonly Pen FramePreviewPen = new(
+43|        new SolidColorBrush(Color.Parse("#0078D7")),
+44|        1.5,
+45|        new DashStyle(new double[] { 4, 3 }, 0));
+46|    private static readonly Pen MinorGridPen = new(new SolidColorBrush(Color.FromArgb(92, 239, 239, 239)), 1);
+47|    private static readonly Pen MajorGridPen = new(new SolidColorBrush(Color.FromArgb(150, 224, 224, 224)), 1);
+48|    private static readonly IBrush AxisBrush = new SolidColorBrush(Color.Parse("#64748B"));
+49|    private static readonly Pen AxisPen = new(AxisBrush, 1.2);
+50|    private static readonly Cursor PanHandCursor = new(StandardCursorType.Hand);
+51|    private static readonly Cursor PanDragCursor = new(StandardCursorType.SizeAll);
+52|    private static readonly Cursor DefaultCanvasCursor = new(StandardCursorType.Arrow);
+53|
+54|    private Point? _lastPanPoint;
+55|    private bool _isPanning;
+56|    private Point _startPoint;
+57|    private bool _isDrawingFrame;
+58|
+59|    public CadEditorViewModel? Editor
+60|    {
+61|        get => GetValue(EditorProperty);
+62|        set => SetValue(EditorProperty, value);
+63|    }
+64|
+65|    public static readonly StyledProperty<CadEditorViewModel?> EditorProperty =
+66|        AvaloniaProperty.Register<CadCanvasControl, CadEditorViewModel?>(nameof(Editor));
+67|
+68|    public static readonly StyledProperty<bool> AutoFitOnResizeProperty =
+69|        AvaloniaProperty.Register<CadCanvasControl, bool>(nameof(AutoFitOnResize), false);
+70|
+71|    public bool AutoFitOnResize
+72|    {
+73|        get => GetValue(AutoFitOnResizeProperty);
+74|        set => SetValue(AutoFitOnResizeProperty, value);
+75|    }
+76|
+77|    public static readonly StyledProperty<bool> IsThumbnailPreviewProperty =
+78|        AvaloniaProperty.Register<CadCanvasControl, bool>(nameof(IsThumbnailPreview), false);
+79|
+80|    public bool IsThumbnailPreview
+
+===== NurSapat.Cad.UI/Controls/CadCanvasControl.cs:300-520 =====
+300|            if (Editor.CurrentToolMode == WindowToolMode.RealFrame)
+301|            {
+302|                var originY = framePreview.Y - framePreview.Height;
+303|                FrameVolumeRenderer.Draw(
+304|                    context,
+305|                    Editor,
+306|                    framePreview.X,
+307|                    originY,
+308|                    framePreview.Width,
+309|                    framePreview.Height,
+310|                    Editor.FrameThickness,
+311|                    dashed: false);
+312|            }
+313|            else
+314|            {
+315|                GeometryElementRenderer.DrawPlacementPreview(context, Editor, Editor.CurrentToolMode, framePreview);
+316|            }
+317|
+318|            if (ShouldDrawDimensions)
+319|            {
+320|                DrawRectangleDimensions(context, framePreview, isTemporary: true);
+321|            }
+322|        }
+323|
+324|        DrawHandlePreview(context);
+325|
+326|        if (Editor.IsTopProfileHovered && Editor.HoveredTopProfile is { } hoveredTopProfile)
+327|        {
+328|            FrameVolumeRenderer.DrawTopProfileHighlight(context, Editor, hoveredTopProfile);
+329|        }
+330|
+331|        if (Editor.ShowArcVertexHandles && Editor.FrameRoot?.TopProfile is { } arcTopProfile)
+332|        {
+333|            FrameVolumeRenderer.DrawArcVertexHandles(context, Editor, arcTopProfile);
+334|        }
+335|
+336|        // RectangleTool: \u043f\u0440\u0438\u0437\u0440\u0430\u043a + \u0440\u0430\u0437\u043c\u0435\u0440\u044b
+337|        if (Editor.ActiveTool is RectangleTool rectTool && rectTool.PreviewRect is CadRect preview)
+338|        {
+339|            DrawRect(context, preview, null, FramePen);
+340|            if (ShouldDrawDimensions)
+341|            {
+342|                DrawRectangleDimensions(context, preview, isTemporary: true);
+343|            }
+344|        }
+345|
+346|        // \u041f\u0440\u0435\u0432\u044c\u044e \u043e\u0434\u0438\u043d\u043e\u0447\u043d\u043e\u0433\u043e \u0438\u043c\u043f\u043e\u0441\u0442\u0430 \u0432\u043d\u0443\u0442\u0440\u0438 \u0441\u0432\u0435\u0442\u043e\u0432\u043e\u0433\u043e \u043f\u0440\u043e\u0451\u043c\u0430
+347|        if (Editor.ActiveTool is MullionPlacementTool mullionTool)
+348|        {
+349|            foreach (var rect in mullionTool.PreviewRects)
+350|            {
+351|                DrawRect(context, rect, null, FramePen);
+352|            }
+353|        }
+354|
+355|        if (Editor.ActiveTool is DesignRectPlacementTool designRectTool && designRectTool.PreviewRect is CadRect designPreview)
+356|        {
+357|            DrawRect(context, designPreview, null, FramePen);
+358|        }
+359|
+360|        if (Editor.ActiveTool is SelectionTool selectionTool)
+361|        {
+362|            if (selectionTool.SelectionRect is CadRect selectionRect)
+363|            {
+364|                var fill = new SolidColorBrush(Color.FromArgb(48, 255, 4, 4));
+365|                DrawRect(context, selectionRect, fill, SelectedFramePen);
+366|            }
+367|        }
+368|
+369|        if (!IsThumbnailPreview)
+370|        {
+371|            DrawAxisIndicator(context);
+372|        }
+373|    }
+374|
+375|    private bool _autoFitOnResizeScheduled;
+376|
+377|    private void ScheduleAutoFitOnResize()
+378|    {
+379|        if (!AutoFitOnResize || Editor is null)
+380|        {
+381|            return;
+382|        }
+383|
+384|        if (_autoFitOnResizeScheduled)
+385|        {
+386|            return;
+387|        }
+388|
+389|        _autoFitOnResizeScheduled = true;
+390|        Dispatcher.UIThread.Post(
+391|            () =>
+392|            {
+393|                _autoFitOnResizeScheduled = false;
+394|                TryAutoFitOnResize();
+395|            },
+396|            DispatcherPriority.Background);
+397|    }
+398|
+399|    private void TryAutoFitOnResize()
+400|    {
+401|        if (!AutoFitOnResize || Editor is null || Bounds.Width <= 0 || Bounds.Height <= 0)
+402|        {
+403|            return;
+404|        }
+405|
+406|        var bounds = Bounds.Size;
+407|        if (Math.Abs(bounds.Width - _lastAutoFitBounds.Width) < 0.5 &&
+408|            Math.Abs(bounds.Height - _lastAutoFitBounds.Height) < 0.5)
+409|        {
+410|            return;
+411|        }
+412|
+413|        _lastAutoFitBounds = bounds;
+414|        if (IsThumbnailPreview)
+415|        {
+416|            var thumbMargin = Math.Max(12, Math.Min(Bounds.Width, Bounds.Height) * 0.18);
+417|            Editor.FitThumbnailPreview(thumbMargin, boundsPaddingRatio: 0.36);
+418|        }
+419|        else if (Editor.IsViewOnlyMode)
+420|        {
+421|            Editor.FitPreviewViewport(0.85);
+422|        }
+423|        else if (Editor.HasConstructionGeometry())
+424|        {
+425|            Editor.FitDocumentToViewport();
+426|        }
+427|        else
+428|        {
+429|            Editor.CenterViewportOnOrigin();
+430|        }
+431|    }
+432|
+433|    private void DrawHandlePreview(DrawingContext context)
+434|    {
+435|        if (Editor?.HandlePreviewSashId is not Guid sashId)
+436|        {
+437|            return;
+438|        }
+439|
+440|        var sash = Editor.CanvasElements.FirstOrDefault(e => e.Id == sashId && e.Kind == GeometryElementKind.Sash);
+441|        if (sash is null)
+442|        {
+443|            return;
+444|        }
+445|
+446|        var hingeSide = sash.HingeSide ?? SashHingeSide.Left;
+447|        SashElementRenderer.DrawHandleMarker(context, Editor, sash, hingeSide, preview: true);
+448|    }
+449|
+450|    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+451|    {
+452|        if (Editor == null)
+453|        {
+454|            base.OnPointerWheelChanged(e);
+455|            return;
+456|        }
+457|
+458|        if (Editor.IsViewOnlyMode)
+459|        {
+460|            e.Handled = true;
+461|            return;
+462|        }
+463|
+464|        if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+465|        {
+466|            var p = e.GetPosition(this);
+467|            Editor.Viewport.ZoomAt(new ScreenPoint(p.X, p.Y), e.Delta.Y > 0 ? 1.12 : 1 / 1.12);
+468|            Editor.UpdateCursor(Editor.Viewport.ScreenToWorld(new ScreenPoint(p.X, p.Y)));
+469|            Editor.RequestSceneRefresh();
+470|            e.Handled = true;
+471|            InvalidateVisual();
+472|            return;
+473|        }
+474|
+475|        base.OnPointerWheelChanged(e);
+476|    }
+477|
+478|    private void DrawRectangleDimensions(DrawingContext context, CadRect rect, bool isTemporary)
+479|    {
+480|        if (Editor?.Viewport == null || rect.Width <= 0 || rect.Height <= 0)
+481|        {
+482|            return;
+483|        }
+484|
+485|        try
+486|        {
+487|            var topLeft = Editor.Viewport.WorldToScreen(new CadPoint(rect.X, rect.Y));
+488|            var topRight = Editor.Viewport.WorldToScreen(new CadPoint(rect.X + rect.Width, rect.Y));
+489|            var bottomLeft = Editor.Viewport.WorldToScreen(new CadPoint(rect.X, rect.Y - rect.Height));
+490|            var bottomRight = Editor.Viewport.WorldToScreen(new CadPoint(rect.X + rect.Width, rect.Y - rect.Height));
+491|
+492|            var left = Math.Min(Math.Min(topLeft.X, topRight.X), Math.Min(bottomLeft.X, bottomRight.X));
+493|            var right = Math.Max(Math.Max(topLeft.X, topRight.X), Math.Max(bottomLeft.X, bottomRight.X));
+494|            var top = Math.Min(Math.Min(topLeft.Y, topRight.Y), Math.Min(bottomLeft.Y, bottomRight.Y));
+495|            var bottom = Math.Max(Math.Max(topLeft.Y, topRight.Y), Math.Max(bottomLeft.Y, bottomRight.Y));
+496|
+497|            GeometryElementRenderer.DrawScreenDimensions(
+498|                context,
+499|                new Rect(left, top, right - left, bottom - top),
+500|                $"{rect.Width:F1}",
+501|                $"{rect.Height:F1}",
+502|                Editor,
+503|                registerHits: !isTemporary && ShouldDrawDimensions);
+504|        }
+505|        catch (Exception ex)
+506|        {
+507|            CadDiagnostics.LogWarning("DrawRectangleDimensions failed", ex);
+508|        }
+509|    }
+510|
+511|    private void DrawAxisIndicator(DrawingContext context)
+512|    {
+513|        const double x0 = 14;
+514|        var y0 = Math.Max(14, Bounds.Height - 14);
+515|        const double len = 22;
+516|
+517|        context.DrawLine(AxisPen, new Point(x0, y0), new Point(x0 + len, y0));
+518|        context.DrawLine(AxisPen, new Point(x0 + len - 4, y0 - 3), new Point(x0 + len, y0));
+519|        context.DrawLine(AxisPen, new Point(x0 + len - 4, y0 + 3), new Point(x0 + len, y0));
+520|

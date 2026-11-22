@@ -3,75 +3,96 @@
              xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
              x:Class="NurSapat.App.Views.LoginView"
              x:DataType="vm:LoginViewModel">
-	<Grid ColumnDefinitions="*,*" Background="{StaticResource BackgroundBrush}">
-		<Border Grid.Column="0">
-			<Border.Background>
-				<LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-					<GradientStop Color="#FF2563EB" Offset="0"/>
-					<GradientStop Color="#FF0EA5E9" Offset="0.55"/>
-					<GradientStop Color="#FF14B8A6" Offset="1"/>
-				</LinearGradientBrush>
-			</Border.Background>
-			<Grid Margin="34">
-				<StackPanel VerticalAlignment="Center" Spacing="18">
-					<Border Width="108" Height="108" CornerRadius="16"
-                            BorderBrush="#88FFFFFF" BorderThickness="2"
-                            HorizontalAlignment="Left">
-						<Grid Margin="18" RowDefinitions="*,*,*" ColumnDefinitions="*,*">
-							<Border Grid.RowSpan="3" Grid.ColumnSpan="2" BorderBrush="White" BorderThickness="3"/>
-							<Border Grid.Column="0" Grid.RowSpan="3" BorderBrush="White" BorderThickness="0,0,1.5,0"/>
-							<Border Grid.Row="0" Grid.ColumnSpan="2" BorderBrush="White" BorderThickness="0,0,0,1.5"/>
-							<Border Grid.Row="1" Grid.ColumnSpan="2" BorderBrush="White" BorderThickness="0,0,0,1.5"/>
-						</Grid>
-					</Border>
-					<TextBlock Text="NurSapat"
-                               Foreground="White"
-                               FontSize="34"
-                               FontWeight="SemiBold"/>
-					<TextBlock Text="ERP/CAD для оконного производства"
-                               Foreground="#E0F2FE"
-                               FontSize="16"
-                               TextWrapping="Wrap"/>
-					<TextBlock Text="Расчеты, заказы, материалы и производственный архив в одном рабочем пространстве."
-                               Foreground="#CCFFFFFF"
-                               FontSize="13"
-                               LineHeight="20"
-                               TextWrapping="Wrap"/>
-				</StackPanel>
-			</Grid>
-		</Border>
+    <ScrollViewer Focusable="False"
+                  HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                  VerticalAlignment="Center">
+        <StackPanel Classes="auth-form">
+            <StackPanel Classes="auth-heading">
+                <TextBlock Text="С возвращением" Classes="auth-title auth-text"/>
+                <TextBlock Text="Войдите в NurSapat, чтобы продолжить" Classes="auth-muted" FontSize="17"/>
+            </StackPanel>
 
-		<Border Grid.Column="1" Background="{StaticResource BackgroundBrush}">
-			<StackPanel Margin="46,44" Spacing="16" VerticalAlignment="Center">
-				<TextBlock Text="Вход в систему"
-                           FontSize="26"
-                           FontWeight="SemiBold"
-                           Foreground="{StaticResource TextBrush}"/>
-				<TextBlock Text="Введите учетные данные оператора."
-                           Foreground="{StaticResource SecondaryTextBrush}"
-                           FontSize="13"/>
-				<TextBlock Text="{Binding ErrorMessage}"
-                           Foreground="{StaticResource ErrorBrush}"
-                           TextWrapping="Wrap"
-                           IsVisible="{Binding !!ErrorMessage}"/>
-				<StackPanel Spacing="6">
-					<TextBlock Text="Логин" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold"/>
-					<TextBox Text="{Binding Username}" PlaceholderText="123"/>
-				</StackPanel>
-				<StackPanel Spacing="6">
-					<TextBlock Text="Пароль" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold"/>
-					<TextBox Text="{Binding Password}" PasswordChar="*" PlaceholderText="123"/>
-				</StackPanel>
-				<Button Content="Войти"
-                        Classes="Primary"
-                        Command="{Binding LoginCommand}"
-                        IsEnabled="{Binding !IsBusy}"
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"/>
-				<ProgressBar IsIndeterminate="True"
-                             IsVisible="{Binding IsBusy}"
-                             Height="4"/>
-			</StackPanel>
-		</Border>
-	</Grid>
+            <StackPanel Classes="auth-field-group" Margin="0,0,0,7">
+                <TextBlock x:Name="UsernameLabel" Text="Логин" Classes="auth-label"/>
+                <Border Classes="auth-input" Classes.invalid="{Binding HasUsernameError}">
+                    <TextBox x:Name="UsernameField" Classes="auth-field" Text="{Binding Username}"
+                             PlaceholderText="Введите логин" IsReadOnly="{Binding IsBusy}"
+                             AutomationProperties.LabeledBy="{Binding #UsernameLabel}"/>
+                </Border>
+                <TextBlock Classes="auth-error" Classes.shown="{Binding HasUsernameError}"
+                           Text="{Binding UsernameError}"/>
+            </StackPanel>
+
+            <StackPanel Classes="auth-field-group">
+                <TextBlock x:Name="PasswordLabel" Text="Пароль" Classes="auth-label"/>
+                <Border Classes="auth-input" Classes.invalid="{Binding HasPasswordError}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBox x:Name="PasswordField" Classes="auth-field" Text="{Binding Password}"
+                                 PasswordChar="*" RevealPassword="{Binding IsPasswordVisible}"
+                                 PlaceholderText="Введите пароль" IsReadOnly="{Binding IsBusy}"
+                                 AutomationProperties.LabeledBy="{Binding #PasswordLabel}"/>
+                        <Button x:Name="PasswordToggle" Grid.Column="1" Classes="auth-icon password-toggle"
+                                Classes.revealed="{Binding IsPasswordVisible}"
+                                Command="{Binding TogglePasswordVisibilityCommand}"
+                                ToolTip.Tip="{Binding PasswordVisibilityLabel}"
+                                AutomationProperties.Name="{Binding PasswordVisibilityLabel}"
+                                VerticalAlignment="Center" Margin="0,0,7,0">
+                            <Panel>
+                                <PathIcon Classes="password-glyph eye" Data="{StaticResource eye_regular}"/>
+                                <PathIcon Classes="password-glyph eye-off" Data="{StaticResource eye_off_regular}"/>
+                            </Panel>
+                        </Button>
+                    </Grid>
+                </Border>
+                <TextBlock Classes="auth-error" Classes.shown="{Binding HasPasswordError}"
+                           Text="{Binding PasswordError}"/>
+            </StackPanel>
+
+            <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,3">
+                <CheckBox Classes="auth-remember" Content="Запомнить меня"
+                          IsChecked="{Binding RememberMe}" IsEnabled="{Binding !IsBusy}"/>
+                <Button Grid.Column="1" Classes="auth-link" Command="{Binding HelpCommand}">
+                    <TextBlock Text="Забыли пароль?"/>
+                </Button>
+            </Grid>
+
+            <TextBlock Classes="auth-error" Classes.shown="{Binding HasFormError}" Text="{Binding ErrorMessage}"/>
+            <Button Classes="auth-primary" Classes.error="{Binding HasError}" Classes.loading="{Binding IsBusy}"
+                    Content="{Binding LoginButtonLabel}" Command="{Binding LoginCommand}" IsDefault="True"/>
+
+            <StackPanel Spacing="12" Margin="0,5">
+                <WrapPanel HorizontalAlignment="Center">
+                    <TextBlock Text="У вас нет аккаунта?" Classes="auth-muted" FontSize="14"
+                               VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <Button Theme="{StaticResource AuthTextLink}" Classes="AuthTextLink"
+                            Command="{Binding GoToRegisterCommand}"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="Зарегистрироваться"/>
+                    </Button>
+                </WrapPanel>
+                <Button x:Name="ContactButton" Theme="{StaticResource AuthTextLink}" Classes="AuthTextLink muted"
+                        Click="OnContactClick"
+                        HorizontalAlignment="Center">
+                    <TextBlock Text="Связаться с поддержкой"/>
+                </Button>
+            </StackPanel>
+
+            <Border Classes="auth-divider"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,-6,0,0">
+                <Ellipse Classes="auth-status" Classes.online="{Binding HasGoodConnection}"
+                         Classes.slow="{Binding HasSlowConnection}" Classes.offline="{Binding IsServerOffline}"
+                         VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock Text="{Binding NetworkStatusDisplay}" Classes="auth-muted"
+                           FontSize="14" VerticalAlignment="Center" MaxWidth="200"/>
+                <!-- Include only the 19 px glyph in the visual centering of the status. -->
+                <Button Classes="auth-icon" Classes.refreshing="{Binding IsRefreshingNetwork}"
+                        Width="35" Margin="6,0,-8,0"
+                        Command="{Binding RefreshNetworkStatusCommand}"
+                        ToolTip.Tip="Проверить подключение к серверу"
+                        AutomationProperties.Name="Проверить подключение к серверу">
+                    <PathIcon Data="{StaticResource arrow_sync_regular}"/>
+                </Button>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>

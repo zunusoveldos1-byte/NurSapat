@@ -1,0 +1,84 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Help"
+        xmlns:controls="clr-namespace:NurSapat.App.Views.Help.Controls"
+        x:Class="NurSapat.App.Views.Help.WhatsNewWindow"
+        x:DataType="vm:WhatsNewViewModel"
+        Title="Что нового?"
+        Width="720"
+        Height="640"
+        MinWidth="560"
+        MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <controls:ServiceWindowShell WindowTitle="Что нового?">
+        <controls:ServiceWindowShell.BodyContent>
+            <ScrollViewer Classes="svc-scroll">
+                <StackPanel Spacing="4">
+                    <TextBlock Classes="svc-heading" Text="История изменений" Margin="0,0,0,4"/>
+                    <TextBlock Classes="svc-lead"
+                               Text="Релизы из GitHub-репозитория NurSapat. Данные кэшируются локально для офлайн-доступа."
+                               Margin="0,0,0,12"/>
+
+                    <TextBlock Text="{Binding StatusMessage}"
+                               TextWrapping="Wrap"
+                               Foreground="#64748B"
+                               FontSize="13"
+                               Margin="0,0,0,12"
+                               IsVisible="{Binding !!StatusMessage}"/>
+
+                    <TextBlock Text="Загрузка…"
+                               Foreground="#94A3B8"
+                               IsVisible="{Binding IsBusy}"/>
+
+                    <ItemsControl ItemsSource="{Binding ChangelogEntries}"
+                                  IsVisible="{Binding !IsEmpty}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ChangelogEntryViewModel">
+                                <Border Classes="svc-release-card">
+                                    <StackPanel Spacing="8">
+                                        <StackPanel>
+                                            <TextBlock Classes="svc-release-version" Text="{Binding VersionLabel}"/>
+                                            <TextBlock Classes="svc-release-date" Text="{Binding ReleaseDate}"/>
+                                        </StackPanel>
+                                        <ItemsControl ItemsSource="{Binding Changes}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,2">
+                                                        <TextBlock Text="•"
+                                                                   Foreground="#2563EB"
+                                                                   FontWeight="SemiBold"
+                                                                   VerticalAlignment="Top"/>
+                                                        <TextBlock Classes="svc-release-item"
+                                                                   Text="{Binding}"
+                                                                   VerticalAlignment="Top"
+                                                                   TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+        </controls:ServiceWindowShell.BodyContent>
+
+        <controls:ServiceWindowShell.FooterContent>
+            <Button Classes="mat-toolbar"
+                    Content="Закрыть"
+                    Command="{Binding CloseCommand}"
+                    HorizontalAlignment="Right"
+                    MinWidth="100"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"/>
+        </controls:ServiceWindowShell.FooterContent>
+    </controls:ServiceWindowShell>
+</Window>

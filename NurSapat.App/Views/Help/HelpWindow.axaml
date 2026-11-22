@@ -1,0 +1,93 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Help"
+        xmlns:controls="clr-namespace:NurSapat.App.Views.Help.Controls"
+        x:Class="NurSapat.App.Views.Help.HelpWindow"
+        x:DataType="vm:HelpGuideViewModel"
+        Title="Руководство пользователя"
+        Width="920"
+        Height="720"
+        MinWidth="720"
+        MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <controls:ServiceWindowShell WindowTitle="Руководство пользователя">
+        <controls:ServiceWindowShell.BodyContent>
+            <Grid RowDefinitions="*,Auto">
+                <Panel Grid.Row="0">
+                    <ScrollViewer Classes="svc-scroll"
+                                  IsVisible="{Binding HasRenderedPages}">
+                        <ItemsControl ItemsSource="{Binding GuidePages}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Classes="svc-pdf-page">
+                                        <Image Source="{Binding}"
+                                               Stretch="Uniform"
+                                               HorizontalAlignment="Center"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <Border Classes="svc-info-panel"
+                            VerticalAlignment="Center"
+                            Margin="24"
+                            IsVisible="{Binding ShowNotFoundPanel}">
+                        <StackPanel Spacing="8" HorizontalAlignment="Center">
+                            <TextBlock Classes="svc-info-icon" Text="📄"/>
+                            <TextBlock Classes="svc-info-title" Text="Руководство пользователя не найдено."/>
+                            <TextBlock Classes="svc-body"
+                                       TextAlignment="Center"
+                                       Text="Поместите файл UserGuide.pdf в папку Assets/Help приложения."/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="svc-info-panel"
+                            VerticalAlignment="Center"
+                            Margin="24"
+                            IsVisible="{Binding ShowFallbackPanel}">
+                        <StackPanel Spacing="8" HorizontalAlignment="Center">
+                            <TextBlock Classes="svc-info-icon" Text="📄"/>
+                            <TextBlock Classes="svc-info-title" Text="PDF найден"/>
+                            <TextBlock Classes="svc-body"
+                                       Text="{Binding StatusMessage}"
+                                       TextAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </Panel>
+
+                <TextBlock Grid.Row="1"
+                           Classes="svc-caption"
+                           Margin="0,8,0,0"
+                           Text="{Binding StatusMessage}"
+                           IsVisible="{Binding IsGuideAvailable}"/>
+            </Grid>
+        </controls:ServiceWindowShell.BodyContent>
+
+        <controls:ServiceWindowShell.FooterContent>
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                <Button Grid.Column="0"
+                        Classes="mat-primary"
+                        Content="Открыть PDF"
+                        Command="{Binding OpenPdfCommand}"
+                        MinWidth="120"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+                <Button Grid.Column="1"
+                        Classes="mat-toolbar"
+                        Content="Закрыть"
+                        Command="{Binding CloseCommand}"
+                        Margin="8,0,0,0"
+                        MinWidth="100"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+            </Grid>
+        </controls:ServiceWindowShell.FooterContent>
+    </controls:ServiceWindowShell>
+</Window>

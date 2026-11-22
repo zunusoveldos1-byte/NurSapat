@@ -1,17 +1,12 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using NurSapat.Core.Interfaces;
-using NurSapat.Core.Models;
-using System;
-using System.Threading.Tasks;
+using NurSapat.App.Models.Users;
+using NurSapat.App.Services.Users;
 
 namespace NurSapat.App.ViewModels;
 
-public partial class RegistrationViewModel : ObservableObject
+public partial class RegistrationViewModel(IUsersStore usersStore, MainWindowViewModel mainViewModel) : ObservableObject
 {
-    private readonly IUserRepository _userRepo;
-    private readonly MainWindowViewModel _mainVM;
-
     [ObservableProperty]
     private string _username = "";
 
@@ -22,45 +17,95 @@ public partial class RegistrationViewModel : ObservableObject
     private string _confirmPassword = "";
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RegisterCommand))]
+    private bool _hasAcceptedTerms;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasError), nameof(HasFormError))]
     private string _errorMessage = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasError), nameof(HasUsernameError))]
+    private string _usernameError = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasError), nameof(HasPasswordError))]
+    private string _passwordError = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasError), nameof(HasConfirmPasswordError))]
+    private string _confirmPasswordError = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RegisterButtonLabel))]
+    [NotifyCanExecuteChangedFor(nameof(BackToLoginCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RegisterCommand))]
     private bool _isBusy;
 
-    public RegistrationViewModel(IUserRepository userRepo, MainWindowViewModel mainVM)
+    public string RegisterButtonLabel => IsBusy ? "Выполняется регистрация…" : "Зарегистрироваться";
+    public bool HasFormError => !string.IsNullOrWhiteSpace(ErrorMessage);
+    public bool HasUsernameError => !string.IsNullOrWhiteSpace(UsernameError);
+    public bool HasPasswordError => !string.IsNullOrWhiteSpace(PasswordError);
+    public bool HasConfirmPasswordError => !string.IsNullOrWhiteSpace(ConfirmPasswordError);
+    public bool HasError => HasFormError || HasUsernameError || HasPasswordError || HasConfirmPasswordError;
+
+    partial void OnUsernameChanged(string value) => UsernameError = "";
+
+    partial void OnPasswordChanged(string value)
     {
-        _userRepo = userRepo;
-        _mainVM = mainVM;
+        PasswordError = "";
+        ConfirmPasswordError = "";
     }
 
-    [RelayCommand]
+    partial void OnConfirmPasswordChanged(string value) => ConfirmPasswordError = "";
+
+    private bool CanRegister() => HasAcceptedTerms && !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanRegister))]
     private async Task RegisterAsync()
     {
-        ErrorMessage = "";
-        if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Password))
+        if (!CanRegister())
         {
-            ErrorMessage = "Заполните все поля";
             return;
         }
-        if (Password != ConfirmPassword)
+
+        ErrorMessage = "";
+        UsernameError = string.IsNullOrWhiteSpace(Username) ? "Введите логин" : "";
+        PasswordError = string.IsNullOrWhiteSpace(Password) ? "Введите пароль" : "";
+        ConfirmPasswordError = string.IsNullOrWhiteSpace(ConfirmPassword)
+            ? "Повторите пароль"
+            : Password != ConfirmPassword ? "Пароли не совпадают" : "";
+        if (HasUsernameError || HasPasswordError || HasConfirmPasswordError)
         {
-            ErrorMessage = "Пароли не совпадают";
             return;
         }
 
         IsBusy = true;
+        var username = Username.Trim();
+        var password = Password;
         try
         {
-            var existing = await _userRepo.GetByUsernameAsync(Username);
-            if (existing != null)
+            // The shared users store and BCrypt hashing are synchronous.
+            var created = await Task.Run(() =>
             {
-                ErrorMessage = "Пользователь с таким именем уже существует";
+                if (usersStore.GetByUsername(username) is not null)
+                {
+                    return false;
+                }
+
+                usersStore.Add(UserAccountItem.Create(username, password, 2, UserPermissions.CreateOperator()));
+                return true;
+            });
+            if (!created)
+            {
+                UsernameError = "Пользователь с таким именем уже существует";
                 return;
             }
 
-            var newUser = User.Create(Username, Password);
-            await _userRepo.CreateAsync(newUser);
-            _mainVM.NavigateToLogin();
+            if (ReferenceEquals(mainViewModel.CurrentView, this))
+            {
+                mainViewModel.NavigateToLogin();
+            }
         }
         catch (Exception ex)
         {
@@ -72,6 +117,8 @@ public partial class RegistrationViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
-    private void BackToLogin() => _mainVM.NavigateToLogin();
+    private bool CanBackToLogin() => !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanBackToLogin))]
+    private void BackToLogin() => mainViewModel.NavigateToLogin();
 }

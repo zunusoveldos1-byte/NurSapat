@@ -1,0 +1,965 @@
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:2268-2320 =====
+2268|        var removed = RecordPlacement(
+2269|            deletable.Count == 1 ? "\u0420\xad\u0420\xbb\u0420\xb5\u0420\u0458\u0420\xb5\u0420\u0405\u0421\u201a \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0421\u2018\u0420\u0405" : "\u0420\xad\u0420\xbb\u0420\xb5\u0420\u0458\u0420\xb5\u0420\u0405\u0421\u201a\u0421\u2039 \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0420\xb5\u0420\u0405\u0421\u2039",
+2270|            () =>
+2271|            {
+2272|                foreach (var item in deletable)
+2273|                {
+2274|                    if (!TryDeleteConstructionItem(item))
+2275|                    {
+2276|                        return false;
+2277|                    }
+2278|                }
+2279|
+2280|                return true;
+2281|            });
+2282|
+2283|        if (!removed)
+2284|        {
+2285|            StatusText = "\u0420\u045c\u0420\xb5 \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0420\u0455\u0421\u0403\u0421\u040a \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0420\u0451\u0421\u201a\u0421\u040a \u0420\u0406\u0421\u2039\u0420\xb1\u0421\u0402\u0420\xb0\u0420\u0405\u0420\u0405\u0421\u2039\u0420\xb5 \u0421\u040c\u0420\xbb\u0420\xb5\u0420\u0458\u0420\xb5\u0420\u0405\u0421\u201a\u0421\u2039";
+2286|            return false;
+2287|        }
+2288|
+2289|        ClearConstructionSelection();
+2290|        SyncFillingsToFrameLayout();
+2291|        RefreshAfterPlacementHistoryChange();
+2292|        RequestSceneRefresh();
+2293|        StatusText = deletable.Count == 1 ? "\u0420\xad\u0420\xbb\u0420\xb5\u0420\u0458\u0420\xb5\u0420\u0405\u0421\u201a \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0421\u2018\u0420\u0405" : $"\u0420\u0408\u0420\u0491\u0420\xb0\u0420\xbb\u0420\xb5\u0420\u0405\u0420\u0455 \u0421\u040c\u0420\xbb\u0420\xb5\u0420\u0458\u0420\xb5\u0420\u0405\u0421\u201a\u0420\u0455\u0420\u0406: {deletable.Count}";
+2294|        return true;
+2295|    }
+2296|
+2297|    private static bool CanDeleteConstructionItem(CadSelectableItem item) =>
+2298|        item.Kind is CadSelectableKind.Sash
+2299|            or CadSelectableKind.Glazing
+2300|            or CadSelectableKind.Bead
+2301|            or CadSelectableKind.Impost
+2302|            or CadSelectableKind.ExtremeImpost
+2303|            or CadSelectableKind.SashHandle
+2304|            or CadSelectableKind.SashHinge;
+2305|
+2306|    private bool TryDeleteConstructionItem(CadSelectableItem item)
+2307|    {
+2308|        switch (item.Kind)
+2309|        {
+2310|            case CadSelectableKind.Sash when item.ElementId is Guid sashId:
+2311|                OrphanHostedGlazingForSash(sashId);
+2312|                return RemoveCanvasElementById(sashId);
+2313|            case CadSelectableKind.Glazing or CadSelectableKind.Bead when item.ElementId is Guid elementId:
+2314|                RemoveSpokesForGlazing(elementId);
+2315|                return RemoveCanvasElementById(elementId);
+2316|            case CadSelectableKind.Impost when item.ImpostNode is { IsUniformSplit: false } impostNode:
+2317|                return impostNode.TryRemoveImpostSplit();
+2318|            case CadSelectableKind.ExtremeImpost
+2319|                when item.ImpostNode is FrameNode leaf && item.ElementId is Guid slotId:
+2320|                if (!leaf.TryRemoveExtremeImpost(slotId))
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:2405-2475 =====
+2405|            element.IsSelected = IsGeometryElementSelected(element.Id);
+2406|        }
+2407|    }
+2408|
+2409|    private bool TryDeleteSelectionFromTool()
+2410|    {
+2411|        if (_constructionSelection.Count > 0 && HasCommittedConstruction)
+2412|        {
+2413|            return TryDeleteConstructionSelection();
+2414|        }
+2415|
+2416|        if (SelectedRectangle != null)
+2417|        {
+2418|            var removed = SelectedRectangle.Value;
+2419|            RecordPlacement("\u0420\u045b\u0420\xb1\u0421\u0409\u0420\xb5\u0420\u0454\u0421\u201a \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0421\u2018\u0420\u0405", () =>
+2420|            {
+2421|                Document.RemoveRectangle(removed);
+2422|                SelectedRectangle = null;
+2423|            });
+2424|            RefreshSelection();
+2425|            RequestSceneRefresh();
+2426|            StatusText = "\u0420\u2019\u0421\u2039\u0420\xb1\u0421\u0402\u0420\xb0\u0420\u0405\u0420\u0405\u0421\u2039\u0420\u2116 \u0420\u0455\u0420\xb1\u0421\u0409\u0420\xb5\u0420\u0454\u0421\u201a \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0421\u2018\u0420\u0405";
+2427|            return true;
+2428|        }
+2429|
+2430|        if (SelectedElement is FrameNode)
+2431|        {
+2432|            RecordPlacement("\u0420\u0459\u0420\u0455\u0420\u0405\u0421\u0403\u0421\u201a\u0421\u0402\u0421\u0453\u0420\u0454\u0421\u2020\u0420\u0451\u0421\u040f \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0420\xb5\u0420\u0405\u0420\xb0", () => ClearCommittedFrameGeometry(clearPlacementHistory: false));
+2433|            RefreshAfterPlacementHistoryChange();
+2434|            RequestSceneRefresh();
+2435|            StatusText = "\u0420\u0459\u0420\u0455\u0420\u0405\u0421\u0403\u0421\u201a\u0421\u0402\u0421\u0453\u0420\u0454\u0421\u2020\u0420\u0451\u0421\u040f \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0420\xb5\u0420\u0405\u0420\xb0";
+2436|            return true;
+2437|        }
+2438|
+2439|        return false;
+2440|    }
+2441|
+2442|    private bool TryClearConstructionFromTool()
+2443|    {
+2444|        if (FrameRoot == null && Document.Rectangles.Count == 0 && CanvasElements.Count == 0)
+2445|        {
+2446|            return false;
+2447|        }
+2448|
+2449|        ClearCommittedFrameGeometry();
+2450|        StatusText = "\u0420\u0459\u0420\u0455\u0420\u0405\u0421\u0403\u0421\u201a\u0421\u0402\u0421\u0453\u0420\u0454\u0421\u2020\u0420\u0451\u0421\u040f \u0420\u0455\u0421\u2021\u0420\u0451\u0421\u2030\u0420\xb5\u0420\u0405\u0420\xb0";
+2451|        return true;
+2452|    }
+2453|
+2454|    private void TrackImpostSplit(FrameNode splitNode)
+2455|    {
+2456|        if (!splitNode.IsLeaf)
+2457|        {
+2458|            _impostSplitHistory.Add(splitNode);
+2459|        }
+2460|    }
+2461|
+2462|    private double ResolveFrameSplitInset(FrameNode leaf) =>
+2463|        leaf.GetRoot().IsFictitiousContainer
+2464|            ? 0
+2465|            : leaf.Parent == null
+2466|                ? FrameProfileGeometry.ResolveInnerInset(leaf.Width, leaf.Height, FrameThickness)
+2467|                : 0;
+2468|
+2469|    private bool TryApplyMullionLineToFrame(DesignPlacementCommit commit)
+2470|    {
+2471|        if (FrameRoot is null || commit.Kind != DesignPlacementKind.MullionLine || !HasFrameOnCanvas)
+2472|        {
+2473|            return false;
+2474|        }
+2475|
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:3020-3055 =====
+3020|            X = (decimal)RoundMm(originX + width / 2.0),
+3021|            Y = (decimal)RoundMm(originY + height / 2.0),
+3022|            WidthMm = (decimal)width,
+3023|            HeightMm = (decimal)height,
+3024|            Shape = ConstructionShape.Rectangle
+3025|        };
+3026|        AddCanvasElement(element);
+3027|
+3028|        _isSyncingSelection = true;
+3029|        Length = width;
+3030|        Height = height;
+3031|        CoordinateX = originX;
+3032|        CoordinateY = originY;
+3033|        _isSyncingSelection = false;
+3034|
+3035|        OnPropertyChanged(nameof(HasFrameOnCanvas));
+3036|        OnPropertyChanged(nameof(HasRealFrameOnCanvas));
+3037|        OnPropertyChanged(nameof(FrameRoot));
+3038|        FitToCanvas(bounds);
+3039|        FrameCreated?.Invoke(this, new FrameCreatedEventArgs(element, replaceExisting: true));
+3040|        return true;
+3041|    }
+3042|
+3043|    private bool ShouldNestRealFrameInFakeContext() =>
+3044|        HasFakeFrameOnCanvas && FrameRoot is not null;
+3045|
+3046|    private void SyncFrameRootFictitiousFlag()
+3047|    {
+3048|        if (FrameRoot is null)
+3049|        {
+3050|            return;
+3051|        }
+3052|
+3053|        FrameRoot.IsFictitiousContainer = HasFakeFrameOnCanvas;
+3054|    }
+3055|
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:3200-3260 =====
+3200|        var inset = FrameProfileGeometry.ResolveInnerInset(width, height, FrameThickness);
+3201|        var innerOriginX = RoundMm(originX + inset);
+3202|        var innerOriginY = RoundMm(originY + inset);
+3203|        var innerWidth = RoundMm(Math.Max(width - inset * 2, MinEditableOpeningMm));
+3204|        var innerHeight = RoundMm(Math.Max(height - inset * 2, MinEditableOpeningMm));
+3205|        var frameKind = ResolveRealFrameKind(innerWidth, innerHeight);
+3206|        var frameLabel = frameKind == GeometryElementKind.ArchFrame
+3207|            ? "\u0420\u0459\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0420\xb0 \u0420\xb0\u0421\u0402\u0420\u0455\u0421\u2021\u0420\u0405\u0420\xb0\u0421\u040f (\u0421\u0402\u0420\xb0\u0420\u0458\u0420\xb0)"
+3208|            : "\u0420\u0459\u0420\u0455\u0421\u0402\u0420\u0455\u0420\xb1\u0420\u0454\u0420\xb0 (\u0421\u0402\u0420\xb0\u0420\u0458\u0420\xb0)";
+3209|
+3210|        var frame = new GeometryElement
+3211|        {
+3212|            Kind = frameKind,
+3213|            Label = frameLabel,
+3214|            X = (decimal)RoundMm(innerOriginX + innerWidth / 2.0),
+3215|            Y = (decimal)RoundMm(innerOriginY + innerHeight / 2.0),
+3216|            WidthMm = (decimal)innerWidth,
+3217|            HeightMm = (decimal)innerHeight
+3218|        };
+3219|        AddCanvasElement(frame);
+3220|
+3221|        OnPropertyChanged(nameof(HasRealFrameOnCanvas));
+3222|        FrameCreated?.Invoke(this, new FrameCreatedEventArgs(transition, replaceExisting: false));
+3223|        FrameCreated?.Invoke(this, new FrameCreatedEventArgs(frame, replaceExisting: false));
+3224|        return true;
+3225|    }
+3226|
+3227|    private GeometryElement? FindTransitionInLeaf(FrameNode leaf) =>
+3228|        CanvasElements.FirstOrDefault(
+3229|            element => element.Kind == GeometryElementKind.TransitionFrame && ContainsLeaf(element, leaf));
+3230|
+3231|    private bool HasNestedBillableFramesInContainer() =>
+3232|        CanvasElements.Any(
+3233|            element => element.Kind is GeometryElementKind.Frame or GeometryElementKind.ArchFrame
+3234|                       && !DummyFrame.IsDummyElement(element));
+3235|
+3236|    private bool IsBillableConstructionLeaf(FrameNode leaf) =>
+3237|        FrameRoot?.IsFictitiousContainer != true || FindFrameInLeaf(leaf) is not null;
+3238|
+3239|    private GeometryElement? FindFrameInLeaf(FrameNode leaf)
+3240|    {
+3241|        GeometryElement? best = null;
+3242|        var bestArea = 0.0;
+3243|
+3244|        foreach (var element in CanvasElements)
+3245|        {
+3246|            if (element.Kind is not (GeometryElementKind.Frame or GeometryElementKind.ArchFrame))
+3247|            {
+3248|                continue;
+3249|            }
+3250|
+3251|            var centerX = (double)element.X;
+3252|            var centerY = (double)element.Y;
+3253|            if (!leaf.Contains(centerX, centerY))
+3254|            {
+3255|                continue;
+3256|            }
+3257|
+3258|            var area = (double)element.WidthMm * (double)element.HeightMm;
+3259|            if (area > bestArea)
+3260|            {
+
+===== NurSapat.Cad.UI/ViewModels/CadEditorViewModel.cs:3419-3520 =====
+3419|    public bool TryHandleCanvasClick(CadPoint worldPoint, bool splitAtHalf = false)
+3420|    {
+3421|        if (WorkspaceMode == CadEditorWorkspaceMode.Decoration)
+3422|        {
+3423|            return false;
+3424|        }
+3425|
+3426|        if (IsDragCreateShapeMode(CurrentToolMode) || IsImpostSplitMode(CurrentToolMode))
+3427|        {
+3428|            return false;
+3429|        }
+3430|
+3431|        var leaf = FrameRoot?.FindLeafAt(worldPoint.X, worldPoint.Y);
+3432|        if (!ValidateToolClick(CurrentToolMode, leaf, worldPoint))
+3433|        {
+3434|            return false;
+3435|        }
+3436|
+3437|        return ExecuteToolPipeline(CurrentToolMode, worldPoint, leaf, splitAtHalf);
+3438|    }
+3439|
+3440|    public async Task TryHandleDecorativeSpokeClickAsync(CadPoint worldPoint)
+3441|    {
+3442|        if (WorkspaceMode != CadEditorWorkspaceMode.Decoration ||
+3443|            CurrentToolMode != WindowToolMode.DecorativeSpoke)
+3444|        {
+3445|            return;
+3446|        }
+3447|
+3448|        var glazing = ConstructionSelectionHelper.FindGlazingAtPoint(this, worldPoint);
+3449|        if (glazing is null)
+3450|        {
+3451|            StatusText = "\u0420\u0459\u0420\xbb\u0420\u0451\u0420\u0454\u0420\u0405\u0420\u0451\u0421\u201a\u0420\xb5 \u0420\u0457\u0420\u0455 \u0421\u0403\u0421\u201a\u0420\xb5\u0420\u0454\u0420\xbb\u0420\u0455\u0420\u0457\u0420\xb0\u0420\u0454\u0420\xb5\u0421\u201a\u0421\u0453";
+3452|            return;
+3453|        }
+3454|
+3455|        if (!SashGeometry.TryResolveGlassForGlazingElement(this, glazing, CanvasElements, out var glass))
+3456|        {
+3457|            StatusText = "\u0420\u045c\u0420\xb5 \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0420\u0455\u0421\u0403\u0421\u040a \u0420\u0455\u0420\u0457\u0421\u0402\u0420\xb5\u0420\u0491\u0420\xb5\u0420\xbb\u0420\u0451\u0421\u201a\u0421\u040a \u0420\u0454\u0420\u0455\u0420\u0405\u0421\u201a\u0421\u0453\u0421\u0402 \u0421\u0403\u0421\u201a\u0420\xb5\u0420\u0454\u0420\xbb\u0420\u0455\u0420\u0457\u0420\xb0\u0420\u0454\u0420\xb5\u0421\u201a\u0420\xb0";
+3458|            return;
+3459|        }
+3460|
+3461|        ReleaseModalDialogBlocking();
+3462|
+3463|        var dialogResult = await _dialogService.ShowDecorativeSpokeDialogAsync(glass.IsArched);
+3464|        if (dialogResult is null)
+3465|        {
+3466|            return;
+3467|        }
+3468|
+3469|        var spoke = BuildDecorativeSpokeElement(glazing, glass, dialogResult);
+3470|        if (spoke is null)
+3471|        {
+3472|            return;
+3473|        }
+3474|
+3475|        if (!RecordPlacement("\u0420\u201d\u0420\xb5\u0420\u0454\u0420\u0455\u0421\u0402\u0420\xb0\u0421\u201a\u0420\u0451\u0420\u0406\u0420\u0405\u0421\u2039\u0420\u2116 \u0421\u20ac\u0420\u0457\u0421\u0402\u0420\u0455\u0421\u0403 \u0420\u0491\u0420\u0455\u0420\xb1\u0420\xb0\u0420\u0406\u0420\xbb\u0420\xb5\u0420\u0405", () =>
+3476|            {
+3477|                RemoveSpokesForGlazing(glazing.Id);
+3478|                AddCanvasElement(spoke.ToGeometryElement());
+3479|                return true;
+3480|            }))
+3481|        {
+3482|            StatusText = "\u0420\u045c\u0420\xb5 \u0421\u0453\u0420\u0491\u0420\xb0\u0420\xbb\u0420\u0455\u0421\u0403\u0421\u040a \u0420\u0491\u0420\u0455\u0420\xb1\u0420\xb0\u0420\u0406\u0420\u0451\u0421\u201a\u0421\u040a \u0420\u0491\u0420\xb5\u0420\u0454\u0420\u0455\u0421\u0402\u0420\xb0\u0421\u201a\u0420\u0451\u0420\u0406\u0420\u0405\u0421\u2039\u0420\u2116 \u0421\u20ac\u0420\u0457\u0421\u0402\u0420\u0455\u0421\u0403";
+3483|            return;
+3484|        }
+3485|
+3486|        RequestSceneRefresh();
+3487|        StatusText = "\u0420\u201d\u0420\xb5\u0420\u0454\u0420\u0455\u0421\u0402\u0420\xb0\u0421\u201a\u0420\u0451\u0420\u0406\u0420\u0405\u0420\xb0\u0421\u040f \u0421\u0402\u0420\xb0\u0421\u0403\u0420\u0454\u0420\xbb\u0420\xb0\u0420\u0491\u0420\u0454\u0420\xb0 \u0420\u0491\u0420\u0455\u0420\xb1\u0420\xb0\u0420\u0406\u0420\xbb\u0420\xb5\u0420\u0405\u0420\xb0";
+3488|    }
+3489|
+3490|    private static DecorativeSpokeElement? BuildDecorativeSpokeElement(
+3491|        GeometryElement glazing,
+3492|        SashGeometry.GlassOpeningBounds glass,
+3493|        DecorativeSpokeDialogResult dialog)
+3494|    {
+3495|        if (glass.Width < 20 || glass.Height < 20)
+3496|        {
+3497|            return null;
+3498|        }
+3499|
+3500|        return new DecorativeSpokeElement
+3501|        {
+3502|            ParentGlazingId = glazing.Id,
+3503|            SpokeType = dialog.SpokeType,
+3504|            Thickness = dialog.Thickness,
+3505|            Color = dialog.Color,
+3506|            RowsCount = dialog.RowsCount,
+3507|            ColumnsCount = dialog.ColumnsCount,
+3508|            RayCount = dialog.RayCount,
+3509|            IsArched = glass.IsArched,
+3510|            ArcCenterX = glass.ArcCenter.X,
+3511|            ArcCenterY = glass.ArcCenter.Y,
+3512|            ArcRadius = glass.ArcRadius,
+3513|            CenterX = (glass.Left + glass.Right) / 2.0,
+3514|            CenterY = (glass.Bottom + glass.Top) / 2.0,
+3515|            WidthMm = glass.Width,
+3516|            HeightMm = glass.Height,
+3517|            MaterialId = ResolveSpokeMaterialId(dialog.Thickness, dialog.Color)
+3518|        };
+3519|    }
+3520|
+
+===== NurSapat.Cad.UI/Controls/CadCanvasControl.cs:1-100 =====
+1|using System.ComponentModel;
+2|using Avalonia;
+3|using Avalonia.Controls;
+4|using Avalonia.Input;
+5|using Avalonia.Media;
+6|using Avalonia.Threading;
+7|using NurSapat.Cad.Core.Geometry;
+8|using NurSapat.Cad.Core.Models;
+9|using NurSapat.Cad.Tools;
+10|using NurSapat.Cad.Tools.Tools;
+11|using NurSapat.Cad.UI.Diagnostics;
+12|using NurSapat.Cad.UI.Models;
+13|using NurSapat.Cad.UI.Rendering;
+14|using NurSapat.Cad.UI.ViewModels;
+15|using NurSapat.Core.Models.Orders;
+16|using System.Linq;
+17|using ToolPointerEvent = NurSapat.Cad.Tools.CadPointerEvent;
+18|
+19|namespace NurSapat.Cad.UI.Controls;
+20|
+21|public sealed class CadCanvasControl : Control
+22|{
+23|    private static bool IsDragCreateShapeTool(WindowToolMode mode) =>
+24|        mode is WindowToolMode.RealFrame
+25|            or WindowToolMode.FakeFrame
+26|            or WindowToolMode.FakeFrameTriangle
+27|            or WindowToolMode.FakeFrameArch
+28|            or WindowToolMode.FakeFrameCircle;
+29|
+30|    private static bool IsImpostSplitTool(WindowToolMode mode) =>
+31|        mode is WindowToolMode.FakeVerticalImpost or WindowToolMode.FakeHorizontalImpost
+32|            or WindowToolMode.RealVerticalImpost or WindowToolMode.RealHorizontalImpost
+33|            or WindowToolMode.DoubleVerticalImpost or WindowToolMode.DoubleHorizontalImpost
+34|            or WindowToolMode.SlantedImpost
+35|            or WindowToolMode.MullionVertical or WindowToolMode.MullionHorizontal;
+36|
+37|    private static readonly IBrush CanvasBrush = Brushes.White;
+38|    private static readonly IBrush CadStrokeBrush = new SolidColorBrush(Color.Parse("#AEAEAE"));
+39|    private static readonly Pen FramePen = new(CadStrokeBrush, 1.5);
+40|    private static readonly Pen MiterPreviewPen = new(new SolidColorBrush(FrameVolumeRenderer.MiterColor), 1.2);
+41|    private static readonly Pen SelectedFramePen = new(CadStrokeBrush, 2);
+42|    private static readonly Pen FramePreviewPen = new(
+43|        new SolidColorBrush(Color.Parse("#0078D7")),
+44|        1.5,
+45|        new DashStyle(new double[] { 4, 3 }, 0));
+46|    private static readonly Pen MinorGridPen = new(new SolidColorBrush(Color.FromArgb(92, 239, 239, 239)), 1);
+47|    private static readonly Pen MajorGridPen = new(new SolidColorBrush(Color.FromArgb(150, 224, 224, 224)), 1);
+48|    private static readonly IBrush AxisBrush = new SolidColorBrush(Color.Parse("#64748B"));
+49|    private static readonly Pen AxisPen = new(AxisBrush, 1.2);
+50|    private static readonly Cursor PanHandCursor = new(StandardCursorType.Hand);
+51|    private static readonly Cursor PanDragCursor = new(StandardCursorType.SizeAll);
+52|    private static readonly Cursor DefaultCanvasCursor = new(StandardCursorType.Arrow);
+53|
+54|    private Point? _lastPanPoint;
+55|    private bool _isPanning;
+56|    private Point _startPoint;
+57|    private bool _isDrawingFrame;
+58|
+59|    public CadEditorViewModel? Editor
+60|    {
+61|        get => GetValue(EditorProperty);
+62|        set => SetValue(EditorProperty, value);
+63|    }
+64|
+65|    public static readonly StyledProperty<CadEditorViewModel?> EditorProperty =
+66|        AvaloniaProperty.Register<CadCanvasControl, CadEditorViewModel?>(nameof(Editor));
+67|
+68|    public static readonly StyledProperty<bool> AutoFitOnResizeProperty =
+69|        AvaloniaProperty.Register<CadCanvasControl, bool>(nameof(AutoFitOnResize), false);
+70|
+71|    public bool AutoFitOnResize
+72|    {
+73|        get => GetValue(AutoFitOnResizeProperty);
+74|        set => SetValue(AutoFitOnResizeProperty, value);
+75|    }
+76|
+77|    public static readonly StyledProperty<bool> IsThumbnailPreviewProperty =
+78|        AvaloniaProperty.Register<CadCanvasControl, bool>(nameof(IsThumbnailPreview), false);
+79|
+80|    public bool IsThumbnailPreview
+81|    {
+82|        get => GetValue(IsThumbnailPreviewProperty);
+83|        set => SetValue(IsThumbnailPreviewProperty, value);
+84|    }
+85|
+86|    private Size _lastAutoFitBounds;
+87|    private bool _invalidateVisualScheduled;
+88|
+89|    public void ResetThumbnailAutoFit() => _lastAutoFitBounds = default;
+90|
+91|    public CadCanvasControl()
+92|    {
+93|        Focusable = true;
+94|        ClipToBounds = true;
+95|    }
+96|
+97|    static CadCanvasControl()
+98|    {
+99|        EditorProperty.Changed.AddClassHandler<CadCanvasControl>((control, e) =>
+100|        {
+
+===== NurSapat.Cad.UI/Controls/CadCanvasControl.cs:300-500 =====
+300|            if (Editor.CurrentToolMode == WindowToolMode.RealFrame)
+301|            {
+302|                var originY = framePreview.Y - framePreview.Height;
+303|                FrameVolumeRenderer.Draw(
+304|                    context,
+305|                    Editor,
+306|                    framePreview.X,
+307|                    originY,
+308|                    framePreview.Width,
+309|                    framePreview.Height,
+310|                    Editor.FrameThickness,
+311|                    dashed: false);
+312|            }
+313|            else
+314|            {
+315|                GeometryElementRenderer.DrawPlacementPreview(context, Editor, Editor.CurrentToolMode, framePreview);
+316|            }
+317|
+318|            if (ShouldDrawDimensions)
+319|            {
+320|                DrawRectangleDimensions(context, framePreview, isTemporary: true);
+321|            }
+322|        }
+323|
+324|        DrawHandlePreview(context);
+325|
+326|        if (Editor.IsTopProfileHovered && Editor.HoveredTopProfile is { } hoveredTopProfile)
+327|        {
+328|            FrameVolumeRenderer.DrawTopProfileHighlight(context, Editor, hoveredTopProfile);
+329|        }
+330|
+331|        if (Editor.ShowArcVertexHandles && Editor.FrameRoot?.TopProfile is { } arcTopProfile)
+332|        {
+333|            FrameVolumeRenderer.DrawArcVertexHandles(context, Editor, arcTopProfile);
+334|        }
+335|
+336|        // RectangleTool: \u043f\u0440\u0438\u0437\u0440\u0430\u043a + \u0440\u0430\u0437\u043c\u0435\u0440\u044b
+337|        if (Editor.ActiveTool is RectangleTool rectTool && rectTool.PreviewRect is CadRect preview)
+338|        {
+339|            DrawRect(context, preview, null, FramePen);
+340|            if (ShouldDrawDimensions)
+341|            {
+342|                DrawRectangleDimensions(context, preview, isTemporary: true);
+343|            }
+344|        }
+345|
+346|        // \u041f\u0440\u0435\u0432\u044c\u044e \u043e\u0434\u0438\u043d\u043e\u0447\u043d\u043e\u0433\u043e \u0438\u043c\u043f\u043e\u0441\u0442\u0430 \u0432\u043d\u0443\u0442\u0440\u0438 \u0441\u0432\u0435\u0442\u043e\u0432\u043e\u0433\u043e \u043f\u0440\u043e\u0451\u043c\u0430
+347|        if (Editor.ActiveTool is MullionPlacementTool mullionTool)
+348|        {
+349|            foreach (var rect in mullionTool.PreviewRects)
+350|            {
+351|                DrawRect(context, rect, null, FramePen);
+352|            }
+353|        }
+354|
+355|        if (Editor.ActiveTool is DesignRectPlacementTool designRectTool && designRectTool.PreviewRect is CadRect designPreview)
+356|        {
+357|            DrawRect(context, designPreview, null, FramePen);
+358|        }
+359|
+360|        if (Editor.ActiveTool is SelectionTool selectionTool)
+361|        {
+362|            if (selectionTool.SelectionRect is CadRect selectionRect)
+363|            {
+364|                var fill = new SolidColorBrush(Color.FromArgb(48, 255, 4, 4));
+365|                DrawRect(context, selectionRect, fill, SelectedFramePen);
+366|            }
+367|        }
+368|
+369|        if (!IsThumbnailPreview)
+370|        {
+371|            DrawAxisIndicator(context);
+372|        }
+373|    }
+374|
+375|    private bool _autoFitOnResizeScheduled;
+376|
+377|    private void ScheduleAutoFitOnResize()
+378|    {
+379|        if (!AutoFitOnResize || Editor is null)
+380|        {
+381|            return;
+382|        }
+383|
+384|        if (_autoFitOnResizeScheduled)
+385|        {
+386|            return;
+387|        }
+388|
+389|        _autoFitOnResizeScheduled = true;
+390|        Dispatcher.UIThread.Post(
+391|            () =>
+392|            {
+393|                _autoFitOnResizeScheduled = false;
+394|                TryAutoFitOnResize();
+395|            },
+396|            DispatcherPriority.Background);
+397|    }
+398|
+399|    private void TryAutoFitOnResize()
+400|    {
+401|        if (!AutoFitOnResize || Editor is null || Bounds.Width <= 0 || Bounds.Height <= 0)
+402|        {
+403|            return;
+404|        }
+405|
+406|        var bounds = Bounds.Size;
+407|        if (Math.Abs(bounds.Width - _lastAutoFitBounds.Width) < 0.5 &&
+408|            Math.Abs(bounds.Height - _lastAutoFitBounds.Height) < 0.5)
+409|        {
+410|            return;
+411|        }
+412|
+413|        _lastAutoFitBounds = bounds;
+414|        if (IsThumbnailPreview)
+415|        {
+416|            var thumbMargin = Math.Max(12, Math.Min(Bounds.Width, Bounds.Height) * 0.18);
+417|            Editor.FitThumbnailPreview(thumbMargin, boundsPaddingRatio: 0.36);
+418|        }
+419|        else if (Editor.IsViewOnlyMode)
+420|        {
+421|            Editor.FitPreviewViewport(0.85);
+422|        }
+423|        else if (Editor.HasConstructionGeometry())
+424|        {
+425|            Editor.FitDocumentToViewport();
+426|        }
+427|        else
+428|        {
+429|            Editor.CenterViewportOnOrigin();
+430|        }
+431|    }
+432|
+433|    private void DrawHandlePreview(DrawingContext context)
+434|    {
+435|        if (Editor?.HandlePreviewSashId is not Guid sashId)
+436|        {
+437|            return;
+438|        }
+439|
+440|        var sash = Editor.CanvasElements.FirstOrDefault(e => e.Id == sashId && e.Kind == GeometryElementKind.Sash);
+441|        if (sash is null)
+442|        {
+443|            return;
+444|        }
+445|
+446|        var hingeSide = sash.HingeSide ?? SashHingeSide.Left;
+447|        SashElementRenderer.DrawHandleMarker(context, Editor, sash, hingeSide, preview: true);
+448|    }
+449|
+450|    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+451|    {
+452|        if (Editor == null)
+453|        {
+454|            base.OnPointerWheelChanged(e);
+455|            return;
+456|        }
+457|
+458|        if (Editor.IsViewOnlyMode)
+459|        {
+460|            e.Handled = true;
+461|            return;
+462|        }
+463|
+464|        if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+465|        {
+466|            var p = e.GetPosition(this);
+467|            Editor.Viewport.ZoomAt(new ScreenPoint(p.X, p.Y), e.Delta.Y > 0 ? 1.12 : 1 / 1.12);
+468|            Editor.UpdateCursor(Editor.Viewport.ScreenToWorld(new ScreenPoint(p.X, p.Y)));
+469|            Editor.RequestSceneRefresh();
+470|            e.Handled = true;
+471|            InvalidateVisual();
+472|            return;
+473|        }
+474|
+475|        base.OnPointerWheelChanged(e);
+476|    }
+477|
+478|    private void DrawRectangleDimensions(DrawingContext context, CadRect rect, bool isTemporary)
+479|    {
+480|        if (Editor?.Viewport == null || rect.Width <= 0 || rect.Height <= 0)
+481|        {
+482|            return;
+483|        }
+484|
+485|        try
+486|        {
+487|            var topLeft = Editor.Viewport.WorldToScreen(new CadPoint(rect.X, rect.Y));
+488|            var topRight = Editor.Viewport.WorldToScreen(new CadPoint(rect.X + rect.Width, rect.Y));
+489|            var bottomLeft = Editor.Viewport.WorldToScreen(new CadPoint(rect.X, rect.Y - rect.Height));
+490|            var bottomRight = Editor.Viewport.WorldToScreen(new CadPoint(rect.X + rect.Width, rect.Y - rect.Height));
+491|
+492|            var left = Math.Min(Math.Min(topLeft.X, topRight.X), Math.Min(bottomLeft.X, bottomRight.X));
+493|            var right = Math.Max(Math.Max(topLeft.X, topRight.X), Math.Max(bottomLeft.X, bottomRight.X));
+494|            var top = Math.Min(Math.Min(topLeft.Y, topRight.Y), Math.Min(bottomLeft.Y, bottomRight.Y));
+495|            var bottom = Math.Max(Math.Max(topLeft.Y, topRight.Y), Math.Max(bottomLeft.Y, bottomRight.Y));
+496|
+497|            GeometryElementRenderer.DrawScreenDimensions(
+498|                context,
+499|                new Rect(left, top, right - left, bottom - top),
+500|                $"{rect.Width:F1}",
+
+===== NurSapat.Cad.UI/Rendering/ConstructionSelectionRenderer.cs:1-120 =====
+1|using Avalonia;
+2|using Avalonia.Media;
+3|using NurSapat.Cad.Core.Geometry;
+4|using NurSapat.Cad.Core.Models;
+5|using NurSapat.Cad.UI.Models;
+6|using NurSapat.Cad.UI.Services;
+7|using NurSapat.Cad.UI.ViewModels;
+8|using NurSapat.Core.Models.Orders;
+9|using System.Linq;
+10|
+11|namespace NurSapat.Cad.UI.Rendering;
+12|
+13|public static class ConstructionSelectionRenderer
+14|{
+15|    private static readonly IPen SelectionPen = new Pen(
+16|        FrameVolumeRenderer.SelectionHighlightBrush,
+17|        2.5);
+18|    private static readonly IPen DummySelectionPen = new Pen(
+19|        FrameVolumeRenderer.DummySelectionHighlightBrush,
+20|        2.5,
+21|        new DashStyle(new double[] { 4, 3 }, 0));
+22|
+23|    public static void DrawHighlights(
+24|        DrawingContext context,
+25|        CadEditorViewModel editor,
+26|        IEnumerable<CadSelectableItem> selection)
+27|    {
+28|        if (editor.Viewport == null)
+29|        {
+30|            return;
+31|        }
+32|
+33|        foreach (var item in selection.ToList())
+34|        {
+35|            switch (item.Kind)
+36|            {
+37|                case CadSelectableKind.Frame:
+38|                    DrawFrameHighlight(context, editor);
+39|                    break;
+40|                case CadSelectableKind.Impost when item.ImpostNode is not null:
+41|                    DrawImpostHighlight(context, editor, item.ImpostNode, item.ImpostGapIndex);
+42|                    break;
+43|                case CadSelectableKind.ExtremeImpost
+44|                    when item.ImpostNode is not null && item.ElementId is Guid slotId:
+45|                    DrawExtremeImpostHighlight(context, editor, item.ImpostNode, slotId);
+46|                    break;
+47|                case CadSelectableKind.Sash when item.ElementId is Guid sashId:
+48|                    DrawSashProfileHighlight(context, editor, sashId);
+49|                    break;
+50|                case CadSelectableKind.Glazing when item.ElementId is Guid glazingId:
+51|                    DrawGeometryElementHighlight(context, editor, glazingId, GeometryElementKind.Glazing);
+52|                    break;
+53|                case CadSelectableKind.Bead when item.ElementId is Guid beadId:
+54|                    DrawGeometryElementHighlight(context, editor, beadId, GeometryElementKind.Bead);
+55|                    break;
+56|                case CadSelectableKind.SashHandle when item.ElementId is Guid handleSashId:
+57|                    DrawHardwareHighlight(context, editor, handleSashId, CadSelectableKind.SashHandle, 0);
+58|                    break;
+59|                case CadSelectableKind.SashHinge when item.ElementId is Guid hingeSashId:
+60|                    DrawHardwareHighlight(context, editor, hingeSashId, CadSelectableKind.SashHinge, item.HingeSlot);
+61|                    break;
+62|            }
+63|        }
+64|    }
+65|
+66|    private static void DrawFrameHighlight(DrawingContext context, CadEditorViewModel editor)
+67|    {
+68|        if (editor.FrameRoot is not FrameNode frame)
+69|        {
+70|            return;
+71|        }
+72|
+73|        if (frame.IsDummy)
+74|        {
+75|            DrawWorldRectOutline(
+76|                context,
+77|                editor,
+78|                new CadRect(frame.X, frame.Y + frame.Height, frame.Width, frame.Height),
+79|                DummySelectionPen);
+80|            return;
+81|        }
+82|
+83|        if (frame.TopProfile?.SegmentType == SegmentType.Arc &&
+84|            frame.TopProfile.ArcHeight > ProfileSegment.MinFlatArcHeightMm)
+85|        {
+86|            try
+87|            {
+88|                var contours = FrameProfileGeometry.BuildArchedFrameContours(
+89|                    frame.X,
+90|                    frame.Y,
+91|                    frame.Width,
+92|                    frame.Height,
+93|                    frame.TopProfile,
+94|                    editor.FrameThickness);
+95|            StrokeProfileBand(context, editor, contours.OuterLoop, contours.InnerLoop, SelectionPen);
+96|                return;
+97|            }
+98|            catch (InvalidOperationException)
+99|            {
+100|            }
+101|        }
+102|
+103|        if (ConstructionSelectionHelper.GetFrameBounds(editor) is not { } bounds)
+104|        {
+105|            return;
+106|        }
+107|
+108|        var inset = FrameProfileGeometry.ResolveInnerInset(
+109|            frame.Width,
+110|            frame.Height,
+111|            editor.FrameThickness);
+112|        DrawRectangularBandHighlight(
+113|            context,
+114|            editor,
+115|            frame.X,
+116|            frame.Y,
+117|            frame.X + frame.Width,
+118|            frame.Y + frame.Height,
+119|            frame.X + inset,
+120|            frame.Y + inset,
+
+===== NurSapat.App/Services/Export/ExportService.cs:1-80 =====
+1|using System.Text.Json;
+2|using NurSapat.App.Models.EditDialogs;
+3|using NurSapat.App.Services.EditDialogs;
+4|using NurSapat.App.Services.Settings;
+5|using NurSapat.Cad.UI.ViewModels;
+6|using NurSapat.Core.Models;
+7|using NurSapat.Core.Models.Orders;
+8|
+9|namespace NurSapat.App.Services.Export;
+10|
+11|public interface IExportService
+12|{
+13|    Task<ExportResult> ExportJsonAsync(
+14|        Order order,
+15|        CadEditorViewModel? cadEditor,
+16|        string targetFolder,
+17|        IProgress<int>? progress = null,
+18|        CancellationToken cancellationToken = default);
+19|
+20|    Task<ExportResult> ExportDbfAsync(
+21|        Order order,
+22|        string targetFolder,
+23|        IProgress<int>? progress = null,
+24|        CancellationToken cancellationToken = default);
+25|
+26|    Task<ExportResult> ExportXlsAsync(
+27|        Order order,
+28|        string targetFolder,
+29|        IProgress<int>? progress = null,
+30|        CancellationToken cancellationToken = default);
+31|
+32|    OrderExportSnapshot BuildSnapshot(Order order, CadEditorViewModel? cadEditor);
+33|}
+34|
+35|public sealed class ExportService : IExportService
+36|{
+37|    private readonly IEnvironmentSettingsService _environmentSettingsService;
+38|    private readonly IDrawingExportService _drawingExportService;
+39|    private readonly JsonSerializerOptions _jsonOptions = new()
+40|    {
+41|        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+42|        WriteIndented = true
+43|    };
+44|
+45|    public ExportService(
+46|        IEnvironmentSettingsService environmentSettingsService,
+47|        IDrawingExportService drawingExportService)
+48|    {
+49|        _environmentSettingsService = environmentSettingsService;
+50|        _drawingExportService = drawingExportService;
+51|    }
+52|
+53|    public OrderExportSnapshot BuildSnapshot(Order order, CadEditorViewModel? cadEditor)
+54|    {
+55|        var snapshot = new OrderExportSnapshot
+56|        {
+57|            OrderId = order.Id,
+58|            OrderNumber = order.Header.OrderNumber,
+59|            Header = new OrderHeaderExportNode
+60|            {
+61|                OrderNumber = order.Header.OrderNumber,
+62|                OrderDate = order.Header.OrderDate,
+63|                CustomerName = order.Header.CustomerName,
+64|                CustomerPhone = order.Header.CustomerPhone,
+65|                SiteAddress = order.Header.SiteAddress,
+66|                DealerName = order.Header.DealerName,
+67|                ContractNumber = order.Header.ContractNumber,
+68|                CurrencyCode = order.Header.CurrencyCode,
+69|                Note = order.Header.Note
+70|            },
+71|            Totals = new OrderTotalsExportNode
+72|            {
+73|                ProfitabilityPercent = order.ProfitabilityPercent,
+74|                TotalCost = order.Totals.GrandTotal
+75|            },
+76|            Constructions = order.Constructions
+77|                .OrderBy(construction => construction.Number)
+78|                .Select(BuildConstructionNode)
+79|                .ToList(),
+80|            SketchImageBase64 = TryCaptureSketchBase64(cadEditor)
+
+===== NurSapat.App/Services/Export/ExportService.cs:200-320 =====
+200|        return string.IsNullOrWhiteSpace(order.Header.OrderNumber)
+201|            ? "\u042d\u043a\u0441\u043f\u043e\u0440\u0442 \u0437\u0430\u043f\u0440\u0435\u0449\u0451\u043d: \u0443 \u0437\u0430\u043a\u0430\u0437\u0430 \u043d\u0435 \u0437\u0430\u0434\u0430\u043d \u043d\u043e\u043c\u0435\u0440."
+202|            : null;
+203|    }
+204|
+205|    private ConstructionExportNode BuildConstructionNode(OrderConstruction construction)
+206|    {
+207|        var materials = BuildMaterialLines(construction);
+208|        return new ConstructionExportNode
+209|        {
+210|            Id = construction.Id,
+211|            Number = construction.Number,
+212|            Name = construction.Name,
+213|            ProfileSystemName = construction.ProfileSystemName,
+214|            WidthMm = construction.Geometry.OuterWidthMm,
+215|            HeightMm = construction.Geometry.OuterHeightMm,
+216|            Quantity = Math.Max(1, construction.Cost.Quantity),
+217|            Elements = construction.Geometry.Elements
+218|                .Select(element => new ElementExportNode
+219|                {
+220|                    Id = element.Id,
+221|                    Kind = element.Kind.ToString(),
+222|                    Label = element.Label,
+223|                    X = (double)element.X,
+224|                    Y = (double)element.Y,
+225|                    WidthMm = (double)element.WidthMm,
+226|                    HeightMm = (double)element.HeightMm
+227|                })
+228|                .ToList(),
+229|            Materials = materials
+230|        };
+231|    }
+232|
+233|    private static List<MaterialLineExportNode> BuildMaterialLines(OrderConstruction construction)
+234|    {
+235|        var lines = new List<MaterialLineExportNode>();
+236|        var quantity = Math.Max(1, construction.Cost.Quantity);
+237|        var billableElements = construction.Geometry.Elements
+238|            .Where(element => !FictitiousFrame.IsFictitiousElement(element))
+239|            .ToList();
+240|        if (billableElements.Count == 0)
+241|        {
+242|            return lines;
+243|        }
+244|
+245|        var (billableWidth, _) = construction.Geometry.ResolveBillableOuterBounds();
+246|
+247|        if (!string.IsNullOrWhiteSpace(construction.ProfileSystemName) && billableWidth > 0)
+248|        {
+249|            lines.Add(new MaterialLineExportNode
+250|            {
+251|                Article = "PROFILE",
+252|                Name = $"\u041f\u0440\u043e\u0444\u0438\u043b\u044c {construction.ProfileSystemName}",
+253|                Unit = "\u043c.\u043f.",
+254|                Quantity = Math.Round(billableWidth / 1000m * 4m * quantity, 3),
+255|                UnitPrice = 420m,
+256|                TotalCost = Math.Round(billableWidth / 1000m * 4m * quantity * 420m, 2),
+257|                MaterialType = "Profile",
+258|                ConstructionNumber = construction.Number
+259|            });
+260|        }
+261|
+262|        foreach (var element in billableElements)
+263|        {
+264|            if (element.Kind == GeometryElementKind.Glazing)
+265|            {
+266|                continue;
+267|            }
+268|
+269|            if (element.Kind is GeometryElementKind.Frame or GeometryElementKind.ArchFrame
+270|                or GeometryElementKind.TransitionFrame or GeometryElementKind.Mullion
+271|                or GeometryElementKind.EdgeMullion or GeometryElementKind.Sash)
+272|            {
+273|                continue;
+274|            }
+275|
+276|            var area = Math.Round((decimal)(element.WidthMm * element.HeightMm) / 1_000_000m, 3);
+277|            if (area <= 0)
+278|            {
+279|                continue;
+280|            }
+281|
+282|            lines.Add(new MaterialLineExportNode
+283|            {
+284|                Article = "GLASS",
+285|                Name = string.IsNullOrWhiteSpace(element.Label) ? "\u0421\u0442\u0435\u043a\u043b\u043e\u043f\u0430\u043a\u0435\u0442" : element.Label,
+286|                Unit = "\u043c\xb2",
+287|                Quantity = area * quantity,
+288|                UnitPrice = 4800m,
+289|                TotalCost = Math.Round(area * quantity * 4800m, 2),
+290|                MaterialType = "Glass",
+291|                ConstructionNumber = construction.Number
+292|            });
+293|        }
+294|
+295|        foreach (var element in billableElements.Where(e => e.Kind == GeometryElementKind.Glazing))
+296|        {
+297|            var area = Math.Round((decimal)(element.WidthMm * element.HeightMm) / 1_000_000m, 3);
+298|            if (area <= 0)
+299|            {
+300|                continue;
+301|            }
+302|
+303|            lines.Add(new MaterialLineExportNode
+304|            {
+305|                Article = "GLASS",
+306|                Name = string.IsNullOrWhiteSpace(element.Label) ? "\u0421\u0442\u0435\u043a\u043b\u043e\u043f\u0430\u043a\u0435\u0442" : element.Label,
+307|                Unit = "\u043c\xb2",
+308|                Quantity = area * quantity,
+309|                UnitPrice = 4800m,
+310|                TotalCost = Math.Round(area * quantity * 4800m, 2),
+311|                MaterialType = "Glass",
+312|                ConstructionNumber = construction.Number
+313|            });
+314|        }
+315|
+316|        if (lines.Count == 0)
+317|        {
+318|            lines.Add(new MaterialLineExportNode
+319|            {
+320|                Article = "MAT-001",

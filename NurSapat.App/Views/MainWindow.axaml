@@ -1,18 +1,102 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
-        xmlns:views="clr-namespace:NurSapat.App.Views"
+        xmlns:chrome="using:Avalonia.Controls.Chrome"
+        xmlns:controls="using:Avalonia.Controls"
+        xmlns:views="using:NurSapat.App.Views"
         x:Class="NurSapat.App.Views.MainWindow"
-        x:DataType="vm:LoginViewModel"
-        Title="NurSapat - вход"
-        Width="700"
-        Height="450"
-        MinWidth="700"
-        MaxWidth="700"
-        MinHeight="450"
-        MaxHeight="450"
-        CanResize="False"
+        Title="NurSapat"
+        Icon="/Assets/logo.ico"
+        Width="1240" Height="776"
+        MinWidth="800" MinHeight="480"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource BackgroundBrush}">
-	<views:LoginView/>
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        TransparencyLevelHint="Transparent"
+        Background="Transparent"
+        FontFamily="Inter, Segoe UI">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="/Styles/AuthIcons.axaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Window.Styles>
+        <StyleInclude Source="/Styles/AuthInputs.axaml"/>
+        <StyleInclude Source="/Styles/AuthButtons.axaml"/>
+        <StyleInclude Source="/Styles/LoginStyles.axaml"/>
+        <StyleInclude Source="/Styles/WindowControls.axaml"/>
+        <StyleInclude Source="/Styles/AuthAnimations.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="auth-surface" CornerRadius="14" ClipToBounds="True">
+        <Panel>
+            <Grid x:Name="AuthLayout" ColumnDefinitions="3*,2*">
+                <Grid ClipToBounds="True" Background="#051B46">
+                    <Image Source="/Assets/login-mountains.jpg" Stretch="UniformToFill"/>
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="19" Margin="47,45,24,0"
+                          VerticalAlignment="Top" IsHitTestVisible="False">
+                        <Image Source="{StaticResource AuthBrandMark}" Width="49" Height="58"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                            <TextBlock Text="NurSapat" FontSize="32" FontWeight="Bold" Foreground="#F4F7FF"/>
+                            <TextBlock Text="Проектирование оконных конструкций" FontSize="15"
+                                       Foreground="#C7D9F3" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="ERP / CAD для оконного производства" Foreground="#C7D9F3"
+                               FontSize="14" TextWrapping="Wrap" VerticalAlignment="Bottom"
+                               Margin="47,0,24,45" IsHitTestVisible="False"/>
+                    <Border Height="112" VerticalAlignment="Top" Background="Transparent"
+                            chrome:WindowDecorationProperties.ElementRole="TitleBar"
+                            PointerPressed="OnTitleBarPointerPressed"/>
+                </Grid>
+
+                <Grid Grid.Column="1">
+                    <TransitioningContentControl x:Name="AuthPages"
+                                                 HorizontalContentAlignment="Stretch"
+                                                 VerticalContentAlignment="Stretch"
+                                                 ClipToBounds="True"/>
+                    <Border Height="60" VerticalAlignment="Top" Background="Transparent"
+                            chrome:WindowDecorationProperties.ElementRole="TitleBar"
+                            PointerPressed="OnTitleBarPointerPressed"/>
+                    <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Right"
+                                VerticalAlignment="Top" Margin="0,10,12,0">
+                        <Button x:Name="ThemeButton" Classes="auth-icon window-action" Click="OnThemeClick">
+                            <Panel>
+                                <PathIcon Classes="theme-glyph moon" Data="{StaticResource weather_moon_regular}"/>
+                                <PathIcon Classes="theme-glyph sun" Data="{StaticResource weather_sunny_regular}"/>
+                            </Panel>
+                        </Button>
+                        <Button Classes="auth-icon window-action" Click="OnMinimizeClick"
+                                ToolTip.Tip="Свернуть" AutomationProperties.Name="Свернуть">
+                            <PathIcon Data="{StaticResource subtract_regular}"/>
+                        </Button>
+                        <Button Classes="auth-icon window-action close" Click="OnCloseClick"
+                                ToolTip.Tip="Закрыть" AutomationProperties.Name="Закрыть">
+                            <PathIcon Data="{StaticResource dismiss_regular}"/>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+            <Grid RowDefinitions="6,*,6" ColumnDefinitions="6,*,6">
+                <Border Classes="resize-grip" Cursor="TopLeftCorner" Tag="{x:Static controls:WindowEdge.NorthWest}"
+                        PointerPressed="OnResizePointerPressed"/>
+                <Border Grid.Column="1" Classes="resize-grip" Cursor="TopSide" Tag="{x:Static controls:WindowEdge.North}"
+                        PointerPressed="OnResizePointerPressed"/>
+                <Border Grid.Column="2" Classes="resize-grip" Cursor="TopRightCorner" Tag="{x:Static controls:WindowEdge.NorthEast}"
+                        PointerPressed="OnResizePointerPressed"/>
+                <Border Grid.Row="1" Classes="resize-grip" Cursor="LeftSide" Tag="{x:Static controls:WindowEdge.West}"
+                        PointerPressed="OnResizePointerPressed"/>
+                <Border Grid.Row="1" Grid.Column="2" Classes="resize-grip" Cursor="RightSide" Tag="{x:Static controls:WindowEdge.East}"
+                        PointerPressed="OnResizePointerPressed"/>
+                <Border Grid.Row="2" Classes="resize-grip" Cursor="BottomLeftCorner" Tag="{x:Static controls:WindowEdge.SouthWest}"
+                        PointerPressed="OnResizePointerPressed"/>
+                <Border Grid.Row="2" Grid.Column="1" Classes="resize-grip" Cursor="BottomSide" Tag="{x:Static controls:WindowEdge.South}"
+                        PointerPressed="OnResizePointerPressed"/>
+                <Border Grid.Row="2" Grid.Column="2" Classes="resize-grip" Cursor="BottomRightCorner" Tag="{x:Static controls:WindowEdge.SouthEast}"
+                        PointerPressed="OnResizePointerPressed"/>
+            </Grid>
+            <views:RegistrationTermsView x:Name="RegistrationTerms" IsVisible="False"/>
+        </Panel>
+    </Border>
 </Window>

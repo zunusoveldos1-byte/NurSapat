@@ -1,0 +1,187 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+        x:Class="NurSapat.App.Views.MainWorkspaceWindow"
+        x:DataType="vm:MainWorkspaceViewModel"
+        Title="NurSapat CAD/ERP"
+        Width="1280"
+        Height="820"
+        MinWidth="1024"
+        MinHeight="640"
+        WindowState="Maximized"
+        Background="White">
+
+	<Grid RowDefinitions="Auto,Auto,*">
+		<!-- Меню (теперь белое) -->
+		<Border Background="White" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+			<Menu Background="White" Foreground="#333333" FontSize="13" Padding="4,2">
+
+				<!-- ЗАКАЗ -->
+				<MenuItem Header="Заказ" Padding="6,3">
+					<MenuItem Header="Создать новый" InputGesture="Ctrl+N" Command="{Binding NewOrderCommand}"/>
+					<MenuItem Header="Открыть" Command="{Binding OpenOrderCommand}"/>
+					<MenuItem Header="Сохранить" InputGesture="Ctrl+S" Command="{Binding SaveOrderCommand}"/>
+					<MenuItem Header="Сохранить как копию" Command="{Binding SaveAsCopyOrderCommand}"/>
+					<MenuItem Header="Закрыть" InputGesture="Ctrl+E" Command="{Binding CloseOrderCommand}"/>
+					<Separator/>
+					<MenuItem Header="Открыть из файла" Command="{Binding OpenFromFileCommand}"/>
+					<MenuItem Header="Сохранить в файл" Command="{Binding SaveToFileCommand}"/>
+					<Separator/>
+					<MenuItem Header="Печать" Command="{Binding PrintOrderCommand}"/>
+					<MenuItem Header="Параметры печати" Command="{Binding PrintSettingsCommand}"/>
+					<Separator/>
+					<MenuItem Header="Выход из программы" InputGesture="Alt+X" Command="{Binding ExitCommand}"/>
+				</MenuItem>
+
+				<!-- ПРАВКА -->
+				<MenuItem Header="Правка" Padding="6,3">
+					<MenuItem Header="Копировать чертеж">
+						<MenuItem Header="Копировать" Command="{Binding CopyDrawingCommand}"/>
+						<MenuItem Header="Вставить" Command="{Binding PasteDrawingCommand}"/>
+					</MenuItem>
+					<MenuItem Header="Сменить элементы в конструкции" Command="{Binding ChangeConstructionElementsCommand}"/>
+					<MenuItem Header="Сменить элементы в заказе" Command="{Binding ChangeOrderElementsCommand}"/>
+				</MenuItem>
+
+				<!-- ВИД -->
+				<MenuItem Header="Вид" Padding="6,3">
+					<MenuItem Header="Панель инструментов"
+							  Command="{Binding ToggleLeftPanelCommand}"
+							  IsChecked="{Binding IsLeftPanelVisible}"
+							  InputGesture="Ctrl+Alt+L"/>
+					<MenuItem Header="Свойства"
+							  Command="{Binding ToggleRightPanelCommand}"
+							  IsChecked="{Binding IsRightPanelVisible}"
+							  InputGesture="Ctrl+Alt+R"/>
+					<MenuItem Header="Нижняя панель"
+							  Command="{Binding ToggleBottomPanelCommand}"
+							  IsChecked="{Binding IsBottomPanelVisible}"
+							  InputGesture="Ctrl+Alt+B"/>
+					<MenuItem Header="Верхняя панель"
+							  Command="{Binding ToggleTopPanelCommand}"
+							  IsChecked="{Binding IsTopPanelVisible}"
+							  InputGesture="Ctrl+Alt+T"/>
+					<Separator/>
+					<MenuItem Header="Таблица затрат" Command="{Binding CostTableCommand}"/>
+					<MenuItem Header="Сообщения" Command="{Binding MessagesCommand}"/>
+				</MenuItem>
+
+				<!-- СПРАВОЧНИКИ -->
+				<MenuItem Header="Справочники" Padding="6,3">
+					<MenuItem Header="Материалы" Command="{Binding MaterialsCommand}"/>
+					<MenuItem Header="Заказчики" Command="{Binding CustomersCommand}"/>
+					<MenuItem Header="Заказы" Command="{Binding OrdersCommand}"/>
+					<MenuItem Header="Склад: материалы" Command="{Binding StockMaterialsCommand}"/>
+					<MenuItem Header="Склад: обрезки профиля" Command="{Binding StockProfileCutsCommand}"/>
+					<MenuItem Header="Склад: обрезки стекла" Command="{Binding StockGlassCutsCommand}"/>
+					<MenuItem Header="Склад: готовая продукция" Command="{Binding StockFinishedCommand}"/>
+					<MenuItem Header="Типовые конструкции" Command="{Binding StandardStructuresCommand}"/>
+					<MenuItem Header="Пользователи" Command="{Binding UsersCommand}"/>
+					<MenuItem Header="Курсы валют" Command="{Binding ExchangeRatesCommand}"/>
+					<MenuItem Header="Серии" Command="{Binding SeriesCommand}"/>
+					<MenuItem Header="Производители" Command="{Binding ManufacturersCommand}"/>
+					<MenuItem Header="Поставщики" Command="{Binding SuppliersCommand}"/>
+					<MenuItem Header="Шаблоны заказов" Command="{Binding OrderTemplatesCommand}"/>
+					<MenuItem Header="Наименования конструкций" Command="{Binding StructureNamesCommand}"/>
+				</MenuItem>
+
+				<!-- НАСТРОЙКИ -->
+				<MenuItem Header="Настройки" Padding="6,3">
+					<MenuItem Header="Среда" Command="{Binding EnvironmentCommand}"/>
+					<MenuItem Header="Смена конфигурации" Command="{Binding ChangeConfigurationCommand}"/>
+					<MenuItem Header="Элементы конструкции" Command="{Binding ConstructionElementsCommand}"/>
+				</MenuItem>
+
+				<!-- СЕРВИС -->
+				<MenuItem Header="Сервис" Padding="6,3">
+					<MenuItem Header="Экспорт списания во внешний склад (DBF)" Command="{Binding ExportWriteOffDBFCommand}"/>
+					<MenuItem Header="Экспорт списания во внешний склад (XLS)" Command="{Binding ExportWriteOffXLSCommand}"/>
+					<MenuItem Header="Импорт заказа на москитные сетки" Command="{Binding ImportMosquitoNetCommand}"/>
+					<MenuItem Header="Импорт заказа на подоконики, отливы, москитные сетки" Command="{Binding ImportAccessoriesCommand}"/>
+				</MenuItem>
+
+				<!-- УТИЛИТЫ -->
+				<MenuItem Header="Утилиты" Padding="6,3">
+					<MenuItem Header="Сжать базу" Command="{Binding CompressDatabaseCommand}"/>
+					<MenuItem Header="Сформировать дилерскую базу" Command="{Binding GenerateDealerDatabaseCommand}"/>
+					<MenuItem Header="Установить пароль на базу" Command="{Binding SetDatabasePasswordCommand}"/>
+					<MenuItem Header="Корпоративный узел" Command="{Binding CorporateNodeCommand}"/>
+					<MenuItem Header="Сформировать производственную базу для обновления" Command="{Binding GenerateProductionDatabaseCommand}"/>
+					<MenuItem Header="Обновить производственную базу" Command="{Binding UpdateProductionDatabaseCommand}"/>
+				</MenuItem>
+
+				<!-- ПОМОЩЬ -->
+				<MenuItem Header="Помощь" Padding="6,3">
+					<MenuItem Header="Справка" Command="{Binding HelpCommand}"/>
+					<MenuItem Header="Что нового??" Command="{Binding WhatIsNewCommand}"/>
+					<MenuItem Header="Обновить программу" Command="{Binding UpdateProgramCommand}"/>
+					<MenuItem Header="Нужна консультация" Command="{Binding ConsultationCommand}"/>
+					<MenuItem Header="О программе" Command="{Binding AboutCommand}"/>
+				</MenuItem>
+
+			</Menu>
+		</Border>
+
+		<!-- Панель вкладок (как кнопки) -->
+		<Border Grid.Row="1" Background="White" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+			<Grid ColumnDefinitions="Auto,*">
+				<TabControl SelectedIndex="{Binding SelectedWorkspaceTabIndex}"
+							Background="White"
+							Foreground="#333333">
+					<!-- Стиль для вкладок, чтобы они были как кнопки высотой 30px -->
+					<TabControl.Styles>
+						<!-- Базовый стиль для TabItem -->
+						<Style Selector="TabItem">
+							<Setter Property="Background" Value="Transparent"/>
+							<Setter Property="BorderBrush" Value="#D1D5DB"/>
+							<Setter Property="CornerRadius" Value="4"/>
+							<Setter Property="Height" Value="30"/>
+							<Setter Property="Padding" Value="8,4"/>
+							<Setter Property="FontSize" Value="12"/>
+							<Setter Property="Template">
+								<ControlTemplate>
+									<Border Name="border"
+											Background="{TemplateBinding Background}"
+											BorderBrush="{TemplateBinding BorderBrush}"
+											BorderThickness="{TemplateBinding BorderThickness}"
+											CornerRadius="{TemplateBinding CornerRadius}"
+											Padding="{TemplateBinding Padding}">
+										<ContentPresenter Content="{TemplateBinding Header}"
+														  HorizontalAlignment="Center"
+														  VerticalAlignment="Center"/>
+									</Border>
+								</ControlTemplate>
+							</Setter>
+						</Style>
+
+						<!-- Состояние при наведении -->
+						<Style Selector="TabItem:pointerover">
+							<Setter Property="Background" Value="#F3F4F6"/>
+						</Style>
+
+						<!-- Состояние выбранной вкладки (серая полоска снизу) -->
+						<Style Selector="TabItem:selected">
+							<Setter Property="Background" Value="#E5E7EB"/>
+							<Setter Property="BorderBrush" Value="#2563EB"/>
+							<Setter Property="BorderThickness" Value="0,0,0,2"/>
+						</Style>
+					</TabControl.Styles>
+
+					<TabItem Header="Чертеж"/>
+					<TabItem Header="Лист заказа"/>
+					<TabItem Header="Дополнительно"/>
+				</TabControl>
+
+				<TextBlock Grid.Column="1"
+						   Text="{Binding CurrentTitle}"
+						   Foreground="#666666"
+						   VerticalAlignment="Center"
+						   Margin="12,0,0,0"
+						   FontSize="12"/>
+			</Grid>
+		</Border>
+
+		<!-- Основной контент (наследует белый фон окна) -->
+		<ContentControl Grid.Row="2" Content="{Binding CurrentContent}"/>
+	</Grid>
+</Window>

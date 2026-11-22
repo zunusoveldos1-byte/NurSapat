@@ -1,0 +1,134 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Styles.Resources>
+        <ControlTheme x:Key="AuthTextLink" TargetType="Button">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}" Background="Transparent"/>
+                </ControlTemplate>
+            </Setter>
+        </ControlTheme>
+    </Styles.Resources>
+
+    <Style Selector="Button.auth-primary, Button.auth-link, Button.auth-icon">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <ContentPresenter Name="PART_ContentPresenter"
+                                  Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                  Background="{TemplateBinding Background}"
+                                  BorderBrush="{TemplateBinding BorderBrush}"
+                                  BorderThickness="{TemplateBinding BorderThickness}"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  Padding="{TemplateBinding Padding}"/>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="Button.auth-primary:focus-visible, Button.auth-link:focus-visible, Button.auth-icon:focus-visible">
+        <Setter Property="BorderBrush" Value="{DynamicResource AuthFocus}"/>
+    </Style>
+    <Style Selector="Button.auth-primary">
+        <Setter Property="Height" Value="52"/>
+        <Setter Property="CornerRadius" Value="9"/>
+        <Setter Property="Background" Value="#1565F5"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    </Style>
+    <Style Selector="Button.auth-primary:pointerover">
+        <Setter Property="Background" Value="#176CF8"/>
+    </Style>
+    <Style Selector="Button.auth-primary:pressed">
+        <Setter Property="Background" Value="#1359D8"/>
+    </Style>
+    <Style Selector="Button.auth-primary.error">
+        <Setter Property="BorderBrush" Value="{DynamicResource AuthDanger}"/>
+    </Style>
+    <Style Selector="Button.auth-primary:disabled">
+        <Setter Property="Background" Value="{DynamicResource AuthDisabled}"/>
+        <Setter Property="Cursor" Value="Arrow"/>
+    </Style>
+    <Style Selector="Button.auth-primary.loading:disabled">
+        <Setter Property="Background" Value="#245BC2"/>
+        <Setter Property="Cursor" Value="Wait"/>
+    </Style>
+    <Style Selector="Button.auth-link">
+        <Setter Property="Foreground" Value="{DynamicResource AuthLink}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Padding" Value="2,0"/>
+        <Setter Property="CornerRadius" Value="4"/>
+    </Style>
+    <Style Selector="Button.auth-link.muted">
+        <Setter Property="Foreground" Value="{DynamicResource AuthMuted}"/>
+    </Style>
+    <Style Selector="Button.auth-link:pointerover, Button.auth-link:focus-visible">
+        <Setter Property="Foreground" Value="{DynamicResource AuthLinkHover}"/>
+    </Style>
+    <Style Selector="Button.auth-link:pointerover TextBlock, Button.auth-link:focus-visible TextBlock">
+        <Setter Property="TextDecorations" Value="Underline"/>
+    </Style>
+    <Style Selector="Button.auth-link:pressed">
+        <Setter Property="Foreground" Value="{DynamicResource AuthLink}"/>
+    </Style>
+    <Style Selector="Button.auth-link:disabled">
+        <Setter Property="Opacity" Value="0.6"/>
+    </Style>
+    <Style Selector="Button.AuthTextLink">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Height" Value="NaN"/>
+        <Setter Property="MinHeight" Value="0"/>
+        <Setter Property="MinWidth" Value="0"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Foreground" Value="{DynamicResource AuthLink}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusAdorner" Value="{x:Null}"/>
+        <Style Selector="^.muted">
+            <Setter Property="Foreground" Value="{DynamicResource AuthMuted}"/>
+        </Style>
+        <Style Selector="^:pointerover, ^:pressed, ^:focus, ^:focus-visible">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="^:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource AuthLinkHover}"/>
+        </Style>
+        <Style Selector="^:focus-visible TextBlock">
+            <Setter Property="TextDecorations" Value="Underline"/>
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Opacity" Value="0.6"/>
+        </Style>
+    </Style>
+    <Style Selector="Button.auth-icon">
+        <Setter Property="Width" Value="36"/>
+        <Setter Property="Height" Value="36"/>
+        <Setter Property="MinWidth" Value="0"/>
+        <Setter Property="MinHeight" Value="0"/>
+        <Setter Property="CornerRadius" Value="7"/>
+        <Setter Property="Foreground" Value="{DynamicResource AuthMuted}"/>
+    </Style>
+    <Style Selector="Button.auth-icon:pointerover">
+        <Setter Property="Background" Value="{DynamicResource AuthHover}"/>
+        <Setter Property="Foreground" Value="{DynamicResource AuthText}"/>
+    </Style>
+    <Style Selector="Button.auth-icon:pressed">
+        <Setter Property="Background" Value="{DynamicResource AuthPressed}"/>
+        <Setter Property="Foreground" Value="{DynamicResource AuthText}"/>
+    </Style>
+    <Style Selector="Button.auth-icon PathIcon">
+        <Setter Property="Width" Value="19"/>
+        <Setter Property="Height" Value="19"/>
+    </Style>
+</Styles>

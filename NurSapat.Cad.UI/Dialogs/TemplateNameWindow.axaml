@@ -1,0 +1,47 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.Cad.UI.ViewModels"
+        Width="360"
+        Height="145"
+        Title="Сохранить в типовые"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="0"
+        x:Class="NurSapat.Cad.UI.Dialogs.TemplateNameWindow"
+        x:DataType="vm:TemplateNameViewModel"
+        FontFamily="Inter">
+
+    <Border Background="White" BorderBrush="#808080" BorderThickness="2" CornerRadius="8"
+            PointerPressed="OnWindowPointerPressed">
+        <!-- Форма отцентрирована по вертикали внутри окна -->
+        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12" Margin="20" VerticalAlignment="Center">
+            
+            <!-- Поле ввода названия -->
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <TextBlock Text="Название" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="1" Text="{Binding NameText, Mode=TwoWay}"/>
+            </Grid>
+
+            <!-- Сообщение об ошибке -->
+            <TextBlock Grid.Row="1" Text="{Binding ValidationMessage}" Foreground="#DC2626" FontSize="11"/>
+
+            <!-- Кнопки с выравниванием содержимого по центру -->
+            <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="12">
+                <Button Content="OK" 
+                        Command="{Binding ConfirmCommand}" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+
+                <Button Grid.Column="1" 
+                        Content="Отмена" 
+                        Command="{Binding CancelCommand}" 
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

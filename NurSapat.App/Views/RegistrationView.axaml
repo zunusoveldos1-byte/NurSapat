@@ -3,25 +3,68 @@
              xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
              x:Class="NurSapat.App.Views.RegistrationView"
              x:DataType="vm:RegistrationViewModel">
-	<Grid Background="{StaticResource BackgroundBrush}"
-          VerticalAlignment="Center" HorizontalAlignment="Center" Width="360">
-		<StackPanel Spacing="12" Margin="32">
-			<TextBlock Text="Регистрация" FontSize="24"
-                       Foreground="{StaticResource TextBrush}"
-                       HorizontalAlignment="Center"/>
-			<TextBlock Text="{Binding ErrorMessage}"
-                       Foreground="{StaticResource ErrorBrush}"
-                       IsVisible="{Binding !!ErrorMessage}"/>
-			<TextBox Text="{Binding Username}" PlaceholderText="Имя пользователя"/>
-			<TextBox Text="{Binding Password}" PasswordChar="*" PlaceholderText="Пароль"/>
-			<TextBox Text="{Binding ConfirmPassword}" PasswordChar="*" PlaceholderText="Подтверждение пароля"/>
-			<Button Content="Зарегистрироваться" Classes="Primary"
-                    Command="{Binding RegisterCommand}"
-                    IsEnabled="{Binding !IsBusy}"/>
-			<Button Content="Назад" Classes="Secondary"
-                    Command="{Binding BackToLoginCommand}"/>
-			<ProgressBar IsIndeterminate="True"
-                         IsVisible="{Binding IsBusy}" Height="4"/>
-		</StackPanel>
-	</Grid>
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                  VerticalAlignment="Center" Focusable="False">
+        <StackPanel Classes="auth-form">
+            <StackPanel Classes="auth-heading">
+                <TextBlock Text="Регистрация" Classes="auth-title auth-text"/>
+                <TextBlock Text="Создайте аккаунт NurSapat, чтобы начать работу" Classes="auth-muted" FontSize="17"/>
+            </StackPanel>
+
+            <StackPanel Classes="auth-field-group">
+                <TextBlock x:Name="UsernameLabel" Text="Логин" Classes="auth-label"/>
+                <Border Classes="auth-input" Classes.invalid="{Binding HasUsernameError}">
+                    <TextBox Classes="auth-field" Text="{Binding Username}" PlaceholderText="Введите логин"
+                             IsReadOnly="{Binding IsBusy}" AutomationProperties.LabeledBy="{Binding #UsernameLabel}"/>
+                </Border>
+                <TextBlock Classes="auth-error" Classes.shown="{Binding HasUsernameError}" Text="{Binding UsernameError}"/>
+            </StackPanel>
+
+            <StackPanel Classes="auth-field-group">
+                <TextBlock x:Name="PasswordLabel" Text="Пароль" Classes="auth-label"/>
+                <Border Classes="auth-input" Classes.invalid="{Binding HasPasswordError}">
+                    <TextBox Classes="auth-field" Text="{Binding Password}" PlaceholderText="Введите пароль"
+                             PasswordChar="*" IsReadOnly="{Binding IsBusy}"
+                             AutomationProperties.LabeledBy="{Binding #PasswordLabel}"/>
+                </Border>
+                <TextBlock Classes="auth-error" Classes.shown="{Binding HasPasswordError}" Text="{Binding PasswordError}"/>
+            </StackPanel>
+
+            <StackPanel Classes="auth-field-group">
+                <TextBlock x:Name="ConfirmLabel" Text="Повтор пароля" Classes="auth-label"/>
+                <Border Classes="auth-input" Classes.invalid="{Binding HasConfirmPasswordError}">
+                    <TextBox Classes="auth-field" Text="{Binding ConfirmPassword}" PlaceholderText="Повторите пароль"
+                             PasswordChar="*" IsReadOnly="{Binding IsBusy}"
+                             AutomationProperties.LabeledBy="{Binding #ConfirmLabel}"/>
+                </Border>
+                <TextBlock Classes="auth-error" Classes.shown="{Binding HasConfirmPasswordError}"
+                           Text="{Binding ConfirmPasswordError}"/>
+            </StackPanel>
+
+            <WrapPanel>
+                <CheckBox Classes="auth-remember" Content="Согласен с" IsChecked="{Binding HasAcceptedTerms}"
+                          IsEnabled="{Binding !IsBusy}" VerticalAlignment="Center" Margin="0,0,4,0"
+                          AutomationProperties.Name="Согласен с правилами пользования NurSapat"/>
+                <Button Theme="{StaticResource AuthTextLink}" Classes="AuthTextLink"
+                        Click="OnTermsClick" VerticalAlignment="Center"
+                        AutomationProperties.Name="Прочитать правила пользования NurSapat">
+                    <TextBlock Text="правилами"/>
+                </Button>
+            </WrapPanel>
+
+            <TextBlock Classes="auth-error" Classes.shown="{Binding HasFormError}" Text="{Binding ErrorMessage}"/>
+            <Button Classes="auth-primary" Classes.error="{Binding HasError}" Classes.loading="{Binding IsBusy}"
+                    Content="{Binding RegisterButtonLabel}" Command="{Binding RegisterCommand}"
+                    IsDefault="True" Margin="0,7,0,0"/>
+
+            <WrapPanel HorizontalAlignment="Center" Margin="0,5">
+                <TextBlock Text="Уже есть аккаунт?" Classes="auth-muted" FontSize="14"
+                           VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <Button Theme="{StaticResource AuthTextLink}" Classes="AuthTextLink"
+                        Command="{Binding BackToLoginCommand}" VerticalAlignment="Center">
+                    <TextBlock Text="Войти"/>
+                </Button>
+            </WrapPanel>
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>

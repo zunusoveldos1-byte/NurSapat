@@ -1,0 +1,56 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dictionaries"
+        x:Class="NurSapat.App.Views.Dictionaries.OrderHeaderEditWindow"
+        x:DataType="vm:OrderHeaderEditViewModel"
+        Width="640"
+        Height="520"
+        MinWidth="560"
+        MinHeight="460"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="32,*,Auto">
+            <Border Grid.Row="0" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="mat-titlebar-text" Text="{Binding WindowTitle}" Margin="16,0,0,0" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Classes="mat-chrome-btn close" Click="OnCloseClick" Content="✕" Margin="0,0,8,0"/>
+                </Grid>
+            </Border>
+            <ScrollViewer Grid.Row="1" Margin="12,0,12,0">
+                <Border Classes="mat-card">
+                    <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+                        <TextBlock Text="Номер заказа" VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="1" Text="{Binding OrderNumber}"/>
+                        <TextBlock Grid.Row="1" Text="Дата" VerticalAlignment="Center"/>
+                        <DatePicker Grid.Row="1" Grid.Column="1" SelectedDate="{Binding DateCreated}"/>
+                        <TextBlock Grid.Row="2" Text="Заказчик" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding CustomerName}"/>
+                        <TextBlock Grid.Row="3" Text="Конструкций" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Row="3" Grid.Column="1" Minimum="0" Increment="1" Value="{Binding StructuresCount}"/>
+                        <TextBlock Grid.Row="4" Text="Сумма, сом" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Row="4" Grid.Column="1" Minimum="0" Increment="100" Value="{Binding TotalSum}"/>
+                        <TextBlock Grid.Row="5" Text="Статус" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{Binding StatusOptions}" SelectedItem="{Binding Status}"/>
+                    </Grid>
+                </Border>
+            </ScrollViewer>
+            <Border Grid.Row="2" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="{Binding ValidationMessage}" Foreground="#DC2626" TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="mat-toolbar" Content="Отмена" Command="{Binding CancelCommand}"/>
+                        <Button Classes="mat-primary" Content="ОК" Command="{Binding SaveCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

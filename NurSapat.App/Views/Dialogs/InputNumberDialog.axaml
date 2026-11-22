@@ -1,0 +1,82 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dialogs"
+        x:Class="NurSapat.App.Views.Dialogs.InputNumberDialog"
+        x:DataType="vm:InputNumberDialogViewModel"
+        Width="320"
+        Height="180"
+        MinWidth="280"
+        MinHeight="160"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="4">
+        <Grid RowDefinitions="28,*,Auto">
+            
+            <!-- Заголовок окна -->
+            <Border Grid.Row="0" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="mat-titlebar-text"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               TextAlignment="Center"
+                               FontSize="12"
+                               Text="{Binding Title}"/>
+                    <Button Grid.Column="1"
+                            Classes="mat-chrome-btn close"
+                            Click="OnCloseClick"
+                            Content="✕"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- Основной контент (по центру) -->
+            <StackPanel Grid.Row="1" 
+                        Margin="10" 
+                        Spacing="8" 
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                <TextBlock Text="{Binding Prompt}" 
+                           TextWrapping="Wrap" 
+                           TextAlignment="Center" 
+                           HorizontalAlignment="Center"
+                           FontSize="12"/>
+                
+                <NumericUpDown Minimum="{Binding Minimum}"
+                               Maximum="{Binding Maximum}"
+                               Increment="1"
+                               FormatString="N0"
+                               Value="{Binding Value}"
+                               HorizontalAlignment="Center"
+                               Width="110"/>
+            </StackPanel>
+
+            <!-- Нижняя панель с кнопками -->
+            <Border Grid.Row="2" Padding="8,10" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                    <Button Classes="mat-toolbar"
+                            Content="Отмена"
+                            Command="{Binding CancelCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                    <Button Classes="mat-primary"
+                            Content="ОК"
+                            Command="{Binding ConfirmCommand}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

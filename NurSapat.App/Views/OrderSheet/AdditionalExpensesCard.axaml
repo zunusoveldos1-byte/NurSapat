@@ -1,0 +1,93 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NurSapat.App.ViewModels"
+             x:Class="NurSapat.App.Views.OrderSheet.AdditionalExpensesCard"
+             x:DataType="vm:OrderSheetViewModel"
+             FontFamily="Inter, Segoe UI">
+
+    <UserControl.Styles>
+        <StyleInclude Source="/Styles/OrderSheetStyles.axaml"/>
+
+        <Style Selector="TextBox.cell">
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="MinHeight" Value="26"/>
+            <Setter Property="MaxHeight" Value="26"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="BorderBrush" Value="#E5EAF3"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Padding" Value="4,0"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="10">
+        <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="6">
+
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="4">
+                <TextBlock Classes="cardTitle" Text="Дополнительные расходы" VerticalAlignment="Center"
+                           FontSize="14" TextTrimming="CharacterEllipsis"/>
+                <Button Grid.Column="1" Classes="ref" Width="28" Height="28" MinWidth="28"
+                        Command="{Binding AddAdditionalExpenseCommand}" ToolTip.Tip="Добавить строку">
+                    <TextBlock Text="+" FontSize="16" Foreground="#2563EB" VerticalAlignment="Center"/>
+                </Button>
+                <Button Grid.Column="2" Classes="ref" Width="28" Height="28" MinWidth="28" ToolTip.Tip="Ещё">
+                    <TextBlock Text="&#xE712;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="#475569"/>
+                </Button>
+            </Grid>
+
+            <Border Grid.Row="1" Classes="tableHeader">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
+                    <TextBlock Grid.Column="0" Classes="th" Text="Наименование"/>
+                    <TextBlock Grid.Column="1" Classes="th" Text="Ед." Width="44" TextAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Classes="th" Text="Кол." Width="44" TextAlignment="Center"/>
+                    <TextBlock Grid.Column="3" Classes="th" Text="Цена" Width="56" TextAlignment="Right"/>
+                    <TextBlock Grid.Column="4" Classes="th" Text="Сумма" Width="60" TextAlignment="Right"/>
+                    <TextBlock Grid.Column="5" Classes="th" Text="" Width="26"/>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Нет дополнительных расходов. Нажмите «+», чтобы добавить."
+                               FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap" Margin="2,4"
+                               IsVisible="{Binding ShowAdditionalExpensesEmpty}"/>
+
+                    <ItemsControl ItemsSource="{Binding AdditionalExpenses}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AdditionalExpenseLine">
+                                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="4" Margin="0,0,0,2">
+                                    <TextBox Grid.Column="0" Classes="cell"
+                                             PlaceholderText="Наименование"
+                                             Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBox Grid.Column="1" Classes="cell" Width="44"
+                                             Text="{Binding Unit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBox Grid.Column="2" Classes="cell" Width="44"
+                                             Text="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBox Grid.Column="3" Classes="cell" Width="56"
+                                             Text="{Binding Price, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBlock Grid.Column="4" Classes="td" Width="60" TextAlignment="Right" FontSize="11"
+                                               Text="{Binding SumDisplay}" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="5" Width="26" Height="26" Padding="0" CornerRadius="4"
+                                            Background="White" BorderBrush="#E5EAF3" BorderThickness="1" Cursor="Hand"
+                                            Command="{Binding $parent[ItemsControl].((vm:OrderSheetViewModel)DataContext).RemoveAdditionalExpenseCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip.Tip="Удалить">
+                                        <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="10" Foreground="#EF4444"/>
+                                    </Button>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Border Grid.Row="3" Classes="totalStrip" Padding="10,5">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="Итого" FontSize="12" FontWeight="SemiBold" Foreground="#1D4ED8" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Classes="totalValue" FontSize="14" Text="{Binding AdditionalExpensesTotalDisplay}"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

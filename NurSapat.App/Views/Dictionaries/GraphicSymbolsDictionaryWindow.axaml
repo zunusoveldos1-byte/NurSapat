@@ -1,0 +1,81 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NurSapat.App.ViewModels.Dictionaries"
+        xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+        x:Class="NurSapat.App.Views.Dictionaries.GraphicSymbolsDictionaryWindow"
+        x:DataType="vm:GraphicSymbolsDictionaryViewModel"
+        Width="960"
+        Height="640"
+        MinWidth="800"
+        MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Background="Transparent"
+        FontFamily="Inter">
+
+    <Window.Styles>
+        <StyleInclude Source="/Styles/MaterialsDictionaryStyles.axaml"/>
+    </Window.Styles>
+
+    <Border Classes="mat-shell" Margin="12">
+        <Grid RowDefinitions="32,Auto,*,Auto">
+            <Border Grid.Row="0" Classes="mat-titlebar" PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="16,0,0,0">
+                        <Image Source="/Assets/logo.ico" Width="16" Height="16"/>
+                        <TextBlock Classes="mat-titlebar-text" Text="{Binding Title}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,8,0">
+                        <Button Classes="mat-chrome-btn" Click="OnMinimizeClick" Content="—"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                        <Button Classes="mat-chrome-btn" Click="OnMaximizeClick" Content="▢"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                        <Button Classes="mat-chrome-btn close" Click="OnCloseClick" Content="✕"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="1" Margin="12,0,12,0" Padding="0,0,0,10" Background="White">
+                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="10">
+                    <Button Classes="mat-primary" Content="Добавить" Command="{Binding AddCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1" Classes="mat-toolbar" Content="Редактировать" Command="{Binding EditCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="2" Classes="mat-toolbar" Content="Назначить" Command="{Binding AssignCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="3" Classes="mat-toolbar" Content="Удалить" Command="{Binding DeleteCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="4" Classes="mat-toolbar" Content="Закрыть" Command="{Binding CloseWindowCommand}"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+                    <TextBox Grid.Column="5" PlaceholderText="Поиск..." Text="{Binding SearchText}"
+                             MinHeight="36" VerticalContentAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="2" Margin="12,0,12,0" RowDefinitions="*">
+                <dg:DataGrid Grid.Row="0"
+                             ItemsSource="{Binding FilteredItems}"
+                             SelectedItem="{Binding SelectedItem}"
+                             AutoGenerateColumns="False"
+                             CanUserSortColumns="True"
+                             GridLinesVisibility="Horizontal"
+                             BorderBrush="#E2E8F0"
+                             BorderThickness="1"
+                             IsReadOnly="True">
+                    <dg:DataGrid.Columns>
+                        <dg:DataGridTextColumn Header="Наименование" Binding="{Binding Name}" Width="2*"/>
+                        <dg:DataGridTextColumn Header="Код" Binding="{Binding Code}" Width="160"/>
+                    </dg:DataGrid.Columns>
+                </dg:DataGrid>
+            </Grid>
+
+            <Border Grid.Row="3" Padding="16" Background="#F8FAFC" CornerRadius="0,0,12,12">
+                <TextBlock Foreground="#64748B"
+                           Text="{Binding FilteredItems.Count, StringFormat=Записей в справочнике: {0}}"/>
+            </Border>
+        </Grid>
+    </Border>
+</Window>
